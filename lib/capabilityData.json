@@ -1,0 +1,172 @@
+{
+  "headers": [
+    "Ecologist Specific",
+    "Written Communication",
+    "Oral Communication",
+    "Teamwork",
+    "Leadership & Judgement",
+    "Conceptual & Analytical",
+    "Results Oriented",
+    "Health & Safety"
+  ],
+  "levels": [
+    {
+      "level": "Early career",
+      "capabilities": {
+        "Ecologist Specific": "Has proficient skills, and is passionate gaining experience, in one of:\n\n\u00b7 Flora and habitat identification and management\n\u00b7 Fauna and habitat identification and management\n\u00b7 Fauna handling\n\u00b7 Ecology reporting and mapping\n\nHas the requisite physicality to undertake demanding fieldwork",
+        "Written Communication": "Prepares drafts of straightforward reports that can be brought to final standard with minor amendment\n\nBusiness communications are clear and professional\n\nChecks own spelling and grammar",
+        "Oral Communication": "Summarises and clearly conveys information, including with clients\n\nCan make presentations on straightforward issues\n\nListens, follows instructions, and responds appropriately",
+        "Teamwork": "Arrives punctually for meetings or fieldwork\n\nIs prepared for meetings or fieldwork\n\nDemonstrates respect, honesty and consideration for others\n\nExhibits positive attitude to work",
+        "Leadership & Judgement": "Demonstrates enthusiasm and commitment to teamwork\n\nCan be relied on to make timely and accurate decisions related to own tasks\n\nDemonstrates initiative and seeks advice",
+        "Conceptual & Analytical": "Readily applies tools, concepts and research to identify possible solutions to a variety of problems",
+        "Results Oriented": "Completes work on schedule with attention to accuracy\n\nReadily admits errors and commits to rectify\n\nIdentifies self-development oportunities to reduce error rates\n\n",
+        "Health & Safety": "Understands WHS policies and their criticality, particularly for fieldwork\n\nComplies with Safe Work Methods\n\nAdvises managers about desirable improvements in SWMs"
+      }
+    },
+    {
+      "level": "Experienced",
+      "capabilities": {
+        "Ecologist Specific": "Has advanced skills in one of:\n\n\u00b7 Flora and habitat identification\n\u00b7 Fauna and habitat identification\n\u00b7 Fauna handling\n\u00b7 Ecology reporting and mapping",
+        "Written Communication": "Prepares drafts of more complex interpretive material that can be brought to final standard with minor amendment\n\nAssists staff to prepare material suitable to the audience",
+        "Oral Communication": "Liaises effectively internally and externally\n\nPresents clearly and succinctly internally on a range of matters\n\nDevelops networks to obtain information",
+        "Teamwork": "Models punctuality and preparedness for meetings or fieldwork\n\nParticipates actively in meetings to add value to the discussion",
+        "Leadership & Judgement": "Strives for excellence\n\nFosters teamwork, promotes consultation, shares ideas, values diversity\n\nLeads team initiatives",
+        "Conceptual & Analytical": "Defines problems and establishes frameworks to identify possible solutions\n\nIdentifies related issues and consequences of proposed solutions\n\nCompetent in the use of standard business tools",
+        "Results Oriented": "Completes work with negligible errors\n\nExemplifies excellence in fieldwork and reporting\n",
+        "Health & Safety": "Promotes safety in the workplace as the first priority for all staff\n\nEnsures all staff comply with WHS policies and Safe Work Methods\n\nActively engages in WHS continuous improvement"
+      }
+    },
+    {
+      "level": "Senior",
+      "capabilities": {
+        "Ecologist Specific": "Trains staff with skills in one or more of:\n\n\u00b7 Bioregional ecosystems\n\u00b7 Flora and habitat identification\n\u00b7 Fauna and habitat identification\n\u00b7 Fauna handling\n\u00b7 Ecology reporting and mapping",
+        "Written Communication": "Prepares complex reports to final standard, understanding the implications of the report findings\n\nApproves reports to accredited standard where assigned accountability\n\nAssists staff to prepare material suitable to the audience",
+        "Oral Communication": "Liaises and negotiates effectively internally and externally on more complex matters\n\nPresents clearly internally and externally and moves groups to conclusions\n\nDelivers advice to clients and external parties clearly and effectively, taking account of sensitivities and broader context\n\nUses networks to achieve results",
+        "Teamwork": "Demonstrates respect, fairness, honesty and consideration for others\n\nAnticipates emerging issues and takes early action to promote effective teamwork and respect\n\nFosters enthusiastic effort from staff\n\nUses appropriate delegation to ensure staff development",
+        "Leadership & Judgement": "Fosters excellence and the development of a high performing team\n\nMakes accurate assessments of staff performance\n\nGuides and coaches staff, identifying and addressing development needs",
+        "Conceptual & Analytical": "Defines problems and adapts analytical tools and frameworks to resolve more complex issues\n\nUnderstands the wider context\n\nMakes sound recommendations\n\nContributes to development of the business strategy",
+        "Results Oriented": "Delivers multiple streams of work on schedule\n\nJuggles work schedules and priorities to maximise throughput\n\nAssists staff to improve accuracy",
+        "Health & Safety": "Adapts Safe Work Methods to suit on-ground conditions and unforseen events\n\nIdentifies WHS improvements and pursues their adoption"
+      }
+    },
+    {
+      "level": "Director",
+      "capabilities": {
+        "Ecologist Specific": "Has expertise in one or more of:\n\n\u00b7 Bioregional ecosystems\n\u00b7 Flora and habitat identification\n\u00b7 Fauna and habitat identification\n\u00b7 Fauna handling\n\u00b7 Ecology reporting and mapping",
+        "Written Communication": "Independently prepares reports to final standard\n\nProvides direction and support for authors\n\nAdds value to drafts by providing insights on structure and identifying links between issues",
+        "Oral Communication": "Leads consultations, chairs meetings, and uses presentations to move groups to conclusions on more complex material\n\nUses networks to identify risks, influence on issues, and raise awareness of corporate capabilities",
+        "Teamwork": "Actively develops the team and staff capabilities\n\nBuilds a cohesive identity for the company\n\nTailors own style to individuals\n\nModels a cooperative and collegiate approach",
+        "Leadership & Judgement": "Consistently makes accurate decisions, using limited information under pressure and in complex situations, understanding the broader context\n\nConducts appraisals in accordance with the Performance Management System",
+        "Conceptual & Analytical": "Demonstrates insight and vision in conceptualising and providing solutions\n\nMarshalls views to shape the business strategy\n\nUnderstands and promotes best practices ",
+        "Results Oriented": "Oversees and contributes to the scheduling of work to maximise effective delivery of priorities",
+        "Health & Safety": "Understands the criticality of workplace safety for business continuity\n\nMarshalls staff to behave safely and engage in continuous improvement"
+      }
+    }
+  ],
+  "assessment": [
+    [
+      "Assessments using the framework",
+      null,
+      null
+    ],
+    [
+      "The manager will assess the performance of the employee over the appraisal period against each of the criteria in the capability framework. There are 4 possible levels of assessment for each criterion.",
+      null,
+      null
+    ],
+    [
+      1,
+      "The employee exceeds the standard for this criterion\u2014they are performing at a higher level of classification",
+      null
+    ],
+    [
+      "2+",
+      "The employee meets the standard to a high degree, but does not meet the standard required for the next highest level of classification",
+      null
+    ],
+    [
+      2,
+      "The employee meets the standard for this criterion at their current classification level\u2014they are performing fully",
+      null
+    ],
+    [
+      3,
+      "The employee is developing their capability at this level of classification",
+      null
+    ],
+    [
+      "Overall performance",
+      null,
+      null
+    ],
+    [
+      "There are four possible overall assessments:",
+      null,
+      null
+    ],
+    [
+      "Outstanding",
+      null,
+      "The employee has performed consistently at a higher standard than expected for their classification. This requires 5 criteria scored at a level of 1 and no criteria scored at a level of 3. Consideration should be given to these staff receiving a promotion or a performance bonus."
+    ],
+    [
+      "Highly satisfactory",
+      null,
+      "The employee has performed at or above the standard expected for their classification level for all criteria. This requires a score of 2 or higher for all criteria. High performing staff would be expected to receive this rating."
+    ],
+    [
+      "Satisfactory",
+      null,
+      "The employee is meeting performance expectations. This requires a rating of 2 or higher in at least 5 criteria. Most staff would be expected to receive this rating."
+    ],
+    [
+      "Developing",
+      null,
+      "The employee is still developing to standard for their current classification level. This will result from a rating of 3 in four or more criteria. Most newly promoted staff would be expected to receive this rating."
+    ]
+  ],
+  "reports": [
+    [
+      "Straightforward",
+      "Intermediate",
+      "Complex",
+      null,
+      "Final standard"
+    ],
+    [
+      "Preliminary site assessments",
+      "Flora & fauna assessments",
+      "BDAR",
+      null,
+      "Requires only minor changes to finalise"
+    ],
+    [
+      "Clearing surveys",
+      "Review of Environmental Effects",
+      "BSAR",
+      null,
+      "Makes use of corporate templates"
+    ],
+    [
+      "Education guides",
+      "Management Plans",
+      "BCAR",
+      null,
+      "Provides additional reporting where necessary"
+    ],
+    [
+      null,
+      "Information briefing",
+      "Client advice",
+      null,
+      "Complies with corporate style guide"
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      "Proof reads own work for accuracy, spelling, grammar"
+    ]
+  ]
+}
