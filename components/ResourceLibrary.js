@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Folder, ChevronRight, ArrowLeft, FileText } from "lucide-react";
 import * as db from "../lib/data";
 import TrainingLibrary, { C, FONT, LEVEL_COLORS, LEVEL_INFORMAL, inputStyle, ResourceList } from "./TrainingLibrary";
+import QuizFolder from "./Quiz";
 
 const TOPICS = ["Pathways & Legislation", "Flora", "Fauna", "Reporting", "Business Operations", "Projects", "GIS"];
 const LEVEL_ORDER = ["Early career", "Experienced", "Senior", "Director"];
@@ -132,12 +133,18 @@ function TopicFolder({ topic, folders, isAdmin, onSaveFolder, onToast, onBack })
             <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft }}>{topic} · {openLevel}</div>
           </div>
         </div>
-        <ItemsFolder
-          items={folder?.[openSub] || []} isAdmin={isAdmin}
-          onSave={(next) => onSaveFolder(topic, openLevel, openSub, next)} onToast={onToast}
-          emptyLabel={`No ${sub.label.toLowerCase()} here yet.`}
-          addLabel={openSub === "quizzes" ? "Add quiz" : undefined}
-        />
+        {openSub === "quizzes" ? (
+          <QuizFolder
+            quizzes={folder?.quizzes || []} isAdmin={isAdmin}
+            onSave={(next) => onSaveFolder(topic, openLevel, "quizzes", next)} onToast={onToast}
+          />
+        ) : (
+          <ItemsFolder
+            items={folder?.[openSub] || []} isAdmin={isAdmin}
+            onSave={(next) => onSaveFolder(topic, openLevel, openSub, next)} onToast={onToast}
+            emptyLabel={`No ${sub.label.toLowerCase()} here yet.`}
+          />
+        )}
       </div>
     );
   }
