@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronDown, ChevronRight, Plus, X, Pencil, Lock, Unlock, Check, Search, ArrowLeft } from "lucide-react";
 import * as db from "../lib/data";
+import { supabase } from "../lib/supabaseClient";
 import { C, FONT, inputStyle } from "./TrainingLibrary";
 
 const smallBtn = { borderRadius: 6, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: FONT };
@@ -171,17 +172,91 @@ function AssignedModuleCard({ module, isAdmin, isOwner, onMutate, onToast }) {
    Staff picker (admin only) — search the existing roster
 ----------------------------------------------------------------- */
 
+function NewStaffForm({ onCreated, onToast }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [issued, setIssued] = useState(null); // { email, tempPassword, id }
+
+  const create = async () => {
+    const clean = email.trim().toLowerCase();
+    if (!clean.endsWith("@ecologyconsulting.au")) { onToast && onToast("Must be an @ecologyconsulting.au email"); return; }
+    setBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin/invite-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
+        body: JSON.stringify({ email: clean }),
+      });
+      const body = await res.json();
+      if (!res.ok) { onToast && onToast(body.error || "Couldn't create login"); return; }
+      // We need the new auth user's id to draft for them — the roster
+      // endpoint won't include them until they've signed in at least once,
+      // so pull it via the admin staff-creation response isn't enough on
+      // its own; ask the roster once more, they'll appear once they sign
+      // in. For now, show the temp password and let the admin continue
+      // once the person has logged in at least once.
+      setIssued({ email: body.email, tempPassword: body.tempPassword });
+    } catch {
+      onToast && onToast("Couldn't reach the server");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (issued) {
+    return (
+      <div style={{ background: C.amberBg, border: `1px solid ${C.amberLight || C.line}`, borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: C.amberText }}>Login created — shown once, copy it now:</div>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{issued.email}</div>
+        <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: C.ink }}>{issued.tempPassword}</div>
+        <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: C.inkSoft, lineHeight: 1.5 }}>
+          Relay this to them and have them sign in once (Password or Email link) — that creates their account properly. Once they've signed in the first time, search for them under "Existing staff member" to start drafting their modules.
+        </p>
+        <button onClick={() => { setIssued(null); setEmail(""); onCreated && onCreated(); }} style={{
+          alignSelf: "flex-start", background: C.green400, color: "#fff", border: "none", borderRadius: 8,
+          padding: "8px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
+        }}>
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.inkSoft, lineHeight: 1.5 }}>
+        Enter their email to create their login now. They'll need to sign in once before you can draft modules for them — accounts only fully exist in the roster after a first sign-in.
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@ecologyconsulting.au"
+          onKeyDown={(e) => e.key === "Enter" && create()} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={create} disabled={busy} style={{
+          background: C.green400, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px",
+          fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT, opacity: busy ? 0.6 : 1, flexShrink: 0,
+        }}>
+          {busy ? "Creating…" : "Create login"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StaffPicker({ onPick, onToast }) {
+  const [tab, setTab] = useState("existing"); // "existing" | "new"
   const [query, setQuery] = useState("");
   const [staff, setStaff] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     db.fetchStaffProgress()
       .then((res) => setStaff(res.staff))
       .catch(() => onToast && onToast("Couldn't load the staff list"))
       .finally(() => setLoading(false));
   }, [onToast]);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = (staff || []).filter((s) =>
     !query || s.name.toLowerCase().includes(query.toLowerCase()) || s.email.toLowerCase().includes(query.toLowerCase())
@@ -192,32 +267,51 @@ function StaffPicker({ onPick, onToast }) {
       <div>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: C.green800, fontFamily: FONT }}>Draft Onboarding</h1>
         <p style={{ margin: "6px 0 0", fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>
-          Pick a staff member to draft or manage their own onboarding modules. They won't see anything until you unlock each module.
+          Build a personal onboarding path for one staff member. Nothing is visible to them until you Lock &amp; Assign it.
         </p>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px" }}>
-        <Search size={14} color={C.inkFaint} />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or email…" style={{ border: "none", outline: "none", flex: 1, fontSize: 13.5, fontFamily: FONT, background: "transparent" }} />
-      </div>
-      {loading && <div style={{ color: C.inkSoft, fontWeight: 700, padding: 20, textAlign: "center" }}>Loading staff…</div>}
-      {!loading && filtered.length === 0 && <div style={{ color: C.inkFaint, fontStyle: "italic", padding: 20, textAlign: "center" }}>No one matches yet — staff need to have signed in at least once.</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((s) => (
-          <button key={s.id} onClick={() => onPick(s)} style={{
-            display: "flex", alignItems: "center", gap: 12, textAlign: "left", cursor: "pointer",
-            background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 16px", fontFamily: FONT,
+
+      <div style={{ display: "flex", gap: 6, background: C.bg, borderRadius: 10, padding: 4, width: "fit-content" }}>
+        {[["existing", "Existing staff member"], ["new", "New staff member"]].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{
+            border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 800, fontFamily: FONT, cursor: "pointer",
+            background: tab === key ? "#fff" : "transparent", color: tab === key ? C.green700 : C.inkSoft,
+            boxShadow: tab === key ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
           }}>
-            <div style={{ width: 36, height: 36, borderRadius: 99, background: C.greenTint, color: C.green600, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
-              {s.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: C.ink }}>{s.name}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft }}>{s.email}</div>
-            </div>
-            <ChevronRight size={16} color={C.inkFaint} />
+            {label}
           </button>
         ))}
       </div>
+
+      {tab === "new" ? (
+        <NewStaffForm onCreated={load} onToast={onToast} />
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px" }}>
+            <Search size={14} color={C.inkFaint} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or email…" style={{ border: "none", outline: "none", flex: 1, fontSize: 13.5, fontFamily: FONT, background: "transparent" }} />
+          </div>
+          {loading && <div style={{ color: C.inkSoft, fontWeight: 700, padding: 20, textAlign: "center" }}>Loading staff…</div>}
+          {!loading && filtered.length === 0 && <div style={{ color: C.inkFaint, fontStyle: "italic", padding: 20, textAlign: "center" }}>No one matches yet — staff need to have signed in at least once.</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {filtered.map((s) => (
+              <button key={s.id} onClick={() => onPick(s)} style={{
+                display: "flex", alignItems: "center", gap: 12, textAlign: "left", cursor: "pointer",
+                background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 16px", fontFamily: FONT,
+              }}>
+                <div style={{ width: 36, height: 36, borderRadius: 99, background: C.greenTint, color: C.green600, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
+                  {s.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.ink }}>{s.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft }}>{s.email}</div>
+                </div>
+                <ChevronRight size={16} color={C.inkFaint} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -263,6 +357,16 @@ export function DraftOnboarding({ onToast, currentEmail }) {
     } catch { onToast && onToast("Couldn't add module"); }
   };
 
+  const setAssignedAll = async (unlocked) => {
+    setModules((prev) => prev.map((m) => ({ ...m, unlocked })));
+    try {
+      await db.setAllAssignedModulesUnlocked(staffMember.id, unlocked);
+      onToast && onToast(unlocked ? "Assigned — now visible on their portal" : "Recalled — hidden again");
+    } catch {
+      onToast && onToast("Couldn't update");
+    }
+  };
+
   if (!staffMember) return <StaffPicker onPick={pick} onToast={onToast} />;
 
   return (
@@ -274,9 +378,28 @@ export function DraftOnboarding({ onToast, currentEmail }) {
       }}>
         <ArrowLeft size={13} /> All staff
       </button>
-      <div>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: C.ink, fontFamily: FONT }}>{staffMember.name}'s onboarding</h2>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{staffMember.email}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: C.ink, fontFamily: FONT }}>{staffMember.name}'s onboarding</h2>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{staffMember.email}</div>
+        </div>
+        {loaded && modules.length > 0 && (
+          modules.every((m) => m.unlocked) ? (
+            <button onClick={() => setAssignedAll(false)} style={{
+              display: "flex", alignItems: "center", gap: 8, background: C.greenTint, color: C.green700, border: "none",
+              borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
+            }}>
+              <Unlock size={14} /> Assigned — click to recall
+            </button>
+          ) : (
+            <button onClick={() => setAssignedAll(true)} style={{
+              display: "flex", alignItems: "center", gap: 8, background: C.rust, color: "#fff", border: "none",
+              borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
+            }}>
+              <Lock size={14} /> Lock &amp; Assign
+            </button>
+          )
+        )}
       </div>
       {!loaded && <div style={{ color: C.inkSoft, fontWeight: 700, padding: 20, textAlign: "center" }}>Loading…</div>}
       {loaded && modules.map((m) => (
