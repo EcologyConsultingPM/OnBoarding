@@ -1220,12 +1220,126 @@ function SaveStatus() {
    App
 ----------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------
+   Workbook sidebar — a real table of contents. Click any heading,
+   jump straight to it. Same list either side of the login (admin
+   or staff), pure navigation, no permissions involved.
+----------------------------------------------------------------- */
+
+function WorkbookSidebar({ navItems }) {
+  return (
+    <aside data-print="hide" style={{
+      width: 220, flexShrink: 0, position: "sticky", top: 84, alignSelf: "flex-start",
+      display: "flex", flexDirection: "column", gap: 4,
+      maxHeight: "calc(100vh - 110px)", overflowY: "auto",
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint, padding: "0 10px 6px" }}>
+        On this page
+      </div>
+      {navItems.map((n) => {
+        const complete = n.total > 0 && n.done === n.total;
+        return (
+          <a
+            key={n.id} href={`#phase-${n.id}`}
+            style={{
+              textDecoration: "none", display: "flex", alignItems: "center", gap: 8,
+              padding: "9px 10px", borderRadius: 8, color: C.green600, fontSize: 13, fontWeight: 700,
+              border: `1px solid transparent`,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = C.lineSoft; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>{n.label}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 900, color: complete ? C.green400 : C.inkFaint, flexShrink: 0 }}>{n.done}/{n.total}</span>
+          </a>
+        );
+      })}
+    </aside>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Admin landing page — welcome + the three big starting actions
+----------------------------------------------------------------- */
+
+function displayNameFromEmail(email) {
+  const local = (email || "").split("@")[0] || "";
+  return local.split(/[._-]+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || email;
+}
+
+function ActionTile({ icon, label, desc, color, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, textAlign: "left",
+        cursor: "pointer", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 16,
+        padding: "22px 22px", fontFamily: FONT, flex: 1, minWidth: 220,
+        boxShadow: "0 2px 10px rgba(35,48,31,0.05)",
+      }}
+    >
+      <div style={{
+        width: 46, height: 46, borderRadius: 12, background: `linear-gradient(135deg, ${color}, ${color}cc)`,
+        display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+      }}>
+        {icon}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 900, color: C.ink }}>{label}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, lineHeight: 1.5 }}>{desc}</div>
+    </button>
+  );
+}
+
+function AdminHome({ user, onNavigate }) {
+  const name = displayNameFromEmail(user?.email);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
+      <div style={{
+        background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`,
+        borderRadius: 18, padding: "30px 32px", color: "#fdfdf8", boxShadow: "0 6px 18px rgba(30,77,43,0.22)",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.cream, letterSpacing: "0.02em" }}>{greeting.toUpperCase()}</div>
+        <h1 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, fontFamily: FONT }}>Welcome back, {name}</h1>
+        <p style={{ margin: "8px 0 0", fontSize: 13.5, fontWeight: 600, color: C.cream, maxWidth: 520, lineHeight: 1.5 }}>
+          Pick where you want to start below, or use the tabs above to jump straight to the workbook, staff progress, or the resource library.
+        </p>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 12 }}>
+          Get started
+        </div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <ActionTile
+            icon={<BookOpen size={22} />} label="Start a New Training Module"
+            desc="Add a new module to the shared Learning & Development curriculum."
+            color={C.green400} onClick={() => { onNavigate("workbook"); setTimeout(() => document.getElementById("phase-ld")?.scrollIntoView({ behavior: "smooth" }), 50); }}
+          />
+          <ActionTile
+            icon={<Users2 size={22} />} label="Assess a Staff Member"
+            desc="Open a staff member's progress, review their completed items and sign-offs."
+            color={C.amber} onClick={() => onNavigate("staff")}
+          />
+          <ActionTile
+            icon={<Pencil size={22} />} label="Draft a New Onboarding"
+            desc="Build a personal onboarding path for one staff member, then assign it when ready."
+            color={C.rust} onClick={() => onNavigate("draft")}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OnboardingWorkbook() {
   const { user, isAdmin, signOut } = useAuth();
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [mode, setMode] = useState("workbook"); // "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
+  const [mode, setMode] = useState(() => (isAdmin ? "home" : "workbook")); // "home" (admin) | "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
@@ -1311,9 +1425,16 @@ export default function OnboardingWorkbook() {
 
       {/* Sticky phase nav */}
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,244,238,0.92)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.lineSoft}`, padding: "10px 32px" }}>
-        <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {isAdmin && (
             <>
+              <button onClick={() => setMode("home")} style={{
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
+                border: `1px solid ${mode === "home" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
+                background: mode === "home" ? C.green400 : "#fff", color: mode === "home" ? "#fff" : C.green600,
+              }}>
+                Home
+              </button>
               <button onClick={() => setMode("workbook")} style={{
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
                 border: `1px solid ${mode === "workbook" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
@@ -1352,38 +1473,37 @@ export default function OnboardingWorkbook() {
             <BookOpen size={13} /> Resource Library
           </button>
           <span style={{ width: 1, height: 22, background: C.lineSoft, margin: "0 4px" }} />
-          {mode === "workbook" && navItems.map((n) => (
-            <a key={n.id} href={`#phase-${n.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", borderRadius: 99, background: "#fff", border: `1px solid ${C.lineSoft}`, color: C.green600, fontSize: 13, fontWeight: 800 }}>
-              <span>{n.label}</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: n.total && n.done === n.total ? C.green400 : C.inkFaint }}>{n.done}/{n.total}</span>
-            </a>
-          ))}
         </div>
       </nav>
 
       {/* Main content */}
-      <main style={{ maxWidth: 1080, margin: "0 auto", padding: "40px 32px 80px", display: "flex", flexDirection: "column", gap: 56 }}>
-        {mode === "library" ? (
-          <ResourceLibrary isAdmin={isAdmin} onToast={showToast} />
-        ) : mode === "mine" ? (
-          <MyOnboarding onToast={showToast} />
-        ) : isAdmin && mode === "draft" ? (
-          <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
-        ) : isAdmin && mode === "staff" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <StaffLoginsPanel onToast={showToast} />
-            <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
-            <StaffProgress onToast={showToast} />
-          </div>
-        ) : (
-          <>
-            {data.phases.map((phase, i) => (
-              <PhaseBlock key={phase.id} phase={phase} num={String(i + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
-            ))}
-            <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
-          </>
-        )}
-      </main>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
+        {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
+        <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
+          {mode === "library" ? (
+            <ResourceLibrary isAdmin={isAdmin} onToast={showToast} />
+          ) : mode === "mine" ? (
+            <MyOnboarding onToast={showToast} />
+          ) : isAdmin && mode === "draft" ? (
+            <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+          ) : isAdmin && mode === "staff" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <StaffLoginsPanel onToast={showToast} />
+              <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
+              <StaffProgress onToast={showToast} />
+            </div>
+          ) : isAdmin && mode === "home" ? (
+            <AdminHome user={user} onNavigate={setMode} />
+          ) : (
+            <>
+              {data.phases.map((phase, i) => (
+                <PhaseBlock key={phase.id} phase={phase} num={String(i + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
+              ))}
+              <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
+            </>
+          )}
+        </main>
+      </div>
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onToast={showToast} />}
       <Toast text={toast} />
