@@ -30,9 +30,9 @@ async function listAllUsers(admin) {
 }
 
 export async function GET(request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://mqgumjgotjiphfgqdyyl.supabase.co";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_aLAwL1CqWMwukL7c9Zg2QQ_1mfB2JjY";
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !serviceKey) {
     return Response.json({ error: "Staff directory is not configured on the server." }, { status: 503 });
   }
