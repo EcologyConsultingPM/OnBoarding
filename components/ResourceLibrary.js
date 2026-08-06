@@ -61,6 +61,10 @@ function Breadcrumb({ crumbs, onNavigate }) {
   );
 }
 
+/* ---------------------------------------------------------------
+   Level 3: the actual Resources folder for one topic + level
+----------------------------------------------------------------- */
+
 const SUBFOLDERS = [
   { key: "resources", label: "Resources", desc: "Reference documents, field guides, links" },
   { key: "modules", label: "Modules", desc: "Training module notes and content" },
@@ -102,6 +106,11 @@ function ItemsFolder({ items, isAdmin, onSave, onToast, emptyLabel, addLabel }) 
 
   return <ResourceList items={local} onChange={save} addLabel={addLabel} />;
 }
+
+/* ---------------------------------------------------------------
+   Level 2: the four career-level sub-folders inside a topic
+   Level 3: Resources / Modules / Quizzes within a level
+----------------------------------------------------------------- */
 
 function TopicFolder({ topic, folders, isAdmin, onSaveFolder, onToast, onBack }) {
   const [openLevel, setOpenLevel] = useState(null);
@@ -189,6 +198,10 @@ function TopicFolder({ topic, folders, isAdmin, onSaveFolder, onToast, onBack })
     </div>
   );
 }
+
+/* ---------------------------------------------------------------
+   Top level: the root folder list
+----------------------------------------------------------------- */
 
 export default function ResourceLibrary({ isAdmin, onToast }) {
   const [folders, setFolders] = useState(null);
@@ -286,3 +299,6 @@ export default function ResourceLibrary({ isAdmin, onToast }) {
           );
         })}
       </div>
+    </div>
+  );
+}
