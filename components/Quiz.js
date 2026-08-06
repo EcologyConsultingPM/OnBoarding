@@ -8,6 +8,30 @@ import * as db from "../lib/data";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Defends against any quiz saved by an earlier version of this feature,
+// or any partially-saved/malformed entry — every consumer below can then
+// assume questions/options/type are always present and well-formed.
+function normalizeQuiz(quiz) {
+  const type = quiz.type === "written" ? "written" : "mc";
+  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  return {
+    id: quiz.id || uid(),
+    title: quiz.title || "Untitled quiz",
+    type,
+    topic: quiz.topic,
+    level: quiz.level,
+    questions: questions.map((q) => ({
+      id: q.id || uid(),
+      heading: q.heading || "",
+      text: q.text || "",
+      ...(type === "mc" ? { options: Array.isArray(q.options) ? q.options : ["", ""] } : {}),
+    })),
+  };
+}
+function normalizeQuizzes(quizzes) {
+  return (Array.isArray(quizzes) ? quizzes : []).map(normalizeQuiz);
+}
+
 /* =================================================================
    ADMIN: building a quiz — question text lives in the quiz object
    (visible to everyone); correct/model answers are tracked locally
@@ -436,10 +460,12 @@ function AnswerFolderModal({ quiz, onClose, onToast }) {
 ================================================================= */
 
 export default function QuizFolder({ quizzes, isAdmin, onSave, onToast, topic, level }) {
-  const [local, setLocal] = useState(quizzes);
+  const [local, setLocal] = useState(() => normalizeQuizzes(quizzes));
   const [editingId, setEditingId] = useState(null);
   const [runningQuiz, setRunningQuiz] = useState(null);
   const [answerFolderQuiz, setAnswerFolderQuiz] = useState(null);
+
+  useEffect(() => { setLocal(normalizeQuizzes(quizzes)); }, [quizzes]);
 
   const save = (next) => {
     setLocal(next);
