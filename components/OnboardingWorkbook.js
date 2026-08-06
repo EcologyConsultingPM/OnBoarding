@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
-  Loader2, CheckCircle2, AlertCircle, BookOpen, Settings,
+  Loader2, CheckCircle2, AlertCircle, BookOpen, Settings, Home as HomeIcon, ClipboardList,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -1424,55 +1424,30 @@ export default function OnboardingWorkbook() {
       </header>
 
       {/* Sticky phase nav */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,244,238,0.92)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.lineSoft}`, padding: "10px 32px" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {isAdmin && (
-            <>
-              <button onClick={() => setMode("home")} style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-                border: `1px solid ${mode === "home" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-                background: mode === "home" ? C.green400 : "#fff", color: mode === "home" ? "#fff" : C.green600,
+      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,244,238,0.92)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.lineSoft}`, padding: "12px 32px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
+          {[
+            { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, color: C.green800, adminOnly: true },
+            { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, color: C.amberText || "#7a6233", adminOnly: true },
+            { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, color: C.rust, adminOnly: true },
+            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", adminOnly: false },
+            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, adminOnly: false },
+          ].filter((item) => isAdmin || !item.adminOnly).map(({ key, label, desc, Icon, color }) => {
+            const active = mode === key;
+            return (
+              <button key={key} onClick={() => setMode(key)} style={{
+                cursor: "pointer", display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start",
+                padding: "9px 14px", borderRadius: 12, fontFamily: FONT, textAlign: "left", minWidth: 148,
+                border: `1.5px solid ${active ? color : C.lineSoft}`,
+                background: active ? `${color}14` : "#fff",
               }}>
-                Home
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color }}>
+                  <Icon size={13} /> {label}
+                </span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: C.inkSoft, lineHeight: 1.3 }}>{desc}</span>
               </button>
-              <button onClick={() => setMode("workbook")} style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-                border: `1px solid ${mode === "workbook" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-                background: mode === "workbook" ? C.green400 : "#fff", color: mode === "workbook" ? "#fff" : C.green600,
-              }}>
-                <FileText size={13} /> Workbook
-              </button>
-              <button onClick={() => setMode("staff")} style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-                border: `1px solid ${mode === "staff" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-                background: mode === "staff" ? C.green400 : "#fff", color: mode === "staff" ? "#fff" : C.green600,
-              }}>
-                <Users2 size={13} /> Staff Progress
-              </button>
-              <button onClick={() => setMode("draft")} style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-                border: `1px solid ${mode === "draft" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-                background: mode === "draft" ? C.green400 : "#fff", color: mode === "draft" ? "#fff" : C.green600,
-              }}>
-                <Pencil size={13} /> Draft Onboarding
-              </button>
-            </>
-          )}
-          <button onClick={() => setMode("mine")} style={{
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-            border: `1px solid ${mode === "mine" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-            background: mode === "mine" ? C.green400 : "#fff", color: mode === "mine" ? "#fff" : C.green600,
-          }}>
-            <FileText size={13} /> My Onboarding
-          </button>
-          <button onClick={() => setMode("library")} style={{
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 99, fontFamily: FONT,
-            border: `1px solid ${mode === "library" ? C.green400 : C.lineSoft}`, fontSize: 13, fontWeight: 800,
-            background: mode === "library" ? C.green400 : "#fff", color: mode === "library" ? "#fff" : C.green600,
-          }}>
-            <BookOpen size={13} /> Resource Library
-          </button>
-          <span style={{ width: 1, height: 22, background: C.lineSoft, margin: "0 4px" }} />
+            );
+          })}
         </div>
       </nav>
 
