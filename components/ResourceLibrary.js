@@ -67,7 +67,7 @@ function Breadcrumb({ crumbs, onNavigate }) {
 
 const SUBFOLDERS = [
   { key: "resources", label: "Resources", desc: "Reference documents, field guides, links" },
-  { key: "modules", label: "Modules", desc: "Training module notes and content" },
+  { key: "modules", label: "Guides", desc: "Short reference notes for this topic (not a curriculum module)" },
   { key: "quizzes", label: "Quizzes / Assessments", desc: "Knowledge checks for this topic and level" },
 ];
 
@@ -203,11 +203,11 @@ function TopicFolder({ topic, folders, isAdmin, onSaveFolder, onToast, onBack })
    Top level: the root folder list
 ----------------------------------------------------------------- */
 
-export default function ResourceLibrary({ isAdmin, onToast }) {
+export default function ResourceLibrary({ isAdmin, onToast, initialTopic }) {
   const [folders, setFolders] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  const [view, setView] = useState({ type: "root" }); // root | careerLevels | topic
+  const [view, setView] = useState(() => (initialTopic ? { type: "topic", topic: initialTopic } : { type: "root" })); // root | careerLevels | topic
 
   const load = useCallback(async () => {
     setError("");
