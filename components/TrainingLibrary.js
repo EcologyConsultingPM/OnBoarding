@@ -6,12 +6,13 @@ import * as db from "../lib/data";
 import { supabase } from "../lib/supabaseClient";
 
 export const C = {
-  ink: "#23301f", inkSoft: "#6b755f", inkFaint: "#8a927c",
-  line: "#e3e6d8",
-  green800: "#1e4d2b", green700: "#24522a", green600: "#2c4426", green400: "#3d7a35",
-  greenTint: "#e6efd8", greenTintSoft: "#eef3e4",
-  amberBg: "#fbf6ea", amberText: "#7a6233",
-  cardBg: "#ffffff", rust: "#c05a4a",
+  bg: "#f4f4ee", ink: "#23301f", inkSoft: "#6b755f", inkFaint: "#8a927c",
+  line: "#e3e6d8", lineSoft: "#edf0e3", lineFaint: "#f0f2e6",
+  green900: "#16371f", green800: "#1e4d2b", green700: "#24522a", green600: "#2c4426",
+  green500: "#35692f", green400: "#3d7a35", green300: "#5b8f45", green200: "#6ea24f",
+  greenTint: "#e6efd8", greenTintSoft: "#eef3e4", cream: "#cfe3b8",
+  amber: "#b08948", amberLight: "#c9a25e", amberBg: "#fbf6ea", amberText: "#7a6233",
+  rust: "#c05a4a", cardBg: "#ffffff",
 };
 export const FONT = "'Nunito Sans', 'Helvetica Neue', sans-serif";
 
