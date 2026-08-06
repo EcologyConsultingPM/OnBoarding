@@ -561,12 +561,28 @@ function SignOffCard({ signoff, editable, onSave }) {
     </div>
   );
 }
-function ModuleBlock({ month, module, idx, isAdmin, onMutate, onToast }) {
+// Rough match from a Month 1 module's title to its Resource Library topic
+// folder — good enough for a "related resources" link, not meant to be
+// exhaustive or exact for every possible module title an admin might add.
+function matchLibraryTopic(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("legislation") || t.includes("pathway") || t.includes("approval")) return "Pathways & Legislation";
+  if (t.includes("flora") || t.includes("habitat")) return "Flora";
+  if (t.includes("fauna")) return "Fauna";
+  if (t.includes("report")) return "Reporting";
+  if (t.includes("gis") || t.includes("mapping") || t.includes("spatial")) return "GIS";
+  if (t.includes("business") || t.includes("operations")) return "Business Operations";
+  if (t.includes("project") || t.includes("delivery")) return "Projects";
+  return null;
+}
+
+function ModuleBlock({ month, module, idx, isAdmin, onMutate, onToast, onGoToLibraryTopic }) {
   const [open, setOpen] = useState(idx === 0);
   const [editingTitle, setEditingTitle] = useState(false);
   const { done, total } = moduleCounts(module);
   const p = pct(done, total);
   const saveTimer = React.useRef(null);
+  const libraryTopic = matchLibraryTopic(module.title);
 
   const saveTimers = React.useRef({});
   const pendingPatch = React.useRef({});
@@ -681,6 +697,15 @@ function ModuleBlock({ month, module, idx, isAdmin, onMutate, onToast }) {
             </button>
           )}
         </div>
+        {libraryTopic && onGoToLibraryTopic && (
+          <button data-print="hide" onClick={() => onGoToLibraryTopic(libraryTopic)} style={{
+            alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, background: C.greenTintSoft,
+            border: `1px solid ${C.greenTint}`, borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800,
+            color: C.green700, cursor: "pointer", fontFamily: FONT,
+          }}>
+            <BookOpen size={13} /> Related resources &amp; quizzes ({libraryTopic}) →
+          </button>
+        )}
         <SignOffCard signoff={module.signoff} editable={isAdmin} onSave={saveSignoff} />
       </div>
     </div>
@@ -710,7 +735,7 @@ function MonthNameEditable({ month, isAdmin, onSave }) {
   );
 }
 
-function LDPhase({ ldMonths, num, isAdmin, onMutate, onToast }) {
+function LDPhase({ ldMonths, num, isAdmin, onMutate, onToast, onGoToLibraryTopic }) {
   const { done, total } = ldCounts(ldMonths);
   const p = pct(done, total);
 
@@ -783,7 +808,7 @@ function LDPhase({ ldMonths, num, isAdmin, onMutate, onToast }) {
             )}
           </div>
           {month.modules.map((mod, idx) => (
-            <ModuleBlock key={mod.id} month={month} module={mod} idx={idx} isAdmin={isAdmin} onMutate={onMutate} onToast={onToast} />
+            <ModuleBlock key={mod.id} month={month} module={mod} idx={idx} isAdmin={isAdmin} onMutate={onMutate} onToast={onToast} onGoToLibraryTopic={onGoToLibraryTopic} />
           ))}
           {isAdmin && (
             <button data-print="hide" onClick={() => addModule(month)} style={{
@@ -1320,7 +1345,7 @@ function AdminHome({ user, onNavigate }) {
           />
           <ActionTile
             icon={<Users2 size={22} />} label="Assess a Staff Member"
-            desc="Open a staff member's progress, review their completed items and sign-offs."
+            desc="See who's signed up and how far they've progressed. Sign-offs and quiz marking happen inside the modules and quizzes themselves."
             color={C.amber} onClick={() => onNavigate("staff")}
           />
           <ActionTile
@@ -1340,6 +1365,8 @@ export default function OnboardingWorkbook() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState(() => (isAdmin ? "home" : "workbook")); // "home" (admin) | "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
+  const [libraryTopic, setLibraryTopic] = useState(null);
+  const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
@@ -1435,7 +1462,7 @@ export default function OnboardingWorkbook() {
           ].filter((item) => isAdmin || !item.adminOnly).map(({ key, label, desc, Icon, color }) => {
             const active = mode === key;
             return (
-              <button key={key} onClick={() => setMode(key)} style={{
+              <button key={key} onClick={() => { setMode(key); if (key === "library") setLibraryTopic(null); }} style={{
                 cursor: "pointer", display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start",
                 padding: "9px 14px", borderRadius: 12, fontFamily: FONT, textAlign: "left", minWidth: 148,
                 border: `1.5px solid ${active ? color : C.lineSoft}`,
@@ -1456,7 +1483,7 @@ export default function OnboardingWorkbook() {
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "library" ? (
-            <ResourceLibrary isAdmin={isAdmin} onToast={showToast} />
+            <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
           ) : mode === "mine" ? (
             <MyOnboarding onToast={showToast} />
           ) : isAdmin && mode === "draft" ? (
@@ -1474,7 +1501,7 @@ export default function OnboardingWorkbook() {
               {data.phases.map((phase, i) => (
                 <PhaseBlock key={phase.id} phase={phase} num={String(i + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
               ))}
-              <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
+              <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} onGoToLibraryTopic={goToLibraryTopic} />
             </>
           )}
         </main>
