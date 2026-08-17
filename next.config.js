@@ -13,6 +13,9 @@ module.exports = withSentryConfig(nextConfig, {
   silent: true,
   disableLogger: true,
   automaticVercelMonitors: false,
+  sourcemaps: {
+    disable: true,
+  },
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
 });
