@@ -65,8 +65,8 @@ ecology-onboarding/
 ## Supabase project
 
 Dedicated project: **Ecology Consulting On Boarding** (`mqgumjgotjiphfgqdyyl`),
-under its own Supabase org, separate from Solum Safety's. Schema, RLS, and
-the admin allowlist are already applied. Tables in the `public` schema:
+under its own Supabase org for Ecology Consulting. Schema, RLS, and the
+admin allowlist are already applied. Tables in the `public` schema:
 `phases`, `sections`, `checklist_items`, `item_progress`, `item_links`,
 `ld_months`, `ld_modules`, `signoffs`, `admin_emails`, `staff_progress`.
 
@@ -115,6 +115,6 @@ environment variables above, deploy.
 ## Pushing this to GitHub
 
 ```bash
-git remote add origin https://github.com/SolumSafety/onboarding-workbook.git
+git remote add origin https://github.com/EcologyConsultingPM/OnBoarding.git
 git push origin main
 ```
