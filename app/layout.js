@@ -1,6 +1,8 @@
 import "./globals.css";
 import { AuthProvider } from "../lib/AuthProvider";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Ecology Consulting — Onboarding Workbook",
   description: "New employee onboarding workbook and Learning & Development modules for Ecology Consulting.",
