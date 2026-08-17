@@ -16,3 +16,34 @@ body {
 main {
   height: 100%;
 }
+
+/* Numbered SWMS working-draft workspace */
+.swms-page { max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px; color: #173920; font-family: 'Nunito Sans', sans-serif; }
+.swms-hero { padding: 32px; border-radius: 24px; color: #fff; background: linear-gradient(125deg, #173920, #3b7438 58%, #a87c4f); box-shadow: 0 18px 40px rgba(23,57,32,.22); }
+.swms-hero span, .swms-row-heading p { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.swms-hero h1 { margin: 12px 0 8px; font-size: clamp(30px, 4vw, 48px); }
+.swms-hero p { max-width: 760px; line-height: 1.6; opacity: .92; }
+.swms-safety-notice { display: flex; gap: 12px; margin: 20px 0; padding: 16px 18px; border-left: 5px solid #a87c4f; border-radius: 12px; background: #f5f5ef; }
+.swms-safety-notice p { margin: 0; line-height: 1.5; }
+.swms-form { display: grid; gap: 18px; padding: 28px; border: 1px solid #d8dfd1; border-radius: 20px; background: #fff; box-shadow: 0 8px 26px rgba(23,57,32,.08); }
+.swms-form label { display: grid; gap: 7px; font-weight: 800; color: #173920; }
+.swms-form input, .swms-form textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c8d2c1; border-radius: 10px; color: #173920; font: inherit; }
+.swms-form textarea { min-height: 84px; resize: vertical; }
+.swms-two-fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.swms-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.swms-tabs button, .swms-add-row, .swms-remove-row, .swms-submit { border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.swms-tabs button { background: #e9f0e4; color: #173920; }
+.swms-tabs button.active, .swms-submit { background: #3b7438; color: #fff; }
+.swms-numbered-rows { display: grid; gap: 12px; padding: 20px; border: 1px solid #d8dfd1; border-radius: 16px; background: #f8faf5; }
+.swms-row-heading h2 { margin: 4px 0; }
+.swms-row-heading span { color: #52604f; font-size: 14px; }
+.swms-row-card { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 14px; padding: 16px; border: 1px solid #d8dfd1; border-radius: 14px; background: #fff; }
+.swms-row-number { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #3b7438; color: #fff; font-weight: 900; }
+.swms-row-fields { display: grid; gap: 12px; }
+.swms-add-row { justify-self: start; color: #173920; background: #ddebd8; }
+.swms-remove-row { justify-self: start; color: #8c3f38; background: #fbeae7; }
+.swms-submit { display: inline-flex; justify-content: center; align-items: center; gap: 8px; background: #173920; }
+.swms-submit:disabled { cursor: wait; opacity: .65; }
+.swms-error { color: #9f2f28; font-weight: 800; }
+.swms-success { display: flex; gap: 8px; align-items: center; color: #24602e; font-weight: 800; }
+@media (max-width: 680px) { .swms-page { padding: 18px 14px 48px; } .swms-hero, .swms-form { padding: 20px; } .swms-two-fields { grid-template-columns: 1fr; } .swms-row-card { grid-template-columns: 1fr; } }
