@@ -1359,6 +1359,79 @@ function AdminHome({ user, onNavigate }) {
   );
 }
 
+// Staff-portal landing: a domain control centre matching the admin design —
+// a welcome hero plus large colour-coded domain cards. The calendar preview
+// shows an honest empty state until the Requests/calendar data feature exists;
+// per the governing WHS rules we do not fabricate operational records.
+function StaffHome({ user, onNavigate, priorityCount = 0 }) {
+  const firstName = (user?.email || "").split("@")[0].split(".")[0];
+  const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
+
+  const domains = [
+    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and personally assigned modules.", Icon: ClipboardList, from: "#1e4d2b", to: "#2c6a34" },
+    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled working drafts.", Icon: ShieldCheck, from: "#8a6d2f", to: "#b08948" },
+    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training modules, resource library, quizzes and completion records.", Icon: BookOpen, from: "#7a3f5f", to: "#a4547e" },
+    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your project allocations, schedule, work status and budget.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/staff/projects" },
+    { key: "requests", eyebrow: "Service desk", title: "Requests", desc: "Submit leave, training and equipment requests.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
+    { key: "calendar", eyebrow: "Schedule", title: "Calendar", desc: "Your approved leave, training and review assignments.", Icon: Check, from: "#6b5327", to: "#8a6d2f", soon: true },
+  ];
+
+  return (
+    <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ borderRadius: 20, padding: "34px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 70%, #2a7d74)`, color: "#fff" }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Staff Portal</div>
+        <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {greetName}.</h1>
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
+          Choose an area to work in. Everything you need for your onboarding, safety records and learning lives here.
+        </p>
+        {priorityCount > 0 && (
+          <div style={{ marginTop: 16, display: "inline-block", background: "#e8d9a8", color: C.green900, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 800 }}>
+            {priorityCount} item{priorityCount === 1 ? "" : "s"} awaiting your attention
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+        {domains.map(({ key, eyebrow, title, desc, Icon, from, to, soon, href }) => (
+          <button
+            key={key}
+            onClick={() => { if (soon) return; if (href) window.location.href = href; else onNavigate(key); }}
+            disabled={soon}
+            style={{
+              position: "relative", overflow: "hidden", textAlign: "left", cursor: soon ? "default" : "pointer",
+              border: "none", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
+              background: `linear-gradient(135deg, ${from}, ${to})`, opacity: soon ? 0.72 : 1,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon size={20} />
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+              {title}
+              {soon && <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "2px 7px" }}>SOON</span>}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
+            {!soon && <ChevronRight size={20} style={{ position: "absolute", right: 18, bottom: 20, opacity: 0.7 }} />}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Upcoming</h2>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: C.inkFaint }}>Leave · training · reviews</span>
+        </div>
+        <div style={{ padding: "22px 16px", textAlign: "center", color: C.inkFaint, fontSize: 13, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
+          No upcoming items yet. Approved leave, training and document reviews will appear here once the Requests &amp; Calendar area is enabled.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Staff-portal hub linking the WHS field forms. Each opens its own dedicated
 // page (they are full standalone workspaces, not embeddable panels).
 function WhsFormsHub() {
@@ -1398,7 +1471,7 @@ export default function OnboardingWorkbook() {
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "workbook")); // "home" (admin) | "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
+  const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
   const [libraryTopic, setLibraryTopic] = useState(null);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1497,13 +1570,18 @@ export default function OnboardingWorkbook() {
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,244,238,0.92)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.lineSoft}`, padding: "12px 32px" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
           {[
+            { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, color: C.green800, staffOnly: true },
             { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, color: C.green800, adminOnly: true },
             { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, color: C.amberText || "#7a6233", adminOnly: true },
             { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, color: C.rust, adminOnly: true },
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", adminOnly: false },
             { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, adminOnly: false },
             { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, color: "#b08948", adminOnly: false },
-          ].filter((item) => isAdmin || !item.adminOnly).map(({ key, label, desc, Icon, color }) => {
+          ].filter((item) => {
+            if (item.staffOnly) return !inAdminPortal;
+            if (item.adminOnly) return inAdminPortal;
+            return true;
+          }).map(({ key, label, desc, Icon, color }) => {
             const active = mode === key;
             return (
               <button key={key} onClick={() => { setMode(key); if (key === "library") setLibraryTopic(null); }} style={{
@@ -1526,7 +1604,9 @@ export default function OnboardingWorkbook() {
       <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
-          {mode === "library" ? (
+          {mode === "staffhome" ? (
+            <StaffHome user={user} onNavigate={setMode} />
+          ) : mode === "library" ? (
             <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
           ) : mode === "whs" ? (
             <WhsFormsHub />
