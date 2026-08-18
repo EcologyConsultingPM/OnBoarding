@@ -1253,7 +1253,7 @@ function SaveStatus() {
 
 function WorkbookSidebar({ navItems }) {
   return (
-    <aside data-print="hide" style={{
+    <aside className="wb-sidebar" data-print="hide" style={{
       width: 220, flexShrink: 0, position: "sticky", top: 84, alignSelf: "flex-start",
       display: "flex", flexDirection: "column", gap: 4,
       maxHeight: "calc(100vh - 110px)", overflowY: "auto",
@@ -1359,12 +1359,46 @@ function AdminHome({ user, onNavigate }) {
   );
 }
 
+// Staff-portal hub linking the WHS field forms. Each opens its own dedicated
+// page (they are full standalone workspaces, not embeddable panels).
+function WhsFormsHub() {
+  const forms = [
+    { href: "/staff/toolbox-talks", title: "Toolbox Talk Record", desc: "Record a field toolbox talk, attendance and any corrective actions.", color: "#3d7a35" },
+    { href: "/staff/incident-reports", title: "Incident Report", desc: "Report an incident or near miss. Notifiable incidents must be reported to SafeWork NSW immediately.", color: "#c0392b" },
+    { href: "/staff/whs-drafts", title: "WHS Draft Studio", desc: "Draft a numbered SWMS or psychosocial risk assessment. Each draft requires competent review before use.", color: "#4197D0" },
+  ];
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      <h1 style={{ margin: "0 0 6px", fontSize: 24, fontWeight: 900, color: C.green800, fontFamily: FONT }}>WHS Forms</h1>
+      <p style={{ margin: "0 0 22px", fontSize: 14, fontWeight: 600, color: C.inkSoft, lineHeight: 1.55 }}>
+        Field WHS records and controlled working drafts. All AI-assisted or drafted WHS content is a draft requiring competent human review before approved use.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {forms.map((form) => (
+          <a key={form.href} href={form.href} style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none", background: C.cardBg, border: `1px solid ${C.line}`, borderLeft: `4px solid ${form.color}`, borderRadius: 12, padding: "16px 18px" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: C.ink }}>{form.title}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{form.desc}</div>
+            </div>
+            <ChevronRight size={18} color={C.inkFaint} style={{ flexShrink: 0 }} />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function OnboardingWorkbook() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin: hasAdminRights, portal, setPortal, signOut } = useAuth();
+  // The whole workbook keys off "isAdmin" for what to show/allow. Being in the
+  // staff portal means seeing the staff experience even if you hold admin
+  // rights, so the effective admin flag is role AND portal — not role alone.
+  const inAdminPortal = hasAdminRights && portal === "admin";
+  const isAdmin = inAdminPortal;
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [mode, setMode] = useState(() => (isAdmin ? "home" : "workbook")); // "home" (admin) | "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
+  const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "workbook")); // "home" (admin) | "workbook" | "staff" | "draft" (admin only) | "mine" | "library"
   const [libraryTopic, setLibraryTopic] = useState(null);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1430,10 +1464,19 @@ export default function OnboardingWorkbook() {
               </div>
             </div>
             <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {hasAdminRights && (
+                <button
+                  onClick={() => setPortal(inAdminPortal ? "staff" : "admin")}
+                  style={{ ...heroBtn, background: inAdminPortal ? "rgba(255,255,255,0.14)" : "#e8d9a8", color: inAdminPortal ? "#fff" : C.green900 }}
+                  title={inAdminPortal ? "Switch to your staff portal" : "Switch to the admin portal"}
+                >
+                  {inAdminPortal ? <><Users2 size={13} /> Staff portal</> : <><ShieldCheck size={13} /> Admin portal</>}
+                </button>
+              )}
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 12.5, fontWeight: 800 }}>{user?.email}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: isAdmin ? "#e8d9a8" : C.cream, display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
-                  {isAdmin && <ShieldCheck size={11} />} {isAdmin ? "Admin" : "Staff"}
+                <div style={{ fontSize: 11, fontWeight: 700, color: inAdminPortal ? "#e8d9a8" : C.cream, display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                  {inAdminPortal && <ShieldCheck size={11} />} {inAdminPortal ? "Admin portal" : "Staff portal"}
                 </div>
               </div>
               <SaveStatus />
@@ -1459,6 +1502,7 @@ export default function OnboardingWorkbook() {
             { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, color: C.rust, adminOnly: true },
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", adminOnly: false },
             { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, adminOnly: false },
+            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, color: "#b08948", adminOnly: false },
           ].filter((item) => isAdmin || !item.adminOnly).map(({ key, label, desc, Icon, color }) => {
             const active = mode === key;
             return (
@@ -1479,11 +1523,13 @@ export default function OnboardingWorkbook() {
       </nav>
 
       {/* Main content */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
+      <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "library" ? (
             <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
+          ) : mode === "whs" ? (
+            <WhsFormsHub />
           ) : mode === "mine" ? (
             <MyOnboarding onToast={showToast} />
           ) : isAdmin && mode === "draft" ? (
