@@ -28,7 +28,7 @@ const PORTALS = {
 };
 
 export default function LoginPage() {
-  const { session, loading, isAdmin, signInWithEmail, signInWithPassword, sendPasswordReset, signOut } = useAuth();
+  const { session, loading, isAdmin, setPortal: setSessionPortal, signInWithEmail, signInWithPassword, sendPasswordReset, signOut } = useAuth();
   const router = useRouter();
   const [portal, setPortal] = useState(null); // null | "admin" | "staff"
   const [mode, setMode] = useState("password"); // password | link | forgot
@@ -56,6 +56,7 @@ export default function LoginPage() {
 
   const choosePortal = (next) => {
     setPortal(next);
+    setSessionPortal(next);
     setMode("password");
     setStatus("idle");
     setMessage("");
