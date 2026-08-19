@@ -146,3 +146,6 @@ main {
 .proj-team-role { font-size: 12.5px; color: #5c6b58; }
 .proj-team-hours { font-size: 12.5px; font-weight: 700; color: #2a8091; text-align: right; }
 @media (max-width: 640px) { .proj-budget-cards { grid-template-columns: 1fr; } .proj-team-row { grid-template-columns: 1fr; gap: 3px; } .proj-team-hours { text-align: left; } }
+
+/* Staff home: stack domains above notices/calendar on narrow screens */
+@media (max-width: 860px) { .staff-home-grid { grid-template-columns: 1fr !important; } }
