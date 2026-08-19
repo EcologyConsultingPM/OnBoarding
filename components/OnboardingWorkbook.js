@@ -11,6 +11,8 @@ import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
 import AdminProjectSetup from "./AdminProjectSetup";
+import AdminRemoteOps from "./AdminRemoteOps";
+import ProjectHealthReport from "./ProjectHealthReport";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
 /* ---------------------------------------------------------------
@@ -1326,7 +1328,7 @@ function AdminHome({ user, onNavigate }) {
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "Compliance register, WHS drafts, controlled documents, reviews and release decisions.", Icon: ShieldCheck, from: "#3d5a2a", to: "#5b8f45", mode: "whs" },
     { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#6b3f5f", to: "#a4547e", mode: "staff" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
-    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#2c5f4a", to: "#3f8f6e", soon: true },
+    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#2c5f4a", to: "#3f8f6e", mode: "healthreport" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, from: "#8a6d2f", to: "#b08948", mode: "draft" },
   ];
 
@@ -1505,6 +1507,11 @@ export default function OnboardingWorkbook() {
   const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
   const [libraryTopic, setLibraryTopic] = useState(null);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
+  useEffect(() => {
+    const handler = () => setMode("remoteops");
+    if (typeof window !== "undefined") window.addEventListener("ec-goto-remoteops", handler);
+    return () => { if (typeof window !== "undefined") window.removeEventListener("ec-goto-remoteops", handler); };
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
@@ -1647,6 +1654,10 @@ export default function OnboardingWorkbook() {
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
             <AdminProjectSetup />
+          ) : isAdmin && mode === "remoteops" ? (
+            <AdminRemoteOps />
+          ) : isAdmin && mode === "healthreport" ? (
+            <ProjectHealthReport />
           ) : isAdmin && mode === "staff" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <StaffLoginsPanel onToast={showToast} />
