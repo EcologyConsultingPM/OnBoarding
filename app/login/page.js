@@ -39,10 +39,11 @@ export default function LoginPage() {
   const [awaiting, setAwaiting] = useState(false); // password login submitted; enforce portal + redirect
 
   useEffect(() => {
-    if (!awaiting) {
-      if (!loading && session) router.replace("/");
-      return;
-    }
+    // Do NOT auto-redirect a signed-in person straight past the picker — that
+    // would skip their portal choice and drop them in whatever portal was last
+    // stored (defaulting to staff). We only redirect once they've actively
+    // chosen a portal this visit (awaiting = they submitted, or re-selected).
+    if (!awaiting) return;
     if (loading || !session) return;
     if (portal === "admin" && !isAdmin) {
       setStatus("error");
@@ -54,9 +55,22 @@ export default function LoginPage() {
     router.replace("/");
   }, [awaiting, loading, session, isAdmin, portal, router, signOut]);
 
+  // If already signed in and they pick a portal, honour it and go straight in.
+  const enterWithExistingSession = (chosen) => {
+    setSessionPortal(chosen);
+    if (chosen === "admin" && !isAdmin) {
+      setStatus("error");
+      setMessage("This email doesn't have admin access. Use the Staff portal, or ask an existing admin to add you.");
+      return;
+    }
+    router.replace("/");
+  };
+
   const choosePortal = (next) => {
     setPortal(next);
     setSessionPortal(next);
+    // Already signed in? Honour the choice and go straight into that portal.
+    if (session && !loading) { enterWithExistingSession(next); return; }
     setMode("password");
     setStatus("idle");
     setMessage("");
