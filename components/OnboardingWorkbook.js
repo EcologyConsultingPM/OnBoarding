@@ -1317,43 +1317,52 @@ function ActionTile({ icon, label, desc, color, onClick }) {
 
 function AdminHome({ user, onNavigate }) {
   const name = displayNameFromEmail(user?.email);
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  // Admin operational domains — deliberately NOT "My Onboarding" (that's a
+  // staff concern). Cards either switch an in-app mode or open a domain page.
+  const domains = [
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/admin/projects" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "Compliance register, WHS drafts, controlled documents, reviews and release decisions.", Icon: ShieldCheck, from: "#3d5a2a", to: "#5b8f45", mode: "whs" },
+    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#6b3f5f", to: "#a4547e", mode: "staff" },
+    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
+    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#2c5f4a", to: "#3f8f6e", soon: true },
+    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, from: "#8a6d2f", to: "#b08948", mode: "draft" },
+  ];
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
-      <div style={{
-        background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`,
-        borderRadius: 18, padding: "30px 32px", color: "#fdfdf8", boxShadow: "0 6px 18px rgba(30,77,43,0.22)",
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.cream, letterSpacing: "0.02em" }}>{greeting.toUpperCase()}</div>
-        <h1 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 900, fontFamily: FONT }}>Welcome back, {name}</h1>
-        <p style={{ margin: "8px 0 0", fontSize: 13.5, fontWeight: 600, color: C.cream, maxWidth: 520, lineHeight: 1.5 }}>
-          Pick where you want to start below, or use the tabs above to jump straight to the workbook, staff progress, or the resource library.
+    <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ borderRadius: 20, padding: "34px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 68%, #2a7d74)`, color: "#fff" }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Control Centre</div>
+        <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {name}.</h1>
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
+          Choose one management domain to work in. The detailed control centre stays focused on the operational area you select.
         </p>
       </div>
 
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 12 }}>
-          Get started
-        </div>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <ActionTile
-            icon={<BookOpen size={22} />} label="Start a New Training Module"
-            desc="Add a new module to the shared Learning & Development curriculum."
-            color={C.green400} onClick={() => { onNavigate("workbook"); setTimeout(() => document.getElementById("phase-ld")?.scrollIntoView({ behavior: "smooth" }), 50); }}
-          />
-          <ActionTile
-            icon={<Users2 size={22} />} label="Assess a Staff Member"
-            desc="See who's signed up and how far they've progressed. Sign-offs and quiz marking happen inside the modules and quizzes themselves."
-            color={C.amber} onClick={() => onNavigate("staff")}
-          />
-          <ActionTile
-            icon={<Pencil size={22} />} label="Draft a New Onboarding"
-            desc="Build a personal onboarding path for one staff member, then assign it when ready."
-            color={C.rust} onClick={() => onNavigate("draft")}
-          />
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
+        {domains.map(({ eyebrow, title, desc, Icon, from, to, soon, mode, href }) => (
+          <button
+            key={title}
+            onClick={() => { if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
+            disabled={soon}
+            style={{
+              position: "relative", overflow: "hidden", textAlign: "left", cursor: soon ? "default" : "pointer",
+              border: "none", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
+              background: `linear-gradient(135deg, ${from}, ${to})`, opacity: soon ? 0.72 : 1,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+              {title}
+              {soon && <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "2px 7px" }}>SOON</span>}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
+            {!soon && <ChevronRight size={20} style={{ position: "absolute", right: 18, bottom: 20, opacity: 0.7 }} />}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -1368,64 +1377,84 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
 
   const domains = [
-    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and personally assigned modules.", Icon: ClipboardList, from: "#1e4d2b", to: "#2c6a34" },
-    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled working drafts.", Icon: ShieldCheck, from: "#8a6d2f", to: "#b08948" },
-    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training modules, resource library, quizzes and completion records.", Icon: BookOpen, from: "#7a3f5f", to: "#a4547e" },
-    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your project allocations, schedule, work status and budget.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/staff/projects" },
-    { key: "requests", eyebrow: "Service desk", title: "Requests", desc: "Submit leave, training and equipment requests.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
-    { key: "calendar", eyebrow: "Schedule", title: "Calendar", desc: "Your approved leave, training and review assignments.", Icon: Check, from: "#6b5327", to: "#8a6d2f", soon: true },
+    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, from: "#1e4d2b", to: "#2c6a34" },
+    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, from: "#8a6d2f", to: "#b08948" },
+    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, from: "#7a3f5f", to: "#a4547e" },
+    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/staff/projects" },
+    { key: "remote", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, from: "#7a4030", to: "#a4553f", href: "/staff/remote-operations" },
   ];
 
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const now = new Date();
+  const monthLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ borderRadius: 20, padding: "34px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 70%, #2a7d74)`, color: "#fff" }}>
+    <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ borderRadius: 20, padding: "30px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 70%, #2a7d74)`, color: "#fff" }}>
         <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Staff Portal</div>
-        <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {greetName}.</h1>
-        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
-          Choose an area to work in. Everything you need for your onboarding, safety records and learning lives here.
+        <h1 style={{ margin: "10px 0 8px", fontSize: 30, fontWeight: 900, fontFamily: FONT }}>Good day, {greetName}.</h1>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
+          Choose an area to work in. Your notices and calendar are on the right.
         </p>
         {priorityCount > 0 && (
-          <div style={{ marginTop: 16, display: "inline-block", background: "#e8d9a8", color: C.green900, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 800 }}>
+          <div style={{ marginTop: 15, display: "inline-block", background: "#e8d9a8", color: C.green900, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 800 }}>
             {priorityCount} item{priorityCount === 1 ? "" : "s"} awaiting your attention
           </div>
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
-        {domains.map(({ key, eyebrow, title, desc, Icon, from, to, soon, href }) => (
-          <button
-            key={key}
-            onClick={() => { if (soon) return; if (href) window.location.href = href; else onNavigate(key); }}
-            disabled={soon}
-            style={{
-              position: "relative", overflow: "hidden", textAlign: "left", cursor: soon ? "default" : "pointer",
-              border: "none", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
-              background: `linear-gradient(135deg, ${from}, ${to})`, opacity: soon ? 0.72 : 1,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon size={20} />
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }} className="staff-home-grid">
+        {/* Domains — left */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+          {domains.map(({ key, eyebrow, title, desc, Icon, from, to, href }) => (
+            <button
+              key={key}
+              onClick={() => { if (href) window.location.href = href; else onNavigate(key); }}
+              style={{ position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer", border: "none", borderRadius: 15, padding: "18px 18px 20px", color: "#fff", fontFamily: FONT, background: `linear-gradient(135deg, ${from}, ${to})` }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} /></div>
+                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
               </div>
-              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-              {title}
-              {soon && <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "2px 7px" }}>SOON</span>}
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
-            {!soon && <ChevronRight size={20} style={{ position: "absolute", right: 18, bottom: 20, opacity: 0.7 }} />}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Upcoming</h2>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: C.inkFaint }}>Leave · training · reviews</span>
+              <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 5 }}>{title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
+            </button>
+          ))}
         </div>
-        <div style={{ padding: "22px 16px", textAlign: "center", color: C.inkFaint, fontSize: 13, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
-          No upcoming items yet. Approved leave, training and document reviews will appear here once the Requests &amp; Calendar area is enabled.
+
+        {/* Noticeboard + calendar — right */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 15, padding: "18px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Staff noticeboard</h2>
+            </div>
+            <div style={{ padding: "20px 14px", textAlign: "center", color: C.inkFaint, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
+              No notices yet. Published notices from the team will appear here.
+            </div>
+          </div>
+
+          <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 15, padding: "18px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT }}>{monthLabel}</h2>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: C.inkFaint, textTransform: "uppercase", letterSpacing: "0.04em" }}>Read-only</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, fontSize: 11 }}>
+              {["S","M","T","W","T","F","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontWeight: 800, color: C.inkFaint, padding: "2px 0" }}>{d}</div>)}
+              {cells.map((d, i) => (
+                <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 700, color: d ? C.ink : "transparent", background: d === now.getDate() ? C.greenTint : "transparent" }}>
+                  {d || ""}
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: "10px 0 0", fontSize: 11, color: C.inkFaint, fontStyle: "italic", lineHeight: 1.4 }}>
+              Approved leave, training and review assignments will show here once the Requests area is enabled.
+            </p>
+          </div>
         </div>
       </div>
     </div>
