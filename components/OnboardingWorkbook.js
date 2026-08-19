@@ -12,6 +12,7 @@ import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
 import AdminProjectSetup from "./AdminProjectSetup";
 import AdminRemoteOps from "./AdminRemoteOps";
+import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
@@ -1509,8 +1510,17 @@ export default function OnboardingWorkbook() {
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
   useEffect(() => {
     const handler = () => setMode("remoteops");
-    if (typeof window !== "undefined") window.addEventListener("ec-goto-remoteops", handler);
-    return () => { if (typeof window !== "undefined") window.removeEventListener("ec-goto-remoteops", handler); };
+    const quoteHandler = () => setMode("quotepipeline");
+    if (typeof window !== "undefined") {
+      window.addEventListener("ec-goto-remoteops", handler);
+      window.addEventListener("ec-goto-quotepipeline", quoteHandler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("ec-goto-remoteops", handler);
+        window.removeEventListener("ec-goto-quotepipeline", quoteHandler);
+      }
+    };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -1570,8 +1580,10 @@ export default function OnboardingWorkbook() {
                 <img src="/logo.png" alt="Ecology Consulting" style={{ height: 28, width: "auto", display: "block" }} />
               </div>
               <div>
-                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: "-0.01em" }}>New Employee Onboarding Workbook</h1>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.cream, marginTop: 2, letterSpacing: "0.02em" }}>BUILDING CAPABILITY · SUPPORTING PEOPLE · GROWING TOGETHER</div>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: "-0.01em" }}>Welcome, {displayNameFromEmail(user?.email)}</h1>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.cream, marginTop: 2, letterSpacing: "0.02em" }}>
+                  {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                </div>
               </div>
             </div>
             <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1656,6 +1668,8 @@ export default function OnboardingWorkbook() {
             <AdminProjectSetup />
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
+          ) : isAdmin && mode === "quotepipeline" ? (
+            <AdminQuotePipeline />
           ) : isAdmin && mode === "healthreport" ? (
             <ProjectHealthReport />
           ) : isAdmin && mode === "staff" ? (
