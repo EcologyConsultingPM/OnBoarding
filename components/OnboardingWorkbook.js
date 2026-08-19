@@ -10,6 +10,7 @@ import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
+import AdminProjectSetup from "./AdminProjectSetup";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
 /* ---------------------------------------------------------------
@@ -1321,7 +1322,7 @@ function AdminHome({ user, onNavigate }) {
   // Admin operational domains — deliberately NOT "My Onboarding" (that's a
   // staff concern). Cards either switch an in-app mode or open a domain page.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", soon: true },
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", mode: "adminprojects" },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "Compliance register, WHS drafts, controlled documents, reviews and release decisions.", Icon: ShieldCheck, from: "#3d5a2a", to: "#5b8f45", mode: "whs" },
     { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#6b3f5f", to: "#a4547e", mode: "staff" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
@@ -1644,6 +1645,8 @@ export default function OnboardingWorkbook() {
             <MyOnboarding onToast={showToast} />
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+          ) : isAdmin && mode === "adminprojects" ? (
+            <AdminProjectSetup />
           ) : isAdmin && mode === "staff" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <StaffLoginsPanel onToast={showToast} />
