@@ -70,6 +70,7 @@ export default function AdminProjectSetup() {
         <span><FolderPlus size={17} /> Delivery & commercial · Admin</span>
         <h1>Project setup &amp; allocations</h1>
         <p>Create projects, set budgets, build the schedule, allocate staff and assign work activities. Allocated staff then see their project health, schedule and activities in the staff portal.</p>
+        <a href="#" onClick={(e) => { e.preventDefault(); if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ec-goto-remoteops")); }} className="aps-hero-link"><ExternalLink size={13} /> Remote operations oversight</a>
       </header>
 
       {error ? <p className="aps-error"><AlertCircle size={15} /> {error}</p> : null}
