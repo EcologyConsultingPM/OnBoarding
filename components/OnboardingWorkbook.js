@@ -1321,7 +1321,7 @@ function AdminHome({ user, onNavigate }) {
   // Admin operational domains — deliberately NOT "My Onboarding" (that's a
   // staff concern). Cards either switch an in-app mode or open a domain page.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/admin/projects" },
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", soon: true },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "Compliance register, WHS drafts, controlled documents, reviews and release decisions.", Icon: ShieldCheck, from: "#3d5a2a", to: "#5b8f45", mode: "whs" },
     { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#6b3f5f", to: "#a4547e", mode: "staff" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
@@ -1432,9 +1432,10 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
           <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 15, padding: "18px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Staff noticeboard</h2>
+              <a href="/staff/noticeboard" style={{ fontSize: 11.5, fontWeight: 800, color: C.green400, textDecoration: "none" }}>Open →</a>
             </div>
-            <div style={{ padding: "20px 14px", textAlign: "center", color: C.inkFaint, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
-              No notices yet. Published notices from the team will appear here.
+            <div style={{ padding: "18px 14px", textAlign: "center", color: C.inkFaint, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
+              Draft a notice, get it approved, and publish it to the team. Open the noticeboard to post or read notices.
             </div>
           </div>
 
