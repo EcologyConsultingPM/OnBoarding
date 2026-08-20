@@ -1506,6 +1506,21 @@ export default function OnboardingWorkbook() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
+  // The admin check and portal both resolve asynchronously AFTER first render,
+  // so mode above can lock to "staffhome" before we know the person is an admin
+  // in the admin portal. When the portal context resolves, if they're still on
+  // the untouched default landing, move them to the correct home. We only nudge
+  // the landing pages (home/staffhome), never a page they've navigated to.
+  const portalResolved = React.useRef(inAdminPortal);
+  useEffect(() => {
+    if (portalResolved.current === inAdminPortal) return;
+    portalResolved.current = inAdminPortal;
+    setMode((current) => {
+      if (inAdminPortal && current === "staffhome") return "home";
+      if (!inAdminPortal && current === "home") return "staffhome";
+      return current;
+    });
+  }, [inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
   useEffect(() => {
