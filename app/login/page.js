@@ -39,10 +39,6 @@ export default function LoginPage() {
   const [awaiting, setAwaiting] = useState(false); // password login submitted; enforce portal + redirect
 
   useEffect(() => {
-    // Do NOT auto-redirect a signed-in person straight past the picker — that
-    // would skip their portal choice and drop them in whatever portal was last
-    // stored (defaulting to staff). We only redirect once they've actively
-    // chosen a portal this visit (awaiting = they submitted, or re-selected).
     if (!awaiting) return;
     if (loading || !session) return;
     if (portal === "admin" && !isAdmin) {
@@ -52,12 +48,21 @@ export default function LoginPage() {
       signOut();
       return;
     }
+    // Re-assert the chosen portal right before entering the app. This is the
+    // fix for admins landing in staff: the earlier write in choosePortal can be
+    // clobbered while the auth state settles, so we write it again here — both
+    // to the context and directly to localStorage — immediately before redirect.
+    if (portal) {
+      setSessionPortal(portal);
+      if (typeof window !== "undefined") window.localStorage.setItem("ec_portal", portal);
+    }
     router.replace("/");
-  }, [awaiting, loading, session, isAdmin, portal, router, signOut]);
+  }, [awaiting, loading, session, isAdmin, portal, router, signOut, setSessionPortal]);
 
   // If already signed in and they pick a portal, honour it and go straight in.
   const enterWithExistingSession = (chosen) => {
     setSessionPortal(chosen);
+    if (typeof window !== "undefined") window.localStorage.setItem("ec_portal", chosen);
     if (chosen === "admin" && !isAdmin) {
       setStatus("error");
       setMessage("This email doesn't have admin access. Use the Staff portal, or ask an existing admin to add you.");
