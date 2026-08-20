@@ -101,6 +101,14 @@ export default function LoginPage() {
     setMessage("");
 
     if (mode === "password") {
+      // Persist the chosen portal SYNCHRONOUSLY before the async sign-in, so it
+      // is guaranteed in storage before any auth-state change or redirect can
+      // race it. `portal` is always set here (can't reach this screen without
+      // picking one). This is the durable fix for admins landing in staff.
+      if (portal && typeof window !== "undefined") {
+        window.localStorage.setItem("ec_portal", portal);
+        setSessionPortal(portal);
+      }
       setAwaiting(true); // set before awaiting: session can resolve mid-await
       const { error } = await signInWithPassword(email, password);
       if (error) {
