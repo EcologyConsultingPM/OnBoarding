@@ -1583,6 +1583,12 @@ export default function OnboardingWorkbook() {
         }
       `}</style>
 
+      {/* TEMP DEBUG — remove once portal issue confirmed fixed. Shows the live
+          values that decide admin vs staff view. */}
+      <div style={{ background: "#111", color: "#0f0", fontFamily: "monospace", fontSize: 12, padding: "6px 12px", textAlign: "center", letterSpacing: "0.03em" }}>
+        DEBUG · email={String(user?.email)} · hasAdminRights={String(hasAdminRights)} · portal={String(portal)} · inAdminPortal={String(inAdminPortal)} · mode={String(mode)}
+      </div>
+
       {/* Hero */}
       <header style={{ background: `linear-gradient(140deg, ${C.green900} 0%, ${C.green700} 38%, ${C.green400} 72%, ${C.green200} 100%)`, color: "#fdfdf8", padding: "40px 32px 36px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 900px 500px at 85% -10%, rgba(213,228,181,0.28), transparent 60%)" }} />
