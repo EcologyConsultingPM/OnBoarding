@@ -385,3 +385,41 @@ main {
 .qp-error { display: flex; align-items: center; gap: 8px; background: #fbecea; border: 1px solid #f0b4ab; border-radius: 8px; padding: 10px 13px; color: #a5342a; font-size: 12.5px; font-weight: 700; }
 .qp-success { display: flex; align-items: center; gap: 8px; background: #eaf3e2; border: 1px solid #b9d5a6; border-radius: 8px; padding: 10px 13px; color: #2c6a34; font-size: 12.5px; font-weight: 700; }
 @media (max-width: 900px) { .qp-summary { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── Admin WHS monitoring dashboard ───────────────────────────────── */
+.wm { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+.wm-hero { border-radius: 16px; padding: 26px 28px; color: #fff; background: linear-gradient(120deg, #2f4a22, #5b8f45); }
+.wm-hero span { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.82); }
+.wm-hero h1 { margin: 9px 0 7px; font-size: 26px; font-weight: 900; }
+.wm-hero p { margin: 0; font-size: 13px; line-height: 1.55; color: rgba(255,255,255,.9); max-width: 660px; }
+.wm-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.wm-sum { background: #fff; border: 1px solid #e3e6d8; border-radius: 13px; padding: 16px 18px; }
+.wm-sum-v { font-size: 28px; font-weight: 900; color: #1e4d2b; }
+.wm-sum-l { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8a927c; margin-top: 2px; }
+.wm-card { background: #fff; border: 1px solid #e3e6d8; border-radius: 14px; padding: 18px 20px; }
+.wm-card h2 { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 900; color: #24522a; margin: 0 0 13px; }
+.wm-queue { display: flex; flex-direction: column; gap: 7px; }
+.wm-queue-row { display: grid; grid-template-columns: 130px 1fr 160px 90px; gap: 12px; align-items: center; background: #fbf9ef; border: 1px solid #ecdcb6; border-radius: 9px; padding: 10px 14px; font-size: 12.5px; }
+.wm-kind { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #8a6d2f; }
+.wm-title { font-weight: 700; color: #23301f; }
+.wm-author { color: #5c6b58; }
+.wm-date { color: #8a927c; text-align: right; }
+.wm-empty { font-size: 13px; color: #8a927c; font-style: italic; padding: 8px 0; }
+.wm-status-grid { display: flex; flex-direction: column; gap: 10px; }
+.wm-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wm-status-label { font-size: 13px; font-weight: 800; color: #3a4a33; }
+.wm-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.wm-chip { padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.wm-chip.draft { background: #eef0e9; color: #6b755f; }
+.wm-chip.review { background: #fbf1dd; color: #a5772b; }
+.wm-chip.approved { background: #e5f1dd; color: #2c6a34; }
+.wm-table-wrap { overflow-x: auto; }
+.wm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wm-table th { text-align: left; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #8a927c; padding: 9px 12px; border-bottom: 1px solid #e3e6d8; }
+.wm-table td { padding: 11px 12px; border-bottom: 1px solid #f0f1e9; color: #3a4a33; }
+.wm-table tr:last-child td { border-bottom: none; }
+.wm-person { font-weight: 700; color: #23301f; }
+.wm-approved { display: inline-block; min-width: 22px; text-align: center; background: #e5f1dd; color: #2c6a34; border-radius: 6px; padding: 2px 8px; font-weight: 800; font-size: 12px; }
+.wm-note { font-size: 11.5px; color: #8a927c; line-height: 1.5; margin: 0; font-style: italic; }
+.wm-error { display: flex; align-items: center; gap: 8px; background: #fbecea; border: 1px solid #f0b4ab; border-radius: 8px; padding: 10px 13px; color: #a5342a; font-size: 12.5px; font-weight: 700; }
+@media (max-width: 860px) { .wm-summary { grid-template-columns: repeat(2, 1fr); } .wm-queue-row { grid-template-columns: 1fr; gap: 3px; } .wm-date { text-align: left; } }
