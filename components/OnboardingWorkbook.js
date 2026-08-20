@@ -1506,19 +1506,17 @@ export default function OnboardingWorkbook() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
-  // The admin check and portal both resolve asynchronously AFTER first render,
-  // so mode above can lock to "staffhome" before we know the person is an admin
-  // in the admin portal. When the portal context resolves, if they're still on
-  // the untouched default landing, move them to the correct home. We only nudge
-  // the landing pages (home/staffhome), never a page they've navigated to.
-  const portalResolved = React.useRef(inAdminPortal);
+  // Admin status and portal both resolve asynchronously after first render, so
+  // the initial mode above can be wrong (it defaults to "staffhome" before we
+  // know the person is an admin in the admin portal). Whenever that resolution
+  // changes, if the person is sitting on EITHER default landing, put them on the
+  // correct one. This is robust to multi-step async (portal null->admin, admin
+  // false->true in any order) because it re-checks on every change rather than
+  // relying on a one-shot ref guard.
   useEffect(() => {
-    if (portalResolved.current === inAdminPortal) return;
-    portalResolved.current = inAdminPortal;
     setMode((current) => {
-      if (inAdminPortal && current === "staffhome") return "home";
-      if (!inAdminPortal && current === "home") return "staffhome";
-      return current;
+      if (current !== "home" && current !== "staffhome") return current; // they navigated somewhere — leave them
+      return inAdminPortal ? "home" : "staffhome";
     });
   }, [inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
@@ -1639,9 +1637,9 @@ export default function OnboardingWorkbook() {
             { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, color: C.green800, adminOnly: true },
             { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, color: C.amberText || "#7a6233", adminOnly: true },
             { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, color: C.rust, adminOnly: true },
-            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", adminOnly: false },
-            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, adminOnly: false },
-            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, color: "#b08948", adminOnly: false },
+            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", staffOnly: true },
+            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, staffOnly: true },
+            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, color: "#b08948", staffOnly: true },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
@@ -1669,7 +1667,7 @@ export default function OnboardingWorkbook() {
       <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
-          {mode === "staffhome" ? (
+          {mode === "staffhome" && !inAdminPortal ? (
             <StaffHome user={user} onNavigate={setMode} />
           ) : mode === "library" ? (
             <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
@@ -1693,7 +1691,7 @@ export default function OnboardingWorkbook() {
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
             </div>
-          ) : isAdmin && mode === "home" ? (
+          ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
           ) : (
             <>
