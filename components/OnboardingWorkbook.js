@@ -1355,36 +1355,35 @@ function ActionTile({ icon, label, desc, color, onClick }) {
 function AdminHome({ user, onNavigate }) {
   const name = displayNameFromEmail(user?.email);
 
-  // Six domains, each with its own wildlife photo (duotone), accent colour and
-  // a gradient for the multiply blend — matching the design mockup.
+  // Six domains, each with its own wildlife photo (duotone) + multiply gradient,
+  // matching the mockup's 2-column tall-tile layout.
   const domains = [
-    { n: "01", eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", mode: "adminprojects" },
-    { n: "02", eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", Icon: ShieldCheck, photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
-    { n: "03", eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
-    { n: "04", eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
-    { n: "05", eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
-    { n: "06", eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", soon: true },
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
+    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
+    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
+    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
+    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", soon: true },
   ];
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
-      {/* Hero */}
-      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, background: C.forest, color: "#f2f6ef" }}>
-        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 50% 32%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${C.eucalypt}, ${C.forestDeep} 82%)`, mixBlendMode: "multiply" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.9), rgba(6,18,12,.15) 72%)" }} />
-        <div style={{ position: "relative", padding: "34px 34px 26px" }}>
-          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 14 }}>Ecology Consulting · Control Centre</div>
-          <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 40, lineHeight: 1.08, letterSpacing: "-0.015em", margin: "0 0 10px" }}>Good day, {name}.</h1>
-          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)", maxWidth: "52ch" }}>
-            Choose a management domain to work in. Each opens a focused control centre for that operational area.
-          </p>
-          {/* Stat strip */}
-          <div style={{ display: "flex", gap: 30, marginTop: 24, flexWrap: "wrap" }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 26, fontFamily: FONT }}>
+      {/* Wide hero band */}
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, minHeight: 196, display: "flex", alignItems: "center", padding: "34px 38px", background: "#0b2016" }}>
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 62% 42%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(105deg, #08170f 10%, #1d6b6b 130%)", mixBlendMode: "multiply" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(4,14,9,.9), rgba(4,14,9,.1))" }} />
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 32, width: "100%", flexWrap: "wrap" }}>
+          <div style={{ color: "#f2f6ef", maxWidth: 560 }}>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Ecology Consulting · Control Centre</div>
+            <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 38, lineHeight: 1.08, letterSpacing: "-0.015em", margin: "0 0 10px" }}>Good day, {name}.</h1>
+            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose a management domain to work in. Each opens a focused control centre for that operational area.</p>
+          </div>
+          <div style={{ display: "flex", gap: 30, flexWrap: "wrap" }}>
             {[["Domains", "6"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
-              <div key={l}>
-                <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1 }}>{v}</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.55)", marginTop: 4 }}>{l}</div>
+              <div key={l} style={{ color: "#f2f6ef" }}>
+                <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1 }}>{v}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.6)", marginTop: 5 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -1393,40 +1392,36 @@ function AdminHome({ user, onNavigate }) {
 
       {/* Section label */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
+        <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
         <div style={{ height: 1, flex: 1, background: C.hair }} />
         <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>6 areas</div>
       </div>
 
-      {/* Six stacked full-width domain rows */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-        {domains.map(({ n, eyebrow, title, desc, Icon, photo, base, g1, g2, soon, mode, href }) => (
+      {/* 2-column tall photo tiles */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="admin-tile-grid">
+        {domains.map(({ eyebrow, title, desc, photo, base, g1, g2, soon, mode, href }) => (
           <a
             key={title}
             href="#"
             onClick={(e) => { e.preventDefault(); if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
             className="ec-row"
             style={{
-              position: "relative", overflow: "hidden", display: "flex", alignItems: "stretch",
-              minHeight: 116, borderRadius: 16, color: "#fff", background: base, textDecoration: "none",
+              position: "relative", display: "flex", alignItems: "flex-end", minHeight: 200, padding: 22,
+              borderRadius: 16, overflow: "hidden", color: "#fff", background: base, textDecoration: "none",
               boxShadow: "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)",
-              opacity: soon ? 0.86 : 1, cursor: soon ? "default" : "pointer",
+              opacity: soon ? 0.9 : 1, cursor: soon ? "default" : "pointer",
             }}
           >
-            <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') 50% 35%/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
+            <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') 50% 30%/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
             <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 84%)`, mixBlendMode: "multiply" }} />
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(4,18,12,.9), rgba(4,18,12,.35) 72%)" }} />
-            <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 22px" }}>
-              <div style={{ width: 44, height: 44, borderRadius: 11, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ opacity: 0.7 }}>{n}</span> {eyebrow}
-                  {soon && <span style={{ background: "rgba(255,255,255,0.2)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em" }}>Soon</span>}
-                </div>
-                <div style={{ fontFamily: SERIF, fontSize: 23, lineHeight: 1.12, marginBottom: 4 }}>{title}</div>
-                <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.82)", maxWidth: "62ch" }}>{desc}</p>
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(4,18,18,.88), rgba(4,18,18,.05) 70%)" }} />
+            <div style={{ position: "relative", width: "100%" }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(198,238,238,0.95)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                {eyebrow}
+                {soon && <span style={{ background: "rgba(255,255,255,0.2)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em" }}>Soon</span>}
               </div>
-              {!soon && <ChevronRight size={22} style={{ flexShrink: 0, opacity: 0.75 }} />}
+              <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1.1, marginBottom: 7 }}>{title}</div>
+              <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.8)", maxWidth: "44ch" }}>{desc}</p>
             </div>
           </a>
         ))}
@@ -1665,80 +1660,70 @@ export default function OnboardingWorkbook() {
         }
       `}</style>
 
-      {/* Hero */}
-      <header style={{ background: `linear-gradient(140deg, ${C.green900} 0%, ${C.green700} 38%, ${C.green400} 72%, ${C.green200} 100%)`, color: "#fdfdf8", padding: "40px 32px 36px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 900px 500px at 85% -10%, rgba(213,228,181,0.28), transparent 60%)" }} />
-        <div style={{ maxWidth: 1080, margin: "0 auto", position: "relative", display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ background: "#fff", borderRadius: 10, padding: "10px 14px", display: "inline-block" }}>
-                <img src="/logo.png" alt="Ecology Consulting" style={{ height: 28, width: "auto", display: "block" }} />
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: "-0.01em" }}>Welcome, {displayNameFromEmail(user?.email)}</h1>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.cream, marginTop: 2, letterSpacing: "0.02em" }}>
-                  {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                </div>
-              </div>
+      {/* Header */}
+      <header style={{ position: "relative", overflow: "hidden", background: C.forest, color: "#f2f6ef" }}>
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/rosella.png') center 38%/cover", filter: "grayscale(0.4)", opacity: 0.34 }} />
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, ${C.forestDeep} 0%, #1c5231 55%, #3d7a45 100%)`, mixBlendMode: "multiply" }} />
+        <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", padding: "24px 32px 22px", display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
+          <div style={{ background: "#fff", borderRadius: 9, padding: "8px 11px", display: "flex", alignItems: "center" }}>
+            <img src="/logo.png" alt="Ecology Consulting" style={{ height: 28, width: "auto", display: "block" }} />
+          </div>
+          <div style={{ flex: "1 1 240px" }}>
+            <div style={{ fontFamily: SERIF, fontSize: 25, fontWeight: 400, lineHeight: 1.15 }}>Welcome, {displayNameFromEmail(user?.email)}</div>
+            <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,246,239,0.62)", marginTop: 5 }}>
+              {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {inAdminPortal ? "Admin portal" : "Staff portal"}
             </div>
-            <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {hasAdminRights && (
-                <button
-                  onClick={() => setPortal(inAdminPortal ? "staff" : "admin")}
-                  style={{ ...heroBtn, background: inAdminPortal ? "rgba(255,255,255,0.14)" : "#e8d9a8", color: inAdminPortal ? "#fff" : C.green900 }}
-                  title={inAdminPortal ? "Switch to your staff portal" : "Switch to the admin portal"}
-                >
-                  {inAdminPortal ? <><Users2 size={13} /> Staff portal</> : <><ShieldCheck size={13} /> Admin portal</>}
-                </button>
-              )}
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 12.5, fontWeight: 800 }}>{user?.email}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: inAdminPortal ? "#e8d9a8" : C.cream, display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
-                  {inAdminPortal && <ShieldCheck size={11} />} {inAdminPortal ? "Admin portal" : "Staff portal"}
-                </div>
-              </div>
-              <SaveStatus />
-              <button onClick={() => setSettingsOpen(true)} style={heroBtn}><Settings size={13} /> Settings</button>
-              <button onClick={() => window.print()} style={heroBtn}><FileText size={13} /> Save as PDF</button>
+          </div>
+          <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {hasAdminRights && (
               <button
-                onClick={() => { if (window.confirm("Log out of the onboarding workbook?")) signOut(); }}
-                style={heroBtn}
+                onClick={() => setPortal(inAdminPortal ? "staff" : "admin")}
+                className="ec-hdr-btn"
+                style={inAdminPortal ? ecHdrBtn : ecHdrBtnGold}
+                title={inAdminPortal ? "Switch to your staff portal" : "Switch to the admin portal"}
               >
-                <LogOut size={13} /> Log out
+                {inAdminPortal ? <><Users2 size={13} /> Staff portal</> : <><ShieldCheck size={13} /> Admin portal</>}
               </button>
-            </div>
+            )}
+            <SaveStatus />
+            <button onClick={() => setSettingsOpen(true)} className="ec-hdr-btn" style={ecHdrBtn}><Settings size={13} /> Settings</button>
+            <button onClick={() => window.print()} className="ec-hdr-btn" style={ecHdrBtn}><FileText size={13} /> Save as PDF</button>
+            <button onClick={() => { if (window.confirm("Log out of the portal?")) signOut(); }} className="ec-hdr-btn" style={ecHdrBtnGhost}>
+              <LogOut size={13} /> Log out
+            </button>
           </div>
         </div>
       </header>
 
       {/* Sticky phase nav */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,244,238,0.92)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.lineSoft}`, padding: "12px 32px" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
+      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.paperAlt}f2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.hair}`, padding: "13px 32px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
           {[
-            { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, color: C.green800, staffOnly: true },
-            { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, color: C.green800, adminOnly: true },
-            { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, color: C.amberText || "#7a6233", adminOnly: true },
-            { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, color: C.rust, adminOnly: true },
-            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, color: "#4197D0", staffOnly: true },
-            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, color: C.green400, staffOnly: true },
-            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, color: "#b08948", staffOnly: true },
+            { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, staffOnly: true },
+            { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, adminOnly: true },
+            { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, adminOnly: true },
+            { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, adminOnly: true },
+            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
+            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, staffOnly: true },
+            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, staffOnly: true },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
             return true;
-          }).map(({ key, label, desc, Icon, color }) => {
+          }).map(({ key, label, desc, Icon }) => {
             const active = mode === key;
             return (
-              <button key={key} onClick={() => { setMode(key); if (key === "library") setLibraryTopic(null); }} style={{
-                cursor: "pointer", display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start",
-                padding: "9px 14px", borderRadius: 12, fontFamily: FONT, textAlign: "left", minWidth: 148,
-                border: `1.5px solid ${active ? color : C.lineSoft}`,
-                background: active ? `${color}14` : "#fff",
+              <button key={key} onClick={() => { setMode(key); if (key === "library") setLibraryTopic(null); }} className="ec-nav-tab" style={{
+                cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start",
+                padding: "9px 15px", borderRadius: 10, fontFamily: FONT, textAlign: "left", minWidth: 150,
+                border: `1px solid ${active ? "transparent" : C.hairSoft}`,
+                background: active ? C.paperCard : "rgba(255,253,248,0.55)",
+                boxShadow: active ? `inset 3px 0 0 ${C.eucalypt}` : "none",
               }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color }}>
-                  <Icon size={13} /> {label}
+                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: active ? C.inkDeep : C.sageText }}>
+                  <Icon size={14} /> {label}
                 </span>
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: C.inkSoft, lineHeight: 1.3 }}>{desc}</span>
+                <span style={{ fontSize: 11, fontWeight: 400, color: C.sage, lineHeight: 1.3 }}>{desc}</span>
               </button>
             );
           })}
@@ -1746,7 +1731,7 @@ export default function OnboardingWorkbook() {
       </nav>
 
       {/* Main content */}
-      <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start" }}>
+      <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start", background: C.paper }}>
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "staffhome" && !inAdminPortal ? (
@@ -1797,4 +1782,20 @@ export default function OnboardingWorkbook() {
 const heroBtn = {
   display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.3)",
   color: "#fdfdf8", borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
+};
+
+const ecHdrBtn = {
+  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 500,
+  padding: "9px 13px", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 8,
+  background: "rgba(255,255,255,0.08)", color: "#eaf1e8", cursor: "pointer",
+};
+const ecHdrBtnGold = {
+  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 600,
+  padding: "9px 14px", border: "1px solid rgba(233,201,121,0.5)", borderRadius: 8,
+  background: "rgba(233,201,121,0.16)", color: "#f0dca8", cursor: "pointer",
+};
+const ecHdrBtnGhost = {
+  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 500,
+  padding: "9px 13px", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 8,
+  background: "transparent", color: "rgba(234,241,232,0.8)", cursor: "pointer",
 };
