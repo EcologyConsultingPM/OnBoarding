@@ -1335,7 +1335,7 @@ function AdminHome({ user, onNavigate }) {
   ];
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ borderRadius: 20, padding: "34px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 68%, #2a7d74)`, color: "#fff" }}>
         <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Control Centre</div>
         <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {name}.</h1>
@@ -1344,7 +1344,7 @@ function AdminHome({ user, onNavigate }) {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }} className="admin-domain-grid">
         {domains.map(({ eyebrow, title, desc, Icon, from, to, soon, mode, href }) => (
           <button
             key={title}
@@ -1583,12 +1583,6 @@ export default function OnboardingWorkbook() {
           body { background: #fff !important; }
         }
       `}</style>
-
-      {/* TEMP DEBUG — remove once portal issue confirmed fixed. Shows the live
-          values that decide admin vs staff view. */}
-      <div style={{ background: "#111", color: "#0f0", fontFamily: "monospace", fontSize: 12, padding: "6px 12px", textAlign: "center", letterSpacing: "0.03em" }}>
-        DEBUG · email={String(user?.email)} · hasAdminRights={String(hasAdminRights)} · portal={String(portal)} · inAdminPortal={String(inAdminPortal)} · mode={String(mode)}
-      </div>
 
       {/* Hero */}
       <header style={{ background: `linear-gradient(140deg, ${C.green900} 0%, ${C.green700} 38%, ${C.green400} 72%, ${C.green200} 100%)`, color: "#fdfdf8", padding: "40px 32px 36px", position: "relative", overflow: "hidden" }}>
