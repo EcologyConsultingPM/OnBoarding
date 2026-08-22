@@ -49,8 +49,17 @@ const C = {
   greenTint: "#e6efd8", greenTintSoft: "#eef3e4", cream: "#cfe3b8",
   amber: "#b08948", amberLight: "#c9a25e", amberBg: "#fbf6ea", amberText: "#7a6233",
   rust: "#c05a4a", cardBg: "#ffffff",
+  // ── Editorial redesign tokens (from the design mockup) ──
+  paper: "#f5f2ea", paperCard: "#fffdf8", paperAlt: "#efece2",
+  forest: "#0e2a1c", forestDeep: "#0b2317", eucalypt: "#1f5a34", eucalyptDark: "#164426",
+  inkDeep: "#12211a", sage: "#7a877d", sageText: "#3a4740", sageSoft: "#5b6a5f",
+  gold: "#e7c979", goldDeep: "#c9962a", teal: "#1d6b6b", tealBright: "#238383",
+  rustAccent: "#b5352a", plum: "#7d3b5c", ochre: "#a34a32",
+  hair: "rgba(18,33,26,.1)", hairSoft: "rgba(18,33,26,.07)",
 };
-const FONT = "'Nunito Sans', 'Helvetica Neue', sans-serif";
+const SERIF = "'Newsreader', Georgia, serif";
+const MONO = "'IBM Plex Mono', monospace";
+const FONT = "'Archivo', 'Helvetica Neue', sans-serif";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function pct(done, total) { return total ? Math.round((done / total) * 100) : 0; }
@@ -1346,53 +1355,80 @@ function ActionTile({ icon, label, desc, color, onClick }) {
 function AdminHome({ user, onNavigate }) {
   const name = displayNameFromEmail(user?.email);
 
-  // Admin operational domains — deliberately NOT "My Onboarding" (that's a
-  // staff concern). Cards either switch an in-app mode or open a domain page.
+  // Six domains, each with its own wildlife photo (duotone), accent colour and
+  // a gradient for the multiply blend — matching the design mockup.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#0f3f4a", to: "#2fa0a8", mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", Icon: ShieldCheck, from: "#234d1c", to: "#6faf4a", mode: "whsmonitor" },
-    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#4a2b52", to: "#a85f8e", mode: "staff" },
-    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#5f2a24", to: "#c06a52", soon: true },
-    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#0f4438", to: "#3fa87e", mode: "healthreport" },
-    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, from: "#6b4a1a", to: "#c9a24e", mode: "draft" },
+    { n: "01", eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", mode: "adminprojects" },
+    { n: "02", eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", Icon: ShieldCheck, photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
+    { n: "03", eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
+    { n: "04", eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
+    { n: "05", eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
+    { n: "06", eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", soon: true },
   ];
 
   return (
-    <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ borderRadius: 20, padding: "34px 32px", background: "linear-gradient(135deg, #0f2f1c 0%, #1c5033 42%, #2c7a5a 78%, #3fa07d 100%)", color: "#fff", boxShadow: "0 20px 50px -20px rgba(15,47,28,0.55)" }}>
-        <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Control Centre</div>
-        <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {name}.</h1>
-        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
-          Choose one management domain to work in. The detailed control centre stays focused on the operational area you select.
-        </p>
+    <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
+      {/* Hero */}
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, background: C.forest, color: "#f2f6ef" }}>
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 50% 32%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${C.eucalypt}, ${C.forestDeep} 82%)`, mixBlendMode: "multiply" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.9), rgba(6,18,12,.15) 72%)" }} />
+        <div style={{ position: "relative", padding: "34px 34px 26px" }}>
+          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 14 }}>Ecology Consulting · Control Centre</div>
+          <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 40, lineHeight: 1.08, letterSpacing: "-0.015em", margin: "0 0 10px" }}>Good day, {name}.</h1>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)", maxWidth: "52ch" }}>
+            Choose a management domain to work in. Each opens a focused control centre for that operational area.
+          </p>
+          {/* Stat strip */}
+          <div style={{ display: "flex", gap: 30, marginTop: 24, flexWrap: "wrap" }}>
+            {[["Domains", "6"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
+              <div key={l}>
+                <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1 }}>{v}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.55)", marginTop: 4 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }} className="admin-domain-grid">
-        {domains.map(({ eyebrow, title, desc, Icon, from, to, soon, mode, href }) => (
-          <button
+      {/* Section label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
+        <div style={{ height: 1, flex: 1, background: C.hair }} />
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>6 areas</div>
+      </div>
+
+      {/* Six stacked full-width domain rows */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        {domains.map(({ n, eyebrow, title, desc, Icon, photo, base, g1, g2, soon, mode, href }) => (
+          <a
             key={title}
-            onClick={() => { if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
-            disabled={soon}
-            className="admin-domain-card"
+            href="#"
+            onClick={(e) => { e.preventDefault(); if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
+            className="ec-row"
             style={{
-              position: "relative", overflow: "hidden", textAlign: "left", cursor: soon ? "default" : "pointer",
-              border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
-              background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 45%), linear-gradient(150deg, ${to} 0%, ${from} 60%, ${from} 100%)`,
-              opacity: soon ? 0.72 : 1,
-              boxShadow: soon ? "none" : "0 14px 30px -14px rgba(15,40,25,0.5)",
+              position: "relative", overflow: "hidden", display: "flex", alignItems: "stretch",
+              minHeight: 116, borderRadius: 16, color: "#fff", background: base, textDecoration: "none",
+              boxShadow: "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)",
+              opacity: soon ? 0.86 : 1, cursor: soon ? "default" : "pointer",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.18)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
-              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
+            <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') 50% 35%/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
+            <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 84%)`, mixBlendMode: "multiply" }} />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(4,18,12,.9), rgba(4,18,12,.35) 72%)" }} />
+            <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 22px" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 11, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ opacity: 0.7 }}>{n}</span> {eyebrow}
+                  {soon && <span style={{ background: "rgba(255,255,255,0.2)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em" }}>Soon</span>}
+                </div>
+                <div style={{ fontFamily: SERIF, fontSize: 23, lineHeight: 1.12, marginBottom: 4 }}>{title}</div>
+                <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.82)", maxWidth: "62ch" }}>{desc}</p>
+              </div>
+              {!soon && <ChevronRight size={22} style={{ flexShrink: 0, opacity: 0.75 }} />}
             </div>
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-              {title}
-              {soon && <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "2px 7px" }}>SOON</span>}
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
-            {!soon && <ChevronRight size={20} style={{ position: "absolute", right: 18, bottom: 20, opacity: 0.7 }} />}
-          </button>
+          </a>
         ))}
       </div>
     </div>
@@ -1597,7 +1633,7 @@ export default function OnboardingWorkbook() {
 
   return (
     <div style={{ minHeight: "100%", background: C.bg, fontFamily: FONT, color: C.ink, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.line}` }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
       <style>{`
         @keyframes wb-spin { to { transform: rotate(360deg); } }
         .wb-spin { animation: wb-spin 0.8s linear infinite; }
