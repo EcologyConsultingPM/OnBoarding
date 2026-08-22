@@ -1443,12 +1443,13 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   const firstName = (user?.email || "").split("@")[0].split(".")[0];
   const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
 
+  // Each domain: its own wildlife photo (duotone), accent base + multiply gradient.
   const domains = [
-    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, from: "#153d22", to: "#3a8f4a" },
-    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, from: "#6b4a1a", to: "#c9a24e" },
-    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, from: "#4a2b52", to: "#a85f8e" },
-    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, from: "#0f3f4a", to: "#2fa0a8", href: "/staff/projects" },
-    { key: "remote", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, from: "#5f3320", to: "#b5714a", href: "/staff/remote-operations" },
+    { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
+    { key: "whs", n: "02", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
+    { key: "library", n: "03", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
+    { key: "projects", n: "04", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "remote", n: "05", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
 
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1461,66 +1462,83 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
-    <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ borderRadius: 20, padding: "30px 32px", background: "linear-gradient(135deg, #0f2f1c 0%, #1c5033 42%, #2c7a5a 78%, #3fa07d 100%)", color: "#fff", boxShadow: "0 20px 50px -20px rgba(15,47,28,0.55)" }}>
-        <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Staff Portal</div>
-        <h1 style={{ margin: "10px 0 8px", fontSize: 30, fontWeight: 900, fontFamily: FONT }}>Good day, {greetName}.</h1>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
-          Choose an area to work in. Your notices and calendar are on the right.
-        </p>
-        {priorityCount > 0 && (
-          <div style={{ marginTop: 15, display: "inline-block", background: "#e8d9a8", color: C.green900, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 800 }}>
-            {priorityCount} item{priorityCount === 1 ? "" : "s"} awaiting your attention
-          </div>
-        )}
+    <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
+      {/* Photographic hero band */}
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, minHeight: 186, display: "flex", flexDirection: "column", justifyContent: "center", padding: "32px 36px", background: C.forest }}>
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/everlastings.png') center 55%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(105deg, ${C.forestDeep} 12%, #1e5b36 92%)`, mixBlendMode: "multiply" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,18,12,.86), rgba(6,18,12,.12))" }} />
+        <div style={{ position: "relative", color: "#f2f6ef", maxWidth: 560 }}>
+          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Ecology Consulting · Staff portal</div>
+          <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 36, lineHeight: 1.08, letterSpacing: "-0.012em", margin: "0 0 10px" }}>Good day, {greetName}.</h1>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose an area to work in. Your notices and calendar are on the right.</p>
+          {priorityCount > 0 && (
+            <div style={{ marginTop: 15, display: "inline-block", background: C.gold, color: C.forestDeep, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 700, fontFamily: MONO, letterSpacing: "0.04em" }}>
+              {priorityCount} item{priorityCount === 1 ? "" : "s"} awaiting your attention
+            </div>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }} className="staff-home-grid">
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: 26, alignItems: "start" }} className="staff-home-grid">
         {/* Domains — left */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-          {domains.map(({ key, eyebrow, title, desc, Icon, from, to, href }) => (
-            <button
-              key={key}
-              onClick={() => { if (href) window.location.href = href; else onNavigate(key); }}
-              className="admin-domain-card"
-              style={{ position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 15, padding: "18px 18px 20px", color: "#fff", fontFamily: FONT, background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 45%), linear-gradient(150deg, ${to} 0%, ${from} 60%, ${from} 100%)`, boxShadow: "0 14px 30px -14px rgba(15,40,25,0.5)" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} /></div>
-                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 5 }}>{title}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45, color: "rgba(255,255,255,0.9)" }}>{desc}</div>
-            </button>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Your work areas</div>
+            <div style={{ height: 1, flex: 1, background: C.hair }} />
+            <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>{domains.length} areas</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="staff-domain-grid">
+            {domains.map(({ key, n, eyebrow, title, desc, Icon, photo, base, g1, g2, href }) => (
+              <a
+                key={key}
+                href="#"
+                onClick={(e) => { e.preventDefault(); if (href) window.location.href = href; else onNavigate(key); }}
+                className="ec-row"
+                style={{ position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", minHeight: 214, padding: 22, borderRadius: 16, overflow: "hidden", color: "#fff", background: base, textDecoration: "none", boxShadow: "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)" }}
+              >
+                <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') center/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
+                <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 82%)`, mixBlendMode: "multiply" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.88), rgba(6,18,12,.05) 68%)" }} />
+                <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={17} /></div>
+                  <div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(233,201,121,0.95)", marginBottom: 8 }}>{eyebrow}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 25, lineHeight: 1.12, marginBottom: 7 }}>{title}</div>
+                    <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.8)" }}>{desc}</p>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
         </div>
 
         {/* Noticeboard + calendar — right */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 15, padding: "18px 20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Staff noticeboard</h2>
-              <a href="/staff/noticeboard" style={{ fontSize: 11.5, fontWeight: 800, color: C.green400, textDecoration: "none" }}>Open →</a>
+              <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>Staff noticeboard</h2>
+              <a href="/staff/noticeboard" style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500, color: C.teal, textDecoration: "none" }}>Open →</a>
             </div>
-            <div style={{ padding: "18px 14px", textAlign: "center", color: C.inkFaint, fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, background: C.bg, borderRadius: 10 }}>
+            <div style={{ padding: "18px 14px", textAlign: "center", color: C.sage, fontSize: 12.5, lineHeight: 1.5, background: C.paper, borderRadius: 10 }}>
               Draft a notice, get it approved, and publish it to the team. Open the noticeboard to post or read notices.
             </div>
           </div>
 
-          <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 15, padding: "18px 20px" }}>
+          <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT }}>{monthLabel}</h2>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: C.inkFaint, textTransform: "uppercase", letterSpacing: "0.04em" }}>Read-only</span>
+              <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>{monthLabel}</h2>
+              <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 500, color: C.sage, textTransform: "uppercase", letterSpacing: "0.08em" }}>Read-only</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, fontSize: 11 }}>
-              {["S","M","T","W","T","F","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontWeight: 800, color: C.inkFaint, padding: "2px 0" }}>{d}</div>)}
+              {["S","M","T","W","T","F","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontFamily: MONO, fontWeight: 500, color: C.sage, padding: "2px 0" }}>{d}</div>)}
               {cells.map((d, i) => (
-                <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 700, color: d ? C.ink : "transparent", background: d === now.getDate() ? C.greenTint : "transparent" }}>
+                <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 600, color: d ? C.sageText : "transparent", background: d === now.getDate() ? C.gold : "transparent" }}>
                   {d || ""}
                 </div>
               ))}
             </div>
-            <p style={{ margin: "10px 0 0", fontSize: 11, color: C.inkFaint, fontStyle: "italic", lineHeight: 1.4 }}>
+            <p style={{ margin: "10px 0 0", fontSize: 11, color: C.sage, fontStyle: "italic", lineHeight: 1.4 }}>
               Approved leave, training and review assignments will show here once the Requests area is enabled.
             </p>
           </div>
