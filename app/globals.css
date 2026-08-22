@@ -428,3 +428,28 @@ main {
 .admin-domain-grid { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 1100px) { .admin-domain-grid { grid-template-columns: repeat(2, 1fr) !important; } }
 @media (max-width: 620px) { .admin-domain-grid { grid-template-columns: 1fr !important; } }
+
+/* ── Domain card polish: subtle lift on hover (respects reduced-motion) ── */
+.admin-domain-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.admin-domain-card:hover { transform: translateY(-3px); box-shadow: 0 22px 40px -16px rgba(15,40,25,0.6) !important; }
+.admin-domain-card:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .admin-domain-card { transition: none; } .admin-domain-card:hover { transform: none; } }
+
+/* ── WHS AI drafting aid ──────────────────────────────────────────── */
+.swms-ai { background: #fff; border: 1px solid #d7e0ea; border-left: 4px solid #4197D0; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+.swms-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.swms-ai-title { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 900; color: #1c5560; }
+.swms-ai-open { background: #eaf3fa; color: #1c6591; border: 1px solid #b6d6ea; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
+.swms-ai-body { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.swms-ai-note { margin: 0; font-size: 12.5px; line-height: 1.55; color: #5c6b73; }
+.swms-ai-body textarea { border: 1px solid #cdd8e2; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-family: inherit; resize: vertical; color: #23301f; }
+.swms-ai-actions { display: flex; gap: 8px; }
+.swms-ai-run { display: inline-flex; align-items: center; gap: 6px; background: #1c6591; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
+.swms-ai-run:disabled { opacity: .6; cursor: default; }
+.swms-ai-cancel { display: inline-flex; align-items: center; gap: 5px; background: #fff; color: #5c6b73; border: 1px solid #d8dce2; border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
+.swms-ai-used { display: flex; align-items: center; gap: 8px; margin-top: 12px; background: #fbf6ea; border: 1px solid #e5cf9e; border-radius: 8px; padding: 10px 13px; font-size: 12.5px; font-weight: 700; color: #7a6233; }
+
+/* ── Editorial redesign: domain rows + paper ground ───────────────── */
+.ec-row { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.ec-row:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(18,33,26,.07), 0 28px 50px -28px rgba(18,33,26,.62) !important; }
+@media (prefers-reduced-motion: reduce) { .ec-row { transition: none; } .ec-row:hover { transform: none; } }
