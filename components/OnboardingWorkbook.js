@@ -850,6 +850,21 @@ function StaffLoginsPanel({ onToast }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState(null); // { email, tempPassword }
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  // Auto-hide the temp password 2 minutes after it's shown, so it doesn't
+  // linger on a shared screen. A live countdown tells the admin how long is left.
+  useEffect(() => {
+    if (!issued) return;
+    setSecondsLeft(120);
+    const tick = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) { clearInterval(tick); setIssued(null); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [issued]);
 
   const create = async () => {
     const email = newEmail.trim().toLowerCase();
@@ -926,11 +941,19 @@ function StaffLoginsPanel({ onToast }) {
 
           {issued && (
             <div style={{ background: C.amberBg, border: `1px solid ${C.amberLight}`, borderRadius: 8, padding: "10px 12px" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: C.amberText, marginBottom: 4 }}>
-                Shown once, copy it now, it's not saved anywhere:
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.amberText }}>
+                  Copy it now — hides in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+                </div>
+                <button onClick={() => setIssued(null)} style={{ background: "none", border: `1px solid ${C.amberLight}`, color: C.amberText, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: FONT }}>
+                  Hide now
+                </button>
               </div>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{issued.email}</div>
               <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: C.ink, marginTop: 2, userSelect: "all" }}>{issued.tempPassword}</div>
+              <div style={{ height: 3, borderRadius: 99, background: "#eaddc0", marginTop: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(secondsLeft / 120) * 100}%`, background: C.amber, transition: "width 1s linear" }} />
+              </div>
             </div>
           )}
         </div>
@@ -1326,17 +1349,17 @@ function AdminHome({ user, onNavigate }) {
   // Admin operational domains — deliberately NOT "My Onboarding" (that's a
   // staff concern). Cards either switch an in-app mode or open a domain page.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#1c5560", to: "#2a8091", mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", Icon: ShieldCheck, from: "#3d5a2a", to: "#5b8f45", mode: "whsmonitor" },
-    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#6b3f5f", to: "#a4547e", mode: "staff" },
-    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#8a3f34", to: "#b0554a", soon: true },
-    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#2c5f4a", to: "#3f8f6e", mode: "healthreport" },
-    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, from: "#8a6d2f", to: "#b08948", mode: "draft" },
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", Icon: FileText, from: "#0f3f4a", to: "#2fa0a8", mode: "adminprojects" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", Icon: ShieldCheck, from: "#234d1c", to: "#6faf4a", mode: "whsmonitor" },
+    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", Icon: BookOpen, from: "#4a2b52", to: "#a85f8e", mode: "staff" },
+    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", Icon: Users2, from: "#5f2a24", to: "#c06a52", soon: true },
+    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", Icon: Check, from: "#0f4438", to: "#3fa87e", mode: "healthreport" },
+    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", Icon: Settings, from: "#6b4a1a", to: "#c9a24e", mode: "draft" },
   ];
 
   return (
     <div style={{ maxWidth: 1320, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ borderRadius: 20, padding: "34px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 68%, #2a7d74)`, color: "#fff" }}>
+      <div style={{ borderRadius: 20, padding: "34px 32px", background: "linear-gradient(135deg, #0f2f1c 0%, #1c5033 42%, #2c7a5a 78%, #3fa07d 100%)", color: "#fff", boxShadow: "0 20px 50px -20px rgba(15,47,28,0.55)" }}>
         <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Control Centre</div>
         <h1 style={{ margin: "10px 0 8px", fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Good day, {name}.</h1>
         <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
@@ -1350,14 +1373,17 @@ function AdminHome({ user, onNavigate }) {
             key={title}
             onClick={() => { if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
             disabled={soon}
+            className="admin-domain-card"
             style={{
               position: "relative", overflow: "hidden", textAlign: "left", cursor: soon ? "default" : "pointer",
-              border: "none", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
-              background: `linear-gradient(135deg, ${from}, ${to})`, opacity: soon ? 0.72 : 1,
+              border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, padding: "22px 22px 24px", color: "#fff", fontFamily: FONT,
+              background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 45%), linear-gradient(150deg, ${to} 0%, ${from} 60%, ${from} 100%)`,
+              opacity: soon ? 0.72 : 1,
+              boxShadow: soon ? "none" : "0 14px 30px -14px rgba(15,40,25,0.5)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
+              <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(255,255,255,0.18)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={20} /></div>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.82)" }}>{eyebrow}</div>
             </div>
             <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
@@ -1382,11 +1408,11 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
 
   const domains = [
-    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, from: "#1e4d2b", to: "#2c6a34" },
-    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, from: "#8a6d2f", to: "#b08948" },
-    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, from: "#7a3f5f", to: "#a4547e" },
-    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, from: "#1c5560", to: "#2a8091", href: "/staff/projects" },
-    { key: "remote", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, from: "#7a4030", to: "#a4553f", href: "/staff/remote-operations" },
+    { key: "workbook", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, from: "#153d22", to: "#3a8f4a" },
+    { key: "whs", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, from: "#6b4a1a", to: "#c9a24e" },
+    { key: "library", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, from: "#4a2b52", to: "#a85f8e" },
+    { key: "projects", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, from: "#0f3f4a", to: "#2fa0a8", href: "/staff/projects" },
+    { key: "remote", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, from: "#5f3320", to: "#b5714a", href: "/staff/remote-operations" },
   ];
 
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1400,7 +1426,7 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
 
   return (
     <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ borderRadius: 20, padding: "30px 32px", background: `linear-gradient(120deg, ${C.green900}, ${C.green600} 70%, #2a7d74)`, color: "#fff" }}>
+      <div style={{ borderRadius: 20, padding: "30px 32px", background: "linear-gradient(135deg, #0f2f1c 0%, #1c5033 42%, #2c7a5a 78%, #3fa07d 100%)", color: "#fff", boxShadow: "0 20px 50px -20px rgba(15,47,28,0.55)" }}>
         <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: C.cream }}>Ecology Consulting Staff Portal</div>
         <h1 style={{ margin: "10px 0 8px", fontSize: 30, fontWeight: 900, fontFamily: FONT }}>Good day, {greetName}.</h1>
         <p style={{ margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.55, color: "rgba(255,255,255,0.9)", maxWidth: 560 }}>
@@ -1420,7 +1446,8 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
             <button
               key={key}
               onClick={() => { if (href) window.location.href = href; else onNavigate(key); }}
-              style={{ position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer", border: "none", borderRadius: 15, padding: "18px 18px 20px", color: "#fff", fontFamily: FONT, background: `linear-gradient(135deg, ${from}, ${to})` }}
+              className="admin-domain-card"
+              style={{ position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 15, padding: "18px 18px 20px", color: "#fff", fontFamily: FONT, background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 45%), linear-gradient(150deg, ${to} 0%, ${from} 60%, ${from} 100%)`, boxShadow: "0 14px 30px -14px rgba(15,40,25,0.5)" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} /></div>
