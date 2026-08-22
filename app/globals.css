@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Nunito+Sans:wght@400;600;700;800;900&display=swap");
 
 * {
   box-sizing: border-box;
@@ -474,3 +474,66 @@ main {
   .ec-login { grid-template-columns: 1fr !important; }
   .ec-login-photo { display: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STAGE E — Editorial redesign applied to all subdomain + admin panels.
+   These overrides come last so they win over the older definitions.
+   Fonts: Newsreader (serif headings), Archivo (body), IBM Plex Mono (labels).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Page grounds → warm paper */
+.proj-page, .swms-page, .ro-page, .nb-page { background: #f5f2ea; }
+
+/* Shared editorial hero treatment for the "flat" heroes (proj, nb, swms).
+   Turn them into forest-green photo bands with serif headings. */
+.proj-hero, .nb-hero, .swms-hero {
+  position: relative; overflow: hidden; border-radius: 18px;
+  padding: 30px 32px 26px; margin-bottom: 24px; color: #f2f6ef;
+  background: #0e2a1c;
+}
+.proj-hero::before, .nb-hero::before, .swms-hero::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, #0b2317 8%, #1e5b36 92%);
+  mix-blend-mode: multiply;
+}
+.proj-hero::after, .nb-hero::after, .swms-hero::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(6,18,12,.55), rgba(6,18,12,.05));
+}
+.proj-hero > *, .nb-hero > *, .swms-hero > * { position: relative; z-index: 1; }
+.proj-hero span, .nb-hero span, .swms-hero span {
+  font-family: 'IBM Plex Mono', monospace !important; font-size: 10.5px !important;
+  font-weight: 500 !important; letter-spacing: 0.18em !important; text-transform: uppercase;
+  color: #e7c979 !important;
+}
+.proj-hero h1, .nb-hero h1, .swms-hero h1 {
+  font-family: 'Newsreader', Georgia, serif !important; font-weight: 400 !important;
+  font-size: 34px !important; line-height: 1.1 !important; letter-spacing: -0.012em;
+  color: #f2f6ef !important; margin: 10px 0 8px !important;
+}
+.proj-hero p, .nb-hero p, .swms-hero p {
+  font-size: 14.5px !important; line-height: 1.6 !important; color: rgba(242,246,239,0.82) !important;
+}
+
+/* The gradient heroes (remote-ops, admin panels) → forest palette + serif */
+.ro-hero, .aps-hero, .qp-hero, .wm-hero, .phr-hero {
+  background: linear-gradient(105deg, #0b2317 8%, #1e5b36 92%) !important;
+}
+.ro-hero span, .aps-hero span, .qp-hero span, .wm-hero span, .phr-hero span {
+  font-family: 'IBM Plex Mono', monospace !important; letter-spacing: 0.18em !important; color: #e7c979 !important; font-weight: 500 !important;
+}
+.ro-hero h1, .aps-hero h1, .qp-hero h1, .wm-hero h1, .phr-hero h1 {
+  font-family: 'Newsreader', Georgia, serif !important; font-weight: 400 !important; letter-spacing: -0.012em;
+}
+
+/* Section headings across panels → serif, calmer weight */
+.nb-queue h2, .nb-section h2, .wm-card h2 {
+  font-family: 'Newsreader', Georgia, serif !important; font-weight: 400 !important; font-size: 18px !important;
+}
+
+/* Stat cards → paper */
+.ro-stat, .wm-sum, .qp-sum { background: #fffdf8 !important; border-color: rgba(18,33,26,.1) !important; }
+.ro-stat-value, .wm-sum-v, .qp-sum-v { font-family: 'Newsreader', Georgia, serif !important; font-weight: 400 !important; }
+
+/* Body font for the standalone pages */
+.proj-page, .swms-page, .ro-page, .nb-page { font-family: 'Archivo', 'Helvetica Neue', sans-serif; }
