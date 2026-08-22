@@ -136,9 +136,9 @@ export default function LoginPage() {
 
       {/* Left — photographic panel */}
       <div style={{ position: "relative", overflow: "hidden", background: "#0e2a1c" }} className="ec-login-photo">
-        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 42% 40%/cover", filter: "grayscale(0.35) contrast(1.04)", opacity: 0.82 }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(155deg,#1f5a34,#0b2317 78%)", mixBlendMode: "multiply" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(6,18,12,.9),rgba(6,18,12,.1) 55%)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 42% 40%/cover", filter: "grayscale(0.2) contrast(1.05)", opacity: 0.95 }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(155deg, rgba(31,90,52,0.55), rgba(11,35,23,0.6) 88%)", mixBlendMode: "multiply" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.82), rgba(6,18,12,0) 42%), linear-gradient(to bottom, rgba(6,18,12,.5), rgba(6,18,12,0) 30%)" }} />
         <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "44px 52px", color: "#f2f6ef", minHeight: "100vh", boxSizing: "border-box" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "#fff", borderRadius: 8, padding: "7px 10px", display: "flex", alignItems: "center" }}>
@@ -146,7 +146,7 @@ export default function LoginPage() {
             </div>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,246,239,0.72)" }}>Onboarding &amp; Learning Portal</div>
           </div>
-          <div style={{ maxWidth: 520 }}>
+          <div style={{ maxWidth: 520, textShadow: "0 2px 12px rgba(6,18,12,0.55)" }}>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "#e7c979", marginBottom: 18 }}>Phascolarctos cinereus — Blue Mountains, NSW</div>
             <h1 style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 400, fontSize: 50, lineHeight: 1.06, letterSpacing: "-0.015em", margin: "0 0 16px" }}>The field starts here.</h1>
             <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)", margin: 0, maxWidth: "44ch" }}>Your induction, competencies, WHS forms and project allocations — one place, from day one to accreditation.</p>
