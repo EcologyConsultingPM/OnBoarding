@@ -131,17 +131,37 @@ export default function LoginPage() {
   };
 
   const shell = (children) => (
-    <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(140deg, ${C.green900} 0%, ${C.green700} 45%, ${C.green400} 100%)`,
-      fontFamily: FONT, padding: 20,
-    }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" />
-      <div style={{ background: "#fff", borderRadius: 18, padding: "36px 34px", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-        <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 14px", display: "inline-block", marginBottom: 18 }}>
-          <img src="/logo.png" alt="Ecology Consulting" style={{ height: 26, width: "auto", display: "block" }} />
+    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.15fr .85fr", fontFamily: "'Archivo', Helvetica, sans-serif", background: "#f5f2ea" }} className="ec-login">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+
+      {/* Left — photographic panel */}
+      <div style={{ position: "relative", overflow: "hidden", background: "#0e2a1c" }} className="ec-login-photo">
+        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 42% 40%/cover", filter: "grayscale(0.35) contrast(1.04)", opacity: 0.82 }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(155deg,#1f5a34,#0b2317 78%)", mixBlendMode: "multiply" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(6,18,12,.9),rgba(6,18,12,.1) 55%)" }} />
+        <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "44px 52px", color: "#f2f6ef", minHeight: "100vh", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: "#fff", borderRadius: 8, padding: "7px 10px", display: "flex", alignItems: "center" }}>
+              <img src="/logo.png" alt="Ecology Consulting" style={{ height: 26, display: "block" }} />
+            </div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,246,239,0.72)" }}>Onboarding &amp; Learning Portal</div>
+          </div>
+          <div style={{ maxWidth: 520 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "#e7c979", marginBottom: 18 }}>Phascolarctos cinereus — Blue Mountains, NSW</div>
+            <h1 style={{ fontFamily: "'Newsreader', Georgia, serif", fontWeight: 400, fontSize: 50, lineHeight: 1.06, letterSpacing: "-0.015em", margin: "0 0 16px" }}>The field starts here.</h1>
+            <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)", margin: 0, maxWidth: "44ch" }}>Your induction, competencies, WHS forms and project allocations — one place, from day one to accreditation.</p>
+          </div>
+          <div style={{ display: "flex", gap: 26, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.55)", flexWrap: "wrap" }}>
+            <span>Internal use only</span><span>ISO 45001 aligned</span>
+          </div>
         </div>
-        {children}
+      </div>
+
+      {/* Right — form panel */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 48px", background: "#f5f2ea" }}>
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          {children}
+        </div>
       </div>
     </div>
   );
