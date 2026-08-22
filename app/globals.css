@@ -459,3 +459,18 @@ main {
   .staff-home-grid { grid-template-columns: 1fr !important; }
   .staff-domain-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ── Editorial header + nav ───────────────────────────────────────── */
+.ec-hdr-btn { transition: background 0.15s ease; }
+.ec-hdr-btn:hover { background: rgba(255,255,255,0.18) !important; }
+.ec-nav-tab { transition: background 0.15s ease, box-shadow 0.15s ease; }
+.ec-nav-tab:hover { background: #fffdf8 !important; }
+
+/* ── Admin home 2-column tile grid ────────────────────────────────── */
+@media (max-width: 820px) { .admin-tile-grid { grid-template-columns: 1fr !important; } }
+
+/* ── Login split-screen responsive ────────────────────────────────── */
+@media (max-width: 860px) {
+  .ec-login { grid-template-columns: 1fr !important; }
+  .ec-login-photo { display: none !important; }
+}
