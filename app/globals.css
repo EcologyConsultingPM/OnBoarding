@@ -599,3 +599,40 @@ main {
 .sr-cancelbtn { background: none; border: none; color: #7a877d; font-size: 12px; cursor: pointer; font-family: inherit; }
 .sr-empty { font-size: 13px; color: #8a927c; font-style: italic; padding: 10px 0; }
 .sr-error { display: flex; align-items: center; gap: 8px; background: #fbecea; border: 1px solid #f0b4ab; border-radius: 8px; padding: 10px 13px; color: #a5342a; font-size: 12.5px; font-weight: 700; }
+
+/* ── Admin Learning & Development library ─────────────────────────── */
+.ld { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+.ld-crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ld-crumb { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: #1d6b6b; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 4px 6px; border-radius: 6px; }
+.ld-crumb:hover { background: #eaf1f1; }
+.ld-crumb-wrap { display: inline-flex; align-items: center; }
+.ld-crumb-sep { color: #b8c0b5; }
+.ld-toolbar { display: flex; }
+.ld-add-btn { display: inline-flex; align-items: center; gap: 6px; background: #eef3e4; color: #2c6a34; border: 1px dashed #9cbf7a; border-radius: 9px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.ld-add { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; width: 100%; }
+.ld-add input, .ld-add select { border: 1px solid #cdd8c6; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-family: inherit; background: #fff; }
+.ld-add input { flex: 1; min-width: 160px; }
+.ld-add-save { background: #1f5a34; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.ld-add-cancel { background: none; border: 1px solid #d8dccf; border-radius: 8px; padding: 8px 10px; color: #7a877d; cursor: pointer; }
+.ld-list { display: flex; flex-direction: column; gap: 8px; }
+.ld-node { display: flex; align-items: center; gap: 8px; background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 12px; padding: 6px 10px 6px 6px; }
+.ld-node-main { flex: 1; display: flex; align-items: center; gap: 13px; background: none; border: none; cursor: pointer; text-align: left; padding: 8px; border-radius: 9px; font-family: inherit; min-width: 0; }
+.ld-node-main:disabled { cursor: default; }
+.ld-node-main:hover:not(:disabled) { background: #f5f2ea; }
+.ld-node-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ld-node-text { flex: 1; min-width: 0; }
+.ld-node-title { font-size: 14px; font-weight: 600; color: #23301f; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ld-node-meta { font-size: 11.5px; color: #7a877d; margin-top: 3px; display: flex; align-items: center; gap: 9px; }
+.ld-node-chev { color: #b8c0b5; flex-shrink: 0; }
+.ld-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; padding: 1px 7px; border-radius: 5px; }
+.ld-badge.admin { background: #f0e7ef; color: #7d3b5c; }
+.ld-approval { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; padding: 2px 8px; border-radius: 999px; }
+.ld-node-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.ld-act { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #f5f2ea; border: 1px solid rgba(18,33,26,.08); border-radius: 7px; color: #5c6b58; cursor: pointer; font-size: 13px; }
+.ld-act:hover { background: #eef0e9; }
+.ld-act.ok:hover { background: #e5f1dd; color: #2c6a34; }
+.ld-act.del:hover { background: #fbecea; color: #a5342a; }
+.ld-empty { font-size: 13px; color: #8a927c; font-style: italic; padding: 16px; text-align: center; }
+.ld-error, .ld-success { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 10px 13px; font-size: 12.5px; font-weight: 700; }
+.ld-error { background: #fbecea; border: 1px solid #f0b4ab; color: #a5342a; }
+.ld-success { background: #eaf3e2; border: 1px solid #b9d5a6; color: #2c6a34; }
