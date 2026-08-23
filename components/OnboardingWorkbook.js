@@ -17,6 +17,7 @@ import ProjectHealthReport from "./ProjectHealthReport";
 import AdminWhsMonitor from "./AdminWhsMonitor";
 import StaffForms from "./StaffForms";
 import AdminServiceRequests from "./AdminServiceRequests";
+import AdminLearningLibrary from "./AdminLearningLibrary";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
 /* ---------------------------------------------------------------
@@ -1363,6 +1364,7 @@ function AdminHome({ user, onNavigate }) {
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
     { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
+    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", photo: "wattle", base: "#4a5f2a", g1: "#6b8f3a", g2: "#1a2610", mode: "ldlibrary" },
     { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
@@ -1759,6 +1761,8 @@ export default function OnboardingWorkbook() {
             <AdminWhsMonitor />
           ) : isAdmin && mode === "servicerequests" ? (
             <AdminServiceRequests />
+          ) : isAdmin && mode === "ldlibrary" ? (
+            <AdminLearningLibrary />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <StaffForms />
           ) : isAdmin && mode === "staff" ? (
