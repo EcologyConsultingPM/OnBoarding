@@ -15,6 +15,8 @@ import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminWhsMonitor from "./AdminWhsMonitor";
+import StaffForms from "./StaffForms";
+import AdminServiceRequests from "./AdminServiceRequests";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
 /* ---------------------------------------------------------------
@@ -1363,7 +1365,7 @@ function AdminHome({ user, onNavigate }) {
     { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
     { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
-    { eyebrow: "Service desk", title: "Service requests", desc: "Assign administrators, action staff requests and review portal notifications.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", soon: true },
+    { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
   ];
 
   return (
@@ -1442,6 +1444,7 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   const domains = [
     { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
     { key: "whs", n: "02", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
+    { key: "staffforms", n: "03", eyebrow: "Requests & forms", title: "WHS & EC Forms", desc: "Leave, training and equipment requests — submitted to admin for approval.", Icon: ClipboardList, photo: "wattle", base: "#4a2b52", g1: "#7d3b5c", g2: "#241020" },
     { key: "library", n: "03", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "projects", n: "04", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
     { key: "remote", n: "05", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
@@ -1754,6 +1757,10 @@ export default function OnboardingWorkbook() {
             <ProjectHealthReport />
           ) : isAdmin && mode === "whsmonitor" ? (
             <AdminWhsMonitor />
+          ) : isAdmin && mode === "servicerequests" ? (
+            <AdminServiceRequests />
+          ) : mode === "staffforms" && !inAdminPortal ? (
+            <StaffForms />
           ) : isAdmin && mode === "staff" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <StaffLoginsPanel onToast={showToast} />
