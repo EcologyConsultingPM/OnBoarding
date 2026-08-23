@@ -18,6 +18,8 @@ import AdminWhsMonitor from "./AdminWhsMonitor";
 import StaffForms from "./StaffForms";
 import AdminServiceRequests from "./AdminServiceRequests";
 import AdminLearningLibrary from "./AdminLearningLibrary";
+import StaffLearningLibrary from "./StaffLearningLibrary";
+import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 
 /* ---------------------------------------------------------------
@@ -1363,10 +1365,9 @@ function AdminHome({ user, onNavigate }) {
   const domains = [
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
-    { eyebrow: "People & learning", title: "Staff development", desc: "Training, quiz drafts, learning progress, onboarding and team communications.", photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420", mode: "staff" },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", photo: "wattle", base: "#4a5f2a", g1: "#6b8f3a", g2: "#1a2610", mode: "ldlibrary" },
     { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
-    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff roles, resources, notices, document folders and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "draft" },
+    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "portalmgmt" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
   ];
 
@@ -1445,9 +1446,8 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
   // Each domain: its own wildlife photo (duotone), accent base + multiply gradient.
   const domains = [
     { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
-    { key: "whs", n: "02", eyebrow: "Safety & compliance", title: "WHS Forms", desc: "Toolbox talks, incident reports and controlled drafts.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
-    { key: "staffforms", n: "03", eyebrow: "Requests & forms", title: "WHS & EC Forms", desc: "Leave, training and equipment requests — submitted to admin for approval.", Icon: ClipboardList, photo: "wattle", base: "#4a2b52", g1: "#7d3b5c", g2: "#241020" },
-    { key: "library", n: "03", eyebrow: "People & learning", title: "Learning & Resources", desc: "Training, resource library, quizzes and records.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
+    { key: "staffforms", n: "02", eyebrow: "Safety, requests & forms", title: "WHS & EC Forms", desc: "Toolbox talks, incident reports, and leave, training & equipment requests — submitted for approval.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
+    { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "projects", n: "04", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
     { key: "remote", n: "05", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
@@ -1706,11 +1706,10 @@ export default function OnboardingWorkbook() {
           {[
             { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, staffOnly: true },
             { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, adminOnly: true },
-            { key: "staff", label: "Staff Progress", desc: "Review and assess staff members", Icon: Users2, adminOnly: true },
-            { key: "draft", label: "Draft Onboarding", desc: "Build a path for a new hire", Icon: Pencil, adminOnly: true },
+            { key: "portalmgmt", label: "Portal Management", desc: "Staff, progress & onboarding", Icon: Users2, adminOnly: true },
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
-            { key: "library", label: "Resource Library", desc: "Career levels, materials & quizzes", Icon: BookOpen, staffOnly: true },
-            { key: "whs", label: "WHS Forms", desc: "Toolbox talks, incident reports & drafts", Icon: ShieldCheck, staffOnly: true },
+            { key: "staffforms", label: "WHS & EC Forms", desc: "WHS forms, leave, training & equipment", Icon: ShieldCheck, staffOnly: true },
+            { key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
@@ -1747,6 +1746,13 @@ export default function OnboardingWorkbook() {
             <WhsFormsHub />
           ) : mode === "mine" ? (
             <MyOnboarding onToast={showToast} />
+          ) : isAdmin && mode === "portalmgmt" ? (
+            <PortalManagement>
+              <StaffLoginsPanel onToast={showToast} />
+              <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
+              <StaffProgress onToast={showToast} />
+              <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+            </PortalManagement>
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
@@ -1763,13 +1769,16 @@ export default function OnboardingWorkbook() {
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
             <AdminLearningLibrary />
+          ) : mode === "ldlibrary" && !inAdminPortal ? (
+            <StaffLearningLibrary />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <StaffForms />
-          ) : isAdmin && mode === "staff" ? (
+          ) : isAdmin && (mode === "staff" || mode === "portalmgmt") ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <StaffLoginsPanel onToast={showToast} />
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
+              <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
             </div>
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
