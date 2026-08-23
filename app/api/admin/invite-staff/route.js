@@ -45,12 +45,16 @@ export async function POST(request) {
   const { error: authError, status } = await requireAdmin(request, admin);
   if (authError) return Response.json({ error: authError }, { status });
 
-  let email, customPassword, forceChange;
+  let email, customPassword, forceChange, firstName, lastName, accessLevel;
   try {
     const body = await request.json();
     email = String(body?.email || "").trim().toLowerCase();
     customPassword = typeof body?.password === "string" ? body.password : null;
     forceChange = body?.forceChange !== false; // default true unless explicitly turned off
+    firstName = String(body?.firstName || "").trim();
+    lastName = String(body?.lastName || "").trim();
+    // Access level: 'staff' (staff portal only), 'admin' (admin only), 'both'.
+    accessLevel = ["staff", "admin", "both"].includes(body?.accessLevel) ? body.accessLevel : "staff";
   } catch {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
@@ -62,6 +66,11 @@ export async function POST(request) {
   }
 
   const tempPassword = customPassword || generateTempPassword();
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  const userMeta = {};
+  if (firstName) userMeta.first_name = firstName;
+  if (lastName) userMeta.last_name = lastName;
+  if (fullName) userMeta.full_name = fullName;
 
   // Does this person already have an account? Page through (small roster).
   let existing = null;
@@ -78,6 +87,7 @@ export async function POST(request) {
     const { error } = await admin.auth.admin.updateUserById(existing.id, {
       password: tempPassword,
       app_metadata: { ...existing.app_metadata, must_change_password: forceChange },
+      user_metadata: { ...existing.user_metadata, ...userMeta },
     });
     if (error) return Response.json({ error: "Could not reset this account." }, { status: 500 });
   } else {
@@ -86,12 +96,25 @@ export async function POST(request) {
       password: tempPassword,
       email_confirm: true,
       app_metadata: { must_change_password: forceChange },
+      user_metadata: userMeta,
     });
     if (error) return Response.json({ error: "Could not create this account." }, { status: 500 });
+  }
+
+  // Access level: add or remove admin rights via the admin_emails table.
+  // 'admin' or 'both' grants admin; 'staff' ensures no admin row remains.
+  try {
+    if (accessLevel === "admin" || accessLevel === "both") {
+      await admin.from("admin_emails").upsert({ email }, { onConflict: "email" });
+    } else {
+      await admin.from("admin_emails").delete().ilike("email", email);
+    }
+  } catch {
+    // Non-fatal: the account exists; admin rights can be adjusted again.
   }
 
   // Returned once, to the verified admin who made this request. Relay it to
   // the staff member out of band (Slack, in person, phone) — it's never
   // emailed automatically and never stored anywhere after this response.
-  return Response.json({ ok: true, email, tempPassword });
+  return Response.json({ ok: true, email, tempPassword, accessLevel, name: fullName || null });
 }
