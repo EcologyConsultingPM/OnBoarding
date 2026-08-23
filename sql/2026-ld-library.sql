@@ -1,0 +1,5 @@
+-- L&D library: ld_nodes (self-referencing tree) + ld_quiz_attempts.
+-- Applied live. Structure seeded from the real Core Training zip:
+-- 6 sections, 4 career levels, 11 modules, Modules/Resources/Quiz/Answers per module.
+-- Visibility: Manager Tools (03), Governance (05) and all Answers folders are admin-only.
+-- See migration ld_library + the seed (ld_seed_structure).
