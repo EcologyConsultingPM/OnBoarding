@@ -90,6 +90,18 @@ export default function StaffForms() {
       {error ? <p className="sf-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="sf-success"><CheckCircle2 size={15} /> {message}</p> : null}
 
+      {/* WHS field forms — live in the same domain, open their own workspaces */}
+      <div className="sf-whs">
+        <div className="sf-whs-label">WHS field forms</div>
+        <div className="sf-whs-links">
+          <a href="/staff/toolbox-talks" className="sf-whs-link">Toolbox talks</a>
+          <a href="/staff/incident-reports" className="sf-whs-link">Incident reports</a>
+          <a href="/staff/whs-drafts" className="sf-whs-link">SWMS &amp; risk assessment drafts</a>
+        </div>
+      </div>
+
+      <div className="sf-req-label">Requests for approval</div>
+
       {/* Form picker */}
       {!active ? (
         <div className="sf-picker">
