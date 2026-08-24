@@ -737,3 +737,25 @@ main {
 .wfc-empty { font-size: 13px; color: #8a927c; font-style: italic; padding: 10px 0; }
 .wfc-error { display: flex; align-items: center; gap: 8px; background: #fbecea; border: 1px solid #f0b4ab; border-radius: 8px; padding: 10px 13px; color: #a5342a; font-size: 12.5px; font-weight: 700; }
 @media (max-width: 640px) { .wfc-summary { grid-template-columns: 1fr; } }
+
+/* ═══ Photographic hero backgrounds — the four new wildlife photos ═══
+   Applied as duotone layers behind admin/subdomain heroes. Uses the same
+   treatment as the domain cards (grayscale, multiply green, dark scrim). */
+.wm-hero, .qp-hero, .aps-hero, .phr-hero, .ro-hero { position: relative !important; overflow: hidden !important; }
+.wm-hero > *, .qp-hero > *, .aps-hero > *, .phr-hero > *, .ro-hero > * { position: relative; z-index: 2; }
+
+/* WHS monitoring → wedge-tailed eagle (oversight, watchfulness) */
+.wm-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/wedgetail-eagle.jpg') 50% 30%/cover; filter:grayscale(.35); opacity:.82; }
+.wm-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.45) 85%); }
+
+/* Quote pipeline → red-tailed black cockatoo */
+.qp-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/redtail-cockatoo.jpg') 50% 32%/cover; filter:grayscale(.35); opacity:.8; }
+.qp-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
+
+/* Project setup → palm cockatoo */
+.aps-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/palm-cockatoo.jpg') 50% 22%/cover; filter:grayscale(.35); opacity:.8; }
+.aps-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
+
+/* Project health report → kangaroo paw (native flora) */
+.phr-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/kangaroo-paw.jpg') 50% 40%/cover; filter:grayscale(.3); opacity:.8; }
+.phr-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
