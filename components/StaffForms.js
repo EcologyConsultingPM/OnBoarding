@@ -2,48 +2,37 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  CalendarDays, GraduationCap, Package, Send, CheckCircle2, AlertCircle, X,
-  ShieldAlert, AlertTriangle, Route, ClipboardCheck, MapPin, FileWarning, Building2, History, ChevronLeft,
+  CalendarDays, GraduationCap, Package, Send, CheckCircle2, AlertCircle,
+  ShieldAlert, AlertTriangle, Route, ClipboardCheck, MapPin, FileWarning, Building2,
+  History, ChevronLeft, HeartPulse, ListChecks,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
+import SignaturePad from "./SignaturePad";
 
-const GROUPS = [
-  {
-    label: "Staff & HR",
-    forms: [
-      { key: "leave", kind: "request", label: "Leave Request", Icon: CalendarDays, blurb: "Annual, personal, or other leave." },
-      { key: "training", kind: "request", label: "Training Request", Icon: GraduationCap, blurb: "Courses, conferences, accreditation." },
-      { key: "equipment", kind: "request", label: "Equipment Request", Icon: Package, blurb: "Field gear, PPE, IT or other equipment." },
-    ],
-  },
-  {
-    label: "Field & mobilisation",
-    forms: [
-      { key: "daily_risk_assessment", kind: "whs", label: "Daily Risk Assessment", Icon: ClipboardCheck, blurb: "Conditions on arrival, hazard walk-through, stop-work triggers." },
-      { key: "journey_plan", kind: "whs", label: "Journey Management Plan", Icon: Route, blurb: "Crew manifest, route legs, check-in & overdue escalation." },
-      { key: "pre_mobilisation", kind: "whs", label: "Pre-Mobilisation Check", Icon: ClipboardCheck, blurb: "Approvals, scope, access, equipment & competency." },
-      { key: "site_erp", kind: "whs", label: "Site Specific ERP", Icon: MapPin, blurb: "Access, contacts, muster points & scenario response cards." },
-    ],
-  },
-  {
-    label: "WHS & office",
-    forms: [
-      { key: "injury_incident", kind: "whs", label: "Injury / Incident Report", Icon: AlertTriangle, blurb: "Record a workplace injury or illness." },
-      { key: "near_miss", kind: "whs", label: "Near Miss / Dangerous Incident", Icon: ShieldAlert, blurb: "Report a dangerous incident - even if no one was hurt." },
-      { key: "office_risk_assessment", kind: "whs", label: "Office Risk Assessment", Icon: Building2, blurb: "Assess office-based hazards and controls." },
-      { key: "hazard_report", kind: "whs", label: "Hazard Report", Icon: FileWarning, blurb: "Flag a hazard for attention." },
-    ],
-  },
-];
+const ICONS = {
+  leave: CalendarDays, training: GraduationCap, equipment: Package,
+  daily_risk_assessment: ClipboardCheck, journey_plan: Route, pre_mobilisation: ClipboardCheck, site_erp: MapPin,
+  injury_incident: AlertTriangle, near_miss: ShieldAlert, office_risk_assessment: Building2,
+  job_safety_analysis: ListChecks, first_aid_kit: HeartPulse, hazard_report: FileWarning,
+};
+const BLURBS = {
+  leave: "Annual, personal, or other leave.", training: "Courses, conferences, accreditation.",
+  equipment: "Field gear, PPE, IT or other equipment.",
+  daily_risk_assessment: "Conditions, hazards, check-in & crew sign-on.",
+  journey_plan: "Crew, route, monitoring & overdue escalation.",
+  pre_mobilisation: "Vehicle, comms, approvals before departure.",
+  site_erp: "Access, medical, muster & evacuation.",
+  injury_incident: "Record an injury, illness or dangerous incident.",
+  office_risk_assessment: "Office hazards, controls & actions.",
+  job_safety_analysis: "Step-by-step task hazard analysis.",
+  first_aid_kit: "Vehicle, field & office kit checks.",
+};
 
 const WHS_DEFINITIONS = {
   injury_incident: {
-    title: "What counts as a notifiable serious injury or illness",
-    body: "Under the model WHS Act, a serious injury or illness generally means one requiring immediate treatment as an in-patient in a hospital, or immediate treatment for a serious injury (e.g. amputation, serious head or eye injury, serious burn, spinal injury, degloving/scalping, loss of a bodily function, serious laceration), or medical treatment within 48 hours of exposure to a substance. The test is objective - the nature of the injury, not your personal judgement of severity. A PCBU must notify the regulator immediately of a notifiable incident.",
-  },
-  near_miss: {
-    title: "What counts as a dangerous incident (near miss)",
-    body: "Under the model WHS Act, a dangerous incident is one that exposes any person to a serious risk to their health or safety from an immediate or imminent exposure - even if no one is injured. Examples include uncontrolled escape/spillage/leakage of a substance, uncontrolled fire or explosion, electric shock, or the fall or release of a load from height. If the potential for serious harm was present, it must be reported. Notifiable dangerous incidents must be reported to the regulator immediately.",
+    title: "What counts as a notifiable incident",
+    body: "Under the model WHS Act, a notifiable incident is the death of a person, a serious injury or illness (e.g. requiring immediate in-patient hospital treatment, or immediate treatment for a serious injury), or a dangerous incident that exposes any person to a serious risk - even if no one is hurt. The test is objective. A PCBU must notify the regulator immediately of a notifiable incident.",
   },
 };
 
@@ -60,7 +49,7 @@ const STATUS_STYLE = {
 export default function StaffForms() {
   const { session } = useAuth();
   const [view, setView] = useState("hub");
-  const [active, setActive] = useState(null);
+  const [activeKey, setActiveKey] = useState(null);
   const [form, setForm] = useState({});
   const [requests, setRequests] = useState([]);
   const [whsHistory, setWhsHistory] = useState([]);
@@ -87,47 +76,36 @@ export default function StaffForms() {
   useEffect(() => { if (session?.access_token) loadHistory(); }, [session, loadHistory]);
 
   const notify = (m) => { setMessage(m); setError(""); setTimeout(() => setMessage(""), 2600); };
-  const openForm = (f) => { setActive(f); setForm({}); setError(""); setView("form"); };
-  const backToHub = () => { setView("hub"); setActive(null); setForm({}); };
+  const openForm = (key) => { setActiveKey(key); setForm({}); setError(""); setView("form"); };
+  const backToHub = () => { setView("hub"); setActiveKey(null); setForm({}); };
   const set = (k, v) => setForm((c) => ({ ...c, [k]: v }));
+
+  const schema = activeKey ? FORM_SCHEMAS[activeKey] : null;
 
   const submit = async () => {
     setError("");
-    const f = active;
-    if (f.kind === "request") {
-      let title = "", details = {};
-      if (f.key === "leave") {
-        if (!form.leaveType || !form.startDate || !form.endDate) { setError("Leave type, start and end dates are required."); return; }
-        title = form.leaveType + " leave - " + form.startDate + " to " + form.endDate;
-        details = { leaveType: form.leaveType, startDate: form.startDate, endDate: form.endDate, reason: form.reason || "" };
-      } else if (f.key === "training") {
-        if (!form.course || !form.provider) { setError("Course and provider are required."); return; }
-        title = "Training: " + form.course;
-        details = { course: form.course, provider: form.provider, cost: form.cost || "", date: form.date || "", justification: form.justification || "" };
-      } else {
-        if (!form.item) { setError("Item is required."); return; }
-        title = "Equipment: " + form.item;
-        details = { item: form.item, quantity: form.quantity || "1", reason: form.reason || "", neededBy: form.neededBy || "" };
-      }
+    if (!schema) return;
+    // Title: first text field value, else form label.
+    const firstText = schema.sections.flatMap((s) => s.fields).find((f) => ["text"].includes(f[2]));
+    const title = (form[firstText?.[0]] || schema.label).toString().trim();
+
+    if (schema.kind === "request") {
       try {
-        const res = await authFetch("POST", "/api/service-requests", { request_type: f.key, title, details });
+        const res = await authFetch("POST", "/api/service-requests", { request_type: activeKey, title: `${schema.label}: ${title}`, details: form });
         const d = await res.json(); if (!res.ok) throw new Error(d.error);
         backToHub(); await loadHistory(); notify("Request submitted for approval.");
       } catch (e) { setError(e.message); }
       return;
     }
-    const title = (form.title || f.label).toString().trim();
-    if (title.length < 2) { setError("Enter a short title/description."); return; }
-    const rest = { ...form };
-    delete rest.title; delete rest.site; delete rest.form_date; delete rest.notifiable_flag;
     try {
       const res = await authFetch("POST", "/api/whs-forms", {
-        form_type: f.key, title, site: form.site || "", form_date: form.form_date || null,
-        notifiable_flag: !!form.notifiable_flag, details: rest,
+        form_type: activeKey, title: `${schema.label}: ${title}`,
+        site: form.site || form.location || form.siteName || "", form_date: form.date || null,
+        notifiable_flag: !!form.notifiable_flag, details: form,
       });
       const d = await res.json(); if (!res.ok) throw new Error(d.error);
       backToHub(); await loadHistory();
-      notify(["injury_incident", "near_miss"].includes(f.key) ? "Submitted - a copy has gone to admin for review." : "Submitted and saved to your history.");
+      notify(activeKey === "injury_incident" ? "Submitted - a copy has gone to admin for review." : "Submitted and saved to your history.");
     } catch (e) { setError(e.message); }
   };
 
@@ -136,8 +114,28 @@ export default function StaffForms() {
     try { const res = await authFetch("PATCH", "/api/service-requests/" + id, { action: "cancel" }); const d = await res.json(); if (!res.ok) throw new Error(d.error); await loadHistory(); } catch (e) { setError(e.message); }
   };
 
-  const fld = (label, node) => <label className="sf-field"><span>{label}</span>{node}</label>;
+  const renderField = ([key, label, type]) => {
+    if (type === "signature") return <SignaturePad key={key} label={label} value={form[key] || ""} onChange={(v) => set(key, v)} />;
+    if (type === "checkbox") return (
+      <label key={key} className="sf-field sf-full sf-check"><input type="checkbox" checked={!!form[key]} onChange={(e) => set(key, e.target.checked)} /><span>{label}</span></label>
+    );
+    let input;
+    if (type === "textarea") input = <textarea rows={2} value={form[key] || ""} onChange={(e) => set(key, e.target.value)} />;
+    else if (type === "date") input = <input type="date" value={form[key] || ""} onChange={(e) => set(key, e.target.value)} />;
+    else if (type === "time") input = <input type="time" value={form[key] || ""} onChange={(e) => set(key, e.target.value)} />;
+    else if (type === "number") input = <input type="number" value={form[key] || ""} onChange={(e) => set(key, e.target.value)} />;
+    else if (type && type.startsWith("select:")) input = (
+      <select value={form[key] || ""} onChange={(e) => set(key, e.target.value)}>
+        <option value="">Select...</option>
+        {type.slice(7).split(",").map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+    else input = <input value={form[key] || ""} onChange={(e) => set(key, e.target.value)} />;
+    const wide = type === "textarea";
+    return <label key={key} className={"sf-field" + (wide ? " sf-full" : "")}><span>{label}</span>{input}</label>;
+  };
 
+  // ---------- HISTORY ----------
   if (view === "history") {
     const all = [
       ...requests.map((r) => ({ id: r.id, when: r.created_at, title: r.title, kind: r.request_type, status: r.status, note: r.admin_note, cancelable: r.status === "submitted" })),
@@ -145,11 +143,7 @@ export default function StaffForms() {
     ].sort((a, b) => new Date(b.when) - new Date(a.when));
     return (
       <div className="sf">
-        <header className="sf-hero">
-          <span>Ecology Consulting - Your records</span>
-          <h1>Submission history</h1>
-          <p>Every form and request you have submitted, with its current status. This record stays in your portal.</p>
-        </header>
+        <header className="sf-hero"><span>Ecology Consulting - Your records</span><h1>Submission history</h1><p>Every form and request you have submitted, with its current status. This record stays in your portal.</p></header>
         <button className="sf-back" onClick={() => setView("hub")}><ChevronLeft size={15} /> Back to forms</button>
         {all.length ? (
           <div className="sf-list">
@@ -157,10 +151,7 @@ export default function StaffForms() {
               const st = STATUS_STYLE[r.status] || STATUS_STYLE.submitted;
               return (
                 <div key={r.id} className="sf-row">
-                  <div className="sf-row-main">
-                    <div className="sf-row-title">{r.title}</div>
-                    <div className="sf-row-meta">{r.kind} - {new Date(r.when).toLocaleDateString("en-AU")}{r.note ? " - " + r.note : ""}</div>
-                  </div>
+                  <div className="sf-row-main"><div className="sf-row-title">{r.title}</div><div className="sf-row-meta">{r.kind} - {new Date(r.when).toLocaleDateString("en-AU")}{r.note ? " - " + r.note : ""}</div></div>
                   <span className="sf-status" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
                   {r.cancelable ? <button className="sf-row-cancel" onClick={() => cancel(r.id)}>Cancel</button> : null}
                 </div>
@@ -172,119 +163,23 @@ export default function StaffForms() {
     );
   }
 
-  if (view === "form" && active) {
-    const def = WHS_DEFINITIONS[active.key];
+  // ---------- A FORM ----------
+  if (view === "form" && schema) {
+    const def = WHS_DEFINITIONS[activeKey];
     return (
       <div className="sf">
-        <header className="sf-hero">
-          <span>Ecology Consulting - {active.kind === "request" ? "Staff services" : "WHS field form"}</span>
-          <h1>{active.label}</h1>
-          <p>{active.blurb}</p>
-        </header>
+        <header className="sf-hero"><span>Ecology Consulting - {schema.kind === "request" ? "Staff services" : "WHS field form"}</span><h1>{schema.label}</h1><p>{BLURBS[activeKey] || ""}</p></header>
         <button className="sf-back" onClick={backToHub}><ChevronLeft size={15} /> Back to forms</button>
-
-        {def ? (
-          <div className="sf-legis"><ShieldAlert size={16} /><div><strong>{def.title}</strong><p>{def.body}</p><span className="sf-legis-note">This guidance summarises the model WHS Act. Always follow your jurisdiction regulator and EC WHS procedures. If in doubt, notify your supervisor immediately.</span></div></div>
-        ) : null}
-
+        {def ? <div className="sf-legis"><ShieldAlert size={16} /><div><strong>{def.title}</strong><p>{def.body}</p><span className="sf-legis-note">This summarises the model WHS Act. Follow your jurisdiction regulator and EC WHS procedures. If in doubt, notify your supervisor immediately.</span></div></div> : null}
         {error ? <p className="sf-error"><AlertCircle size={15} /> {error}</p> : null}
 
         <div className="sf-form">
-          {active.kind === "whs" && (
-            <div className="sf-grid">
-              {fld("Title / short description", <input value={form.title || ""} onChange={(e) => set("title", e.target.value)} placeholder={active.label} />)}
-              {fld("Site / location", <input value={form.site || ""} onChange={(e) => set("site", e.target.value)} />)}
-              {fld("Date", <input type="date" value={form.form_date || ""} onChange={(e) => set("form_date", e.target.value)} />)}
+          {schema.sections.map((sec) => (
+            <div key={sec.title} className="sf-section">
+              <div className="sf-section-title">{sec.title}</div>
+              <div className="sf-grid">{sec.fields.map(renderField)}</div>
             </div>
-          )}
-
-          {active.key === "leave" && (
-            <div className="sf-grid">
-              {fld("Leave type", <select value={form.leaveType || ""} onChange={(e) => set("leaveType", e.target.value)}><option value="">Select...</option>{["Annual","Personal / carer's","Compassionate","Long service","Unpaid","Other"].map((o) => <option key={o}>{o}</option>)}</select>)}
-              {fld("Start date", <input type="date" value={form.startDate || ""} onChange={(e) => set("startDate", e.target.value)} />)}
-              {fld("End date", <input type="date" value={form.endDate || ""} onChange={(e) => set("endDate", e.target.value)} />)}
-              {fld("Reason (optional)", <textarea rows={2} value={form.reason || ""} onChange={(e) => set("reason", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "training" && (
-            <div className="sf-grid">
-              {fld("Course / activity", <input value={form.course || ""} onChange={(e) => set("course", e.target.value)} />)}
-              {fld("Provider", <input value={form.provider || ""} onChange={(e) => set("provider", e.target.value)} />)}
-              {fld("Estimated cost", <input value={form.cost || ""} onChange={(e) => set("cost", e.target.value)} placeholder="$" />)}
-              {fld("Preferred date", <input type="date" value={form.date || ""} onChange={(e) => set("date", e.target.value)} />)}
-              {fld("Justification", <textarea rows={2} value={form.justification || ""} onChange={(e) => set("justification", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "equipment" && (
-            <div className="sf-grid">
-              {fld("Item", <input value={form.item || ""} onChange={(e) => set("item", e.target.value)} />)}
-              {fld("Quantity", <input value={form.quantity || ""} onChange={(e) => set("quantity", e.target.value)} placeholder="1" />)}
-              {fld("Needed by", <input type="date" value={form.neededBy || ""} onChange={(e) => set("neededBy", e.target.value)} />)}
-              {fld("Reason", <textarea rows={2} value={form.reason || ""} onChange={(e) => set("reason", e.target.value)} />)}
-            </div>
-          )}
-
-          {(active.key === "injury_incident" || active.key === "near_miss") && (
-            <div className="sf-grid">
-              {fld("What happened", <textarea rows={3} value={form.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="Describe the event, sequence and immediate actions taken" />)}
-              {fld("People involved", <input value={form.people || ""} onChange={(e) => set("people", e.target.value)} />)}
-              {fld("Immediate cause / contributing factors", <textarea rows={2} value={form.cause || ""} onChange={(e) => set("cause", e.target.value)} />)}
-              {fld("Immediate controls put in place", <textarea rows={2} value={form.controls || ""} onChange={(e) => set("controls", e.target.value)} />)}
-              <label className="sf-field sf-full sf-check"><input type="checkbox" checked={!!form.notifiable_flag} onChange={(e) => set("notifiable_flag", e.target.checked)} /><span>This may meet the threshold for a notifiable incident (flag for admin - not a legal determination)</span></label>
-            </div>
-          )}
-
-          {active.key === "daily_risk_assessment" && (
-            <div className="sf-grid">
-              {fld("Conditions on arrival", <textarea rows={2} value={form.conditions || ""} onChange={(e) => set("conditions", e.target.value)} placeholder="Weather, terrain, access, wildlife" />)}
-              {fld("Key hazards identified", <textarea rows={3} value={form.hazards || ""} onChange={(e) => set("hazards", e.target.value)} />)}
-              {fld("Controls in place", <textarea rows={3} value={form.controls || ""} onChange={(e) => set("controls", e.target.value)} />)}
-              {fld("Stop-work triggers", <textarea rows={2} value={form.stopwork || ""} onChange={(e) => set("stopwork", e.target.value)} />)}
-              {fld("Crew on site", <input value={form.crew || ""} onChange={(e) => set("crew", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "office_risk_assessment" && (
-            <div className="sf-grid">
-              {fld("Area assessed", <input value={form.area || ""} onChange={(e) => set("area", e.target.value)} />)}
-              {fld("Hazards identified", <textarea rows={3} value={form.hazards || ""} onChange={(e) => set("hazards", e.target.value)} />)}
-              {fld("Controls in place", <textarea rows={3} value={form.controls || ""} onChange={(e) => set("controls", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "hazard_report" && (
-            <div className="sf-grid">
-              {fld("Hazard", <textarea rows={2} value={form.hazard || ""} onChange={(e) => set("hazard", e.target.value)} />)}
-              {fld("Risk if not addressed", <textarea rows={2} value={form.risk || ""} onChange={(e) => set("risk", e.target.value)} />)}
-              {fld("Suggested control", <textarea rows={2} value={form.control || ""} onChange={(e) => set("control", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "journey_plan" && (
-            <div className="sf-grid">
-              {fld("Crew manifest (names)", <textarea rows={2} value={form.crew || ""} onChange={(e) => set("crew", e.target.value)} />)}
-              {fld("Next of kin contacts", <textarea rows={2} value={form.nok || ""} onChange={(e) => set("nok", e.target.value)} />)}
-              {fld("Route / legs", <textarea rows={2} value={form.route || ""} onChange={(e) => set("route", e.target.value)} />)}
-              {fld("Vehicle & pre-departure check", <textarea rows={2} value={form.vehicle || ""} onChange={(e) => set("vehicle", e.target.value)} />)}
-              {fld("Check-in schedule & overdue action", <textarea rows={2} value={form.checkin || ""} onChange={(e) => set("checkin", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "pre_mobilisation" && (
-            <div className="sf-grid">
-              {fld("Statutory approvals & licensing", <textarea rows={2} value={form.approvals || ""} onChange={(e) => set("approvals", e.target.value)} />)}
-              {fld("Scope of works", <textarea rows={2} value={form.scope || ""} onChange={(e) => set("scope", e.target.value)} />)}
-              {fld("Site access readiness", <textarea rows={2} value={form.access || ""} onChange={(e) => set("access", e.target.value)} />)}
-              {fld("Equipment register", <textarea rows={2} value={form.equipment || ""} onChange={(e) => set("equipment", e.target.value)} />)}
-              {fld("Crew competency", <textarea rows={2} value={form.competency || ""} onChange={(e) => set("competency", e.target.value)} />)}
-            </div>
-          )}
-          {active.key === "site_erp" && (
-            <div className="sf-grid">
-              {fld("Site access & GPS", <textarea rows={2} value={form.access || ""} onChange={(e) => set("access", e.target.value)} placeholder="Access description and coordinates" />)}
-              {fld("Call-in-this-order contacts", <textarea rows={2} value={form.contacts || ""} onChange={(e) => set("contacts", e.target.value)} />)}
-              {fld("Muster point & evacuation", <textarea rows={2} value={form.muster || ""} onChange={(e) => set("muster", e.target.value)} />)}
-              {fld("Nearest medical / hospital", <textarea rows={2} value={form.medical || ""} onChange={(e) => set("medical", e.target.value)} />)}
-              {fld("Scenario notes (snake bite, heat, serious injury, bushfire, missing person, breakdown)", <textarea rows={3} value={form.scenarios || ""} onChange={(e) => set("scenarios", e.target.value)} />)}
-            </div>
-          )}
-
+          ))}
           <div className="sf-actions">
             <button className="sf-submit" onClick={submit}><Send size={14} /> Submit</button>
             <button className="sf-cancel" onClick={backToHub}>Cancel</button>
@@ -294,30 +189,33 @@ export default function StaffForms() {
     );
   }
 
+  // ---------- HUB ----------
+  const byGroup = FORM_GROUPS.map((g) => ({
+    label: g,
+    forms: Object.entries(FORM_SCHEMAS).filter(([, s]) => s.group === g).map(([key, s]) => ({ key, label: s.label, kind: s.kind })),
+  }));
+
   return (
     <div className="sf">
-      <header className="sf-hero">
-        <span>Ecology Consulting - Staff services</span>
-        <h1>WHS &amp; EC Forms</h1>
-        <p>Field forms, WHS reports and staff requests - all in one place. Submissions are saved to your history; requests and incidents route to admin for review.</p>
-      </header>
-
+      <header className="sf-hero"><span>Ecology Consulting - Staff services</span><h1>WHS &amp; EC Forms</h1><p>Field forms, WHS reports and staff requests - all in one place. Submissions are saved to your history; requests and incidents route to admin for review.</p></header>
       {error ? <p className="sf-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="sf-success"><CheckCircle2 size={15} /> {message}</p> : null}
-
       <button className="sf-history-btn" onClick={() => setView("history")}><History size={15} /> View my submission history</button>
 
-      {GROUPS.map((g) => (
+      {byGroup.map((g) => (
         <section key={g.label} className="sf-group">
           <div className="sf-group-label">{g.label}</div>
           <div className="sf-picker">
-            {g.forms.map((f) => (
-              <button key={f.key} className="sf-pick" onClick={() => openForm(f)}>
-                <div className="sf-pick-icon" style={{ background: f.kind === "whs" ? "#f3ece0" : "#eef3e4", color: f.kind === "whs" ? "#8a5b2e" : "#2c6a34" }}><f.Icon size={20} /></div>
-                <div className="sf-pick-title">{f.label}</div>
-                <div className="sf-pick-blurb">{f.blurb}</div>
-              </button>
-            ))}
+            {g.forms.map((f) => {
+              const Icon = ICONS[f.key] || FileWarning;
+              return (
+                <button key={f.key} className="sf-pick" onClick={() => openForm(f.key)}>
+                  <div className="sf-pick-icon" style={{ background: f.kind === "whs" ? "#f3ece0" : "#eef3e4", color: f.kind === "whs" ? "#8a5b2e" : "#2c6a34" }}><Icon size={20} /></div>
+                  <div className="sf-pick-title">{f.label}</div>
+                  <div className="sf-pick-blurb">{BLURBS[f.key] || ""}</div>
+                </button>
+              );
+            })}
           </div>
         </section>
       ))}
