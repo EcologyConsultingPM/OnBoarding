@@ -1,0 +1,4 @@
+-- whs_forms: unified WHS/field-form submissions (risk assessments, injury/incident,
+-- near miss, ERP, journey plan, pre-mobilisation, hazard, toolbox). RLS: staff own,
+-- admins all. Incidents/near-misses mirror into service_requests (types whs_incident,
+-- whs_near_miss) for the admin queue. Applied live.
