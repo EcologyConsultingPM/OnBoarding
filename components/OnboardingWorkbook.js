@@ -1359,6 +1359,14 @@ function ActionTile({ icon, label, desc, color, onClick }) {
 
 function AdminHome({ user, onNavigate }) {
   const name = displayNameFromEmail(user?.email);
+  const { session } = useAuth();
+  const [counts, setCounts] = useState({});
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/admin-counts", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json()).then((d) => setCounts(d.counts || {})).catch(() => {});
+  }, [session]);
 
   // Six domains, each with its own wildlife photo (duotone) + multiply gradient,
   // matching the mockup's 2-column tall-tile layout.
@@ -1424,6 +1432,11 @@ function AdminHome({ user, onNavigate }) {
               <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(198,238,238,0.95)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
                 {eyebrow}
                 {soon && <span style={{ background: "rgba(255,255,255,0.2)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em" }}>Soon</span>}
+                {counts[mode] > 0 && (
+                  <span style={{ background: "#e7c979", color: "#2a1c08", borderRadius: 999, padding: "1px 9px", fontWeight: 800, letterSpacing: "0.02em" }}>
+                    {counts[mode]} pending
+                  </span>
+                )}
               </div>
               <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1.1, marginBottom: 7 }}>{title}</div>
               <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.8)", maxWidth: "44ch" }}>{desc}</p>
