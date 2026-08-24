@@ -3,11 +3,14 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, Clock, FileWarning, Users, AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WhsFormsCompliance from "./WhsFormsCompliance";
 
 export default function AdminWhsMonitor() {
   const { session } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [kindFilter, setKindFilter] = useState("all");
+  const [personSort, setPersonSort] = useState("total"); // total | name | approved
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -26,6 +29,14 @@ export default function AdminWhsMonitor() {
 
   const { summary, byStatus, awaiting, people } = data;
 
+  const kinds = ["all", ...Array.from(new Set(awaiting.map((a) => a.kind)))];
+  const visibleAwaiting = kindFilter === "all" ? awaiting : awaiting.filter((a) => a.kind === kindFilter);
+  const sortedPeople = [...people].sort((a, b) => {
+    if (personSort === "name") return (a.email || "").localeCompare(b.email || "");
+    if (personSort === "approved") return b.approved - a.approved;
+    return (b.drafts + b.talks + b.incidents) - (a.drafts + a.talks + a.incidents);
+  });
+
   return (
     <div className="wm">
       <header className="wm-hero">
@@ -43,10 +54,17 @@ export default function AdminWhsMonitor() {
 
       {/* Awaiting review / approval queue */}
       <section className="wm-card">
-        <h2><Clock size={16} /> Awaiting review &amp; approval</h2>
-        {awaiting.length ? (
+        <div className="wm-card-head">
+          <h2><Clock size={16} /> Awaiting review &amp; approval</h2>
+          {kinds.length > 1 && (
+            <select className="wm-filter" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+              {kinds.map((k) => <option key={k} value={k}>{k === "all" ? "All types" : k}</option>)}
+            </select>
+          )}
+        </div>
+        {visibleAwaiting.length ? (
           <div className="wm-queue">
-            {awaiting.map((a) => (
+            {visibleAwaiting.map((a) => (
               <div key={a.id} className="wm-queue-row">
                 <span className="wm-kind">{a.kind}</span>
                 <span className="wm-title">{a.title}</span>
@@ -102,8 +120,10 @@ export default function AdminWhsMonitor() {
         ) : <p className="wm-empty">No WHS records submitted yet.</p>}
       </section>
 
+      <WhsFormsCompliance />
+
       <p className="wm-note">
-        This dashboard monitors WHS records that exist in the system today. A controlled policy &amp; procedure library with per-person "assigned document" completion tracking is a separate feature — say the word and it can be built next.
+        This dashboard monitors WHS records and field-form submissions in the system. Every staff submission is captured here for compliance auditing.
       </p>
     </div>
   );
