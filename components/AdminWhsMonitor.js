@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, Clock, FileWarning, Users, AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
-import WhsFormsCompliance from "./WhsFormsCompliance";
+import WhsComplianceDashboard from "./WhsComplianceDashboard";
 
 export default function AdminWhsMonitor() {
   const { session } = useAuth();
@@ -120,7 +120,7 @@ export default function AdminWhsMonitor() {
         ) : <p className="wm-empty">No WHS records submitted yet.</p>}
       </section>
 
-      <WhsFormsCompliance />
+      <WhsComplianceDashboard />
 
       <p className="wm-note">
         This dashboard monitors WHS records and field-form submissions in the system. Every staff submission is captured here for compliance auditing.
