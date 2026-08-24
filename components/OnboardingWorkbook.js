@@ -1453,6 +1453,27 @@ function AdminHome({ user, onNavigate }) {
 // shows an honest empty state until the Requests/calendar data feature exists;
 // per the governing WHS rules we do not fabricate operational records.
 function StaffHome({ user, onNavigate, priorityCount = 0 }) {
+  const { session } = useAuth();
+  const [feedback, setFeedback] = useState({ outcomes: [], unseen: 0 });
+  const [showOutcomes, setShowOutcomes] = useState(false);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/staff-feedback", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json()).then((d) => setFeedback({ outcomes: d.outcomes || [], unseen: d.unseen || 0 })).catch(() => {});
+  }, [session]);
+
+  const markSeen = async () => {
+    setShowOutcomes(true);
+    if (feedback.unseen > 0 && session?.access_token) {
+      try {
+        await fetch("/api/staff-feedback", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: "{}" });
+        setFeedback((f) => ({ ...f, unseen: 0 }));
+      } catch {}
+    }
+  };
+
+  const totalPriority = priorityCount + feedback.unseen;
   const firstName = (user?.email || "").split("@")[0].split(".")[0];
   const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
 
@@ -1485,13 +1506,41 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
           <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Ecology Consulting · Staff portal</div>
           <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 36, lineHeight: 1.08, letterSpacing: "-0.012em", margin: "0 0 10px" }}>Good day, {greetName}.</h1>
           <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose an area to work in. Your notices and calendar are on the right.</p>
-          {priorityCount > 0 && (
-            <div style={{ marginTop: 15, display: "inline-block", background: C.gold, color: C.forestDeep, borderRadius: 999, padding: "7px 15px", fontSize: 12.5, fontWeight: 700, fontFamily: MONO, letterSpacing: "0.04em" }}>
-              {priorityCount} item{priorityCount === 1 ? "" : "s"} awaiting your attention
-            </div>
+          {totalPriority > 0 && (
+            <button onClick={markSeen} style={{ marginTop: 15, display: "inline-flex", alignItems: "center", gap: 8, background: C.gold, color: C.forestDeep, borderRadius: 999, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, fontFamily: MONO, letterSpacing: "0.04em", border: "none", cursor: "pointer" }}>
+              {feedback.unseen > 0 ? `${feedback.unseen} new outcome${feedback.unseen === 1 ? "" : "s"}` : `${totalPriority} item${totalPriority === 1 ? "" : "s"}`} — view
+            </button>
           )}
         </div>
       </div>
+
+      {showOutcomes && feedback.outcomes.length > 0 && (
+        <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>Recent outcomes</h2>
+            <button onClick={() => setShowOutcomes(false)} style={{ background: "none", border: "none", color: C.sage, cursor: "pointer", fontFamily: MONO, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Hide</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {feedback.outcomes.slice(0, 8).map((o) => {
+              const good = o.status === "approved" || o.status === "reviewed";
+              const actioned = o.status === "actioned";
+              const col = actioned ? C.gold : good ? C.eucalypt : C.rustAccent;
+              const label = { approved: "Approved", declined: "Declined", reviewed: "Reviewed", actioned: "Action required" }[o.status] || o.status;
+              return (
+                <div key={o.kind + o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: `1px solid ${C.hairSoft}`, borderRadius: 10, borderLeft: `3px solid ${col}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{o.title}</div>
+                    {o.note && <div style={{ fontSize: 12, color: C.sageText, marginTop: 3 }}>Note: {o.note}</div>}
+                    <div style={{ fontSize: 11, color: C.sage, marginTop: 3 }}>{o.at ? new Date(o.at).toLocaleDateString("en-AU") : ""}</div>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.03em", color: col, background: `${col}14`, padding: "3px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ margin: "12px 0 0", fontSize: 11.5, color: C.sage, fontStyle: "italic" }}>Full detail is in your submission history within the WHS &amp; EC Forms area.</p>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: 26, alignItems: "start" }} className="staff-home-grid">
         {/* Domains — left */}
