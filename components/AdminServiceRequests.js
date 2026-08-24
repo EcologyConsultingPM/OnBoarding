@@ -83,6 +83,8 @@ export default function AdminServiceRequests() {
           <option value="leave">Leave</option>
           <option value="training">Training</option>
           <option value="equipment">Equipment</option>
+          <option value="whs_incident">WHS: Injury/Incident</option>
+          <option value="whs_near_miss">WHS: Near miss</option>
         </select>
         <span className="sr-count">{visible.length} shown</span>
       </div>
