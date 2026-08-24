@@ -759,3 +759,70 @@ main {
 /* Project health report → kangaroo paw (native flora) */
 .phr-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/kangaroo-paw.jpg') 50% 40%/cover; filter:grayscale(.3); opacity:.8; }
 .phr-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
+
+/* ── WHS Compliance Dashboard ─────────────────────────────────────── */
+.wcd { margin-top: 26px; display: flex; flex-direction: column; gap: 16px; }
+.wcd-loading, .wcd-error { font-size: 13px; color: #7a877d; padding: 14px 0; }
+.wcd-error { display: flex; align-items: center; gap: 8px; color: #a5342a; }
+.wcd-top { display: grid; grid-template-columns: minmax(260px, 1fr) 2fr; gap: 14px; align-items: stretch; }
+.wcd-gauge-card { background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; gap: 16px; }
+.wcd-gauge { width: 110px; height: 110px; flex-shrink: 0; }
+.wcd-gauge-num { font-family: 'Newsreader', Georgia, serif; font-size: 26px; fill: #12211a; }
+.wcd-gauge-lbl { font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; fill: #8a927c; }
+.wcd-gauge-title { font-family: 'Newsreader', Georgia, serif; font-size: 18px; color: #12211a; }
+.wcd-gauge-sub { font-size: 12px; color: #7a877d; margin-top: 4px; line-height: 1.4; }
+.wcd-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.wcd-metric { background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 13px; padding: 15px 16px; display: flex; flex-direction: column; justify-content: center; }
+.wcd-metric-v { font-family: 'Newsreader', Georgia, serif; font-size: 27px; color: #1e4d2b; line-height: 1; }
+.wcd-metric-l { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: #8a927c; margin-top: 5px; }
+.wcd-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.wcd-panel { background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 14px; padding: 18px 20px; }
+.wcd-panel h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 14px; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 17px; color: #12211a; }
+.wcd-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.wcd-bar-lbl { font-size: 12px; color: #3a4740; width: 150px; flex-shrink: 0; }
+.wcd-bar-track { flex: 1; height: 8px; background: #eef0e9; border-radius: 99px; overflow: hidden; }
+.wcd-bar-fill { display: block; height: 100%; background: linear-gradient(90deg, #3d7a45, #6b8f3a); border-radius: 99px; }
+.wcd-bar-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5c6b58; width: 26px; text-align: right; }
+.wcd-status-row { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.wcd-dot { width: 9px; height: 9px; border-radius: 99px; flex-shrink: 0; }
+.wcd-dot.submitted { background: #c9962a; } .wcd-dot.reviewed { background: #2a6591; } .wcd-dot.actioned { background: #2c6a34; } .wcd-dot.archived { background: #9aa69c; }
+.wcd-status-lbl { flex: 1; font-size: 12.5px; color: #3a4740; text-transform: capitalize; }
+.wcd-status-num { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #12211a; }
+.wcd-fail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f0ece2; font-size: 12.5px; color: #3a4740; }
+.wcd-fail-num { font-family: 'IBM Plex Mono', monospace; color: #a5342a; font-weight: 600; }
+.wcd-action-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0ece2; }
+.wcd-action-title { font-size: 13px; font-weight: 600; color: #23301f; }
+.wcd-action-desc { font-size: 12px; color: #7a877d; margin-top: 2px; }
+.wcd-close-btn { background: #eef6ea; color: #2c6a34; border: 1px solid #b9d5a6; border-radius: 7px; padding: 6px 13px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.wcd-register { display: flex; flex-direction: column; gap: 8px; }
+.wcd-reg-row { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border: 1px solid #eef0e9; border-radius: 10px; }
+.wcd-reg-main { flex: 1; min-width: 0; }
+.wcd-reg-title { font-size: 13px; font-weight: 600; color: #23301f; display: flex; align-items: center; gap: 8px; }
+.wcd-notif { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; background: #fbecea; color: #a5342a; padding: 1px 7px; border-radius: 5px; }
+.wcd-reg-meta { font-size: 11px; color: #7a877d; margin-top: 3px; }
+.wcd-reg-status { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; padding: 3px 9px; border-radius: 999px; background: #eef0e9; color: #6b755f; }
+.wcd-reg-status.submitted { background: #fbf1dd; color: #a5772b; } .wcd-reg-status.reviewed { background: #e3edf5; color: #2a6591; } .wcd-reg-status.actioned { background: #e5f1dd; color: #2c6a34; }
+.wcd-audit-btn { display: inline-flex; align-items: center; gap: 5px; background: #1f5a34; color: #fff; border: none; border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+.wcd-empty { font-size: 12.5px; color: #8a927c; font-style: italic; }
+.wcd-modal-bg { position: fixed; inset: 0; background: rgba(11,35,23,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.wcd-modal { background: #fffdf8; border-radius: 16px; padding: 24px; width: 100%; max-width: 540px; max-height: 88vh; overflow-y: auto; }
+.wcd-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.wcd-modal-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #a5772b; margin-bottom: 4px; }
+.wcd-modal-head h2 { margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 22px; color: #12211a; }
+.wcd-modal-head button { background: none; border: none; color: #7a877d; cursor: pointer; }
+.wcd-f { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.wcd-f span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; color: #3a4740; }
+.wcd-f input, .wcd-f select, .wcd-f textarea { border: 1px solid #cdd8c6; border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: 'Archivo', sans-serif; color: #23301f; background: #fff; }
+.wcd-checks { margin-bottom: 14px; }
+.wcd-checks-lbl { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; color: #3a4740; margin-bottom: 9px; }
+.wcd-check-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0ece2; }
+.wcd-check-row > span { font-size: 12.5px; color: #3a4740; flex: 1; }
+.wcd-check-btns { display: flex; gap: 4px; }
+.wcd-check-btn { background: #f5f2ea; border: 1px solid #dce3d5; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; color: #7a877d; text-transform: capitalize; }
+.wcd-check-btn.sel.pass { background: #e5f1dd; color: #2c6a34; border-color: #b9d5a6; }
+.wcd-check-btn.sel.fail { background: #fbecea; color: #a5342a; border-color: #f0b4ab; }
+.wcd-check-btn.sel.na { background: #eef0e9; color: #6b755f; }
+.wcd-modal-actions { display: flex; gap: 9px; margin-top: 6px; }
+.wcd-record { display: inline-flex; align-items: center; gap: 7px; background: #1f5a34; color: #fff; border: none; border-radius: 9px; padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.wcd-cancel { background: #fff; color: #5c6b58; border: 1px solid #d8dccf; border-radius: 9px; padding: 11px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+@media (max-width: 820px) { .wcd-top { grid-template-columns: 1fr; } .wcd-metrics { grid-template-columns: repeat(2, 1fr); } .wcd-cols { grid-template-columns: 1fr; } }
