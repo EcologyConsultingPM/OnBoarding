@@ -57,15 +57,19 @@ export async function POST(request) {
     }).select(COLUMNS).single();
     if (error) return Response.json({ error: error.message }, { status: 400 });
 
-    // Mirror a copy into the admin service-requests queue so incidents/near-misses
-    // surface alongside other approvals (compliance visibility). Non-fatal if it fails.
+    // Mirror a copy into the admin service-requests queue so incidents surface
+    // alongside other approvals (compliance visibility). The incident form carries
+    // an incidentType ("Near miss" / "Dangerous incident" / "Injury" etc.) which
+    // we use to label and route the queue item. Non-fatal if it fails.
     try {
-      if (["injury_incident", "near_miss"].includes(b.form_type)) {
+      if (b.form_type === "injury_incident") {
+        const incidentType = (b.details && b.details.incidentType) || "";
+        const isNearMiss = /near miss|dangerous/i.test(incidentType);
         await access.admin.from("service_requests").insert({
           created_by: access.user.id,
-          request_type: b.form_type === "near_miss" ? "whs_near_miss" : "whs_incident",
-          title: `${b.form_type === "near_miss" ? "Near miss" : "Injury/Incident"}: ${title}`,
-          details: { whs_form_id: data.id, form_type: b.form_type, notifiable: b.notifiable_flag === true, site: data.site },
+          request_type: isNearMiss ? "whs_near_miss" : "whs_incident",
+          title: `${isNearMiss ? "Near miss / dangerous incident" : "Injury/Incident"}: ${title}`,
+          details: { whs_form_id: data.id, incident_type: incidentType, notifiable: b.notifiable_flag === true, site: data.site },
           status: "submitted",
         });
       }
