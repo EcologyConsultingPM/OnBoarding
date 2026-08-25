@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
+import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
 
 const ICONS = {
@@ -205,20 +206,33 @@ export default function StaffForms() {
       {byGroup.map((g) => (
         <section key={g.label} className="sf-group">
           <div className="sf-group-label">{g.label}</div>
-          <div className="sf-picker">
+          <div className="sf-cards">
             {g.forms.map((f) => {
-              const Icon = ICONS[f.key] || FileWarning;
+              const m = CARD_META[f.key] || {};
               return (
-                <button key={f.key} className="sf-pick" onClick={() => openForm(f.key)}>
-                  <div className="sf-pick-icon" style={{ background: f.kind === "whs" ? "#f3ece0" : "#eef3e4", color: f.kind === "whs" ? "#8a5b2e" : "#2c6a34" }}><Icon size={20} /></div>
-                  <div className="sf-pick-title">{f.label}</div>
-                  <div className="sf-pick-blurb">{BLURBS[f.key] || ""}</div>
+                <button key={f.key} className="sf-card" onClick={() => openForm(f.key)}>
+                  <div className="sf-card-photo" style={{ backgroundImage: `url('/assets/${m.photo || "wattle"}.png')` }}>
+                    <div className="sf-card-code">{m.code || ""}{m.rev ? ` · ${m.rev}` : ""}</div>
+                    <div className="sf-card-title">{f.label}</div>
+                  </div>
+                  <div className="sf-card-body">
+                    <p className="sf-card-desc">{m.desc || BLURBS[f.key] || ""}</p>
+                    <div className="sf-card-foot">
+                      <span className="sf-card-pill">{m.status || "READY"}</span>
+                      <span className="sf-card-open">OPEN FORM →</span>
+                    </div>
+                  </div>
                 </button>
               );
             })}
           </div>
         </section>
       ))}
+
+      <div className="sf-doc-control">
+        <div className="sf-doc-control-label">Document control</div>
+        <p>Complete on screen, sign with your finger, then press <strong>Submit form</strong>. The submitted copy — signatures and all — lands in <strong>Admin › WHS Monitoring</strong>, where it's recorded for the compliance audit. Never edit a controlled template — request a revision through the admin portal.</p>
+      </div>
     </div>
   );
 }
