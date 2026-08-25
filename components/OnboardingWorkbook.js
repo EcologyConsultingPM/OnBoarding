@@ -21,6 +21,8 @@ import AdminLearningLibrary from "./AdminLearningLibrary";
 import StaffLearningLibrary from "./StaffLearningLibrary";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
+import FloraProfiles from "./FloraProfiles";
+import AdminFloraProfiles from "./AdminFloraProfiles";
 
 /* ---------------------------------------------------------------
    Auto-save status tracker (module-level pub/sub)
@@ -1368,12 +1370,13 @@ function AdminHome({ user, onNavigate }) {
       .then((r) => r.json()).then((d) => setCounts(d.counts || {})).catch(() => {});
   }, [session]);
 
-  // Six domains, each with its own wildlife photo (duotone) + multiply gradient,
+  // Seven domains, each with its own wildlife photo (duotone) + multiply gradient,
   // matching the mockup's 2-column tall-tile layout.
   const domains = [
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", photo: "wattle", base: "#4a5f2a", g1: "#6b8f3a", g2: "#1a2610", mode: "ldlibrary" },
+    { eyebrow: "Species reference", title: "Flora & Fauna Profiles", desc: "Threatened species reference library, staff field-photo submissions and Flora-expert verification. Flora is live now — fauna profiles follow.", photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317", mode: "floraprofiles" },
     { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "portalmgmt" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
@@ -1393,7 +1396,7 @@ function AdminHome({ user, onNavigate }) {
             <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose a management domain to work in. Each opens a focused control centre for that operational area.</p>
           </div>
           <div style={{ display: "flex", gap: 30, flexWrap: "wrap" }}>
-            {[["Domains", "6"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
+            {[["Domains", "7"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
               <div key={l} style={{ color: "#f2f6ef" }}>
                 <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1 }}>{v}</div>
                 <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.6)", marginTop: 5 }}>{l}</div>
@@ -1407,7 +1410,7 @@ function AdminHome({ user, onNavigate }) {
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
         <div style={{ height: 1, flex: 1, background: C.hair }} />
-        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>6 areas</div>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>7 areas</div>
       </div>
 
       {/* 2-column tall photo tiles */}
@@ -1482,8 +1485,9 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
     { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
     { key: "staffforms", n: "02", eyebrow: "Safety, requests & forms", title: "WHS & EC Forms", desc: "Toolbox talks, incident reports, and leave, training & equipment requests — submitted for approval.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
-    { key: "projects", n: "04", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "remote", n: "05", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    { key: "flora", n: "04", eyebrow: "Species reference", title: "Flora & Fauna Profiles", desc: "Search the threatened flora library, compare licensed reference photos and attach your own field photo for expert verification.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
+    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "remote", n: "06", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
 
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1772,6 +1776,7 @@ export default function OnboardingWorkbook() {
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
             { key: "staffforms", label: "WHS & EC Forms", desc: "WHS forms, leave, training & equipment", Icon: ShieldCheck, staffOnly: true },
             { key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
+            { key: "flora", label: "Flora & Fauna Profiles", desc: "Species reference & field photos", Icon: BookOpen, staffOnly: true },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
@@ -1831,8 +1836,12 @@ export default function OnboardingWorkbook() {
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
             <AdminLearningLibrary />
+          ) : isAdmin && mode === "floraprofiles" ? (
+            <AdminFloraProfiles onToast={showToast} />
           ) : mode === "ldlibrary" && !inAdminPortal ? (
             <StaffLearningLibrary />
+          ) : mode === "flora" && !inAdminPortal ? (
+            <FloraProfiles onToast={showToast} />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <StaffForms />
           ) : isAdmin && (mode === "staff" || mode === "portalmgmt") ? (
