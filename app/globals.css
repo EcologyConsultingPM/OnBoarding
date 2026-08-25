@@ -539,7 +539,7 @@ main {
 .proj-page, .swms-page, .ro-page, .nb-page { font-family: 'Archivo', 'Helvetica Neue', sans-serif; }
 
 /* ── Staff forms (leave/training/equipment) ───────────────────────── */
-.sf { max-width: 940px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.sf { max-width: 940px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; padding: 28px 20px 72px; background: #12211a; }
 .sf-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .sf-pick { background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 14px; padding: 20px; text-align: left; cursor: pointer; font-family: inherit; transition: transform .15s ease, box-shadow .15s ease; }
 .sf-pick:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(18,33,26,.4); }
@@ -561,13 +561,13 @@ main {
 .sf-mine { background: #fffdf8; border: 1px solid rgba(18,33,26,.1); border-radius: 14px; padding: 18px 20px; }
 .sf-mine h2 { display: flex; align-items: center; gap: 7px; margin: 0 0 13px; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 18px; color: #12211a; }
 .sf-list { display: flex; flex-direction: column; gap: 8px; }
-.sf-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid #eef0e9; border-radius: 10px; }
+.sf-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; background: #fffdf8; border: 1px solid #eef0e9; border-radius: 10px; }
 .sf-row-main { flex: 1; min-width: 0; }
 .sf-row-title { font-size: 13.5px; font-weight: 600; color: #23301f; }
 .sf-row-meta { font-size: 11.5px; color: #7a877d; margin-top: 2px; text-transform: capitalize; }
 .sf-status { padding: 3px 11px; border-radius: 999px; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
 .sf-row-cancel { background: none; border: 1px solid #e0c4bd; color: #a5342a; border-radius: 7px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
-.sf-empty { font-size: 13px; color: #8a927c; font-style: italic; }
+.sf-empty { font-size: 13px; color: #b9c4b5; font-style: italic; }
 .sf-error, .sf-success { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 10px 13px; font-size: 12.5px; font-weight: 700; }
 .sf-error { background: #fbecea; border: 1px solid #f0b4ab; color: #a5342a; }
 .sf-success { background: #eaf3e2; border: 1px solid #b9d5a6; color: #2c6a34; }
@@ -692,9 +692,10 @@ main {
 .sf-hero p { font-size: 14px; line-height: 1.6; color: rgba(242,246,239,0.82); margin: 0; max-width: 60ch; }
 .sf-history-btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; background: #fffdf8; border: 1px solid rgba(18,33,26,.12); border-radius: 9px; padding: 9px 15px; font-size: 12.5px; font-weight: 700; color: #1d6b6b; cursor: pointer; font-family: inherit; }
 .sf-history-btn:hover { background: #f0f5f0; }
-.sf-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: #5c6b58; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 4px 0; }
+.sf-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: #cddccb; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 4px 0; }
+.sf-back:hover { color: #fffdf8; }
 .sf-group { display: flex; flex-direction: column; gap: 11px; }
-.sf-group-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #7a877d; padding-bottom: 6px; border-bottom: 1px solid rgba(18,33,26,.1); }
+.sf-group-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #a9b6a3; padding-bottom: 6px; border-bottom: 1px solid rgba(255,253,248,.14); }
 .sf-legis { display: flex; gap: 12px; background: #fbf6ea; border: 1px solid #e5cf9e; border-left: 4px solid #c9962a; border-radius: 12px; padding: 15px 17px; color: #6b5423; }
 .sf-legis > svg { flex-shrink: 0; margin-top: 2px; color: #a5772b; }
 .sf-legis strong { display: block; font-size: 13.5px; color: #4a3c18; margin-bottom: 5px; }
