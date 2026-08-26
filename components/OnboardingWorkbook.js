@@ -21,8 +21,8 @@ import AdminLearningLibrary from "./AdminLearningLibrary";
 import StaffLearningLibrary from "./StaffLearningLibrary";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
-import FloraProfiles from "./FloraProfiles";
-import AdminFloraProfiles from "./AdminFloraProfiles";
+import SpeciesProfiles from "./SpeciesProfiles";
+import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
 
 /* ---------------------------------------------------------------
    Auto-save status tracker (module-level pub/sub)
@@ -1376,7 +1376,7 @@ function AdminHome({ user, onNavigate }) {
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
     { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", photo: "wattle", base: "#4a5f2a", g1: "#6b8f3a", g2: "#1a2610", mode: "ldlibrary" },
-    { eyebrow: "Species reference", title: "Flora & Fauna Profiles", desc: "Threatened species reference library, staff field-photo submissions and Flora-expert verification. Flora is live now — fauna profiles follow.", photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317", mode: "floraprofiles" },
+    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317", mode: "speciesprofiles" },
     { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "portalmgmt" },
     { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
@@ -1485,7 +1485,7 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
     { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
     { key: "staffforms", n: "02", eyebrow: "Safety, requests & forms", title: "WHS & EC Forms", desc: "Toolbox talks, incident reports, and leave, training & equipment requests — submitted for approval.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
-    { key: "flora", n: "04", eyebrow: "Species reference", title: "Flora & Fauna Profiles", desc: "Search the threatened flora library, compare licensed reference photos and attach your own field photo for expert verification.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
+    { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
     { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
     { key: "remote", n: "06", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
@@ -1776,7 +1776,7 @@ export default function OnboardingWorkbook() {
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
             { key: "staffforms", label: "WHS & EC Forms", desc: "WHS forms, leave, training & equipment", Icon: ShieldCheck, staffOnly: true },
             { key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
-            { key: "flora", label: "Flora & Fauna Profiles", desc: "Species reference & field photos", Icon: BookOpen, staffOnly: true },
+            { key: "species", label: "Species Profiles & Survey Requirements", desc: "Flora, fauna & survey timing standards", Icon: BookOpen, staffOnly: true },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
@@ -1836,12 +1836,12 @@ export default function OnboardingWorkbook() {
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
             <AdminLearningLibrary />
-          ) : isAdmin && mode === "floraprofiles" ? (
-            <AdminFloraProfiles onToast={showToast} />
+          ) : isAdmin && mode === "speciesprofiles" ? (
+            <AdminSpeciesProfiles onToast={showToast} />
           ) : mode === "ldlibrary" && !inAdminPortal ? (
             <StaffLearningLibrary />
-          ) : mode === "flora" && !inAdminPortal ? (
-            <FloraProfiles onToast={showToast} />
+          ) : mode === "species" && !inAdminPortal ? (
+            <SpeciesProfiles onToast={showToast} />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <StaffForms />
           ) : isAdmin && (mode === "staff" || mode === "portalmgmt") ? (
