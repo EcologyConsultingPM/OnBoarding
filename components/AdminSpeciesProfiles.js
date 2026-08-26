@@ -1,18 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Search, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { Search, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { FLORA_PROFILES } from "../lib/floraData";
+import { FAUNA_PROFILES } from "../lib/faunaData";
+import { SURVEY_FLORA } from "../lib/surveyFlora";
+import { SURVEY_FAUNA } from "../lib/surveyFauna";
+import SurveyRequirements from "./SurveyRequirements";
 
-const LISTING_STYLE = {
+const FLORA_LC = {
   "Critically Endangered": { fg: "#a5342a", bg: "rgba(212,86,63,.14)", short: "CE", accent: "#d4563f" },
   "Endangered": { fg: "#a5772b", bg: "rgba(233,201,121,.18)", short: "E", accent: "#c9962a" },
   "Vulnerable": { fg: "#1d6b6b", bg: "rgba(143,214,200,.18)", short: "V", accent: "#5fc9c9" },
 };
+const FAUNA_LC = {
+  "Critically Endangered": { fg: "#a5342a", bg: "rgba(212,86,63,.14)", short: "CE", accent: "#d4563f" },
+  "Endangered": { fg: "#a5772b", bg: "rgba(240,163,94,.16)", short: "E", accent: "#e08a4c" },
+  "Vulnerable": { fg: "#2a6591", bg: "rgba(143,191,221,.16)", short: "V", accent: "#6fa4c8" },
+  "Extinct": { fg: "#6b755f", bg: "rgba(154,164,180,.16)", short: "EX", accent: "#6d7789" },
+  "Extinct in the Wild": { fg: "#7d3b5c", bg: "rgba(180,154,212,.16)", short: "EW", accent: "#8b73ad" },
+  "Conservation Dependent": { fg: "#1f5a34", bg: "rgba(127,214,196,.16)", short: "CD", accent: "#5fae9e" },
+};
+function faunaListing(p) { return (p.listing || "").split(" | ")[0]; }
 
-export default function AdminFloraProfiles({ onToast }) {
+export default function AdminSpeciesProfiles({ onToast }) {
   const { session } = useAuth();
+  const [kingdom, setKingdom] = useState("flora");
+  const [subView, setSubView] = useState("profiles");
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,21 +40,24 @@ export default function AdminFloraProfiles({ onToast }) {
     body: body ? JSON.stringify(body) : undefined,
   }), [session]);
 
+  const apiBase = kingdom === "flora" ? "/api/flora-photos" : "/api/fauna-photos";
+
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await authFetch("GET", "/api/flora-photos");
+      const res = await authFetch("GET", apiBase);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Couldn't load submissions");
       setSubs(d.submissions || []);
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [authFetch]);
+  }, [authFetch, apiBase]);
 
-  useEffect(() => { if (session?.access_token) load(); }, [session, load]);
+  useEffect(() => { if (session?.access_token) load(); }, [session, kingdom, load]);
 
   const decide = async (id, status, review_note) => {
     try {
-      const res = await authFetch("PATCH", `/api/flora-photos/${id}`, { status, review_note: review_note || "" });
+      const res = await authFetch("PATCH", `${apiBase}/${id}`, { status, review_note: review_note || "" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Couldn't update");
       setReviewingId(null); setRejectNote("");
@@ -55,35 +73,48 @@ export default function AdminFloraProfiles({ onToast }) {
   const pendingCount = subs.filter((s) => s.status === "pending").length;
   const verifiedCount = subs.filter((s) => s.status === "verified").length;
 
+  const PROFILES = kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES;
+  const LC = kingdom === "flora" ? FLORA_LC : FAUNA_LC;
   const nq = q.trim().toLowerCase();
   const browseList = useMemo(() => {
     if (!nq) return [];
-    return FLORA_PROFILES.filter((p) => (p.name + " " + (p.common || "") + " " + (p.family || "")).toLowerCase().includes(nq)).slice(0, 30);
-  }, [nq]);
+    return PROFILES.filter((p) => (p.name + " " + (p.common || "")).toLowerCase().includes(nq)).slice(0, 30);
+  }, [nq, PROFILES]);
+
+  const survey = kingdom === "flora" ? SURVEY_FLORA : SURVEY_FAUNA;
+
+  if (subView === "survey") {
+    return <SurveyRequirements initialKingdom={kingdom} onBack={() => setSubView("profiles")} />;
+  }
 
   return (
     <div className="afp">
       <header className="fp-hero">
-        <span>Ecology Consulting · Flora expert</span>
-        <h1>Flora &amp; Fauna Profiles</h1>
-        <p>Field photos awaiting your verification. Only verified photos are published to the flora profile and marked with a green tick. Fauna profiles will join this domain next.</p>
+        <span>Ecology Consulting · {kingdom === "flora" ? "Flora" : "Fauna"} expert</span>
+        <h1>Species Profiles &amp; Survey Requirements</h1>
+        <p>Field photos awaiting your verification. Only verified photos are published to the profile and marked with a green tick.</p>
         <div className="fp-hero-stats">
           <div><strong className="fp-stat-gold">{pendingCount}</strong><span>Pending</span></div>
           <div><strong style={{ color: "#4fb583" }}>{verifiedCount}</strong><span>Verified</span></div>
-          <div><strong>{FLORA_PROFILES.length}</strong><span>Profiles in library</span></div>
+          <div><strong>{PROFILES.length}</strong><span>Profiles in library</span></div>
         </div>
       </header>
+
+      <div className="spk-toggle light">
+        <button className={"flora" + (kingdom === "flora" ? " sel" : "")} onClick={() => { setKingdom("flora"); setQ(""); }}>Flora</button>
+        <button className={"fauna" + (kingdom === "fauna" ? " sel" : "")} onClick={() => { setKingdom("fauna"); setQ(""); }}>Fauna</button>
+      </div>
 
       {error ? <p className="fp-error"><AlertCircle size={15} /> {error}</p> : null}
 
       <div className="afp-queue">
-        <div className="afp-queue-head">Photo approval queue</div>
+        <div className="afp-queue-head">{kingdom === "flora" ? "Flora" : "Fauna"} photo approval queue</div>
         {loading ? (
           <p className="fp-empty-title" style={{ padding: "20px 0" }}>Loading submissions…</p>
         ) : queue.length === 0 ? (
           <div className="afp-empty">
             <div className="fp-empty-title">Queue is empty.</div>
-            <p>Field photos submitted by staff from the Flora &amp; Fauna Profiles area will arrive here for approval.</p>
+            <p>Field photos submitted by staff from the Species Profiles area will arrive here for approval.</p>
           </div>
         ) : (
           <div className="afp-list">
@@ -125,16 +156,17 @@ export default function AdminFloraProfiles({ onToast }) {
       </div>
 
       <div className="afp-browse">
-        <div className="fp-section-label">Reference library — quick lookup</div>
-        <div className="fp-search" style={{ marginBottom: 12 }}>
+        <div className="fp-section-label" style={{ color: "#1f5a34" }}>Reference library — quick lookup</div>
+        <div className="fp-search" style={{ marginBottom: 12, background: "#f5f2ea", border: "1px solid #dce3d5", color: "#7a877d" }}>
           <Search size={15} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search scientific name, common name or family" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search scientific name or common name" style={{ color: "#23301f" }} />
         </div>
         {nq && browseList.length === 0 && <p className="fp-empty-title">No matches.</p>}
         {browseList.length > 0 && (
           <div className="afp-browse-list">
             {browseList.map((p) => {
-              const c = LISTING_STYLE[p.listing] || LISTING_STYLE.Vulnerable;
+              const pl = kingdom === "flora" ? p.listing : faunaListing(p);
+              const c = LC[pl] || LC.Vulnerable;
               const verified = subs.some((s) => s.taxon_name === p.name && s.status === "verified");
               return (
                 <div key={p.name} className="afp-browse-row" style={{ borderLeftColor: c.accent }}>
@@ -151,6 +183,12 @@ export default function AdminFloraProfiles({ onToast }) {
             })}
           </div>
         )}
+      </div>
+
+      <div className="afp-browse">
+        <div className="fp-section-label" style={{ color: "#1f5a34" }}>Targeted survey standards — {kingdom}</div>
+        <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "#5c6b58", lineHeight: 1.55 }}>{survey.readme["Purpose"]}</p>
+        <button className="afp-btn verify" onClick={() => setSubView("survey")}>Open survey requirements →</button>
       </div>
     </div>
   );
