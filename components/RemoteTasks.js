@@ -18,6 +18,8 @@ const STATUS = {
 
 const STAFF_WORKABLE = ["accepted", "in_progress", "revising"];
 const STAFF_VISIBLE_ACTIVE = ["awaiting_acceptance", ...STAFF_WORKABLE, "submitted"];
+// These are the accepted workflow states that must appear in the in-portal calendar.
+const CALENDAR_ACTIVE_STATES = ["accepted", "in_progress", "submitted", "revising"];
 
 // Task Briefs: staff must accept an assigned brief before it becomes active.
 // The StaffHome calendar reads accepted/active task due dates from the same API.
@@ -104,6 +106,7 @@ export default function RemoteTasks({ isAdmin }) {
     <section className="rt" aria-label="Task briefs">
       <div className="rt-head">
         <h2><ClipboardList size={17} /> Task briefs</h2>
+        {!isAdmin ? <a className="workspace-home-link rt-home-link" href="/">Home</a> : null}
         {isAdmin && (
           <button className="rt-new" onClick={() => setCreating((current) => !current)}>
             <Plus size={14} /> Assign a task
@@ -143,7 +146,7 @@ export default function RemoteTasks({ isAdmin }) {
           const status = STATUS[task.status] || STATUS.awaiting_acceptance;
           const isOpen = openId === task.id;
           const overdue = task.due_date && STAFF_VISIBLE_ACTIVE.includes(task.status) && task.status !== "complete" && new Date(task.due_date) < new Date(new Date().toDateString());
-          const inCalendar = task.due_date && STAFF_ACTIVE_STATES.includes(task.status);
+          const inCalendar = task.due_date && CALENDAR_ACTIVE_STATES.includes(task.status);
 
           return (
             <article key={task.id} className="rt-card">

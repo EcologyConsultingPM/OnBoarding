@@ -102,6 +102,7 @@ export default function StaffTimesheetsWorkspace() {
   return (
     <main className="timesheet-page">
       <header className="timesheet-hero">
+        <a className="workspace-home-link timesheet-home-link" href="/">Home</a>
         <span><Timer size={14} /> Ecology Consulting · staff time and project tracking</span>
         <h1>Timesheets</h1>
         <p>Review your allocated project tracker entries, then use the official timesheet system to enter actual time worked.</p>

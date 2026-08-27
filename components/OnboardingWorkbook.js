@@ -22,6 +22,7 @@ import AdminLearningLibrary from "./AdminLearningLibrary";
 import StaffLearningLibrary from "./StaffLearningLibrary";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
+import AdminOnboardingAssignments from "./AdminOnboardingAssignments";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import StaffPortalEvents from "./StaffPortalEvents";
 import SpeciesProfiles from "./SpeciesProfiles";
@@ -1362,15 +1363,19 @@ function ActionTile({ icon, label, desc, color, onClick }) {
   );
 }
 
-function AdminHome({ user, onNavigate }) {
-  const name = displayNameFromEmail(user?.email);
+function AdminHome({ onNavigate }) {
   const { session } = useAuth();
   const [counts, setCounts] = useState({});
+  const [regulatoryOpen, setRegulatoryOpen] = useState(0);
 
   useEffect(() => {
     if (!session?.access_token) return;
     fetch("/api/admin-counts", { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then((r) => r.json()).then((d) => setCounts(d.counts || {})).catch(() => {});
+    fetch("/api/regulatory-watch", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.ok ? r.json() : { updates: [] })
+      .then((d) => setRegulatoryOpen((d.updates || []).filter((update) => ["new", "reviewing"].includes(update.status)).length))
+      .catch(() => setRegulatoryOpen(0));
   }, [session]);
 
   // Six domains. Reporting & analytics is no longer a standalone domain —
@@ -1378,7 +1383,7 @@ function AdminHome({ user, onNavigate }) {
   // sub-tab (see the "adminprojects" render branch below).
   const domains = [
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Setup, allocations, schedules, client records, quotes, remote delivery — plus the portfolio health report: completion, spend and at-risk projects.", accent: "#2f8f8f", accent2: "#1a4a4a", Icon: Building2, mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, controlled governance documents, drafts awaiting review, toolbox talks and incident oversight.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: "whsmonitor" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, controlled governance, drafts, toolbox talks, incident oversight and Regulatory Watch alerts for official legal and biodiversity changes.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: regulatoryOpen > 0 ? "regulatorywatch" : "whsmonitor", regulatoryOpen },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", accent: "#9cbf5a", accent2: "#2a3510", Icon: BookOpen, mode: "ldlibrary" },
     { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt" },
@@ -1387,39 +1392,12 @@ function AdminHome({ user, onNavigate }) {
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 26, fontFamily: FONT }}>
-      {/* Wide hero band */}
-      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, minHeight: 196, display: "flex", alignItems: "center", padding: "34px 38px", background: "#0b2016" }}>
-        <div style={{ position: "absolute", inset: 0, background: "url('/assets/koala.png') 62% 42%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(105deg, #08170f 10%, #1d6b6b 130%)", mixBlendMode: "multiply" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(4,14,9,.9), rgba(4,14,9,.1))" }} />
-        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 32, width: "100%", flexWrap: "wrap" }}>
-          <div style={{ color: "#f2f6ef", maxWidth: 560 }}>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Ecology Consulting · Control Centre</div>
-            <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 38, lineHeight: 1.08, letterSpacing: "-0.015em", margin: "0 0 10px" }}>Good day, {name}.</h1>
-            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose a management domain to work in. Each opens a focused control centre for that operational area.</p>
-          </div>
-          <div style={{ display: "flex", gap: 30, flexWrap: "wrap" }}>
-            {[["Domains", "6"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
-              <div key={l} style={{ color: "#f2f6ef" }}>
-                <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1 }}>{v}</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.6)", marginTop: 5 }}>{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Section label */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
-        <div style={{ height: 1, flex: 1, background: C.hair }} />
-        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>6 areas</div>
-      </div>
+      
 
       {/* 2-column tall tiles — icon badge + accent glow + diagonal pattern,
           so each domain reads distinctly even without a background photo. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="admin-tile-grid">
-        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href }) => (
+        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href, regulatoryOpen: domainRegulatoryOpen }) => (
           <a
             key={title}
             href="#"
@@ -1460,6 +1438,11 @@ function AdminHome({ user, onNavigate }) {
                 {counts[mode] > 0 && (
                   <span style={{ background: accent, color: "#0a120f", borderRadius: 999, padding: "2px 10px", fontWeight: 800, letterSpacing: "0.02em" }}>
                     {counts[mode]} pending
+                  </span>
+                )}
+                {domainRegulatoryOpen > 0 && (
+                  <span style={{ background: "#e7c979", color: "#1b3824", borderRadius: 999, padding: "2px 10px", fontWeight: 900, letterSpacing: "0.02em" }}>
+                    {domainRegulatoryOpen} regulatory review{domainRegulatoryOpen === 1 ? "" : "s"}
                   </span>
                 )}
               </div>
@@ -1503,7 +1486,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   // least one module for this staff member. This prevents a blank domain from
   // appearing for staff who have not been given an onboarding programme.
   const allDomains = [
-    { key: "workbook", n: "01", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
+    { key: "mine", n: "01", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your individually assigned onboarding modules and progress record.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
     { key: "staffforms", n: "02", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
@@ -1761,6 +1744,17 @@ export default function OnboardingWorkbook() {
             </div>
           </div>
           <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => {
+                setMode(inAdminPortal ? "home" : "staffhome");
+                if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="ec-hdr-btn"
+              style={ecHdrBtnGold}
+              title={inAdminPortal ? "Return to the admin home" : "Return to the staff home"}
+            >
+              <HomeIcon size={13} /> Home
+            </button>
             {hasAdminRights && (
               <button
                 onClick={() => setPortal(inAdminPortal ? "staff" : "admin")}
@@ -1781,11 +1775,10 @@ export default function OnboardingWorkbook() {
         </div>
       </header>
 
-      {/* On the staff home, the domain cards are the only work-area navigation.
-          The compact topic navigation returns once staff enter an embedded area,
-          and remains available throughout the administrator portal. */}
-      {(inAdminPortal || mode !== "staffhome") && (
-      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.paperAlt}f2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.hair}`, padding: "13px 32px" }}>
+      {/* Domain cards and the persistent header Home control are the sole portal-level navigation.
+          Embedded sub-tabs remain available inside each selected domain. */}
+      {inAdminPortal && (
+      <nav hidden aria-label="Retired portal topic navigation" style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.paperAlt}f2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.hair}`, padding: "13px 32px" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
           {[
             { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, staffOnly: true },
@@ -1844,6 +1837,7 @@ export default function OnboardingWorkbook() {
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
               <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+              <AdminOnboardingAssignments onToast={showToast} />
             </PortalManagement>
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
@@ -1869,8 +1863,8 @@ export default function OnboardingWorkbook() {
             <AdminRemoteOps />
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
-          ) : isAdmin && mode === "whsmonitor" ? (
-            <AdminWhsGovernance onToast={showToast} />
+          ) : isAdmin && (mode === "whsmonitor" || mode === "regulatorywatch") ? (
+            <AdminWhsGovernance key={mode} onToast={showToast} initialSubdomain={mode === "regulatorywatch" ? "regulatory" : "monitor"} />
           ) : isAdmin && mode === "servicerequests" ? (
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
@@ -1889,6 +1883,7 @@ export default function OnboardingWorkbook() {
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
               <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+              <AdminOnboardingAssignments onToast={showToast} />
             </div>
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
