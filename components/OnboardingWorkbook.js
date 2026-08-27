@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
@@ -1423,7 +1423,7 @@ function AdminHome({ onNavigate }) {
             {/* top accent bar */}
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, transparent 85%)` }} />
 
-            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                 background: `linear-gradient(135deg, ${accent}, ${accent2})`,
@@ -1435,7 +1435,7 @@ function AdminHome({ onNavigate }) {
               <ArrowUpRight size={18} color={`${accent}` } style={{ opacity: 0.55, flexShrink: 0 }} />
             </div>
 
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative", zIndex: 1 }}>
               <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, marginBottom: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {eyebrow}
                 {soon && <span style={{ background: "rgba(255,255,255,0.15)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em", color: "#fff" }}>Soon</span>}
@@ -1618,19 +1618,22 @@ export default function OnboardingWorkbook() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
-  // Admin status and portal both resolve asynchronously after first render, so
-  // the initial mode above can be wrong (it defaults to "staffhome" before we
-  // know the person is an admin in the admin portal). Whenever that resolution
-  // changes, if the person is sitting on EITHER default landing, put them on the
-  // correct one. This is robust to multi-step async (portal null->admin, admin
-  // false->true in any order) because it re-checks on every change rather than
-  // relying on a one-shot ref guard.
+  // Always reset to the selected portal's domain home when the person switches
+  // between Staff and Admin. Without this guard an admin sub-domain mode (for
+  // example `adminprojects`) can survive a switch to Staff and fall through to
+  // the retired onboarding workbook. The first async portal resolution also
+  // lands safely on the right home.
+  const previousPortal = useRef(portal);
   useEffect(() => {
+    const changedPortal = previousPortal.current !== portal;
+    previousPortal.current = portal;
     setMode((current) => {
-      if (current !== "home" && current !== "staffhome") return current; // they navigated somewhere — leave them
-      return inAdminPortal ? "home" : "staffhome";
+      if (changedPortal || current === "home" || current === "staffhome") {
+        return inAdminPortal ? "home" : "staffhome";
+      }
+      return current;
     });
-  }, [inAdminPortal]);
+  }, [portal, inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
   const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
@@ -1828,7 +1831,7 @@ export default function OnboardingWorkbook() {
 
       {/* Main content */}
       <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start", background: C.paper }}>
-        {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
+        {/* Retired checklist-only shell: portal users always land on a domain home. */}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "staffhome" && !inAdminPortal ? (
             <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
@@ -1892,12 +1895,10 @@ export default function OnboardingWorkbook() {
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
           ) : (
-            <>
-              {data.phases.map((phase, i) => (
-                <PhaseBlock key={phase.id} phase={phase} num={String(i + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
-              ))}
-              <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} onGoToLibraryTopic={goToLibraryTopic} />
-            </>
+            // Safe staff fallback: the retired workbook is never a portal landing
+            // page. If an obsolete URL or delayed state supplies an unknown mode,
+            // return the staff member to the card-based Staff Portal home instead.
+            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
           )}
         </main>
       </div>
