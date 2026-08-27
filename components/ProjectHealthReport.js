@@ -1,113 +1,62 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { BarChart3, AlertTriangle, CheckCircle2, AlertCircle, ListFilter, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, AlertTriangle, BarChart3, CheckCircle2, ChevronRight, Download, ListFilter, Loader2, WalletCards } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import ProjectTrackerExport from "./ProjectTrackerExport";
 
-function money(value) {
-  if (value == null) return "—";
-  return Number(value).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
-}
+function money(value) { return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Number(value || 0)); }
+function displayHours(value) { return value == null ? "—" : `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value)} h`; }
+function score(project) { const budget = project.financials?.overallBudget || 0; const spend = project.financials?.chargeOutSpend || 0; const hours = project.financials?.budgetHours || 0; const used = project.financials?.usedHours || 0; return Math.max(budget ? (spend / budget) * 100 : 0, hours ? (used / hours) * 100 : 0); }
 
-export default function ProjectHealthReport({ onManageProject }) {
+export default function ProjectHealthReport({ onManageProject, onOpenProjectTracker }) {
   const { session } = useAuth();
-  const [data, setData] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [financialReady, setFinancialReady] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ client: "", health: "", sort: "risk_first" });
+  const headers = useCallback(() => ({ Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
-    (async () => {
-      try {
-        const response = await fetch("/api/project-health-report", { headers: { Authorization: `Bearer ${session.access_token}` } });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Could not load the report.");
-        setData(payload);
-      } catch (loadError) {
-        setError(loadError.message);
-      }
-    })();
-  }, [session]);
+    let active = true;
+    (async () => { try { const response = await fetch("/api/admin/project-tracker", { headers: headers(), cache: "no-store" }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not load Project Health Report."); if (active) { setProjects(body.projects || []); setFinancialReady(Boolean(body.financialReady)); } } catch (loadError) { if (active) setError(loadError.message || "Could not load Project Health Report."); } finally { if (active) setLoading(false); } })();
+    return () => { active = false; };
+  }, [headers, session?.access_token]);
 
-  const clients = useMemo(() => [...new Set((data?.rows || []).map((row) => row.client).filter((client) => client && client !== "—"))].sort((a, b) => a.localeCompare(b)), [data]);
-  const visibleRows = useMemo(() => {
-    const rows = (data?.rows || []).filter((row) => {
-      if (filters.client && row.client !== filters.client) return false;
-      if (filters.health && row.health !== filters.health) return false;
-      return true;
-    });
-    return [...rows].sort((left, right) => {
-      if (filters.sort === "client") return `${left.client} ${left.project}`.localeCompare(`${right.client} ${right.project}`);
-      if (filters.sort === "completion_desc") return right.taskCompletion - left.taskCompletion;
-      if (filters.sort === "completion_asc") return left.taskCompletion - right.taskCompletion;
-      if (filters.sort === "spend_desc") return Number(right.currentSpend || 0) - Number(left.currentSpend || 0);
-      if (filters.sort === "budget_asc") return Number(left.remainingBudget ?? Number.MAX_SAFE_INTEGER) - Number(right.remainingBudget ?? Number.MAX_SAFE_INTEGER);
-      return Number(right.health === "At Risk") - Number(left.health === "At Risk") || left.project.localeCompare(right.project);
-    });
-  }, [data, filters]);
+  const clients = useMemo(() => [...new Set(projects.map((project) => project.clientName).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [projects]);
+  const rows = useMemo(() => projects.filter((project) => (!filters.client || project.clientName === filters.client) && (!filters.health || project.health === filters.health)).sort((left, right) => {
+    if (filters.sort === "client") return `${left.clientName} ${left.name}`.localeCompare(`${right.clientName} ${right.name}`);
+    if (filters.sort === "completion_desc") return right.taskCompletion - left.taskCompletion;
+    if (filters.sort === "completion_asc") return left.taskCompletion - right.taskCompletion;
+    if (filters.sort === "spend_desc") return Number(right.financials?.chargeOutSpend || 0) - Number(left.financials?.chargeOutSpend || 0);
+    if (filters.sort === "profit_desc") return Number(right.financials?.estimatedProfit || 0) - Number(left.financials?.estimatedProfit || 0);
+    const rank = { "At Risk": 0, Watch: 1, "On Track": 2 }; return (rank[left.health] ?? 9) - (rank[right.health] ?? 9) || left.name.localeCompare(right.name);
+  }), [filters, projects]);
+  const summary = useMemo(() => ({
+    active: projects.length,
+    atRisk: projects.filter((project) => project.health === "At Risk").length,
+    onTrack: projects.filter((project) => project.health === "On Track").length,
+    watch: projects.filter((project) => project.health === "Watch").length,
+    averageProfit: projects.length ? projects.reduce((sum, project) => sum + Number(project.financials?.estimatedProfit || 0), 0) / projects.length : 0,
+    availableHours: projects.reduce((sum, project) => sum + Number(project.financials?.remainingHours || 0), 0),
+    followUps: projects.reduce((sum, project) => sum + Number(project.activitySummary?.paused || 0) + Number(project.activitySummary?.atRiskAllocations || 0), 0),
+  }), [projects]);
+  const attention = useMemo(() => ({ overHours: projects.filter((project) => (project.financials?.remainingHours ?? 0) < 0).length, threshold: projects.reduce((sum, project) => sum + Number(project.activitySummary?.watchAllocations || 0), 0), paused: projects.reduce((sum, project) => sum + Number(project.activitySummary?.paused || 0), 0) }), [projects]);
 
-  if (error) return <div className="phr"><p className="phr-error"><AlertCircle size={15} /> {error}</p></div>;
-  if (!data) return <div className="phr"><p style={{ color: "#a9c0aa", fontWeight: 600 }}>Loading report…</p></div>;
-
-  const { summary } = data;
-
-  return (
-    <div className="phr">
-      <header className="phr-hero">
-        <span><BarChart3 size={17} /> Reporting &amp; analytics · Admin only</span>
-        <h1>Project health report</h1>
-        <p>Portfolio rollup across active projects. Task completion, current spend and remaining budget are collated from project setup and activity status. Actual timesheet hours come from the external timesheet system.</p>
-      </header>
-
-      <div className="phr-summary">
-        <div className="phr-sum-card"><div className="phr-sum-value">{summary.active}</div><div className="phr-sum-label">Active projects</div></div>
-        <div className="phr-sum-card"><div className="phr-sum-value" style={{ color: "#8fd48a" }}>{summary.onTrack}</div><div className="phr-sum-label">On track</div></div>
-        <div className="phr-sum-card"><div className="phr-sum-value" style={{ color: "#ef968d" }}>{summary.atRisk}</div><div className="phr-sum-label">At risk</div></div>
-        <div className="phr-sum-card"><div className="phr-sum-value">{summary.avgCompletion}%</div><div className="phr-sum-label">Avg completion</div></div>
-      </div>
-
-      <section className="phr-controls" aria-label="Project Tracker Overview controls">
-        <div className="phr-controls-title"><ListFilter size={15} /><span>Find and arrange projects</span><b>{visibleRows.length} of {data.rows.length}</b></div>
-        <div className="phr-controls-fields">
-          <label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label>
-          <label>Health<select value={filters.health} onChange={(event) => setFilters({ ...filters, health: event.target.value })}><option value="">All health states</option><option value="On Track">On track</option><option value="At Risk">At risk</option></select></label>
-          <label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="risk_first">At risk first</option><option value="completion_desc">Completion · high to low</option><option value="completion_asc">Completion · low to high</option><option value="spend_desc">Current spend · high to low</option><option value="budget_asc">Remaining budget · low to high</option><option value="client">Client / project · A–Z</option></select></label>
-          <button type="button" className="phr-clear-controls" onClick={() => setFilters({ client: "", health: "", sort: "risk_first" })}>Clear</button>
-        </div>
-      </section>
-
-      {visibleRows.length ? (
-        <div className="phr-table-wrap">
-          <table className="phr-table">
-            <thead>
-              <tr>
-                <th>Client</th><th>Project</th><th>Task completion</th><th>Team</th>
-                <th>Current spend</th><th>Remaining hrs</th><th>Remaining budget</th><th>Health</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.client}</td>
-                  <td className="phr-proj">{row.project}</td>
-                  <td>
-                    <div className="phr-bar"><div className="phr-bar-fill" style={{ width: `${row.taskCompletion}%`, background: row.health === "At Risk" ? "#dc776f" : "#78bd74" }} /></div>
-                    <span className="phr-pct">{row.taskCompletion}%</span>
-                  </td>
-                  <td>{row.teamSize}</td>
-                  <td>{money(row.currentSpend)}</td>
-                  <td>{row.remainingHours ?? "—"}</td>
-                  <td>{row.remainingBudget != null ? money(row.remainingBudget) : "—"}</td>
-                  <td><span className={row.health === "At Risk" ? "phr-health risk" : "phr-health ok"}>{row.health === "At Risk" ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />} {row.health}</span></td>
-                  <td><button type="button" className="phr-manage" onClick={() => onManageProject?.(row.id)}><Settings2 size={13} /> Edit / delete</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <p className="phr-empty">No projects match the current filters.</p>}
-
-      <p className="phr-note">Health is flagged <strong>At Risk</strong> when budget hours or dollars are exceeded, or an activity is paused / awaiting information. Spend-to-date is derived from completed-activity hours until the external timesheet feed is connected. Use <strong>Edit / delete</strong> to open the controlled project setup record.</p>
-    </div>
-  );
+  if (loading) return <section className="phr"><div className="phr-loading"><Loader2 className="spin" size={18} /> Calculating active project health…</div></section>;
+  if (error) return <section className="phr"><p className="phr-error"><AlertCircle size={15} /> {error}</p></section>;
+  return <section className="phr" aria-label="Project Health Report"><header className="phr-hero"><div><span><BarChart3 size={16} /> Portfolio control · live project tracker data</span><h1>Project Health Report</h1><p>Screen the delivery, financial and resource condition of every active Project Tracker. Select a project to inspect its tracker and controlled budget allocations.</p></div><ProjectTrackerExport scope="portfolio" /></header>
+    {!financialReady ? <div className="phr-notice"><AlertCircle size={16} /> Financial tracker fields are awaiting the approved additive tracker migration. Project delivery health remains available from current activity records.</div> : null}
+    <div className="phr-summary extended"><SumCard label="Active projects" value={summary.active} icon={<WalletCards size={18} />} /><SumCard label="At risk" value={summary.atRisk} tone="risk" icon={<AlertTriangle size={18} />} /><SumCard label="On track" value={summary.onTrack} tone="good" icon={<CheckCircle2 size={18} />} /><SumCard label="Average est. profit" value={money(summary.averageProfit)} icon={<WalletCards size={18} />} /><SumCard label="Available hours" value={displayHours(summary.availableHours)} tone={summary.availableHours < 0 ? "risk" : ""} icon={<BarChart3 size={18} />} /><SumCard label="Follow-ups required" value={summary.followUps} tone={summary.followUps ? "gold" : "good"} icon={<AlertCircle size={18} />} /></div>
+    <section className="phr-controls" aria-label="Project Health Report controls"><div className="phr-controls-title"><ListFilter size={15} /><span>Filter active project health</span><b>{rows.length} of {projects.length}</b></div><div className="phr-controls-fields"><label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label><label>Health<select value={filters.health} onChange={(event) => setFilters({ ...filters, health: event.target.value })}><option value="">All health states</option><option value="On Track">On track</option><option value="Watch">Watch</option><option value="At Risk">At risk</option></select></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="risk_first">Risk first</option><option value="completion_desc">Completion · high to low</option><option value="completion_asc">Completion · low to high</option><option value="spend_desc">Charge-out spend · high to low</option><option value="profit_desc">Estimated profit · high to low</option><option value="client">Client / project · A–Z</option></select></label><button type="button" className="phr-clear-controls" onClick={() => setFilters({ client: "", health: "", sort: "risk_first" })}>Clear</button></div></section>
+    <div className="phr-grid"><section className="phr-table-card"><div className="phr-table-title"><div><span className="phr-kicker">Active project health</span><h2>Portfolio tracker overview</h2></div><span>{financialReady ? "Financials active" : "Delivery health active"}</span></div>{rows.length ? <div className="phr-table-wrap"><table className="phr-table"><thead><tr><th>Client</th><th>Project</th><th>Completion</th><th>Charge-out spend</th><th>Remaining hours</th><th>Remaining budget</th><th>Health</th><th /></tr></thead><tbody>{rows.map((project) => <tr key={project.id}><td>{project.clientName}</td><td className="phr-proj"><strong>{project.name}</strong><small>{project.teamCount} allocated staff · {project.trackerVisible ? "Tracker visible" : "Tracker not enabled"}</small></td><td><div className="phr-bar"><div className="phr-bar-fill" style={{ width: `${project.taskCompletion}%`, background: project.health === "At Risk" ? "#dc776f" : project.health === "Watch" ? "#d5a939" : "#78bd74" }} /></div><span className="phr-pct">{project.taskCompletion}%</span></td><td>{money(project.financials?.chargeOutSpend)}</td><td className={(project.financials?.remainingHours ?? 0) < 0 ? "phr-negative" : ""}>{displayHours(project.financials?.remainingHours)}</td><td className={(project.financials?.remainingBudget ?? 0) < 0 ? "phr-negative" : ""}>{money(project.financials?.remainingBudget)}</td><td><HealthBadge health={project.health} /></td><td><div className="phr-actions"><button type="button" onClick={() => onOpenProjectTracker?.(project.id)}>Review tracker <ChevronRight size={13} /></button><button type="button" onClick={() => onManageProject?.(project.id)}>Edit project</button></div></td></tr>)}</tbody></table></div> : <p className="phr-empty">No active projects match the selected filters.</p>}</section>
+      <aside className="phr-side"><section><span className="phr-kicker">Needs attention</span><h2>Portfolio actions</h2><Attention label={`${attention.overHours} project${attention.overHours === 1 ? " has" : "s have"} exceeded planned hours`} tone="risk" /><Attention label={`${attention.threshold} allocation${attention.threshold === 1 ? " is" : "s are"} approaching threshold`} tone="gold" /><Attention label={`${attention.paused} delivery entr${attention.paused === 1 ? "y is" : "ies are"} paused or awaiting information`} tone="good" /></section><section><span className="phr-kicker">Health drivers</span><h2>Portfolio pressure</h2><Driver label="Budget burn" value={average(projects.map((project) => score(project)))} tone="gold" /><Driver label="Task progress" value={average(projects.map((project) => project.taskCompletion))} tone="good" /><Driver label="On-track projects" value={projects.length ? Math.round((summary.onTrack / projects.length) * 100) : 0} tone="moss" /></section></aside></div>
+  </section>;
 }
+function SumCard({ label, value, tone = "", icon }) { return <div className={`phr-sum-card ${tone}`}><span className="phr-sum-icon">{icon}</span><div><div className="phr-sum-label">{label}</div><div className="phr-sum-value">{value}</div></div></div>; }
+function HealthBadge({ health }) { const risk = health === "At Risk"; return <span className={`phr-health ${risk ? "risk" : health === "Watch" ? "watch" : "ok"}`}>{risk ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}{health}</span>; }
+function Attention({ label, tone }) { return <div className={`phr-attention ${tone}`}><span>{tone === "risk" ? <AlertTriangle size={14} /> : tone === "gold" ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}</span><p>{label}</p></div>; }
+function Driver({ label, value, tone }) { return <div className={`phr-driver ${tone}`}><div><span>{label}</span><b>{Math.round(value || 0)}%</b></div><i><strong style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i></div>; }
+function average(values) { return values.length ? values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length : 0; }

@@ -3,12 +3,12 @@ import { ArrowUpRight, BarChart3, Clock3, Filter, ListFilter, RefreshCw, Search,
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS = {
-  not_commenced: { label: "Not commenced", colour: "#7a877d" },
-  active: { label: "In progress", colour: "#1d6b6b" },
+  not_commenced: { label: "Not commenced", colour: "#d98980" },
+  active: { label: "Active", colour: "#d49b2b" },
   need_info: { label: "Needs information", colour: "#b5352a" },
-  paused_other: { label: "Paused", colour: "#a5772b" },
+  paused_other: { label: "Paused", colour: "#4d8fc2" },
   qa_review: { label: "In QA review", colour: "#7d3b5c" },
-  completed: { label: "Completed", colour: "#2c6a34" },
+  completed: { label: "Completed", colour: "#4b9654" },
 };
 
 function formatDate(value) {
@@ -21,9 +21,9 @@ function normaliseText(value) {
   return (value || "").toLocaleLowerCase();
 }
 
-// A staff-only view of existing project tracker activities. Actual hours remain
-// in the Ecological Consulting timesheet system; this screen is intentionally a
-// tracking/history view with a clear hand-off for official time entry.
+// A staff-only view of immutable project activity history and staff-submitted
+// Project Tracker entries. Official payroll time remains in the independent
+// Ecology Consulting timesheet system; this screen is the controlled reference.
 export default function StaffTimesheetsWorkspace() {
   const { session } = useAuth();
   const [entries, setEntries] = useState([]);
@@ -122,7 +122,7 @@ export default function StaffTimesheetsWorkspace() {
         <div className="timesheet-tracker-head">
           <div>
             <h2><BarChart3 size={18} /> Project tracker history</h2>
-            <p>Your allocated project activities and their latest tracker status. Official hours are entered through the timesheet system.</p>
+            <p>Your submitted Project Tracker entries and allocated activity status updates. Use the official timesheet system to enter payroll time.</p>
           </div>
           <button className="timesheet-refresh" type="button" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh</button>
         </div>
@@ -142,14 +142,14 @@ export default function StaffTimesheetsWorkspace() {
         {!error && !loading && filteredEntries.length > 0 ? (
           <div className="timesheet-table-wrap">
             <table className="timesheet-table">
-              <thead><tr><th>Project</th><th>Activity</th><th>Status</th><th>Budget</th><th>Recorded</th></tr></thead>
+              <thead><tr><th>Project</th><th>Activity</th><th>Status</th><th>Hours</th><th>Recorded</th></tr></thead>
               <tbody>{filteredEntries.map((entry) => {
                 const status = STATUS[entry.status] || { label: entry.status || "Unknown", colour: "#7a877d" };
                 return <tr key={entry.id}>
                   <td><strong>{entry.project_name}</strong>{entry.project_client ? <small>{entry.project_client}</small> : null}</td>
-                  <td><strong>{entry.title}</strong>{entry.task_category ? <small>{entry.task_category}</small> : null}{entry.note ? <small className="timesheet-reason">{entry.note}</small> : null}</td>
-                  <td><span className="timesheet-status" style={{ background: `${status.colour}18`, color: status.colour }}>{status.label}</span></td>
-                  <td>{entry.budget_hours != null ? `${entry.budget_hours} h` : "—"}</td>
+                  <td><strong>{entry.title}</strong>{entry.task_category ? <small>{entry.task_category}</small> : null}{entry.allocation ? <small>{entry.allocation}</small> : null}{entry.notable_issues ? <small className="timesheet-reason">Issue: {entry.notable_issues}</small> : entry.note ? <small className="timesheet-reason">{entry.note}</small> : null}</td>
+                  <td><span className="timesheet-status" style={{ background: `${status.colour}18`, color: status.colour }}>{entry.entry_type === "tracker_entry" ? "Project entry · " : "Activity update · "}{status.label}</span></td>
+                  <td>{entry.hours != null ? `${entry.hours} h` : entry.budget_hours != null ? `${entry.budget_hours} h planned` : "—"}</td>
                   <td>{formatDate(entry.changed_at)}</td>
                 </tr>;
               })}</tbody>

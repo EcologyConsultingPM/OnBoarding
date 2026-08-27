@@ -15,7 +15,7 @@ import AdminProjectSetup from "./AdminProjectSetup";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
-import ProjectTrackerSetup from "./ProjectTrackerSetup";
+import AdminProjectTracker from "./AdminProjectTracker";
 import AdminWhsGovernance from "./AdminWhsGovernance";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
@@ -1454,10 +1454,11 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     { key: "staffforms", n: "02", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
-    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Tracker", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "timesheets", n: "06", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
-    { key: "notifications", n: "07", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project activity allocations and updates requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
-    { key: "remote", n: "08", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "My Projects", desc: "Your allocations, schedule, work status and project information.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "projecttracker", n: "06", eyebrow: "Time & delivery", title: "Project Tracker", desc: "Record allocated project work using the administrator-locked tracker template.", Icon: ClipboardList, photo: "kangaroo-paw", base: "#35562b", g1: "#527b3c", g2: "#102413", href: "/staff/project-tracker" },
+    { key: "timesheets", n: "07", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
+    { key: "notifications", n: "08", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project activity allocations and updates requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
+    { key: "remote", n: "09", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
   const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding);
 
@@ -1641,6 +1642,7 @@ export default function OnboardingWorkbook() {
   // Projects & Operations intentionally contains delivery setup and portfolio
   // health only. Quote Pipeline is its own Commercial Control domain card.
   const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
+  const [projectTrackerTargetId, setProjectTrackerTargetId] = useState("");
   const [projectSetupTargetId, setProjectSetupTargetId] = useState(null);
 
   // Compatibility for the retired standalone Health Report route. Quote
@@ -1821,14 +1823,14 @@ export default function OnboardingWorkbook() {
                   onClick={() => setProjectsSubview("setup")}>Setup &amp; allocations</button>
                 <button role="tab" aria-selected={projectsSubview === "tracker"}
                   className={"admin-subtab" + (projectsSubview === "tracker" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("tracker")}><ClipboardList size={13} /> Project Tracker Setup</button>
+                  onClick={() => setProjectsSubview("tracker")}><ClipboardList size={13} /> Project Tracker</button>
                 <button role="tab" aria-selected={projectsSubview === "health"}
                   className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
                   onClick={() => setProjectsSubview("health")}><TrendingUp size={13} /> Health report</button>
               </div>
               {projectsSubview === "setup" && <AdminProjectSetup initialProjectId={projectSetupTargetId} />}
-              {projectsSubview === "tracker" && <ProjectTrackerSetup onToast={showToast} />}
-              {projectsSubview === "health" && <ProjectHealthReport onManageProject={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} />}
+              {projectsSubview === "tracker" && <AdminProjectTracker initialProjectId={projectTrackerTargetId} onToast={showToast} onOpenProjectSetup={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} />}
+              {projectsSubview === "health" && <ProjectHealthReport onManageProject={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} onOpenProjectTracker={(projectId) => { setProjectTrackerTargetId(projectId); setProjectsSubview("tracker"); }} />}
             </div>
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
