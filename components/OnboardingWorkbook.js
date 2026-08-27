@@ -5,7 +5,7 @@ import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
   Loader2, CheckCircle2, AlertCircle, BookOpen, Settings, Home as HomeIcon, ClipboardList,
-  Building2, Leaf, TrendingUp, Send, ArrowUpRight,
+  Building2, Leaf, TrendingUp, Send, ArrowUpRight, Clock3,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -15,13 +15,14 @@ import AdminProjectSetup from "./AdminProjectSetup";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
-import AdminWhsMonitor from "./AdminWhsMonitor";
-import StaffForms from "./StaffForms";
+import AdminWhsGovernance from "./AdminWhsGovernance";
+import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
 import AdminLearningLibrary from "./AdminLearningLibrary";
 import StaffLearningLibrary from "./StaffLearningLibrary";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
+import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import SpeciesProfiles from "./SpeciesProfiles";
 import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
 
@@ -1376,7 +1377,7 @@ function AdminHome({ user, onNavigate }) {
   // sub-tab (see the "adminprojects" render branch below).
   const domains = [
     { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Setup, allocations, schedules, client records, quotes, remote delivery — plus the portfolio health report: completion, spend and at-risk projects.", accent: "#2f8f8f", accent2: "#1a4a4a", Icon: Building2, mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: "whsmonitor" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, controlled governance documents, drafts awaiting review, toolbox talks and incident oversight.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: "whsmonitor" },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", accent: "#9cbf5a", accent2: "#2a3510", Icon: BookOpen, mode: "ldlibrary" },
     { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles" },
     { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt" },
@@ -1471,11 +1472,10 @@ function AdminHome({ user, onNavigate }) {
   );
 }
 
-// Staff-portal landing: a domain control centre matching the admin design —
-// a welcome hero plus large colour-coded domain cards. The calendar preview
-// shows an honest empty state until the Requests/calendar data feature exists;
-// per the governing WHS rules we do not fabricate operational records.
-function StaffHome({ user, onNavigate, priorityCount = 0 }) {
+// Staff-portal landing: a domain control centre matching the admin design.
+// Domain cards are the primary navigation and the calendar renders only accepted
+// task deadlines returned by the protected Remote Tasks API; it never fabricates records.
+function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   const { session } = useAuth();
   const [feedback, setFeedback] = useState({ outcomes: [], unseen: 0 });
   const [showOutcomes, setShowOutcomes] = useState(false);
@@ -1496,47 +1496,25 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
     }
   };
 
-  const totalPriority = priorityCount + feedback.unseen;
-  const firstName = (user?.email || "").split("@")[0].split(".")[0];
-  const greetName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "there";
+  
 
-  // Each domain: its own wildlife photo (duotone), accent base + multiply gradient.
-  const domains = [
-    { key: "workbook", n: "01", eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
-    { key: "staffforms", n: "02", eyebrow: "Safety, requests & forms", title: "WHS & EC Forms", desc: "Toolbox talks, incident reports, and leave, training & equipment requests — submitted for approval.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
+  // My Onboarding is shown only after an administrator has Lock & Assigned at
+  // least one module for this staff member. This prevents a blank domain from
+  // appearing for staff who have not been given an onboarding programme.
+  const allDomains = [
+    { key: "workbook", n: "01", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your onboarding checklist, phases and assigned modules.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
+    { key: "staffforms", n: "02", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
-{ key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "remote", n: "06", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Tracker", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "timesheets", n: "06", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
+    { key: "remote", n: "07", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
-
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const now = new Date();
-  const monthLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding);
 
   return (
     <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
-      {/* Photographic hero band */}
-      <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, minHeight: 186, display: "flex", flexDirection: "column", justifyContent: "center", padding: "32px 36px", background: C.forest }}>
-        <div style={{ position: "absolute", inset: 0, background: "url('/assets/everlastings.png') center 55%/cover", filter: "grayscale(0.35)", opacity: 0.82 }} />
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(105deg, ${C.forestDeep} 12%, #1e5b36 92%)`, mixBlendMode: "multiply" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(6,18,12,.86), rgba(6,18,12,.12))" }} />
-        <div style={{ position: "relative", color: "#f2f6ef", maxWidth: 560 }}>
-          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Ecology Consulting · Staff portal</div>
-          <h1 style={{ fontFamily: SERIF, fontWeight: 400, fontSize: 36, lineHeight: 1.08, letterSpacing: "-0.012em", margin: "0 0 10px" }}>Good day, {greetName}.</h1>
-          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose an area to work in. Your notices and calendar are on the right.</p>
-          {totalPriority > 0 && (
-            <button onClick={markSeen} style={{ marginTop: 15, display: "inline-flex", alignItems: "center", gap: 8, background: C.gold, color: C.forestDeep, borderRadius: 999, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, fontFamily: MONO, letterSpacing: "0.04em", border: "none", cursor: "pointer" }}>
-              {feedback.unseen > 0 ? `${feedback.unseen} new outcome${feedback.unseen === 1 ? "" : "s"}` : `${totalPriority} item${totalPriority === 1 ? "" : "s"}`} — view
-            </button>
-          )}
-        </div>
-      </div>
+      
 
       {showOutcomes && feedback.outcomes.length > 0 && (
         <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
@@ -1569,11 +1547,7 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: 26, alignItems: "start" }} className="staff-home-grid">
         {/* Domains — left */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
-            <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Your work areas</div>
-            <div style={{ height: 1, flex: 1, background: C.hair }} />
-            <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>{domains.length} areas</div>
-          </div>
+          
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="staff-domain-grid">
             {domains.map(({ key, n, eyebrow, title, desc, Icon, photo, base, g1, g2, href }) => (
               <a
@@ -1611,23 +1585,7 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
             </div>
           </div>
 
-          <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>{monthLabel}</h2>
-              <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 500, color: C.sage, textTransform: "uppercase", letterSpacing: "0.08em" }}>Read-only</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, fontSize: 11 }}>
-              {["S","M","T","W","T","F","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontFamily: MONO, fontWeight: 500, color: C.sage, padding: "2px 0" }}>{d}</div>)}
-              {cells.map((d, i) => (
-                <div key={i} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 600, color: d ? C.sageText : "transparent", background: d === now.getDate() ? C.gold : "transparent" }}>
-                  {d || ""}
-                </div>
-              ))}
-            </div>
-            <p style={{ margin: "10px 0 0", fontSize: 11, color: C.sage, fontStyle: "italic", lineHeight: 1.4 }}>
-              Approved leave, training and review assignments will show here once the Requests area is enabled.
-            </p>
-          </div>
+          <StaffPortalTaskCalendar />
         </div>
       </div>
     </div>
@@ -1688,7 +1646,33 @@ export default function OnboardingWorkbook() {
     });
   }, [inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
+  const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
+
+  // The Staff Portal must not advertise My Onboarding until an administrator has
+  // explicitly locked and assigned at least one module to the signed-in user.
+  useEffect(() => {
+    let current = true;
+    if (!user?.id) {
+      setHasAssignedOnboarding(false);
+      return () => { current = false; };
+    }
+    supabase
+      .from("assigned_modules")
+      .select("id")
+      .eq("staff_user_id", user.id)
+      .eq("unlocked", true)
+      .limit(1)
+      .then(({ data, error }) => {
+        if (current) setHasAssignedOnboarding(!error && (data || []).length > 0);
+      })
+      .catch(() => { if (current) setHasAssignedOnboarding(false); });
+    return () => { current = false; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!inAdminPortal && !hasAssignedOnboarding && mode === "mine") setMode("staffhome");
+  }, [hasAssignedOnboarding, inAdminPortal, mode]);
   useEffect(() => {
     const handler = () => setMode("remoteops");
     const quoteHandler = () => setMode("quotepipeline");
@@ -1798,20 +1782,25 @@ export default function OnboardingWorkbook() {
         </div>
       </header>
 
-      {/* Sticky phase nav */}
+      {/* On the staff home, the domain cards are the only work-area navigation.
+          The compact topic navigation returns once staff enter an embedded area,
+          and remains available throughout the administrator portal. */}
+      {(inAdminPortal || mode !== "staffhome") && (
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.paperAlt}f2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.hair}`, padding: "13px 32px" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
           {[
             { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, staffOnly: true },
             { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, adminOnly: true },
             { key: "portalmgmt", label: "Portal Management", desc: "Staff, progress & onboarding", Icon: Users2, adminOnly: true },
-            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
-            { key: "staffforms", label: "WHS & EC Forms", desc: "WHS forms, leave, training & equipment", Icon: ShieldCheck, staffOnly: true },
+            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true, requiresOnboarding: true },
+            { key: "staffforms", label: "WHS & EC Forms", desc: "Forms, requests and Internal Governance", Icon: ShieldCheck, staffOnly: true },
 { key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
             { key: "species", label: "Species Profiles & Survey Requirements", desc: "Flora, fauna & survey timing standards", Icon: BookOpen, staffOnly: true },
-            { key: "projects", label: "Projects & Timesheets", desc: "Your allocations, schedules, work status and budget", Icon: FileText, staffOnly: true, href: "/staff/projects" },
+            { key: "projects", label: "Projects & Tracker", desc: "Your allocations, schedules, work status and budget", Icon: FileText, staffOnly: true, href: "/staff/projects" },
+            { key: "timesheets", label: "Timesheets", desc: "Project tracker history and official time entry", Icon: Clock3, staffOnly: true, href: "/staff/timesheets" },
             { key: "remoteops", label: "Remote Operations", desc: "Assigned task briefs, updates and delivery handovers", Icon: Users2, staffOnly: true, href: "/staff/remote-operations" },
           ].filter((item) => {
+            if (item.requiresOnboarding && !hasAssignedOnboarding) return false;
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
             return true;
@@ -1834,19 +1823,22 @@ export default function OnboardingWorkbook() {
           })}
         </div>
       </nav>
+      )}
 
       {/* Main content */}
       <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start", background: C.paper }}>
         {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "staffhome" && !inAdminPortal ? (
-            <StaffHome user={user} onNavigate={setMode} />
+            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
           ) : mode === "library" ? (
             <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
           ) : mode === "whs" ? (
             <WhsFormsHub />
-          ) : mode === "mine" ? (
+          ) : mode === "mine" && !inAdminPortal && hasAssignedOnboarding ? (
             <MyOnboarding onToast={showToast} />
+          ) : mode === "mine" && !inAdminPortal ? (
+            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
           ) : isAdmin && mode === "portalmgmt" ? (
             <PortalManagement>
               <StaffLoginsPanel onToast={showToast} />
@@ -1879,7 +1871,7 @@ export default function OnboardingWorkbook() {
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
           ) : isAdmin && mode === "whsmonitor" ? (
-            <AdminWhsMonitor />
+            <AdminWhsGovernance onToast={showToast} />
           ) : isAdmin && mode === "servicerequests" ? (
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
@@ -1891,7 +1883,7 @@ export default function OnboardingWorkbook() {
           ) : mode === "species" && !inAdminPortal ? (
             <SpeciesProfiles onToast={showToast} />
           ) : mode === "staffforms" && !inAdminPortal ? (
-            <StaffForms />
+            <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && (mode === "staff" || mode === "portalmgmt") ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <StaffLoginsPanel onToast={showToast} />
