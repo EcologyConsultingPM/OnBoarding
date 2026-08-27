@@ -12,6 +12,10 @@ const ALLOWED_STATUSES = new Set([
   "completed",
 ]);
 
+function missingDueDateColumn(error) {
+  return error?.code === "42703" || /due_date/i.test(String(error?.message || ""));
+}
+
 // GET: Staff receive only their own project activities. The calendar uses the
 // optional due date; administrators may inspect their own assigned activities.
 export async function GET(request) {
@@ -19,7 +23,8 @@ export async function GET(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
 
-    const { data, error } = await access.admin
+    let calendarReady = true;
+    let result = await access.admin
       .from("project_activities")
       .select(
         "id, project_id, title, due_date, status, projects!project_activities_project_id_fkey(name)",
@@ -28,17 +33,25 @@ export async function GET(request) {
       .not("due_date", "is", null)
       .order("due_date", { ascending: true })
       .limit(100);
-    if (error) return Response.json({ error: error.message }, { status: 400 });
+    if (result.error && missingDueDateColumn(result.error)) {
+      calendarReady = false;
+      result = await access.admin
+        .from("project_activities")
+        .select("id, project_id, title, status, projects!project_activities_project_id_fkey(name)")
+        .eq("staff_user_id", access.user.id)
+        .limit(100);
+    }
+    if (result.error) return Response.json({ error: result.error.message }, { status: 400 });
 
-    const activities = (data || []).map((activity) => ({
+    const activities = (result.data || []).map((activity) => ({
       id: activity.id,
       projectId: activity.project_id,
       project: activity.projects?.name || "Project",
       title: activity.title,
-      dueDate: activity.due_date,
+      dueDate: activity.due_date || null,
       status: activity.status,
     }));
-    return Response.json({ activities });
+    return Response.json({ activities, calendarReady });
   } catch (error) {
     return serverError(error);
   }

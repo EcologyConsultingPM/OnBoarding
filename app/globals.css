@@ -2213,3 +2213,19 @@ main {
 @media (max-width: 820px) { .sn-page { padding: 20px 18px 64px; } .sn-layout { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .sn-page { padding-right: 12px; padding-left: 12px; } .sn-hero { align-items: stretch; flex-direction: column; padding: 24px 20px; border-radius: 16px; background-position: 135% 35%; } .sn-hero .workspace-home-link { align-self: flex-start; } .sn-events-card, .sn-calendar-card { padding: 17px; border-radius: 14px; } .sn-section-head h2 { font-size: 22px; } .sn-section-head { flex-direction: column; gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { .sn-open-remote { transition: none; } }
+
+/* Projects & Operations retains paper inputs for data entry, but its setup and
+   allocation surfaces now carry the same dark eucalyptus visual hierarchy. */
+.aps-card, .aps-proj, .aps-row {
+  border-color: rgba(231, 201, 121, .19);
+  background: linear-gradient(145deg, #0c2818, #143823);
+  box-shadow: 0 13px 25px -25px rgba(0, 0, 0, .94);
+}
+.aps-card h2, .aps-proj strong, .aps-title-input { color: #fffdf8; }
+.aps-card h2 svg, .aps-back { color: #e7c979; }
+.aps-proj span, .aps-note, .aps-field, .aps-check { color: rgba(233, 243, 229, .72); }
+.aps-secondary, .aps-add { border-color: rgba(231, 201, 121, .45); background: rgba(231, 201, 121, .12); color: #f1d889; }
+.aps-secondary:hover, .aps-add:hover { background: rgba(231, 201, 121, .20); color: #fff4c6; }
+.aps-proj:hover { border-color: rgba(231, 201, 121, .66); }
+.aps-row .aps-two { min-width: 190px; }
+@media (max-width: 640px) { .aps-row .aps-two { min-width: 0; width: 100%; } }
