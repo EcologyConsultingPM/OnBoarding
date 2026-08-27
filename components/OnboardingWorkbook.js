@@ -1640,7 +1640,8 @@ export default function OnboardingWorkbook() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Projects & Operations intentionally contains delivery setup and portfolio
   // health only. Quote Pipeline is its own Commercial Control domain card.
-  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "health"
+  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
+  const [projectSetupTargetId, setProjectSetupTargetId] = useState(null);
 
   // Compatibility for the retired standalone Health Report route. Quote
   // Pipeline and Remote Operations remain first-class administrator domains.
@@ -1825,9 +1826,9 @@ export default function OnboardingWorkbook() {
                   className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
                   onClick={() => setProjectsSubview("health")}><TrendingUp size={13} /> Health report</button>
               </div>
-              {projectsSubview === "setup" && <AdminProjectSetup />}
+              {projectsSubview === "setup" && <AdminProjectSetup initialProjectId={projectSetupTargetId} />}
               {projectsSubview === "tracker" && <ProjectTrackerSetup onToast={showToast} />}
-              {projectsSubview === "health" && <ProjectHealthReport />}
+              {projectsSubview === "health" && <ProjectHealthReport onManageProject={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} />}
             </div>
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />

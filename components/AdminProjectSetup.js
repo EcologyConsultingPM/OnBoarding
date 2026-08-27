@@ -14,7 +14,7 @@ const PROJECT_STATUS = [
   { value: "on_hold", label: "On hold" }, { value: "complete", label: "Complete" }, { value: "archived", label: "Archived" },
 ];
 
-export default function AdminProjectSetup() {
+export default function AdminProjectSetup({ initialProjectId = null }) {
   const { session } = useAuth();
   const [view, setView] = useState("list"); // list | detail
   const [projects, setProjects] = useState([]);
@@ -45,6 +45,12 @@ export default function AdminProjectSetup() {
     loadProjects();
     auth("GET", "/api/admin/staff").then((r) => r.json()).then((d) => setStaff(d.staff || [])).catch(() => {});
   }, [session, loadProjects, auth]);
+
+  useEffect(() => {
+    if (!initialProjectId) return;
+    setOpenId(initialProjectId);
+    setView("detail");
+  }, [initialProjectId]);
 
   // ---- Create project ----
   const [newProject, setNewProject] = useState({ name: "", clientName: "", clientContact: "", sharepointLink: "", description: "", startDate: "", endDate: "", budgetHours: "", budgetDollars: "", defaultHourlyRate: "", status: "active" });
@@ -157,6 +163,16 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
   const saveSchedule = async () => {
     try { const res = await auth("PUT", `/api/projects/${projectId}`, { schedule }); const d = await res.json(); if (!res.ok) throw new Error(d.error); notify("Schedule saved."); } catch (e) { fail(e); }
   };
+  const deleteProject = async () => {
+    if (!window.confirm(`Delete ${project?.name || "this project"}? This is allowed only when the project has no allocations, activities, schedule items or tracker history.`)) return;
+    try {
+      const res = await auth("DELETE", `/api/projects/${projectId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not delete the project.");
+      notify("Project deleted.");
+      onBack();
+    } catch (e) { fail(e); }
+  };
   const saveAllocations = async () => {
     try { const res = await auth("PUT", `/api/projects/${projectId}/allocations`, { allocations: allocations.filter((a) => a.staffUserId) }); const d = await res.json(); if (!res.ok) throw new Error(d.error); notify("Allocations saved."); await load(); } catch (e) { fail(e); }
   };
@@ -176,6 +192,7 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
       <div className="aps-detail-head">
         <input className="aps-title-input" value={project.name} onChange={(e) => setProject({ ...project, name: e.target.value })} />
         <button className="aps-primary" onClick={saveDetails}><Save size={14} /> Save details</button>
+        <button className="aps-delete-project" onClick={deleteProject} title="Delete only empty project records"><Trash2 size={14} /> Delete</button>
       </div>
 
       <section className="aps-card">

@@ -19,7 +19,7 @@ function num(value) {
 async function projectAccess(access, projectId) {
   const { data: project, error } = await access.admin
     .from("projects")
-    .select("id, created_by")
+    .select("id, created_by, name, status")
     .eq("id", projectId)
     .maybeSingle();
   if (error || !project) return { response: Response.json({ error: "Project not found." }, { status: 404 }) };
@@ -99,6 +99,37 @@ export async function PATCH(request, { params }) {
 }
 
 // Replace the whole schedule for a project (admin only), renumbered in order.
+// A project can be removed only while it has no delivery, allocation or audit
+// records. This preserves timesheet/tracker history and avoids broad cascade
+// deletion from a portfolio-management control.
+export async function DELETE(request, { params }) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return Response.json({ error: "Only administrators can delete projects." }, { status: 403 });
+    const authorisation = await projectAccess(access, params.projectId);
+    if (authorisation.response) return authorisation.response;
+
+    const checks = await Promise.all([
+      access.admin.from("project_allocations").select("id").eq("project_id", params.projectId).limit(1),
+      access.admin.from("project_activities").select("id").eq("project_id", params.projectId).limit(1),
+      access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).limit(1),
+      access.admin.from("project_activity_history").select("id").eq("project_id", params.projectId).limit(1),
+    ]);
+    const checkError = checks.find((result) => result.error)?.error;
+    if (checkError) return Response.json({ error: checkError.message }, { status: 400 });
+    if (checks.some((result) => (result.data || []).length > 0)) {
+      return Response.json({ error: "This project has allocations, activities, schedule items or tracker history. Archive it instead so its delivery record is retained." }, { status: 409 });
+    }
+
+    const { error } = await access.admin.from("projects").delete().eq("id", params.projectId);
+    if (error) return Response.json({ error: error.message }, { status: 400 });
+    return Response.json({ success: true });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
 export async function PUT(request, { params }) {
   try {
     const access = await requireSession(request);
