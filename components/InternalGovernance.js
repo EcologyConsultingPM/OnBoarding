@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
+import GovernanceBulkImport from "./GovernanceBulkImport";
 
 const STATUS = {
   draft: { label: "Draft", tone: "neutral" },
@@ -16,6 +17,16 @@ const STATUS = {
   archived: { label: "Archived", tone: "neutral" },
   superseded: { label: "Superseded", tone: "neutral" },
 };
+
+const DOC_TYPES = [
+  { value: "policy", singular: "Policy", plural: "Policies", desc: "Approved standards and commitments", image: "wattle.png" },
+  { value: "procedure", singular: "Procedure", plural: "Procedures & methods", desc: "SOPs, methods and decision tools", image: "kookaburra.png" },
+  { value: "plan", singular: "Plan", plural: "Plans & controls", desc: "WHS, emergency and control plans", image: "bottlebrush.png" },
+  { value: "form", singular: "Form", plural: "Forms & registers", desc: "Controlled forms, inspections and registers", image: "kangaroo.png" },
+  { value: "project_control", singular: "Project control", plural: "Project controls", desc: "Scope, schedule, risk and closure", image: "palm-cockatoo.png" },
+  { value: "people_capability", singular: "People & capability record", plural: "People & capability", desc: "Position and development records", image: "lorikeet.png" },
+  { value: "contractor_control", singular: "Contractor control", plural: "Contractor controls", desc: "Contractor qualification controls", image: "everlastings.png" },
+];
 
 const EMPTY_DRAFT = {
   doc_type: "policy", title: "", category: "Internal Governance", version: "1.0",
@@ -92,6 +103,8 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
   useEffect(() => { load(); }, [load]);
 
   const selected = documents.find((document) => document.id === selectedId) || null;
+  const selectedType = DOC_TYPES.find((item) => item.value === type) || DOC_TYPES[0];
+  const selectedDocumentType = DOC_TYPES.find((item) => item.value === selected?.doc_type);
   const folders = useMemo(() => ({
     approved: documents.filter((document) => document.doc_type === type && document.status === "published"),
     review: documents.filter((document) => document.doc_type === type && document.status === "in_review"),
@@ -99,10 +112,10 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
   }), [documents, type]);
   const visibleDocuments = isAdmin && folder === "management" ? folders.management : folders[folder] || [];
   const metrics = useMemo(() => ({
-    policies: documents.filter((document) => document.doc_type === "policy" && document.status === "published").length,
-    procedures: documents.filter((document) => document.doc_type === "procedure" && document.status === "published").length,
+    approved: documents.filter((document) => document.status === "published").length,
+    controls: documents.filter((document) => ["plan", "procedure", "project_control"].includes(document.doc_type) && document.status === "published").length,
+    registers: documents.filter((document) => document.doc_type === "form" && document.status === "published").length,
     inReview: documents.filter((document) => document.status === "in_review").length,
-    approval: documents.filter((document) => document.status === "pending_approval").length,
     overdue: documents.filter((document) => document.status === "published" && document.next_review_date && new Date(document.next_review_date) < new Date()).length,
   }), [documents]);
 
@@ -192,25 +205,27 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
         <div>
           <span><ShieldCheck size={14} /> WHS &amp; EC Forms · Internal Governance</span>
           <h1>Internal Governance</h1>
-          <p>Controlled policies and procedures. Approved documents are read-only; review documents are visible only during their consultation period.</p>
+          <p>Controlled policies, procedures, plans, forms, registers and project controls. Approved documents are read-only; review documents are visible only during their consultation period.</p>
         </div>
         {isAdmin ? <button className="governance-new" onClick={() => setDraftOpen((value) => !value)}><Plus size={15} /> Create document</button> : null}
       </header>
 
       {isAdmin ? <div className="governance-metrics">
-        <Metric label="Approved policies" value={metrics.policies} />
-        <Metric label="Approved procedures" value={metrics.procedures} />
+        <Metric label="Approved library" value={metrics.approved} />
+        <Metric label="Plans & controls" value={metrics.controls} />
+        <Metric label="Forms & registers" value={metrics.registers} />
         <Metric label="In review" value={metrics.inReview} />
-        <Metric label="Pending approval" value={metrics.approval} />
         <Metric label="Overdue review" value={metrics.overdue} alert={metrics.overdue > 0} />
       </div> : null}
 
       {error ? <p className="governance-error"><CircleAlert size={15} /> {error}</p> : null}
 
+      {isAdmin ? <GovernanceBulkImport onComplete={load} /> : null}
+
       {isAdmin && draftOpen ? <section className="governance-editor">
         <div className="governance-editor-head"><h2><FilePenLine size={17} /> New governance document</h2><button onClick={() => setDraftOpen(false)}>Close</button></div>
         <div className="governance-form-grid">
-          <label><span>Document type</span><select value={draft.doc_type} onChange={(event) => setDraft({ ...draft, doc_type: event.target.value })}><option value="policy">Policy</option><option value="procedure">Procedure</option></select></label>
+          <label><span>Document type</span><select value={draft.doc_type} onChange={(event) => setDraft({ ...draft, doc_type: event.target.value })}>{DOC_TYPES.map((item) => <option key={item.value} value={item.value}>{item.singular}</option>)}</select></label>
           <label><span>Version</span><input value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} placeholder="1.0" /></label>
           <label className="wide"><span>Title</span><input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Environmental Field Safety Policy" /></label>
           <label><span>Category</span><input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
@@ -222,23 +237,30 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
         <button className="governance-primary" disabled={busy} onClick={createDraftWithUpload}>{busy ? <Loader2 className="spin" size={15} /> : <FilePenLine size={15} />} Save draft</button>
       </section> : null}
 
-      <div className="governance-switches">
-        <div className="governance-tabs" aria-label="Document type"><button className={type === "policy" ? "selected" : ""} onClick={() => setType("policy")}>Policies</button><button className={type === "procedure" ? "selected" : ""} onClick={() => setType("procedure")}>Procedures</button></div>
-        <div className="governance-folders" aria-label="Document folder"><button className={folder === "approved" ? "selected" : ""} onClick={() => setFolder("approved")}><FolderCheck size={14} /> Approved</button><button className={folder === "review" ? "selected" : ""} onClick={() => setFolder("review")}><FolderClock size={14} /> In review</button>{isAdmin ? <button className={folder === "management" ? "selected" : ""} onClick={() => setFolder("management")}><FileText size={14} /> Drafts &amp; approvals</button> : null}</div>
+      <div className="governance-category-grid" role="tablist" aria-label="Internal Governance document categories">
+        {DOC_TYPES.map((item) => {
+          const count = documents.filter((document) => document.doc_type === item.value && (document.status === "published" || isAdmin)).length;
+          return <button key={item.value} role="tab" aria-selected={type === item.value} className={`governance-category-card${type === item.value ? " selected" : ""}`} onClick={() => { setType(item.value); setSelectedId(null); }}>
+            <img src={`/assets/${item.image}`} alt="" aria-hidden="true" />
+            <span className="governance-category-scrim" />
+            <span className="governance-category-content"><strong>{item.plural}</strong><small>{item.desc}</small><em>{count} available</em></span>
+          </button>;
+        })}
       </div>
+      <div className="governance-folders" aria-label="Document folder"><button className={folder === "approved" ? "selected" : ""} onClick={() => setFolder("approved")}><FolderCheck size={14} /> Approved</button><button className={folder === "review" ? "selected" : ""} onClick={() => setFolder("review")}><FolderClock size={14} /> In review</button>{isAdmin ? <button className={folder === "management" ? "selected" : ""} onClick={() => setFolder("management")}><FileText size={14} /> Drafts &amp; approvals</button> : null}</div>
 
       <div className="governance-layout">
         <div className="governance-list">
           {loading ? <p className="governance-empty">Loading governance register…</p> : null}
-          {!loading && visibleDocuments.length === 0 ? <p className="governance-empty">No {type === "policy" ? "policies" : "procedures"} are in this folder.</p> : null}
+          {!loading && visibleDocuments.length === 0 ? <p className="governance-empty">No {selectedType.plural.toLowerCase()} are in this folder.</p> : null}
           {!loading && visibleDocuments.map((document) => <button key={document.id} className={`governance-document${selectedId === document.id ? " selected" : ""}`} onClick={() => { setSelectedId(document.id); setActionOpen(null); setComment(""); }}>
-            <div><Badge status={document.status} /><h3>{document.title}</h3><p>v{document.version} · {document.category || "Internal Governance"}</p></div><ChevronDown size={16} />
+              <div><Badge status={document.status} /><h3>{document.title}</h3><p>{DOC_TYPES.find((item) => item.value === document.doc_type)?.singular || document.doc_type} · v{document.version} · {document.category || "Internal Governance"}</p></div><ChevronDown size={16} />
           </button>)}
         </div>
 
         <aside className="governance-detail">
           {!selected ? <p className="governance-empty">Select a document to view its controlled details.</p> : <>
-            <div className="governance-detail-title"><div><Badge status={selected.status} /><h2>{selected.title}</h2><p>{selected.doc_type === "policy" ? "Policy" : "Procedure"} · v{selected.version}</p></div>{(selected.document_link || selected.storage_path) ? <button className="governance-open" onClick={() => openDocument(selected)}><ExternalLink size={14} /> Open document</button> : null}</div>
+            <div className="governance-detail-title"><div><Badge status={selected.status} /><h2>{selected.title}</h2><p>{selectedDocumentType?.singular || selected.doc_type} · v{selected.version}</p></div>{(selected.document_link || selected.storage_path) ? <button className="governance-open" onClick={() => openDocument(selected)}><ExternalLink size={14} /> Open document</button> : null}</div>
             <dl className="governance-meta"><div><dt>Effective</dt><dd>{displayDate(selected.effective_date)}</dd></div><div><dt>Next review</dt><dd>{displayDate(selected.next_review_date)}</dd></div>{selected.status === "in_review" ? <div><dt>Consultation closes</dt><dd>{displayDate(selected.consultation_ends_at)}</dd></div> : null}{selected.status === "published" ? <div><dt>Approved</dt><dd>{displayDate(selected.approved_at)}</dd></div> : null}</dl>
             {selected.body ? <div className="governance-body">{selected.body}</div> : null}
             {selected.requires_training && selected.status === "published" ? <p className="governance-training"><ClipboardCheck size={14} /> A training module is required for this document.</p> : null}

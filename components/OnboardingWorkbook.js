@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
@@ -1378,16 +1378,19 @@ function AdminHome({ onNavigate }) {
       .catch(() => setRegulatoryOpen(0));
   }, [session]);
 
-  // Six domains. Reporting & analytics is no longer a standalone domain —
-  // the project health report now lives inside Projects & operations as a
-  // sub-tab (see the "adminprojects" render branch below).
+  // Project Health remains inside Projects & Operations. The remaining administration
+  // areas use the same image-backed domain-card language as Staff Home so the control
+  // centre is recognisable at a glance, rather than a collection of flat panels.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Setup, allocations, schedules, client records, quotes, remote delivery — plus the portfolio health report: completion, spend and at-risk projects.", accent: "#2f8f8f", accent2: "#1a4a4a", Icon: Building2, mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, controlled governance, drafts, toolbox talks, incident oversight and Regulatory Watch alerts for official legal and biodiversity changes.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: regulatoryOpen > 0 ? "regulatorywatch" : "whsmonitor", regulatoryOpen },
-    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", accent: "#9cbf5a", accent2: "#2a3510", Icon: BookOpen, mode: "ldlibrary" },
-    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles" },
-    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt" },
-    { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", accent: "#8fbfdd", accent2: "#16232c", Icon: Send, mode: "servicerequests" },
+    { eyebrow: "Project control", title: "Projects & Operations", desc: "Project setup, allocations, schedules, client records and the portfolio health report.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Building2, mode: "adminprojects", photo: "palm-cockatoo.png" },
+    { eyebrow: "Commercial control", title: "Quote Pipeline", desc: "Track enquiry, proposal, review and award stages without leaving the control centre.", accent: "#d87955", accent2: "#34150d", Icon: FileText, mode: "quotepipeline", photo: "rosella.png" },
+    { eyebrow: "Remote delivery", title: "Remote Operations Oversight", desc: "Assign, accept, review and complete remote task briefs across the team.", accent: "#d789a6", accent2: "#321322", Icon: Users2, mode: "remoteops", photo: "bottlebrush.png" },
+    { eyebrow: "Safety & governance", title: "WHS & Compliance", desc: "WHS monitoring, controlled governance, drafts, toolbox talks and incident oversight.", accent: "#9cbf5a", accent2: "#203615", Icon: ShieldCheck, mode: "whsmonitor", photo: "wedgetail-eagle.jpg" },
+    { eyebrow: "Official change alert", title: "Regulatory Watch", desc: "Review official legislative, BAM and threatened flora/fauna survey updates before staff are notified.", accent: "#e7c979", accent2: "#423414", Icon: AlertCircle, mode: "regulatorywatch", photo: "redtail-cockatoo.png", regulatoryOpen },
+    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review and approval.", accent: "#d789a6", accent2: "#321322", Icon: BookOpen, mode: "ldlibrary", photo: "lorikeet.png" },
+    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference, field-photo verification and survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles", photo: "wattle.png" },
+    { eyebrow: "Portal stewardship", title: "Portal Management", desc: "Staff access, roles, development progress and controlled onboarding assignments.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt", photo: "koala.png" },
+    { eyebrow: "Service desk", title: "Service Requests", desc: "Review and action staff leave, training and equipment requests.", accent: "#8fbfdd", accent2: "#16232c", Icon: Send, mode: "servicerequests", photo: "kookaburra.png" },
   ];
 
   return (
@@ -1397,7 +1400,7 @@ function AdminHome({ onNavigate }) {
       {/* 2-column tall tiles — icon badge + accent glow + diagonal pattern,
           so each domain reads distinctly even without a background photo. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="admin-tile-grid">
-        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href, regulatoryOpen: domainRegulatoryOpen }) => (
+        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href, photo, regulatoryOpen: domainRegulatoryOpen }) => (
           <a
             key={title}
             href="#"
@@ -1412,26 +1415,27 @@ function AdminHome({ onNavigate }) {
               opacity: soon ? 0.9 : 1, cursor: soon ? "default" : "pointer",
             }}
           >
-            {/* diagonal accent stripe pattern — always visible, no image asset needed */}
-            <div style={{ position: "absolute", inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}14 0px, ${accent}14 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
-            {/* radial accent glow, bottom-right */}
-            <div style={{ position: "absolute", right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
+            {/* Native flora/fauna reference image, eucalyptus duotone and subtle pattern. */}
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `url('/assets/${photo}') center/cover`, filter: "grayscale(.18) contrast(1.06)", opacity: .88, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `linear-gradient(142deg, ${accent2}c9 0%, rgba(7, 20, 13, .48) 56%, ${accent2}94 100%)`, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}16 0px, ${accent}16 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
             {/* top accent bar */}
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, transparent 85%)` }} />
 
-            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                 background: `linear-gradient(135deg, ${accent}, ${accent2})`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: `0 8px 18px -6px ${accent}88`,
               }}>
-                {Icon && <Icon size={21} color="#08110d" strokeWidth={2.2} />}
+                {Icon && <Icon size={21} color="#f6faf8" strokeWidth={2.2} />}
               </div>
               <ArrowUpRight size={18} color={`${accent}` } style={{ opacity: 0.55, flexShrink: 0 }} />
             </div>
 
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative", zIndex: 1 }}>
               <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, marginBottom: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {eyebrow}
                 {soon && <span style={{ background: "rgba(255,255,255,0.15)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em", color: "#fff" }}>Soon</span>}
@@ -1614,19 +1618,22 @@ export default function OnboardingWorkbook() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
-  // Admin status and portal both resolve asynchronously after first render, so
-  // the initial mode above can be wrong (it defaults to "staffhome" before we
-  // know the person is an admin in the admin portal). Whenever that resolution
-  // changes, if the person is sitting on EITHER default landing, put them on the
-  // correct one. This is robust to multi-step async (portal null->admin, admin
-  // false->true in any order) because it re-checks on every change rather than
-  // relying on a one-shot ref guard.
+  // Always reset to the selected portal's domain home when the person switches
+  // between Staff and Admin. Without this guard an admin sub-domain mode (for
+  // example `adminprojects`) can survive a switch to Staff and fall through to
+  // the retired onboarding workbook. The first async portal resolution also
+  // lands safely on the right home.
+  const previousPortal = useRef(portal);
   useEffect(() => {
+    const changedPortal = previousPortal.current !== portal;
+    previousPortal.current = portal;
     setMode((current) => {
-      if (current !== "home" && current !== "staffhome") return current; // they navigated somewhere — leave them
-      return inAdminPortal ? "home" : "staffhome";
+      if (changedPortal || current === "home" || current === "staffhome") {
+        return inAdminPortal ? "home" : "staffhome";
+      }
+      return current;
     });
-  }, [inAdminPortal]);
+  }, [portal, inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
   const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
   const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
@@ -1672,13 +1679,18 @@ export default function OnboardingWorkbook() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Projects & operations now hosts the health report as a sub-tab rather
   // than "Reporting & analytics" being its own top-level admin domain.
-  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "health"
+  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "quotes" | "health"
 
-  // Backward compatibility for any pre-update link/state. Project health remains
-  // a subview of Projects & Operations rather than a standalone admin domain.
+  // Compatibility with prior commercial and health-report entry points. Remote
+  // Operations remains its own administrator domain and card on the home screen.
   useEffect(() => {
-    if (inAdminPortal && mode === "healthreport") {
-      setProjectsSubview("health");
+    if (!inAdminPortal) return;
+    const legacySubview = {
+      healthreport: "health",
+      quotepipeline: "quotes",
+    }[mode];
+    if (legacySubview) {
+      setProjectsSubview(legacySubview);
       setMode("adminprojects");
     }
   }, [inAdminPortal, mode]);
@@ -1819,7 +1831,7 @@ export default function OnboardingWorkbook() {
 
       {/* Main content */}
       <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start", background: C.paper }}>
-        {mode === "workbook" && <WorkbookSidebar navItems={navItems} />}
+        {/* Retired checklist-only shell: portal users always land on a domain home. */}
         <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
           {mode === "staffhome" && !inAdminPortal ? (
             <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
@@ -1833,7 +1845,6 @@ export default function OnboardingWorkbook() {
             <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
           ) : isAdmin && mode === "portalmgmt" ? (
             <PortalManagement>
-              <StaffLoginsPanel onToast={showToast} />
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
               <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
@@ -1843,26 +1854,23 @@ export default function OnboardingWorkbook() {
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="admin-subtabs" data-print="hide">
-                <button
+              <div className="admin-subtabs" data-print="hide" role="tablist" aria-label="Projects and Operations areas">
+                <button role="tab" aria-selected={projectsSubview === "setup"}
                   className={"admin-subtab" + (projectsSubview === "setup" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("setup")}
-                >
-                  Setup &amp; allocations
-                </button>
-                <button
+                  onClick={() => setProjectsSubview("setup")}>Setup &amp; allocations</button>
+                <button role="tab" aria-selected={projectsSubview === "quotes"}
+                  className={"admin-subtab" + (projectsSubview === "quotes" ? " sel" : "")}
+                  onClick={() => setProjectsSubview("quotes")}>Quote pipeline</button>
+                <button role="tab" aria-selected={projectsSubview === "health"}
                   className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("health")}
-                >
-                  <TrendingUp size={13} /> Health report
-                </button>
+                  onClick={() => setProjectsSubview("health")}><TrendingUp size={13} /> Health report</button>
               </div>
-              {projectsSubview === "setup" ? <AdminProjectSetup /> : <ProjectHealthReport />}
+              {projectsSubview === "setup" && <AdminProjectSetup />}
+              {projectsSubview === "quotes" && <AdminQuotePipeline />}
+              {projectsSubview === "health" && <ProjectHealthReport />}
             </div>
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
-          ) : isAdmin && mode === "quotepipeline" ? (
-            <AdminQuotePipeline />
           ) : isAdmin && (mode === "whsmonitor" || mode === "regulatorywatch") ? (
             <AdminWhsGovernance key={mode} onToast={showToast} initialSubdomain={mode === "regulatorywatch" ? "regulatory" : "monitor"} />
           ) : isAdmin && mode === "servicerequests" ? (
@@ -1877,23 +1885,20 @@ export default function OnboardingWorkbook() {
             <SpeciesProfiles onToast={showToast} />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
-          ) : isAdmin && (mode === "staff" || mode === "portalmgmt") ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <StaffLoginsPanel onToast={showToast} />
+          ) : isAdmin && mode === "staff" ? (
+            <PortalManagement>
               <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
               <StaffProgress onToast={showToast} />
               <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
               <AdminOnboardingAssignments onToast={showToast} />
-            </div>
+            </PortalManagement>
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
           ) : (
-            <>
-              {data.phases.map((phase, i) => (
-                <PhaseBlock key={phase.id} phase={phase} num={String(i + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} />
-              ))}
-              <LDPhase ldMonths={data.ldMonths} num={String(data.phases.length + 1).padStart(2, "0")} isAdmin={isAdmin} onMutate={mutate} onToast={showToast} onGoToLibraryTopic={goToLibraryTopic} />
-            </>
+            // Safe staff fallback: the retired workbook is never a portal landing
+            // page. If an obsolete URL or delayed state supplies an unknown mode,
+            // return the staff member to the card-based Staff Portal home instead.
+            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
           )}
         </main>
       </div>
