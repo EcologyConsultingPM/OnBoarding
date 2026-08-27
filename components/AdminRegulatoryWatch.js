@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, BookOpenCheck, ExternalLink, FileSearch, Plus, RefreshCw, Send, ShieldAlert } from "lucide-react";
+import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS = {
@@ -34,7 +34,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
   const [updates, setUpdates] = useState([]);
-  const [filter, setFilter] = useState("open");
+  const [filters, setFilters] = useState({ view: "open", category: "", severity: "", source: "", search: "", sort: "detected_desc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState("");
@@ -66,10 +66,28 @@ export default function AdminRegulatoryWatch({ onToast }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const visibleUpdates = useMemo(() => updates.filter((update) => {
-    if (filter === "open") return ["new", "reviewing"].includes(update.status);
-    return filter === "all" || update.status === filter;
-  }), [filter, updates]);
+  const visibleUpdates = useMemo(() => {
+    const filtered = updates.filter((update) => {
+      const source = sourceOf(update);
+      if (filters.view === "open" && !["new", "reviewing"].includes(update.status)) return false;
+      if (filters.view !== "open" && filters.view !== "all" && update.status !== filters.view) return false;
+      if (filters.category && source?.category !== filters.category) return false;
+      if (filters.severity && update.severity !== filters.severity) return false;
+      if (filters.source && update.source_id !== filters.source) return false;
+      if (filters.search) {
+        const value = `${update.title || ""} ${update.summary || ""} ${source?.title || ""}`.toLowerCase();
+        if (!value.includes(filters.search.toLowerCase())) return false;
+      }
+      return true;
+    });
+    const severityRank = { critical: 4, action: 3, review: 2, information: 1 };
+    return [...filtered].sort((left, right) => {
+      if (filters.sort === "due_asc") return String(left.review_due_date || "9999-12-31").localeCompare(String(right.review_due_date || "9999-12-31"));
+      if (filters.sort === "severity") return (severityRank[right.severity] || 0) - (severityRank[left.severity] || 0);
+      if (filters.sort === "title") return String(left.title || "").localeCompare(String(right.title || ""));
+      return String(right.detected_at || "").localeCompare(String(left.detected_at || ""));
+    });
+  }, [filters, updates]);
   const openCount = updates.filter((update) => ["new", "reviewing"].includes(update.status)).length;
   const dueCount = updates.filter((update) => update.review_due_date && ["new", "reviewing"].includes(update.status) && new Date(`${update.review_due_date}T23:59:59`) < new Date()).length;
 
@@ -98,6 +116,20 @@ export default function AdminRegulatoryWatch({ onToast }) {
       onToast?.(notifyStaff ? "Assessed update published to staff noticeboard." : "Regulatory review saved.");
     } catch (err) {
       setError(err.message || "Could not save review.");
+    }
+  };
+
+  const removeUpdate = async (update) => {
+    if (!window.confirm(`Delete the Regulatory Watch item “${update.title}”? This also removes linked in-portal alerts, but does not remove the official source.`)) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/regulatory-watch?id=${encodeURIComponent(update.id)}`, { method: "DELETE", headers: headers() });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Could not delete the Regulatory Watch item.");
+      setUpdates((current) => current.filter((item) => item.id !== update.id));
+      onToast?.("Regulatory Watch item deleted.");
+    } catch (err) {
+      setError(err.message || "Could not delete the Regulatory Watch item.");
     }
   };
 
@@ -163,11 +195,19 @@ export default function AdminRegulatoryWatch({ onToast }) {
         </section>
       ) : null}
 
-      <div className="reg-watch__toolbar">
+      <section className="reg-watch__toolbar" aria-label="Regulatory Watch controls">
         <div className="reg-watch__filters" role="tablist" aria-label="Filter Regulatory Watch updates">
-          {[ ["open", `Open (${openCount})`], ["new", "New"], ["reviewing", "Reviewing"], ["actioned", "Actioned"], ["assessed", "Assessed"], ["all", "All"] ].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? "selected" : ""} onClick={() => setFilter(value)}>{label}</button>)}
+          {[ ["open", `Open (${openCount})`], ["new", "New"], ["reviewing", "Reviewing"], ["actioned", "Actioned"], ["assessed", "Assessed"], ["not_applicable", "Not applicable"], ["all", "All"] ].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filters.view === value} className={filters.view === value ? "selected" : ""} onClick={() => setFilters({ ...filters, view: value })}>{label}</button>)}
         </div>
-      </div>
+        <div className="reg-watch__control-fields">
+          <label>Search<input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Title, source or summary" /></label>
+          <label>Category<select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}><option value="">All categories</option>{Object.entries(CATEGORY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>Priority<select value={filters.severity} onChange={(event) => setFilters({ ...filters, severity: event.target.value })}><option value="">All priorities</option>{Object.entries(SEVERITY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>Official source<select value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })}><option value="">All sources</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}</select></label>
+          <label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="detected_desc">Recently detected</option><option value="due_asc">Review due date</option><option value="severity">Priority · highest first</option><option value="title">Title · A–Z</option></select></label>
+          <button type="button" className="reg-watch__clear-controls" onClick={() => setFilters({ view: "open", category: "", severity: "", source: "", search: "", sort: "detected_desc" })}><ListFilter size={13} /> Clear</button>
+        </div>
+      </section>
 
       {error ? <div className="reg-watch__error" role="alert"><ShieldAlert size={15} /> {error}</div> : null}
       {loading ? <p className="reg-watch__empty">Loading Regulatory Watch…</p> : null}
@@ -202,7 +242,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
                   </div>
                   <div className="reg-watch__actions"><button type="button" className="reg-watch__primary" onClick={() => review(update)}>Save review</button>{["assessed", "actioned"].includes(draft.status || update.status) && !update.staff_notified_at ? <button type="button" className="reg-watch__notify" onClick={() => review(update, true)}><Send size={13} /> Save & notify staff</button> : null}<button type="button" className="reg-watch__text" onClick={() => { setOpenId(""); setDrafts((current) => { const next = { ...current }; delete next[update.id]; return next; }); }}>Cancel</button></div>
                 </div>
-              ) : <div className="reg-watch__actions"><button type="button" className="reg-watch__review-button" onClick={() => setOpenId(update.id)}><FileSearch size={14} /> {update.status === "new" ? "Start review" : "Open review"}</button>{update.staff_notified_at ? <span className="reg-watch__notified"><BellRing size={13} /> Staff notified {formatDate(update.staff_notified_at)}</span> : null}</div>}
+              ) : <div className="reg-watch__actions"><button type="button" className="reg-watch__review-button" onClick={() => setOpenId(update.id)}><FileSearch size={14} /> {update.status === "new" ? "Start review" : "Edit review"}</button>{update.staff_notified_at ? <span className="reg-watch__notified"><BellRing size={13} /> Staff notified {formatDate(update.staff_notified_at)}</span> : null}<button type="button" className="reg-watch__delete" onClick={() => removeUpdate(update)}><Trash2 size={13} /> Delete</button></div>}
             </article>
           );
         })}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2 } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2, ListFilter } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 function money(n) {
@@ -27,6 +27,7 @@ export default function AdminQuotePipeline() {
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY);
+  const [filters, setFilters] = useState({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" });
 
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -62,11 +63,31 @@ export default function AdminQuotePipeline() {
     setEditForm({ client: q.client || "", project: q.project || "", projectFolderLink: q.project_folder_link || "", quoteLink: q.quote_link || "", hyperlink: q.hyperlink || "", quoteTotal: q.quote_total ?? "", initialSent: q.initial_sent, sentOn: q.sent_on || "", followUpOn: q.follow_up_on || "", status: q.status, comments: q.comments || "", fullyInvoiced: q.fully_invoiced, superseded: q.superseded, supersededNote: q.superseded_note || "" });
   };
 
+  const clients = useMemo(() => [...new Set(quotes.map((quote) => quote.client).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [quotes]);
+  const visibleQuotes = useMemo(() => {
+    const filtered = quotes.filter((quote) => {
+      if (filters.client && quote.client !== filters.client) return false;
+      if (filters.status && quote.status !== filters.status) return false;
+      if (filters.sentFrom && (!quote.sent_on || quote.sent_on < filters.sentFrom)) return false;
+      if (filters.sentTo && (!quote.sent_on || quote.sent_on > filters.sentTo)) return false;
+      return true;
+    });
+    return [...filtered].sort((left, right) => {
+      if (filters.sort === "client") return String(left.client || "").localeCompare(String(right.client || ""));
+      if (filters.sort === "sent_desc") return String(right.sent_on || "").localeCompare(String(left.sent_on || ""));
+      if (filters.sort === "sent_asc") return String(left.sent_on || "").localeCompare(String(right.sent_on || ""));
+      if (filters.sort === "value_desc") return Number(right.quote_total || 0) - Number(left.quote_total || 0);
+      if (filters.sort === "follow_up") return String(left.follow_up_on || "9999-12-31").localeCompare(String(right.follow_up_on || "9999-12-31"));
+      return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
+    });
+  }, [quotes, filters]);
+
   const EditRow = ({ f, set }) => (
     <>
       <input placeholder="Client" value={f.client} onChange={(e) => set({ ...f, client: e.target.value })} />
       <input placeholder="Project" value={f.project} onChange={(e) => set({ ...f, project: e.target.value })} />
       <input placeholder="Quote total" value={f.quoteTotal} onChange={(e) => set({ ...f, quoteTotal: e.target.value })} />
+      <input placeholder="Project folder link (URL)" value={f.projectFolderLink} onChange={(e) => set({ ...f, projectFolderLink: e.target.value })} />
       <input placeholder="Quote link (URL)" value={f.quoteLink} onChange={(e) => set({ ...f, quoteLink: e.target.value })} />
       <input placeholder="Hyperlink (URL)" value={f.hyperlink} onChange={(e) => set({ ...f, hyperlink: e.target.value })} />
       <label className="qp-check"><input type="checkbox" checked={f.initialSent} onChange={(e) => set({ ...f, initialSent: e.target.checked })} /> Sent</label>
@@ -101,6 +122,18 @@ export default function AdminQuotePipeline() {
       {error ? <p className="qp-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="qp-success"><CheckCircle2 size={15} /> {message}</p> : null}
 
+      <section className="qp-controls" aria-label="Quote Pipeline controls">
+        <div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div>
+        <div className="qp-controls-fields">
+          <label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label>
+          <label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{STATUS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
+          <label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label>
+          <label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label>
+          <label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Client · A–Z</option><option value="value_desc">Quote value · highest</option><option value="follow_up">Next follow-up</option></select></label>
+          <button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button>
+        </div>
+      </section>
+
       {adding ? (
         <div className="qp-editor">
           <div className="qp-editor-grid"><EditRow f={form} set={setForm} /></div>
@@ -114,7 +147,7 @@ export default function AdminQuotePipeline() {
             <th>Client</th><th>Project</th><th>Total</th><th>Links</th><th>Sent</th><th>Follow-up</th><th>Status</th><th>Comments</th><th></th>
           </tr></thead>
           <tbody>
-            {quotes.map((q) => editingId === q.id ? (
+            {visibleQuotes.map((q) => editingId === q.id ? (
               <tr key={q.id} className="qp-editing"><td colSpan={9}>
                 <div className="qp-editor-grid"><EditRow f={editForm} set={setEditForm} /></div>
                 <div className="qp-editor-actions"><button className="qp-primary" onClick={saveEdit}>Save</button><button className="qp-secondary" onClick={() => setEditingId(null)}>Cancel</button></div>
@@ -142,6 +175,7 @@ export default function AdminQuotePipeline() {
           </tbody>
         </table>
         {!quotes.length ? <p className="qp-empty">No quotes yet. Add your first quote to start tracking the pipeline.</p> : null}
+        {quotes.length > 0 && !visibleQuotes.length ? <p className="qp-empty">No quotes match the current filters.</p> : null}
       </div>
     </div>
   );

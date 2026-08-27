@@ -179,3 +179,39 @@ export async function PATCH(request) {
     return serverError(error);
   }
 }
+
+
+// DELETE removes a selected review item and its linked in-portal alerts. It is
+// intentionally administrator-only and does not remove the official source record.
+export async function DELETE(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Administrators only.", 403);
+
+    const { searchParams } = new URL(request.url);
+    const id = String(searchParams.get("id") || "");
+    if (!id) return jsonError("Choose a Regulatory Watch update to delete.");
+
+    const { data: current, error: currentError } = await access.admin
+      .from("regulatory_updates")
+      .select("id, title")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) return jsonError(currentError.message);
+    if (!current) return jsonError("Regulatory Watch update not found.", 404);
+
+    const { error: eventError } = await access.admin
+      .from("portal_events")
+      .delete()
+      .eq("source_table", "regulatory_updates")
+      .eq("source_id", id);
+    if (eventError) return jsonError(eventError.message);
+
+    const { error } = await access.admin.from("regulatory_updates").delete().eq("id", id);
+    if (error) return jsonError(error.message);
+    return Response.json({ success: true, deleted: { id: current.id, title: current.title } });
+  } catch (error) {
+    return serverError(error);
+  }
+}

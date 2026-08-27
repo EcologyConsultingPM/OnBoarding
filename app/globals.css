@@ -2229,3 +2229,44 @@ main {
 .aps-proj:hover { border-color: rgba(231, 201, 121, .66); }
 .aps-row .aps-two { min-width: 190px; }
 @media (max-width: 640px) { .aps-row .aps-two { min-width: 0; width: 100%; } }
+
+/* ── Consistent management controls: overview, quote and regulatory lists ── */
+.qp-controls, .phr-controls, .reg-watch__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+  border: 1px solid rgba(231, 201, 121, .22);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(135deg, #0d2919, #153b25);
+  color: #eff7eb;
+  box-shadow: 0 14px 27px -26px rgba(0, 0, 0, .96);
+}
+.qp-controls-title, .phr-controls-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #e7c979;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.qp-controls-title b, .phr-controls-title b { margin-left: auto; border-radius: 99px; padding: 4px 8px; color: #143522; background: #e7c979; font-size: 9px; letter-spacing: .03em; }
+.qp-controls-fields, .phr-controls-fields, .reg-watch__control-fields { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 9px; align-items: end; }
+.qp-controls-fields label, .phr-controls-fields label, .reg-watch__control-fields label { display: flex; min-width: 0; flex-direction: column; gap: 5px; color: rgba(235, 244, 230, .73); font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.qp-controls-fields input, .qp-controls-fields select, .phr-controls-fields select, .reg-watch__control-fields input, .reg-watch__control-fields select { width: 100%; min-width: 0; border: 1px solid rgba(231, 201, 121, .30); border-radius: 8px; padding: 8px 9px; color: #eff7eb; background: rgba(4, 20, 11, .68); font-family: 'Archivo', sans-serif; font-size: 12px; outline: none; text-transform: none; }
+.qp-controls-fields option, .phr-controls-fields option, .reg-watch__control-fields option { color: #183521; background: #fffdf8; }
+.qp-controls-fields input:focus, .qp-controls-fields select:focus, .phr-controls-fields select:focus, .reg-watch__control-fields input:focus, .reg-watch__control-fields select:focus { border-color: #e7c979; box-shadow: 0 0 0 3px rgba(231, 201, 121, .16); }
+.qp-clear-controls, .phr-clear-controls, .reg-watch__clear-controls { display: inline-flex; min-height: 35px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(231, 201, 121, .48); border-radius: 8px; padding: 8px 10px; color: #f1d889; background: rgba(231, 201, 121, .09); font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 800; cursor: pointer; }
+.qp-clear-controls:hover, .phr-clear-controls:hover, .reg-watch__clear-controls:hover { color: #173a24; background: #e7c979; }
+.phr-manage, .aps-delete-project, .reg-watch__delete { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 7px; font-family: 'Archivo', sans-serif; font-size: 10.5px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.phr-manage { border: 1px solid rgba(231, 201, 121, .52); padding: 6px 8px; color: #f1d889; background: #123622; }
+.phr-manage:hover { color: #143522; background: #e7c979; }
+.aps-delete-project, .reg-watch__delete { border: 1px solid rgba(238, 139, 128, .60); padding: 9px 11px; color: #ffd6d0; background: rgba(145, 45, 37, .34); }
+.aps-delete-project:hover, .reg-watch__delete:hover { border-color: #ffb6ae; background: #a8463c; color: #fff8f6; }
+@media (max-width: 1080px) { .qp-controls-fields, .phr-controls-fields, .reg-watch__control-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .qp-clear-controls, .phr-clear-controls, .reg-watch__clear-controls { width: fit-content; } }
+@media (max-width: 700px) { .qp-controls-fields, .phr-controls-fields, .reg-watch__control-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .qp-clear-controls, .phr-clear-controls, .reg-watch__clear-controls { width: 100%; } .aps-detail-head { align-items: stretch; flex-wrap: wrap; } .aps-title-input { min-width: 100%; } }
+@media (max-width: 440px) { .qp-controls-fields, .phr-controls-fields, .reg-watch__control-fields { grid-template-columns: 1fr; } }
