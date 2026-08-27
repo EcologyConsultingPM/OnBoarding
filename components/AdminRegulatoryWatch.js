@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, BookOpenCheck, ChevronDown, ExternalLink, FileSearch, Plus, RefreshCw, Send, ShieldAlert } from "lucide-react";
+import { BellRing, BookOpenCheck, ExternalLink, FileSearch, Plus, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS = {
@@ -130,7 +130,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
     <section className="reg-watch" aria-label="Regulatory Watch">
       <header className="reg-watch__hero">
         <div>
-          <span><ShieldAlert size={14} /> WHS &amp; Compliance · Regulatory Watch</span>
+          <span><ShieldAlert size={14} /> Official regulatory intelligence</span>
           <h2>Regulatory Watch</h2>
           <p>Review official changes to WHS law, BAM guidance, threatened flora and fauna survey requirements, and environmental reforms before changing Ecology Consulting practice or notifying staff.</p>
         </div>

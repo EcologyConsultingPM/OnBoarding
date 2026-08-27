@@ -1,120 +1,128 @@
-import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
+import { randomBytes } from "crypto";
+import { requireSession, serverError } from "../../../../lib/serverAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_DOMAIN = "@ecologyconsulting.au";
+const PRIMARY_ENV = "PRIMARY_ADMIN_EMAIL";
 
-// Unambiguous character set (no 0/O, 1/l/I) — read out over the phone or
-// typed from a sticky note without confusion.
-const CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-function generateTempPassword(length = 14) {
-  const bytes = crypto.randomBytes(length);
-  let out = "";
-  for (let i = 0; i < length; i++) out += CHARS[bytes[i] % CHARS.length];
-  return out;
+function jsonError(error, status = 400) {
+  return Response.json({ error }, { status });
 }
 
-async function requireAdmin(request, admin) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!token) return { error: "Not authenticated.", status: 401 };
+function normaliseEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: userData, error: userErr } = await anon.auth.getUser(token);
-  const caller = userData?.user;
-  if (userErr || !caller?.email) return { error: "Invalid session.", status: 401 };
+function primaryEmail() {
+  return normaliseEmail(process.env[PRIMARY_ENV]);
+}
 
-  const { data: adminRow } = await admin.from("admin_emails").select("email").ilike("email", caller.email).maybeSingle();
-  if (!adminRow) return { error: "Admin access required.", status: 403 };
+function primaryAccess(access) {
+  const configured = primaryEmail();
+  return Boolean(configured && normaliseEmail(access?.user?.email) === configured);
+}
 
-  return { caller };
+function validStaffEmail(email) {
+  return /^[^\s@]+@ecologyconsulting\.au$/i.test(email);
+}
+
+function safeName(value, maximum = 100) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, maximum);
+}
+
+function createTemporaryPassword() {
+  // A URL-safe random password with enough entropy for a single-use credential.
+  return `${randomBytes(12).toString("base64url")}Ec!`;
+}
+
+async function matchingUser(access, email) {
+  const { data, error } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw new Error(error.message);
+  return (data?.users || []).find((candidate) => normaliseEmail(candidate.email) === email) || null;
 }
 
 export async function POST(request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    return Response.json({ error: "Not configured on the server." }, { status: 503 });
-  }
-  const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-
-  const { error: authError, status } = await requireAdmin(request, admin);
-  if (authError) return Response.json({ error: authError }, { status });
-
-  let email, customPassword, forceChange, firstName, lastName, accessLevel;
   try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Administrator access is required.", 403);
+
     const body = await request.json();
-    email = String(body?.email || "").trim().toLowerCase();
-    customPassword = typeof body?.password === "string" ? body.password : null;
-    forceChange = body?.forceChange !== false; // default true unless explicitly turned off
-    firstName = String(body?.firstName || "").trim();
-    lastName = String(body?.lastName || "").trim();
-    // Access level: 'staff' (staff portal only), 'admin' (admin only), 'both'.
-    accessLevel = ["staff", "admin", "both"].includes(body?.accessLevel) ? body.accessLevel : "staff";
-  } catch {
-    return Response.json({ error: "Invalid request." }, { status: 400 });
-  }
-  if (!email || !email.endsWith(ALLOWED_DOMAIN)) {
-    return Response.json({ error: `Only ${ALLOWED_DOMAIN} email addresses can be invited.` }, { status: 400 });
-  }
-  if (customPassword && customPassword.length < 8) {
-    return Response.json({ error: "Custom password must be at least 8 characters." }, { status: 400 });
-  }
+    const email = normaliseEmail(body?.email);
+    const firstName = safeName(body?.firstName);
+    const lastName = safeName(body?.lastName);
+    const accessLevel = String(body?.accessLevel || "staff").trim();
+    const forceChange = body?.forceChange !== false;
 
-  const tempPassword = customPassword || generateTempPassword();
-  const fullName = [firstName, lastName].filter(Boolean).join(" ");
-  const userMeta = {};
-  if (firstName) userMeta.first_name = firstName;
-  if (lastName) userMeta.last_name = lastName;
-  if (fullName) userMeta.full_name = fullName;
+    if (!validStaffEmail(email)) return jsonError("Email must be an @ecologyconsulting.au address.");
+    if (!firstName) return jsonError("First name is required.");
+    if (!["staff", "admin", "both"].includes(accessLevel)) return jsonError("Choose a valid portal access level.");
 
-  // Does this person already have an account? Page through (small roster).
-  let existing = null;
-  let page = 1;
-  while (page <= 20 && !existing) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) return Response.json({ error: "Could not check existing accounts." }, { status: 500 });
-    existing = data.users.find((u) => (u.email || "").toLowerCase() === email) || null;
-    if (data.users.length < 200) break;
-    page++;
-  }
-
-  if (existing) {
-    const { error } = await admin.auth.admin.updateUserById(existing.id, {
-      password: tempPassword,
-      app_metadata: { ...existing.app_metadata, must_change_password: forceChange },
-      user_metadata: { ...existing.user_metadata, ...userMeta },
-    });
-    if (error) return Response.json({ error: "Could not reset this account." }, { status: 500 });
-  } else {
-    const { error } = await admin.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true,
-      app_metadata: { must_change_password: forceChange },
-      user_metadata: userMeta,
-    });
-    if (error) return Response.json({ error: "Could not create this account." }, { status: 500 });
-  }
-
-  // Access level: add or remove admin rights via the admin_emails table.
-  // 'admin' or 'both' grants admin; 'staff' ensures no admin row remains.
-  try {
-    if (accessLevel === "admin" || accessLevel === "both") {
-      await admin.from("admin_emails").upsert({ email }, { onConflict: "email" });
-    } else {
-      await admin.from("admin_emails").delete().ilike("email", email);
+    const needsAdminAccess = accessLevel === "admin" || accessLevel === "both";
+    if (needsAdminAccess && !primaryAccess(access)) {
+      return jsonError("Only the configured primary administrator can grant administrator access.", 403);
     }
-  } catch {
-    // Non-fatal: the account exists; admin rights can be adjusted again.
-  }
+    if (needsAdminAccess && !primaryEmail()) {
+      return jsonError("Primary administrator protection is not configured. Administrator access cannot be granted.", 503);
+    }
 
-  // Returned once, to the verified admin who made this request. Relay it to
-  // the staff member out of band (Slack, in person, phone) — it's never
-  // emailed automatically and never stored anywhere after this response.
-  return Response.json({ ok: true, email, tempPassword, accessLevel, name: fullName || null });
+    const temporaryPassword = createTemporaryPassword();
+    const existing = await matchingUser(access, email);
+    const profile = {
+      ...(existing?.user_metadata || {}),
+      first_name: firstName,
+      last_name: lastName,
+      full_name: [firstName, lastName].filter(Boolean).join(" "),
+    };
+    const application = {
+      ...(existing?.app_metadata || {}),
+      must_change_password: forceChange,
+      portal_access: accessLevel,
+    };
+
+    let userId;
+    if (existing) {
+      const { data, error } = await access.admin.auth.admin.updateUserById(existing.id, {
+        password: temporaryPassword,
+        user_metadata: profile,
+        app_metadata: application,
+        email_confirm: true,
+      });
+      if (error) return jsonError(error.message);
+      userId = data?.user?.id || existing.id;
+    } else {
+      const { data, error } = await access.admin.auth.admin.createUser({
+        email,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: profile,
+        app_metadata: application,
+      });
+      if (error) return jsonError(error.message);
+      userId = data?.user?.id;
+    }
+
+    if (!userId) return jsonError("Could not create the staff account.", 500);
+
+    // Promotion is a distinct primary-administrator operation. Creating staff access
+    // never removes existing admin access; removal is only handled by Portal Management.
+    if (needsAdminAccess) {
+      const { error } = await access.admin.from("admin_emails").upsert({
+        email,
+        added_by: normaliseEmail(access.user.email),
+      }, { onConflict: "email" });
+      if (error) return jsonError(error.message);
+    }
+
+    return Response.json({
+      email,
+      name: profile.full_name,
+      accessLevel,
+      tempPassword: temporaryPassword,
+      reset: Boolean(existing),
+    }, { status: existing ? 200 : 201 });
+  } catch (error) {
+    return serverError(error);
+  }
 }
