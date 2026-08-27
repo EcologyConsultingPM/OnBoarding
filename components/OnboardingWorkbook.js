@@ -1506,8 +1506,8 @@ function StaffHome({ user, onNavigate, priorityCount = 0 }) {
     { key: "staffforms", n: "02", eyebrow: "Safety, requests & forms", title: "WHS & EC Forms", desc: "Toolbox talks, incident reports, and leave, training & equipment requests — submitted for approval.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
     { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
     { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
-    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "remote", n: "06", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, client records, quotes and issues.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+{ key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Timesheets", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "remote", n: "06", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
 
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1807,16 +1807,18 @@ export default function OnboardingWorkbook() {
             { key: "portalmgmt", label: "Portal Management", desc: "Staff, progress & onboarding", Icon: Users2, adminOnly: true },
             { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true },
             { key: "staffforms", label: "WHS & EC Forms", desc: "WHS forms, leave, training & equipment", Icon: ShieldCheck, staffOnly: true },
-            { key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
+{ key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
             { key: "species", label: "Species Profiles & Survey Requirements", desc: "Flora, fauna & survey timing standards", Icon: BookOpen, staffOnly: true },
+            { key: "projects", label: "Projects & Timesheets", desc: "Your allocations, schedules, work status and budget", Icon: FileText, staffOnly: true, href: "/staff/projects" },
+            { key: "remoteops", label: "Remote Operations", desc: "Assigned task briefs, updates and delivery handovers", Icon: Users2, staffOnly: true, href: "/staff/remote-operations" },
           ].filter((item) => {
             if (item.staffOnly) return !inAdminPortal;
             if (item.adminOnly) return inAdminPortal;
             return true;
-          }).map(({ key, label, desc, Icon }) => {
+          }).map(({ key, label, desc, Icon, href }) => {
             const active = mode === key;
             return (
-              <button key={key} onClick={() => { setMode(key); if (key === "library") setLibraryTopic(null); }} className="ec-nav-tab" style={{
+              <button key={key} onClick={() => { if (href) { window.location.href = href; return; } setMode(key); if (key === "library") setLibraryTopic(null); }} className="ec-nav-tab" style={{
                 cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start",
                 padding: "9px 15px", borderRadius: 10, fontFamily: FONT, textAlign: "left", minWidth: 150,
                 border: `1px solid ${active ? "transparent" : C.hairSoft}`,
