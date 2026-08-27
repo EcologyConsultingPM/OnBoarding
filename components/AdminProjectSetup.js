@@ -140,7 +140,7 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
       setSchedule((pData.schedule || []).map((s) => ({ title: s.title, detail: s.detail || "", startDate: s.start_date || "", endDate: s.end_date || "", milestone: s.milestone })));
       setAllocations((pData.allocations || []).map((a) => ({ staffUserId: a.staff_user_id, roleOnProject: a.role_on_project || "", allocatedHours: a.allocated_hours ?? "", hourlyRate: a.hourly_rate ?? "" })));
       const actData = await aRes.json();
-      if (aRes.ok) setActivities((actData.activities || []).map((x) => ({ staffUserId: x.staff_user_id || "", taskCategory: x.task_category || "", title: x.title, budgetHours: x.budget_hours ?? "" })));
+      if (aRes.ok) setActivities((actData.activities || []).map((x) => ({ staffUserId: x.staff_user_id || "", taskCategory: x.task_category || "", title: x.title, budgetHours: x.budget_hours ?? "", dueDate: x.due_date || "" })));
     } catch (e) { fail(e); }
   }, [projectId, auth, fail]);
 
@@ -161,7 +161,7 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
     try { const res = await auth("PUT", `/api/projects/${projectId}/allocations`, { allocations: allocations.filter((a) => a.staffUserId) }); const d = await res.json(); if (!res.ok) throw new Error(d.error); notify("Allocations saved."); await load(); } catch (e) { fail(e); }
   };
   const saveActivities = async () => {
-    try { const res = await auth("PUT", `/api/projects/${projectId}/activities`, { activities: activities.filter((a) => a.title.trim()) }); const d = await res.json(); if (!res.ok) throw new Error(d.error); notify("Activities assigned."); } catch (e) { fail(e); }
+    try { const res = await auth("PUT", `/api/projects/${projectId}/activities`, { activities: activities.filter((a) => a.title.trim()) }); const d = await res.json(); if (!res.ok) throw new Error(d.error); notify("Activities assigned and staff notified."); await load(); } catch (e) { fail(e); }
   };
 
   if (!project) return <div className="aps"><p>Loading…</p></div>;
@@ -239,7 +239,7 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
       {/* Activities */}
       <section className="aps-card">
         <div className="aps-card-head"><h2><ClipboardList size={16} /> Work activities</h2><button className="aps-secondary" onClick={saveActivities}><Save size={13} /> Save activities</button></div>
-        <p className="aps-note">Assign tasks to allocated staff. Each person sets their own status (not commenced, active, need info, paused, QA review, completed) in their portal.</p>
+        <p className="aps-note">Assign activities to allocated staff. Staff are notified immediately; an optional due date also places the activity in their portal calendar.</p>
         {activities.map((row, i) => (
           <div key={i} className="aps-row">
             <input placeholder="Activity title" value={row.title} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, title: e.target.value } : r))} />
@@ -251,11 +251,14 @@ function ProjectDetail({ projectId, staff, auth, notify, fail, onBack, error, me
               <option value="">Assign to…</option>
               {allocations.filter((a) => a.staffUserId).map((a) => <option key={a.staffUserId} value={a.staffUserId}>{staffLabel(a.staffUserId)}</option>)}
             </select>
-            <input placeholder="Hrs" value={row.budgetHours} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, budgetHours: e.target.value } : r))} style={{ maxWidth: 70 }} />
+            <div className="aps-two">
+              <input placeholder="Hrs" value={row.budgetHours} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, budgetHours: e.target.value } : r))} />
+              <input type="date" aria-label={`Due date for ${row.title || "activity"}`} value={row.dueDate || ""} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, dueDate: e.target.value } : r))} />
+            </div>
             <button className="aps-remove" onClick={() => setActivities(activities.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
           </div>
         ))}
-        <button className="aps-add" onClick={() => setActivities([...activities, { staffUserId: "", taskCategory: "", title: "", budgetHours: "" }])}><Plus size={13} /> Add activity</button>
+        <button className="aps-add" onClick={() => setActivities([...activities, { staffUserId: "", taskCategory: "", title: "", budgetHours: "", dueDate: "" }])}><Plus size={13} /> Add activity</button>
       </section>
     </div>
   );

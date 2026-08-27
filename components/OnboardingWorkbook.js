@@ -5,7 +5,7 @@ import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
   Loader2, CheckCircle2, AlertCircle, BookOpen, Settings, Home as HomeIcon, ClipboardList,
-  Building2, Leaf, TrendingUp, Send, ArrowUpRight, Clock3,
+  Building2, Leaf, TrendingUp, Send, ArrowUpRight, Clock3, BellRing,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -1456,7 +1456,8 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
     { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "Projects & Tracker", desc: "Your allocations, schedule, work status and budget.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
     { key: "timesheets", n: "06", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
-    { key: "remote", n: "07", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    { key: "notifications", n: "07", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project activity allocations and updates requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
+    { key: "remote", n: "08", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
   const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding);
 

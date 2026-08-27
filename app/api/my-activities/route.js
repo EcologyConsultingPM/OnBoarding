@@ -12,6 +12,51 @@ const ALLOWED_STATUSES = new Set([
   "completed",
 ]);
 
+function missingDueDateColumn(error) {
+  return error?.code === "42703" || /due_date/i.test(String(error?.message || ""));
+}
+
+// GET: Staff receive only their own project activities. The calendar uses the
+// optional due date; administrators may inspect their own assigned activities.
+export async function GET(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+
+    let calendarReady = true;
+    let result = await access.admin
+      .from("project_activities")
+      .select(
+        "id, project_id, title, due_date, status, projects!project_activities_project_id_fkey(name)",
+      )
+      .eq("staff_user_id", access.user.id)
+      .not("due_date", "is", null)
+      .order("due_date", { ascending: true })
+      .limit(100);
+    if (result.error && missingDueDateColumn(result.error)) {
+      calendarReady = false;
+      result = await access.admin
+        .from("project_activities")
+        .select("id, project_id, title, status, projects!project_activities_project_id_fkey(name)")
+        .eq("staff_user_id", access.user.id)
+        .limit(100);
+    }
+    if (result.error) return Response.json({ error: result.error.message }, { status: 400 });
+
+    const activities = (result.data || []).map((activity) => ({
+      id: activity.id,
+      projectId: activity.project_id,
+      project: activity.projects?.name || "Project",
+      title: activity.title,
+      dueDate: activity.due_date || null,
+      status: activity.status,
+    }));
+    return Response.json({ activities, calendarReady });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
 // PATCH: Staff can update only their own allocated activity. Every actual change
 // is appended to project_activity_history so the Timesheets domain has a genuine
 // tracker-entry history rather than only the current project_activity state.
@@ -23,12 +68,24 @@ export async function PATCH(request) {
     const body = await request.json();
     const id = body.id;
     const status = body.status;
-    const pauseReason = typeof body.pauseReason === "string" ? body.pauseReason.trim() : null;
+    const pauseReason =
+      typeof body.pauseReason === "string" ? body.pauseReason.trim() : null;
 
-    if (!id) return Response.json({ error: "Activity id is required." }, { status: 400 });
-    if (!ALLOWED_STATUSES.has(status)) return Response.json({ error: "Invalid activity status." }, { status: 400 });
+    if (!id)
+      return Response.json(
+        { error: "Activity id is required." },
+        { status: 400 },
+      );
+    if (!ALLOWED_STATUSES.has(status))
+      return Response.json(
+        { error: "Invalid activity status." },
+        { status: 400 },
+      );
     if (status === "paused_other" && !pauseReason) {
-      return Response.json({ error: "A reason is required when an activity is paused." }, { status: 400 });
+      return Response.json(
+        { error: "A reason is required when an activity is paused." },
+        { status: 400 },
+      );
     }
 
     const { data: existing, error: readError } = await access.admin
@@ -37,14 +94,21 @@ export async function PATCH(request) {
       .eq("id", id)
       .maybeSingle();
 
-    if (readError) return Response.json({ error: readError.message }, { status: 400 });
-    if (!existing) return Response.json({ error: "Activity not found." }, { status: 404 });
+    if (readError)
+      return Response.json({ error: readError.message }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "Activity not found." }, { status: 404 });
     if (!access.isAdmin && existing.staff_user_id !== access.user.id) {
-      return Response.json({ error: "You can update only your own project activities." }, { status: 403 });
+      return Response.json(
+        { error: "You can update only your own project activities." },
+        { status: 403 },
+      );
     }
 
     const newPauseReason = status === "paused_other" ? pauseReason : null;
-    const unchanged = existing.status === status && (existing.pause_reason || null) === newPauseReason;
+    const unchanged =
+      existing.status === status &&
+      (existing.pause_reason || null) === newPauseReason;
     const now = new Date().toISOString();
 
     const { data: activity, error: updateError } = await access.admin
@@ -54,12 +118,14 @@ export async function PATCH(request) {
       .select("*")
       .single();
 
-    if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
+    if (updateError)
+      return Response.json({ error: updateError.message }, { status: 400 });
 
     if (!unchanged) {
-      const note = status === "paused_other"
-        ? newPauseReason
-        : `Status changed to ${status.replaceAll("_", " ")}.`;
+      const note =
+        status === "paused_other"
+          ? newPauseReason
+          : `Status changed to ${status.replaceAll("_", " ")}.`;
       const { error: historyError } = await access.admin
         .from("project_activity_history")
         .insert({
@@ -72,7 +138,13 @@ export async function PATCH(request) {
           changed_by: access.user.id,
           changed_at: now,
         });
-      if (historyError) return Response.json({ error: `Activity was updated but history could not be recorded: ${historyError.message}` }, { status: 500 });
+      if (historyError)
+        return Response.json(
+          {
+            error: `Activity was updated but history could not be recorded: ${historyError.message}`,
+          },
+          { status: 500 },
+        );
     }
 
     return Response.json({ activity });
