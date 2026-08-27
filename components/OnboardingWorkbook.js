@@ -5,6 +5,7 @@ import {
   Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
   ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
   Loader2, CheckCircle2, AlertCircle, BookOpen, Settings, Home as HomeIcon, ClipboardList,
+  Building2, Leaf, TrendingUp, Send, ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -1370,16 +1371,16 @@ function AdminHome({ user, onNavigate }) {
       .then((r) => r.json()).then((d) => setCounts(d.counts || {})).catch(() => {});
   }, [session]);
 
-  // Seven domains, each with its own wildlife photo (duotone) + multiply gradient,
-  // matching the mockup's 2-column tall-tile layout.
+  // Six domains. Reporting & analytics is no longer a standalone domain —
+  // the project health report now lives inside Projects & operations as a
+  // sub-tab (see the "adminprojects" render branch below).
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Project health, setup, allocations, schedules, client records, quotes and remote delivery.", photo: "kangaroo", base: "#1d6b6b", g1: "#26898a", g2: "#0a2727", mode: "adminprojects" },
-    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", photo: "kookaburra", base: "#2f5c2f", g1: "#3d7a45", g2: "#0b2317", mode: "whsmonitor" },
-    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", photo: "wattle", base: "#4a5f2a", g1: "#6b8f3a", g2: "#1a2610", mode: "ldlibrary" },
-    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317", mode: "speciesprofiles" },
-    { eyebrow: "Insight", title: "Reporting & analytics", desc: "Project health report, budget and profitability analysis across the portfolio.", photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", mode: "healthreport" },
-    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", photo: "everlastings", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08", mode: "portalmgmt" },
-    { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", photo: "rosella", base: "#3a4740", g1: "#4a5850", g2: "#12211a", mode: "servicerequests" },
+    { eyebrow: "Delivery & commercial", title: "Projects & operations", desc: "Setup, allocations, schedules, client records, quotes, remote delivery — plus the portfolio health report: completion, spend and at-risk projects.", accent: "#2f8f8f", accent2: "#1a4a4a", Icon: Building2, mode: "adminprojects" },
+    { eyebrow: "Safety & governance", title: "WHS & compliance", desc: "WHS monitoring, drafts awaiting review, toolbox talks and incident oversight.", accent: "#4fb583", accent2: "#12291b", Icon: ShieldCheck, mode: "whsmonitor" },
+    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review & approval.", accent: "#9cbf5a", accent2: "#2a3510", Icon: BookOpen, mode: "ldlibrary" },
+    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference library, staff field-photo submissions, expert verification, and targeted survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles" },
+    { eyebrow: "Portal stewardship", title: "Portal management", desc: "Staff logins & roles, staff development & progress, draft onboarding, resources and platform oversight.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt" },
+    { eyebrow: "Service desk", title: "Service requests", desc: "Approve staff leave, training and equipment requests. Review and action submissions.", accent: "#8fbfdd", accent2: "#16232c", Icon: Send, mode: "servicerequests" },
   ];
 
   return (
@@ -1396,7 +1397,7 @@ function AdminHome({ user, onNavigate }) {
             <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: "rgba(242,246,239,0.82)" }}>Choose a management domain to work in. Each opens a focused control centre for that operational area.</p>
           </div>
           <div style={{ display: "flex", gap: 30, flexWrap: "wrap" }}>
-            {[["Domains", "7"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
+            {[["Domains", "6"], ["Portal", "Admin"], ["Status", "Live"]].map(([l, v]) => (
               <div key={l} style={{ color: "#f2f6ef" }}>
                 <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1 }}>{v}</div>
                 <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,246,239,0.6)", marginTop: 5 }}>{l}</div>
@@ -1410,39 +1411,58 @@ function AdminHome({ user, onNavigate }) {
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: C.sage }}>Management domains</div>
         <div style={{ height: 1, flex: 1, background: C.hair }} />
-        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>7 areas</div>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.sage }}>6 areas</div>
       </div>
 
-      {/* 2-column tall photo tiles */}
+      {/* 2-column tall tiles — icon badge + accent glow + diagonal pattern,
+          so each domain reads distinctly even without a background photo. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="admin-tile-grid">
-        {domains.map(({ eyebrow, title, desc, photo, base, g1, g2, soon, mode, href }) => (
+        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href }) => (
           <a
             key={title}
             href="#"
             onClick={(e) => { e.preventDefault(); if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
-            className="ec-row"
+            className="ec-row domain-tile"
             style={{
-              position: "relative", display: "flex", alignItems: "flex-end", minHeight: 200, padding: 22,
-              borderRadius: 16, overflow: "hidden", color: "#fff", background: base, textDecoration: "none",
-              boxShadow: "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)",
+              position: "relative", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 210, padding: 24,
+              borderRadius: 18, overflow: "hidden", color: "#fff", textDecoration: "none",
+              background: `linear-gradient(150deg, #101a17 0%, #0a1210 60%, #060b0a 100%)`,
+              border: `1px solid ${accent}33`,
+              boxShadow: `0 1px 2px rgba(18,33,26,.07), 0 24px 46px -28px rgba(18,33,26,.65), inset 0 1px 0 rgba(255,255,255,.04)`,
               opacity: soon ? 0.9 : 1, cursor: soon ? "default" : "pointer",
             }}
           >
-            <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') 50% 30%/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
-            <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 84%)`, mixBlendMode: "multiply" }} />
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(4,18,18,.88), rgba(4,18,18,.05) 70%)" }} />
-            <div style={{ position: "relative", width: "100%" }}>
-              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(198,238,238,0.95)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+            {/* diagonal accent stripe pattern — always visible, no image asset needed */}
+            <div style={{ position: "absolute", inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}14 0px, ${accent}14 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
+            {/* radial accent glow, bottom-right */}
+            <div style={{ position: "absolute", right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
+            {/* top accent bar */}
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, transparent 85%)` }} />
+
+            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                background: `linear-gradient(135deg, ${accent}, ${accent2})`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: `0 8px 18px -6px ${accent}88`,
+              }}>
+                {Icon && <Icon size={21} color="#08110d" strokeWidth={2.2} />}
+              </div>
+              <ArrowUpRight size={18} color={`${accent}` } style={{ opacity: 0.55, flexShrink: 0 }} />
+            </div>
+
+            <div style={{ position: "relative" }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, marginBottom: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {eyebrow}
-                {soon && <span style={{ background: "rgba(255,255,255,0.2)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em" }}>Soon</span>}
+                {soon && <span style={{ background: "rgba(255,255,255,0.15)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em", color: "#fff" }}>Soon</span>}
                 {counts[mode] > 0 && (
-                  <span style={{ background: "#e7c979", color: "#2a1c08", borderRadius: 999, padding: "1px 9px", fontWeight: 800, letterSpacing: "0.02em" }}>
+                  <span style={{ background: accent, color: "#0a120f", borderRadius: 999, padding: "2px 10px", fontWeight: 800, letterSpacing: "0.02em" }}>
                     {counts[mode]} pending
                   </span>
                 )}
               </div>
-              <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1.1, marginBottom: 7 }}>{title}</div>
-              <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.8)", maxWidth: "44ch" }}>{desc}</p>
+              <div style={{ fontFamily: SERIF, fontSize: 25, lineHeight: 1.12, marginBottom: 8, color: "#f6faf8" }}>{title}</div>
+              <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.55, color: "rgba(242,248,246,0.72)", maxWidth: "46ch" }}>{desc}</p>
             </div>
           </a>
         ))}
@@ -1684,6 +1704,18 @@ export default function OnboardingWorkbook() {
     };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Projects & operations now hosts the health report as a sub-tab rather
+  // than "Reporting & analytics" being its own top-level admin domain.
+  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "health"
+
+  // Backward compatibility for any pre-update link/state. Project health remains
+  // a subview of Projects & Operations rather than a standalone admin domain.
+  useEffect(() => {
+    if (inAdminPortal && mode === "healthreport") {
+      setProjectsSubview("health");
+      setMode("adminprojects");
+    }
+  }, [inAdminPortal, mode]);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
 
@@ -1823,13 +1855,27 @@ export default function OnboardingWorkbook() {
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
-            <AdminProjectSetup />
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div className="admin-subtabs" data-print="hide">
+                <button
+                  className={"admin-subtab" + (projectsSubview === "setup" ? " sel" : "")}
+                  onClick={() => setProjectsSubview("setup")}
+                >
+                  Setup &amp; allocations
+                </button>
+                <button
+                  className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
+                  onClick={() => setProjectsSubview("health")}
+                >
+                  <TrendingUp size={13} /> Health report
+                </button>
+              </div>
+              {projectsSubview === "setup" ? <AdminProjectSetup /> : <ProjectHealthReport />}
+            </div>
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
-          ) : isAdmin && mode === "healthreport" ? (
-            <ProjectHealthReport />
           ) : isAdmin && mode === "whsmonitor" ? (
             <AdminWhsMonitor />
           ) : isAdmin && mode === "servicerequests" ? (
