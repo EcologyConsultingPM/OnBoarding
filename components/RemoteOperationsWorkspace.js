@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Plus } from "lucide-react";
+import { Globe, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Plus, ChevronLeft, Home } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "../lib/AuthProvider";
+import RemoteTasks from "./RemoteTasks";
 
 async function api(session, type, method = "GET", body, id) {
   const url = `/api/remote-ops?type=${type}${id ? `&id=${id}` : ""}`;
@@ -76,6 +78,10 @@ export default function RemoteOperationsWorkspace() {
 
   return (
     <main className="ro-page">
+      <div className="ro-nav">
+        <button className="ro-nav-btn" onClick={() => window.history.back()}><ChevronLeft size={15} /> Back</button>
+        <Link href="/" className="ro-nav-btn"><Home size={14} /> Home</Link>
+      </div>
       <header className="ro-hero">
         <span><Globe size={17} /> International delivery oversight</span>
         <h1>Remote operations</h1>
@@ -91,6 +97,9 @@ export default function RemoteOperationsWorkspace() {
 
       {error ? <p className="ro-error" role="alert"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="ro-success" role="status"><CheckCircle2 size={15} /> {message}</p> : null}
+
+      {/* Task Briefs — assigned work (sub-component of Remote Operations) */}
+      <RemoteTasks isAdmin={false} />
 
       <div className="ro-columns">
         {/* Profiles */}
