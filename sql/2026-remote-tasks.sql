@@ -1,0 +1,5 @@
+-- remote_tasks: Task Briefs. Admin/SE assigns a task TO a staff member (8 fields
+-- + status lifecycle assigned->in_progress->submitted->revising->complete). RLS:
+-- assignee OR creator OR admin can read; admins insert; assignee/admin update.
+-- Feeds the staff "new outcomes" badge via reset_seen_on_review + insert trigger.
+-- Applied live.
