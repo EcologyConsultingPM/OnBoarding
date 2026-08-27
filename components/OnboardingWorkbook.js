@@ -15,6 +15,7 @@ import AdminProjectSetup from "./AdminProjectSetup";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
+import ProjectTrackerSetup from "./ProjectTrackerSetup";
 import AdminWhsGovernance from "./AdminWhsGovernance";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
@@ -982,48 +983,7 @@ function StaffLoginsPanel({ onToast }) {
   );
 }
 
-function AdminPanel({ adminEmails, currentEmail, onMutate, onToast }) {
-  const [open, setOpen] = useState(true);
-  const [newEmail, setNewEmail] = useState("");
 
-  const add = async () => {
-    const email = newEmail.trim().toLowerCase();
-    if (!email.endsWith("@ecologyconsulting.au")) { onToast("Admin emails must end in @ecologyconsulting.au"); return; }
-    try { await db.addAdminEmail(email, currentEmail); onMutate((d) => { d.adminEmails.push(email); }); setNewEmail(""); }
-    catch { onToast("Couldn't add admin — they may already have access"); }
-  };
-  const remove = async (email) => {
-    if (!window.confirm(`Remove admin access for ${email}?`)) return;
-    try { await db.removeAdminEmail(email); onMutate((d) => { d.adminEmails = d.adminEmails.filter((e) => e !== email); }); }
-    catch { onToast("Couldn't remove admin"); }
-  };
-
-  return (
-    <div data-print="hide" style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }}>
-      <div onClick={() => setOpen((o) => !o)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-        <Users2 size={16} color={C.green500} />
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT, flex: 1 }}>Admin access ({adminEmails.length})</h3>
-        {open ? <ChevronDown size={16} color={C.inkSoft} /> : <ChevronRight size={16} color={C.inkSoft} />}
-      </div>
-      {open && (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          {adminEmails.map((email) => (
-            <div key={email} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 700, color: C.ink }}>
-              <ShieldCheck size={13} color={C.green400} />
-              <span style={{ flex: 1 }}>{email}</span>
-              <button onClick={() => remove(email)} style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer" }}><X size={13} /></button>
-            </div>
-          ))}
-          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@ecologyconsulting.au"
-              onKeyDown={(e) => e.key === "Enter" && add()} style={{ ...inputStyle(false), flex: 1 }} />
-            <button onClick={add} style={{ ...smallBtn, background: C.green400, color: "#fff", border: "none" }}>Add admin</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 /* ---------------------------------------------------------------
    Admin: staff onboarding progress (list + read-only detail report)
 ----------------------------------------------------------------- */
@@ -1677,22 +1637,16 @@ export default function OnboardingWorkbook() {
     };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Projects & operations now hosts the health report as a sub-tab rather
-  // than "Reporting & analytics" being its own top-level admin domain.
-  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "quotes" | "health"
+  // Projects & Operations intentionally contains delivery setup and portfolio
+  // health only. Quote Pipeline is its own Commercial Control domain card.
+  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "health"
 
-  // Compatibility with prior commercial and health-report entry points. Remote
-  // Operations remains its own administrator domain and card on the home screen.
+  // Compatibility for the retired standalone Health Report route. Quote
+  // Pipeline and Remote Operations remain first-class administrator domains.
   useEffect(() => {
-    if (!inAdminPortal) return;
-    const legacySubview = {
-      healthreport: "health",
-      quotepipeline: "quotes",
-    }[mode];
-    if (legacySubview) {
-      setProjectsSubview(legacySubview);
-      setMode("adminprojects");
-    }
+    if (!inAdminPortal || mode !== "healthreport") return;
+    setProjectsSubview("health");
+    setMode("adminprojects");
   }, [inAdminPortal, mode]);
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
@@ -1843,13 +1797,18 @@ export default function OnboardingWorkbook() {
             <MyOnboarding onToast={showToast} />
           ) : mode === "mine" && !inAdminPortal ? (
             <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
-          ) : isAdmin && mode === "portalmgmt" ? (
-            <PortalManagement>
-              <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
-              <StaffProgress onToast={showToast} />
-              <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
-              <AdminOnboardingAssignments onToast={showToast} />
-            </PortalManagement>
+                    ) : isAdmin && mode === "portalmgmt" ? (
+            <PortalManagement
+              onToast={showToast}
+              onboardingContent={(
+                <div className="pm-onboarding-content">
+                  <StaffProgress onToast={showToast} />
+                  <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+                  <AdminOnboardingAssignments onToast={showToast} />
+                </div>
+              )}
+            />
+
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
@@ -1858,21 +1817,25 @@ export default function OnboardingWorkbook() {
                 <button role="tab" aria-selected={projectsSubview === "setup"}
                   className={"admin-subtab" + (projectsSubview === "setup" ? " sel" : "")}
                   onClick={() => setProjectsSubview("setup")}>Setup &amp; allocations</button>
-                <button role="tab" aria-selected={projectsSubview === "quotes"}
-                  className={"admin-subtab" + (projectsSubview === "quotes" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("quotes")}>Quote pipeline</button>
+                <button role="tab" aria-selected={projectsSubview === "tracker"}
+                  className={"admin-subtab" + (projectsSubview === "tracker" ? " sel" : "")}
+                  onClick={() => setProjectsSubview("tracker")}><ClipboardList size={13} /> Project Tracker Setup</button>
                 <button role="tab" aria-selected={projectsSubview === "health"}
                   className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
                   onClick={() => setProjectsSubview("health")}><TrendingUp size={13} /> Health report</button>
               </div>
               {projectsSubview === "setup" && <AdminProjectSetup />}
-              {projectsSubview === "quotes" && <AdminQuotePipeline />}
+              {projectsSubview === "tracker" && <ProjectTrackerSetup onToast={showToast} />}
               {projectsSubview === "health" && <ProjectHealthReport />}
             </div>
+          ) : isAdmin && mode === "quotepipeline" ? (
+            <AdminQuotePipeline />
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
-          ) : isAdmin && (mode === "whsmonitor" || mode === "regulatorywatch") ? (
-            <AdminWhsGovernance key={mode} onToast={showToast} initialSubdomain={mode === "regulatorywatch" ? "regulatory" : "monitor"} />
+          ) : isAdmin && mode === "whsmonitor" ? (
+            <AdminWhsGovernance onToast={showToast} initialSubdomain="monitor" />
+          ) : isAdmin && mode === "regulatorywatch" ? (
+            <AdminRegulatoryWatch onToast={showToast} />
           ) : isAdmin && mode === "servicerequests" ? (
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
@@ -1886,12 +1849,16 @@ export default function OnboardingWorkbook() {
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (
-            <PortalManagement>
-              <AdminPanel adminEmails={data.adminEmails} currentEmail={user?.email} onMutate={mutate} onToast={showToast} />
-              <StaffProgress onToast={showToast} />
-              <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
-              <AdminOnboardingAssignments onToast={showToast} />
-            </PortalManagement>
+            <PortalManagement
+              onToast={showToast}
+              onboardingContent={(
+                <div className="pm-onboarding-content">
+                  <StaffProgress onToast={showToast} />
+                  <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+                  <AdminOnboardingAssignments onToast={showToast} />
+                </div>
+              )}
+            />
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
           ) : (
