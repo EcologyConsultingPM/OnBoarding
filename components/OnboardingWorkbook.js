@@ -1382,8 +1382,9 @@ function AdminHome({ onNavigate }) {
   // areas use the same image-backed domain-card language as Staff Home so the control
   // centre is recognisable at a glance, rather than a collection of flat panels.
   const domains = [
-    { eyebrow: "Delivery & commercial", title: "Projects & Operations", desc: "Setup, allocations, schedules, client records, quotes and the portfolio health report.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Building2, mode: "adminprojects", photo: "palm-cockatoo.png" },
-    { eyebrow: "Remote delivery", title: "Remote Operations", desc: "Assign, accept, review and complete remote task briefs across the team.", accent: "#d87955", accent2: "#34150d", Icon: Users2, mode: "remoteops", photo: "bottlebrush.png" },
+    { eyebrow: "Project control", title: "Projects & Operations", desc: "Project setup, allocations, schedules, client records and the portfolio health report.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Building2, mode: "adminprojects", photo: "palm-cockatoo.png" },
+    { eyebrow: "Commercial control", title: "Quote Pipeline", desc: "Track enquiry, proposal, review and award stages without leaving the control centre.", accent: "#d87955", accent2: "#34150d", Icon: FileText, mode: "quotepipeline", photo: "rosella.png" },
+    { eyebrow: "Remote delivery", title: "Remote Operations Oversight", desc: "Assign, accept, review and complete remote task briefs across the team.", accent: "#d789a6", accent2: "#321322", Icon: Users2, mode: "remoteops", photo: "bottlebrush.png" },
     { eyebrow: "Safety & governance", title: "WHS & Compliance", desc: "WHS monitoring, controlled governance, drafts, toolbox talks and incident oversight.", accent: "#9cbf5a", accent2: "#203615", Icon: ShieldCheck, mode: "whsmonitor", photo: "wedgetail-eagle.jpg" },
     { eyebrow: "Official change alert", title: "Regulatory Watch", desc: "Review official legislative, BAM and threatened flora/fauna survey updates before staff are notified.", accent: "#e7c979", accent2: "#423414", Icon: AlertCircle, mode: "regulatorywatch", photo: "redtail-cockatoo.png", regulatoryOpen },
     { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review and approval.", accent: "#d789a6", accent2: "#321322", Icon: BookOpen, mode: "ldlibrary", photo: "lorikeet.png" },
@@ -1415,10 +1416,10 @@ function AdminHome({ onNavigate }) {
             }}
           >
             {/* Native flora/fauna reference image, eucalyptus duotone and subtle pattern. */}
-            <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}') center/cover`, filter: "grayscale(.32)", opacity: .66, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", inset: 0, background: `linear-gradient(142deg, ${accent2}ef 0%, #0b1811bf 55%, ${accent2}70 100%)`, mixBlendMode: "multiply", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}16 0px, ${accent}16 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `url('/assets/${photo}') center/cover`, filter: "grayscale(.18) contrast(1.06)", opacity: .88, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `linear-gradient(142deg, ${accent2}c9 0%, rgba(7, 20, 13, .48) 56%, ${accent2}94 100%)`, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}16 0px, ${accent}16 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
+            <div style={{ position: "absolute", zIndex: 0, right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
             {/* top accent bar */}
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, transparent 85%)` }} />
 
