@@ -23,6 +23,7 @@ import StaffLearningLibrary from "./StaffLearningLibrary";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
+import StaffPortalEvents from "./StaffPortalEvents";
 import SpeciesProfiles from "./SpeciesProfiles";
 import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
 
@@ -1580,9 +1581,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
               <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>Staff noticeboard</h2>
               <a href="/staff/noticeboard" style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500, color: C.teal, textDecoration: "none" }}>Open →</a>
             </div>
-            <div style={{ padding: "18px 14px", textAlign: "center", color: C.sage, fontSize: 12.5, lineHeight: 1.5, background: C.paper, borderRadius: 10 }}>
-              Draft a notice, get it approved, and publish it to the team. Open the noticeboard to post or read notices.
-            </div>
+            <StaffPortalEvents />
           </div>
 
           <StaffPortalTaskCalendar />

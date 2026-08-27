@@ -1,19 +1,26 @@
-"use client";
-
 import { useEffect, useState, useCallback } from "react";
-import { ClipboardList, Plus, Send, CheckCircle2, AlertCircle, RotateCcw, Clock, X, User } from "lucide-react";
+import {
+  ClipboardList, Plus, Send, CheckCircle2, AlertCircle, RotateCcw,
+  Clock, X, User, CalendarCheck, CircleCheckBig, CircleX,
+} from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS = {
-  assigned:    { label: "Assigned",     bg: "#fbf1dd", fg: "#a5772b" },
-  in_progress: { label: "In progress",  bg: "#e3edf5", fg: "#2a6591" },
-  submitted:   { label: "Submitted",    bg: "#efe7f0", fg: "#7d3b5c" },
-  revising:    { label: "Revision requested", bg: "#fbecea", fg: "#a5342a" },
-  complete:    { label: "Complete",     bg: "#e5f1dd", fg: "#2c6a34" },
+  awaiting_acceptance: { label: "Awaiting acceptance", bg: "#fbf1dd", fg: "#a5772b" },
+  accepted:            { label: "Accepted", bg: "#e3edf5", fg: "#2a6591" },
+  in_progress:         { label: "In progress", bg: "#e7f0e5", fg: "#2c6a34" },
+  submitted:           { label: "Submitted for review", bg: "#efe7f0", fg: "#7d3b5c" },
+  revising:            { label: "Revision requested", bg: "#fbecea", fg: "#a5342a" },
+  complete:            { label: "Complete", bg: "#e5f1dd", fg: "#2c6a34" },
+  declined:            { label: "Declined", bg: "#fbecea", fg: "#a5342a" },
+  withdrawn:           { label: "Withdrawn", bg: "#eeeeea", fg: "#687268" },
 };
 
-// Task Briefs — a sub-component of Remote Operations. Admin/SE assigns tasks to
-// staff; staff see only their own assignments and work them through the flow.
+const STAFF_WORKABLE = ["accepted", "in_progress", "revising"];
+const STAFF_VISIBLE_ACTIVE = ["awaiting_acceptance", ...STAFF_WORKABLE, "submitted"];
+
+// Task Briefs: staff must accept an assigned brief before it becomes active.
+// The StaffHome calendar reads accepted/active task due dates from the same API.
 export default function RemoteTasks({ isAdmin }) {
   const { session } = useAuth();
   const [tasks, setTasks] = useState([]);
@@ -25,134 +32,178 @@ export default function RemoteTasks({ isAdmin }) {
   const [draft, setDraft] = useState({});
 
   const authFetch = useCallback((method, url, body) => fetch(url, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
   }), [session]);
 
   const load = useCallback(async () => {
     try {
       const res = await authFetch("GET", "/api/remote-tasks");
-      const d = await res.json(); if (!res.ok) throw new Error(d.error);
-      setTasks(d.tasks || []); setStaff(d.staff || []);
-    } catch (e) { setError(e.message); }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setTasks(data.tasks || []);
+      setStaff(data.staff || []);
+    } catch (err) {
+      setError(err.message || "Could not load task briefs.");
+    }
   }, [authFetch]);
 
-  useEffect(() => { if (session?.access_token) load(); }, [session, load]);
+  useEffect(() => {
+    if (session?.access_token) load();
+  }, [session, load]);
+
+  const resetForm = () => setForm({ assigned_to: "", project: "", task: "", due_date: "", budget_hours: "", deliverable: "", resources: "", notes: "" });
 
   const assign = async () => {
     setError("");
-    if (!form.assigned_to) { setError("Choose a staff member."); return; }
-    if (!form.project.trim() || !form.task.trim()) { setError("Project and task are required."); return; }
+    if (!form.assigned_to) return setError("Choose a staff member.");
+    if (!form.project.trim() || !form.task.trim()) return setError("Project and task are required.");
     try {
       const res = await authFetch("POST", "/api/remote-tasks", form);
-      const d = await res.json(); if (!res.ok) throw new Error(d.error);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       setCreating(false);
-      setForm({ assigned_to: "", project: "", task: "", due_date: "", budget_hours: "", deliverable: "", resources: "", notes: "" });
+      resetForm();
       await load();
-    } catch (e) { setError(e.message); }
+    } catch (err) {
+      setError(err.message || "Could not assign task.");
+    }
   };
 
   const act = async (id, body) => {
-    try { const res = await authFetch("PATCH", "/api/remote-tasks", { id, ...body }); const d = await res.json(); if (!res.ok) throw new Error(d.error); setOpenId(null); setDraft({}); await load(); }
-    catch (e) { setError(e.message); }
+    setError("");
+    try {
+      const res = await authFetch("PATCH", "/api/remote-tasks", { id, ...body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setOpenId(null);
+      setDraft({});
+      await load();
+    } catch (err) {
+      setError(err.message || "Could not update task.");
+    }
   };
 
   const withdraw = async (id) => {
-    if (!window.confirm("Withdraw this task?")) return;
-    try { const res = await authFetch("DELETE", `/api/remote-tasks?id=${id}`); const d = await res.json(); if (!res.ok) throw new Error(d.error); await load(); } catch (e) { setError(e.message); }
+    if (!window.confirm("Withdraw this task? It will remain in the audit history.")) return;
+    try {
+      const res = await authFetch("DELETE", `/api/remote-tasks?id=${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await load();
+    } catch (err) {
+      setError(err.message || "Could not withdraw task.");
+    }
   };
 
-  const fld = (label, node) => <label className="rt-f"><span>{label}</span>{node}</label>;
+  const field = (label, node) => <label className="rt-f"><span>{label}</span>{node}</label>;
+  const terminal = (status) => ["complete", "declined", "withdrawn"].includes(status);
 
   return (
-    <div className="rt">
+    <section className="rt" aria-label="Task briefs">
       <div className="rt-head">
         <h2><ClipboardList size={17} /> Task briefs</h2>
-        {isAdmin && <button className="rt-new" onClick={() => setCreating((c) => !c)}><Plus size={14} /> Assign a task</button>}
+        {isAdmin && (
+          <button className="rt-new" onClick={() => setCreating((current) => !current)}>
+            <Plus size={14} /> Assign a task
+          </button>
+        )}
       </div>
-      <p className="rt-sub">{isAdmin ? "Assign work to staff. They'll see it in their portal with a notification." : "Tasks assigned to you. Work through them and submit for review."}</p>
+      <p className="rt-sub">
+        {isAdmin
+          ? "Assign work to staff. A task becomes active only when the staff member accepts it."
+          : "Respond to new task briefs, then track progress and submit work for review."}
+      </p>
 
       {error ? <p className="rt-error"><AlertCircle size={15} /> {error}</p> : null}
 
       {isAdmin && creating && (
         <div className="rt-create">
           <div className="rt-grid">
-            {fld("Assign to", <select value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}><option value="">Select staff…</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>)}
-            {fld("Project", <input value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} placeholder="Project name or number" />)}
-            {fld("Task", <input value={form.task} onChange={(e) => setForm({ ...form, task: e.target.value })} placeholder="One-line description" />)}
-            {fld("Due date", <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />)}
-            {fld("Budget hours", <input type="number" step="0.5" value={form.budget_hours} onChange={(e) => setForm({ ...form, budget_hours: e.target.value })} placeholder="e.g. 3.0" />)}
-            {fld("Deliverable", <input value={form.deliverable} onChange={(e) => setForm({ ...form, deliverable: e.target.value })} placeholder="What the finished product is" />)}
-            {fld("Resources", <input value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Links to files/folders" />)}
-            {fld("Notes / questions", <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Instructions, assumptions or issues" />)}
+            {field("Assign to", <select value={form.assigned_to} onChange={(event) => setForm({ ...form, assigned_to: event.target.value })}><option value="">Select staff…</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select>)}
+            {field("Project", <input value={form.project} onChange={(event) => setForm({ ...form, project: event.target.value })} placeholder="Project name or number" />)}
+            {field("Task", <input value={form.task} onChange={(event) => setForm({ ...form, task: event.target.value })} placeholder="One-line description" />)}
+            {field("Due date", <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />)}
+            {field("Budget hours", <input type="number" min="0" step="0.5" value={form.budget_hours} onChange={(event) => setForm({ ...form, budget_hours: event.target.value })} placeholder="e.g. 3.0" />)}
+            {field("Deliverable", <input value={form.deliverable} onChange={(event) => setForm({ ...form, deliverable: event.target.value })} placeholder="What the finished product is" />)}
+            {field("Resources", <input value={form.resources} onChange={(event) => setForm({ ...form, resources: event.target.value })} placeholder="Links to files or folders" />)}
+            {field("Notes / questions", <textarea rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Instructions, assumptions or issues" />)}
           </div>
+          <p className="rt-accept-note"><Clock size={13} /> The task remains awaiting acceptance and does not appear in the staff calendar until it is accepted.</p>
           <div className="rt-create-actions">
-            <button className="rt-assign" onClick={assign}><Send size={14} /> Assign task</button>
-            <button className="rt-cancel" onClick={() => setCreating(false)}>Cancel</button>
+            <button className="rt-assign" onClick={assign}><Send size={14} /> Send task brief</button>
+            <button className="rt-cancel" onClick={() => { setCreating(false); resetForm(); }}>Cancel</button>
           </div>
         </div>
       )}
 
       <div className="rt-list">
-        {tasks.length ? tasks.map((t) => {
-          const st = STATUS[t.status] || STATUS.assigned;
-          const isOpen = openId === t.id;
-          const overdue = t.due_date && t.status !== "complete" && new Date(t.due_date) < new Date(new Date().toDateString());
+        {tasks.length ? tasks.map((task) => {
+          const status = STATUS[task.status] || STATUS.awaiting_acceptance;
+          const isOpen = openId === task.id;
+          const overdue = task.due_date && STAFF_VISIBLE_ACTIVE.includes(task.status) && task.status !== "complete" && new Date(task.due_date) < new Date(new Date().toDateString());
+          const inCalendar = task.due_date && STAFF_ACTIVE_STATES.includes(task.status);
+
           return (
-            <div key={t.id} className="rt-card">
+            <article key={task.id} className="rt-card">
               <div className="rt-card-top">
                 <div className="rt-card-main">
-                  <div className="rt-card-project">{t.project}</div>
-                  <div className="rt-card-task">{t.task}</div>
+                  <div className="rt-card-project">{task.project}</div>
+                  <div className="rt-card-task">{task.task}</div>
                   <div className="rt-card-meta">
-                    {isAdmin ? <><User size={11} /> {t.assignee} · </> : null}
-                    {t.due_date ? <span className={overdue ? "rt-overdue" : ""}>Due {new Date(t.due_date).toLocaleDateString("en-AU")}{overdue ? " · overdue" : ""}</span> : "No due date"}
-                    {t.budget_hours ? ` · ${t.budget_hours}h` : ""}
+                    {isAdmin ? <><User size={11} /> {task.assignee} · </> : null}
+                    {task.due_date ? <span className={overdue ? "rt-overdue" : ""}>Due {new Date(task.due_date).toLocaleDateString("en-AU")}{overdue ? " · overdue" : ""}</span> : "No due date"}
+                    {task.budget_hours ? ` · ${task.budget_hours}h` : ""}
                   </div>
                 </div>
-                <span className="rt-status" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+                <span className="rt-status" style={{ background: status.bg, color: status.fg }}>{status.label}</span>
               </div>
 
-              {t.deliverable ? <div className="rt-line"><strong>Deliverable:</strong> {t.deliverable}</div> : null}
-              {t.resources ? <div className="rt-line"><strong>Resources:</strong> {t.resources}</div> : null}
-              {t.notes ? <div className="rt-line"><strong>Notes:</strong> {t.notes}</div> : null}
-              {t.staff_note ? <div className="rt-line rt-staff-note"><strong>Staff update:</strong> {t.staff_note}</div> : null}
-              {t.review_note ? <div className="rt-line rt-review-note"><strong>Review:</strong> {t.review_note}</div> : null}
+              {task.deliverable ? <div className="rt-line"><strong>Deliverable:</strong> {task.deliverable}</div> : null}
+              {task.resources ? <div className="rt-line"><strong>Resources:</strong> {task.resources}</div> : null}
+              {task.notes ? <div className="rt-line"><strong>Notes:</strong> {task.notes}</div> : null}
+              {task.decline_reason ? <div className="rt-line rt-decline-note"><strong>Decline / reassignment request:</strong> {task.decline_reason}</div> : null}
+              {task.staff_note ? <div className="rt-line rt-staff-note"><strong>Staff update:</strong> {task.staff_note}</div> : null}
+              {task.review_note ? <div className="rt-line rt-review-note"><strong>Review:</strong> {task.review_note}</div> : null}
+              {!isAdmin && inCalendar ? <div className="rt-calendar-note"><CalendarCheck size={13} /> Added to your staff portal calendar on the due date.</div> : null}
+              {!isAdmin && task.status === "awaiting_acceptance" ? <div className="rt-calendar-note pending"><Clock size={13} /> Accept this task to add its due date to your staff portal calendar.</div> : null}
 
-              {/* Staff actions */}
-              {!isAdmin && t.status !== "complete" && (
+              {!isAdmin && !terminal(task.status) && (
                 isOpen ? (
                   <div className="rt-actions-open">
-                    <textarea rows={2} placeholder="Progress update or a question…" value={draft.staff_note ?? t.staff_note ?? ""} onChange={(e) => setDraft({ ...draft, staff_note: e.target.value })} />
+                    <textarea rows={2} placeholder={task.status === "awaiting_acceptance" ? "Question, availability issue or reassignment request…" : "Progress update or a question…"} value={draft.staff_note ?? task.staff_note ?? ""} onChange={(event) => setDraft({ ...draft, staff_note: event.target.value })} />
                     <div className="rt-actions-row">
-                      {t.status === "assigned" && <button className="rt-btn start" onClick={() => act(t.id, { action: "start", staff_note: draft.staff_note })}>Start</button>}
-                      <button className="rt-btn note" onClick={() => act(t.id, { staff_note: draft.staff_note ?? "" })}>Save update</button>
-                      {["assigned", "in_progress", "revising"].includes(t.status) && <button className="rt-btn submit" onClick={() => act(t.id, { action: "submit", staff_note: draft.staff_note })}><Send size={12} /> Submit for review</button>}
+                      {task.status === "awaiting_acceptance" && <button className="rt-btn accept" onClick={() => act(task.id, { action: "accept", staff_note: draft.staff_note })}><CircleCheckBig size={12} /> Accept task</button>}
+                      {task.status === "awaiting_acceptance" && <button className="rt-btn decline" onClick={() => act(task.id, { action: "decline", decline_reason: draft.staff_note ?? "" })}><CircleX size={12} /> Decline / reassign</button>}
+                      {task.status !== "awaiting_acceptance" && <button className="rt-btn note" onClick={() => act(task.id, { staff_note: draft.staff_note ?? "" })}>Save update</button>}
+                      {task.status === "awaiting_acceptance" && <button className="rt-btn note" onClick={() => act(task.id, { staff_note: draft.staff_note ?? "" })}>Ask question</button>}
+                      {task.status === "accepted" && <button className="rt-btn start" onClick={() => act(task.id, { action: "start", staff_note: draft.staff_note })}>Start work</button>}
+                      {STAFF_WORKABLE.includes(task.status) && <button className="rt-btn submit" onClick={() => act(task.id, { action: "submit", staff_note: draft.staff_note })}><Send size={12} /> Submit for review</button>}
                       <button className="rt-btn cancel" onClick={() => { setOpenId(null); setDraft({}); }}>Close</button>
                     </div>
                   </div>
-                ) : <button className="rt-open-btn" onClick={() => { setOpenId(t.id); setDraft({}); }}>Update / submit</button>
+                ) : <button className="rt-open-btn" onClick={() => { setOpenId(task.id); setDraft({}); }}>{task.status === "awaiting_acceptance" ? "Respond to task" : "Update / submit"}</button>
               )}
 
-              {/* Admin/SE review actions */}
-              {isAdmin && (
+              {isAdmin && task.status !== "complete" && task.status !== "withdrawn" && (
                 isOpen ? (
                   <div className="rt-actions-open">
-                    <textarea rows={2} placeholder="Review note / revision instructions…" value={draft.review_note ?? t.review_note ?? ""} onChange={(e) => setDraft({ ...draft, review_note: e.target.value })} />
+                    <textarea rows={2} placeholder="Review note or revision instructions…" value={draft.review_note ?? task.review_note ?? ""} onChange={(event) => setDraft({ ...draft, review_note: event.target.value })} />
                     <div className="rt-actions-row">
-                      {t.status === "submitted" && <button className="rt-btn complete" onClick={() => act(t.id, { action: "complete", review_note: draft.review_note })}><CheckCircle2 size={12} /> Mark complete</button>}
-                      {t.status === "submitted" && <button className="rt-btn revise" onClick={() => act(t.id, { action: "revise", review_note: draft.review_note })}><RotateCcw size={12} /> Request revision</button>}
-                      <button className="rt-btn note" onClick={() => act(t.id, { review_note: draft.review_note ?? "" })}>Save note</button>
-                      <button className="rt-btn withdraw" onClick={() => withdraw(t.id)}>Withdraw</button>
+                      {task.status === "submitted" && <button className="rt-btn complete" onClick={() => act(task.id, { action: "complete", review_note: draft.review_note })}><CheckCircle2 size={12} /> Mark complete</button>}
+                      {task.status === "submitted" && <button className="rt-btn revise" onClick={() => act(task.id, { action: "revise", review_note: draft.review_note })}><RotateCcw size={12} /> Request revision</button>}
+                      <button className="rt-btn note" onClick={() => act(task.id, { review_note: draft.review_note ?? "" })}>Save note</button>
+                      <button className="rt-btn withdraw" onClick={() => withdraw(task.id)}>Withdraw</button>
                       <button className="rt-btn cancel" onClick={() => { setOpenId(null); setDraft({}); }}>Close</button>
                     </div>
                   </div>
-                ) : t.status !== "complete" ? <button className="rt-open-btn" onClick={() => { setOpenId(t.id); setDraft({}); }}>Review</button> : null
+                ) : <button className="rt-open-btn" onClick={() => { setOpenId(task.id); setDraft({}); }}>{task.status === "declined" ? "Review reassignment request" : "Review"}</button>
               )}
-            </div>
+            </article>
           );
-        }) : <p className="rt-empty">{isAdmin ? "No tasks assigned yet. Use \u201cAssign a task\u201d to create one." : "No tasks assigned to you right now."}</p>}
+        }) : <p className="rt-empty">{isAdmin ? "No tasks assigned yet. Use ‘Assign a task’ to create one." : "No task briefs assigned to you right now."}</p>}
       </div>
-    </div>
+    </section>
   );
 }
