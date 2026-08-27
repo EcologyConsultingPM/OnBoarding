@@ -104,7 +104,7 @@ insert into public.project_budget_sources (
 )
 select
   p.id, 'ORG-01', 'Original Scope', 'original', coalesce(p.budget_dollars, 0),
-  coalesce(p.budget_hours, 0), 'approved', coalesce(p.start_date, current_date),
+  coalesce(p.budget_hours, 0), 'approved', case when p.start_date ~ '^\\d{4}-\\d{2}-\\d{2}$' then p.start_date::date else current_date end,
   p.created_by, p.created_by
 from public.projects p
 where not exists (
