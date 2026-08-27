@@ -1216,10 +1216,16 @@ main {
 .svy-plan-done { font-size: 11px; color: rgba(238,243,234,.5); font-style: italic; }
 
 /* ── Admin sub-domain tabs (e.g. Projects & operations: Setup / Health report) ── */
-.admin-subtabs { display: flex; gap: 6px; background: #eef0e9; border-radius: 11px; padding: 5px; width: fit-content; }
-.admin-subtab { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 8px; padding: 9px 16px; font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: #6b755f; }
+.admin-subtabs { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding: 5px; border-radius: 11px; background: #eef0e9; }
+.admin-subtab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: none; border-radius: 8px; padding: 9px 16px; font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: #6b755f; }
 .admin-subtab.sel { background: #fff; color: #1e4d2b; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .admin-subtab:hover:not(.sel) { color: #23301f; }
+@media (max-width: 760px) {
+  .admin-subtab { flex: 1 1 calc(50% - 3px); }
+}
+@media (max-width: 460px) {
+  .admin-subtab { flex-basis: 100%; }
+}
 
 /* ── Admin home domain tiles — hover glow to complement the new icon/pattern look ── */
 .domain-tile:hover { filter: brightness(1.08); }
