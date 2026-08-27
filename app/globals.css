@@ -1494,3 +1494,55 @@ main {
   .governance-form-grid label.wide { grid-column: auto; }
   .governance-detail-title { flex-direction: column; }
 }
+
+/* ── Staff event feed: workflow updates inside the existing noticeboard card ── */
+.portal-events-list { display: flex; flex-direction: column; gap: 8px; }
+.portal-event { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 10px; border: 1px solid #e1e7dc; border-left: 3px solid #4f8f5b; border-radius: 9px; background: linear-gradient(100deg, #fbfdf9, #f4f8f0); color: #273628; text-align: left; font-family: 'Archivo', 'Helvetica Neue', sans-serif; cursor: pointer; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.portal-event:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -15px rgba(16,47,28,.55); }
+.portal-event.review { border-left-color: #bf8a27; background: linear-gradient(100deg, #fffdf8, #fdf6e9); }
+.portal-event.approval { border-left-color: #4b6f9b; background: linear-gradient(100deg, #fbfcff, #edf3fb); }
+.portal-event.action_required { border-left-color: #c46a31; background: linear-gradient(100deg, #fffdfa, #fff1e7); }
+.portal-event.critical { border-left-color: #b3382e; background: linear-gradient(100deg, #fffafa, #feebe8); }
+.portal-event.read { opacity: .73; }
+.portal-event-icon { display: flex; align-items: center; justify-content: center; width: 27px; height: 27px; flex: 0 0 27px; border-radius: 8px; background: #e1efdf; color: #2d6b37; }
+.portal-event.review .portal-event-icon { background: #f7ebcf; color: #96651b; }
+.portal-event.approval .portal-event-icon { background: #e4edf8; color: #43668e; }
+.portal-event.action_required .portal-event-icon { background: #ffe4d1; color: #ab5624; }
+.portal-event.critical .portal-event-icon { background: #f9dcd8; color: #a33027; }
+.portal-event-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.portal-event-copy strong { overflow: hidden; color: #263526; font-size: 12px; font-weight: 850; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.portal-event-copy small { display: -webkit-box; overflow: hidden; color: #667467; font-size: 10.5px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.portal-event-copy em { margin-top: 2px; color: #7a877d; font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; font-style: normal; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.portal-event-arrow { flex: 0 0 auto; margin-top: 6px; color: #6a7b6d; }
+.portal-events-empty, .portal-events-loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 76px; padding: 12px; border: 1px dashed #d7e2d1; border-radius: 9px; background: #f8fbf6; color: #687868; font-size: 11.5px; line-height: 1.45; text-align: center; }
+.portal-events-empty svg { color: #447b4f; }
+
+@media (max-width: 640px) {
+  .portal-event-copy strong { white-space: normal; }
+}
+
+/* High-impact native-image overlays: maintain readable controlled content on the
+   dark eucalyptus base rather than reverting to flat administrative panels. */
+.timesheet-hero {
+  background-image: linear-gradient(105deg, rgba(9,31,38,.97) 0%, rgba(17,57,65,.91) 56%, rgba(11,31,25,.66) 100%), url('/assets/kangaroo.png') !important;
+  background-position: center, 78% center !important;
+  background-size: cover !important;
+  background-blend-mode: normal, luminosity;
+}
+.governance-hero {
+  background-image: linear-gradient(108deg, rgba(8,31,19,.98) 0%, rgba(19,59,37,.92) 54%, rgba(11,42,30,.65) 100%), url('/assets/bottlebrush.png') !important;
+  background-position: center, 79% center !important;
+  background-size: cover !important;
+  background-blend-mode: normal, luminosity;
+}
+.timesheet-hero::after, .governance-hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(90deg, rgba(231,201,121,.14), transparent 28%); }
+.timesheet-hero, .governance-hero { position: relative; overflow: hidden; }
+.timesheet-hero > *, .governance-hero > * { position: relative; z-index: 1; }
+
+/* Domain-card emphasis: strong but restrained interaction states over native imagery. */
+.ec-row { isolation: isolate; }
+.ec-row::after { content: ''; position: absolute; z-index: 2; inset: 0; pointer-events: none; border: 1px solid rgba(231,201,121,.18); border-radius: inherit; transition: border-color .2s ease, box-shadow .2s ease; }
+.ec-row:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px rgba(10,31,19,.82) !important; }
+.ec-row:hover::after { border-color: rgba(231,201,121,.72); box-shadow: inset 0 0 0 1px rgba(255,255,255,.13); }
+.ec-row:focus-visible { outline: 3px solid #e7c979; outline-offset: 3px; }
+.ec-row > div:last-child { z-index: 3 !important; }
