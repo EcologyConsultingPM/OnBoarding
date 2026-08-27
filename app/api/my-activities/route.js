@@ -3,56 +3,79 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, status, pause_reason, sort_order, updated_at";
-const VALID = ["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"];
+const ALLOWED_STATUSES = new Set([
+  "not_commenced",
+  "active",
+  "need_info",
+  "paused_other",
+  "qa_review",
+  "completed",
+]);
 
-// GET: all activities assigned to the signed-in staff member, across projects.
-export async function GET(request) {
-  try {
-    const access = await requireSession(request);
-    if (access.error) return access.error;
-    const { data, error } = await access.admin
-      .from("project_activities").select(COLUMNS)
-      .eq("staff_user_id", access.user.id).order("updated_at", { ascending: false });
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ activities: data || [] });
-  } catch (error) {
-    return serverError(error);
-  }
-}
-
-// PATCH: the assigned staff member updates the status of their own activity.
-// paused_other requires a written reason (matches the business rule).
+// PATCH: Staff can update only their own allocated activity. Every actual change
+// is appended to project_activity_history so the Timesheets domain has a genuine
+// tracker-entry history rather than only the current project_activity state.
 export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    if (!id) return Response.json({ error: "Activity id is required." }, { status: 400 });
 
     const body = await request.json();
+    const id = body.id;
     const status = body.status;
-    if (!VALID.includes(status)) return Response.json({ error: "Invalid status." }, { status: 400 });
-    const pauseReason = typeof body.pauseReason === "string" ? body.pauseReason.trim() : "";
+    const pauseReason = typeof body.pauseReason === "string" ? body.pauseReason.trim() : null;
+
+    if (!id) return Response.json({ error: "Activity id is required." }, { status: 400 });
+    if (!ALLOWED_STATUSES.has(status)) return Response.json({ error: "Invalid activity status." }, { status: 400 });
     if (status === "paused_other" && !pauseReason) {
-      return Response.json({ error: "A reason is required when pausing." }, { status: 400 });
+      return Response.json({ error: "A reason is required when an activity is paused." }, { status: 400 });
     }
 
-    // Confirm this activity belongs to the caller before updating.
-    const { data: existing } = await access.admin
-      .from("project_activities").select("id, staff_user_id").eq("id", id).maybeSingle();
-    if (!existing) return Response.json({ error: "Activity not found." }, { status: 404 });
-    if (existing.staff_user_id !== access.user.id && !access.isAdmin) {
-      return Response.json({ error: "This activity is not assigned to you." }, { status: 403 });
-    }
-
-    const { data, error } = await access.admin
+    const { data: existing, error: readError } = await access.admin
       .from("project_activities")
-      .update({ status, pause_reason: status === "paused_other" ? pauseReason : null })
-      .eq("id", id).select(COLUMNS).single();
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ activity: data });
+      .select("id, project_id, staff_user_id, status, pause_reason")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (readError) return Response.json({ error: readError.message }, { status: 400 });
+    if (!existing) return Response.json({ error: "Activity not found." }, { status: 404 });
+    if (!access.isAdmin && existing.staff_user_id !== access.user.id) {
+      return Response.json({ error: "You can update only your own project activities." }, { status: 403 });
+    }
+
+    const newPauseReason = status === "paused_other" ? pauseReason : null;
+    const unchanged = existing.status === status && (existing.pause_reason || null) === newPauseReason;
+    const now = new Date().toISOString();
+
+    const { data: activity, error: updateError } = await access.admin
+      .from("project_activities")
+      .update({ status, pause_reason: newPauseReason, updated_at: now })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
+
+    if (!unchanged) {
+      const note = status === "paused_other"
+        ? newPauseReason
+        : `Status changed to ${status.replaceAll("_", " ")}.`;
+      const { error: historyError } = await access.admin
+        .from("project_activity_history")
+        .insert({
+          activity_id: existing.id,
+          project_id: existing.project_id,
+          staff_user_id: existing.staff_user_id,
+          previous_status: existing.status,
+          new_status: status,
+          note,
+          changed_by: access.user.id,
+          changed_at: now,
+        });
+      if (historyError) return Response.json({ error: `Activity was updated but history could not be recorded: ${historyError.message}` }, { status: 500 });
+    }
+
+    return Response.json({ activity });
   } catch (error) {
     return serverError(error);
   }
