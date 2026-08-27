@@ -750,11 +750,11 @@ main {
 .wm-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.45) 85%); }
 
 /* Quote pipeline → red-tailed black cockatoo */
-.qp-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/redtail-cockatoo.jpg') 50% 32%/cover; filter:grayscale(.35); opacity:.8; }
+.qp-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/redtail-cockatoo.png') 50% 32%/cover; filter:grayscale(.35); opacity:.8; }
 .qp-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
 
 /* Project setup → palm cockatoo */
-.aps-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/palm-cockatoo.jpg') 50% 22%/cover; filter:grayscale(.35); opacity:.8; }
+.aps-hero::before { content:""; position:absolute; inset:0; z-index:0; background:url('/assets/palm-cockatoo.png') 50% 22%/cover; filter:grayscale(.35); opacity:.8; }
 .aps-hero::after  { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(105deg, rgba(11,35,23,.92), rgba(30,91,54,.4) 85%); }
 
 /* Project health report → kangaroo paw (native flora) */
