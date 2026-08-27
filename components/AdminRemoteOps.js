@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Globe, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Send } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import RemoteTasks from "./RemoteTasks";
 
 async function api(session, type, method = "GET", body, id) {
   const url = `/api/remote-ops?type=${type}${id ? `&id=${id}` : ""}`;
@@ -67,6 +68,9 @@ export default function AdminRemoteOps() {
 
       {error ? <p className="ro-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="ro-success"><CheckCircle2 size={15} /> {message}</p> : null}
+
+      {/* Task Briefs — assign work to staff (sub-component of Remote Operations) */}
+      <RemoteTasks isAdmin={true} />
 
       {/* Profiles */}
       <section className="ro-followup">
