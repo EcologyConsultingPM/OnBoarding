@@ -153,6 +153,17 @@ export async function PUT(request) {
     const projectActive = String(project.status || "").toLowerCase() === "active";
     if (settings.trackerVisible && !projectActive) return jsonError("Set the project to Active before enabling staff tracker visibility.", 409);
 
+    const { data: template, error: templateError } = await auth.access.admin
+      .from("project_tracker_templates")
+      .select("id, locked")
+      .eq("project_id", projectId)
+      .maybeSingle();
+    if (templateError) {
+      if (tableUnavailable(templateError)) return jsonError("Save and lock the staff Project Tracker template after the approved tracker migration is applied.", 409);
+      return jsonError(templateError.message);
+    }
+    if (settings.trackerVisible && !template?.locked) return jsonError("Save and lock the staff Project Tracker template before enabling staff visibility.", 409);
+
     const { data: activeAllocations, error: allocationError } = await auth.access.admin
       .from("project_allocations")
       .select("staff_user_id")
