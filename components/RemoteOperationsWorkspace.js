@@ -5,7 +5,6 @@ import {
   Globe,
   Clock,
   MessageSquare,
-  FileText,
   AlertCircle,
   CheckCircle2,
   Plus,
@@ -42,12 +41,9 @@ function StatCard({ label, value }) {
 export default function RemoteOperationsWorkspace() {
   const { session, loading } = useAuth();
   const [profiles, setProfiles] = useState([]);
-  const [clientRecords, setClientRecords] = useState([]);
-  const [quotes, setQuotes] = useState([]);
   const [issues, setIssues] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
   const [profileForm, setProfileForm] = useState({
     staffName: "",
     baseLocation: "",
@@ -55,20 +51,6 @@ export default function RemoteOperationsWorkspace() {
     overlapHours: "",
     availability: "",
     arrangementNotes: "",
-  });
-  const [clientTab, setClientTab] = useState("meeting");
-  const [clientForm, setClientForm] = useState({
-    title: "",
-    recordDetail: "",
-    startDate: "",
-    followUpDate: "",
-  });
-  const [quoteForm, setQuoteForm] = useState({
-    quoteReference: "",
-    quoteStage: "draft",
-    quoteValueAud: "",
-    quoteDate: "",
-    commercialNotes: "",
   });
   const [issueForm, setIssueForm] = useState({
     issueType: "question",
@@ -78,35 +60,32 @@ export default function RemoteOperationsWorkspace() {
 
   const reload = async () => {
     try {
-      const [p, c, q, i] = await Promise.all([
+      const [profileResponse, issueResponse] = await Promise.all([
         api(session, "profiles"),
-        api(session, "client-records"),
-        api(session, "quotes"),
         api(session, "issues"),
       ]);
-      setProfiles(p.records);
-      setClientRecords(c.records);
-      setQuotes(q.records);
-      setIssues(i.records);
+      setProfiles(profileResponse.records || []);
+      setIssues(issueResponse.records || []);
     } catch (e) {
       setError(e.message);
     }
   };
 
   useEffect(() => {
-    if (session?.access_token) reload(); /* eslint-disable-next-line */
+    if (session?.access_token) reload(); // eslint-disable-line react-hooks/exhaustive-deps
   }, [session]);
 
-  const notify = (msg) => {
-    setMessage(msg);
+  const notify = (nextMessage) => {
+    setMessage(nextMessage);
     setError("");
     setTimeout(() => setMessage(""), 2500);
   };
-  const fail = (e) => setError(e.message || "Something went wrong.");
 
   const saveProfile = async () => {
     if (!profileForm.staffName.trim() && !profileForm.timeZone.trim()) {
-      setError("Add at least a name or time zone.");
+      setError(
+        "Add your name or time zone before submitting your remote-work context.",
+      );
       return;
     }
     try {
@@ -120,78 +99,40 @@ export default function RemoteOperationsWorkspace() {
         arrangementNotes: "",
       });
       await reload();
-      notify("Remote-work profile saved.");
+      notify("Remote-work context submitted for administrator review.");
     } catch (e) {
-      fail(e);
+      setError(e.message || "The remote-work context could not be submitted.");
     }
   };
-  const saveClient = async () => {
-    if (!clientForm.title.trim()) {
-      setError("A meeting or question title is required.");
-      return;
-    }
-    try {
-      await api(session, "client-records", "POST", {
-        ...clientForm,
-        kind: clientTab,
-      });
-      setClientForm({
-        title: "",
-        recordDetail: "",
-        startDate: "",
-        followUpDate: "",
-      });
-      await reload();
-      notify("Client record saved.");
-    } catch (e) {
-      fail(e);
-    }
-  };
-  const saveQuote = async () => {
-    try {
-      await api(session, "quotes", "POST", quoteForm);
-      setQuoteForm({
-        quoteReference: "",
-        quoteStage: "draft",
-        quoteValueAud: "",
-        quoteDate: "",
-        commercialNotes: "",
-      });
-      await reload();
-      notify("Quote saved.");
-    } catch (e) {
-      fail(e);
-    }
-  };
+
   const saveIssue = async () => {
     if (!issueForm.title.trim()) {
-      setError("A title is required.");
+      setError("Add a clear title before submitting this item.");
       return;
     }
     try {
       await api(session, "issues", "POST", issueForm);
       setIssueForm({ issueType: "question", title: "", detail: "" });
       await reload();
-      notify("Item saved for follow-up.");
+      notify("Your item has been sent to the delivery team.");
     } catch (e) {
-      fail(e);
+      setError(e.message || "The item could not be sent.");
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
       <main className="ro-page">
         <p>Loading…</p>
       </main>
     );
+  }
 
-  const openItems = [
-    ...clientRecords.filter((c) => c.status !== "closed"),
-    ...issues.filter((i) => i.status !== "resolved"),
-  ];
+  const openItems = issues.filter((item) => item.status !== "resolved");
+  const handovers = issues.filter((item) => item.issue_type === "handover");
 
   return (
-    <main className="ro-page">
+    <main className="ro-page ro-page--staff">
       <div className="ro-nav">
         <button className="ro-nav-btn" onClick={() => window.history.back()}>
           <ChevronLeft size={15} /> Back
@@ -200,35 +141,26 @@ export default function RemoteOperationsWorkspace() {
           <Home size={14} /> Home
         </Link>
       </div>
+
       <header className="ro-hero">
         <span>
-          <Globe size={17} /> International delivery oversight
+          <Globe size={17} /> Remote work &amp; delivery support
         </span>
         <h1>Remote operations</h1>
         <p>
-          Keep the Philippines and Australia/Sydney work context, handovers,
-          client follow-up and project issues visible without collecting
-          unnecessary personal information.
+          Keep your approved work context, delivery questions and handovers
+          visible to the Ecology Consulting delivery team. Commercial records
+          and task allocation remain controlled in the Admin Portal.
         </p>
       </header>
 
       <div className="ro-stats">
+        <StatCard label="My remote profiles" value={profiles.length} />
+        <StatCard label="Open items" value={openItems.length} />
+        <StatCard label="Handovers" value={handovers.length} />
         <StatCard
-          label="Active profiles"
-          value={profiles.filter((p) => p.status === "active").length}
-        />
-        <StatCard label="Open communications" value={openItems.length} />
-        <StatCard
-          label="Recent handovers"
-          value={issues.filter((i) => i.issue_type === "handover").length}
-        />
-        <StatCard
-          label="Active quotes"
-          value={
-            quotes.filter(
-              (q) => q.quote_stage === "draft" || q.quote_stage === "sent",
-            ).length
-          }
+          label="Questions raised"
+          value={issues.filter((item) => item.issue_type === "question").length}
         />
       </div>
 
@@ -244,42 +176,46 @@ export default function RemoteOperationsWorkspace() {
       ) : null}
 
       <div className="ro-columns">
-        {/* Profiles */}
         <section className="ro-card">
           <div className="ro-card-head">
             <span className="ro-eyebrow">
-              <Clock size={13} /> Time-zone context
+              <Clock size={13} /> My work context
             </span>
-            <h2>Approved remote-work profiles</h2>
+            <h2>Remote-work profile</h2>
           </div>
           {profiles.length ? (
             <div className="ro-list">
-              {profiles.map((p) => (
-                <div key={p.id} className="ro-item">
-                  <strong>{p.staff_name || "Profile"}</strong>
+              {profiles.map((profile) => (
+                <div key={profile.id} className="ro-item">
+                  <strong>{profile.staff_name || "Remote-work profile"}</strong>
                   <span>
-                    {[p.base_location, p.time_zone]
+                    {[profile.base_location, profile.time_zone]
                       .filter(Boolean)
-                      .join(" · ") || "No location set"}
+                      .join(" · ") || "Location to be confirmed"}
                   </span>
-                  {p.overlap_hours ? (
-                    <span className="ro-muted">Overlap: {p.overlap_hours}</span>
+                  {profile.overlap_hours ? (
+                    <span className="ro-muted">
+                      Overlap: {profile.overlap_hours}
+                    </span>
                   ) : null}
-                  {p.admin_note ? (
-                    <span className="ro-admin-note">Admin: {p.admin_note}</span>
+                  {profile.admin_note ? (
+                    <span className="ro-admin-note">
+                      Admin: {profile.admin_note}
+                    </span>
                   ) : null}
                 </div>
               ))}
             </div>
           ) : (
             <p className="ro-empty">
-              No remote-work profiles yet. Create an approved time-zone context
-              when an international arrangement is confirmed.
+              No remote-work context has been submitted yet. Add your work
+              location, time zone and usual availability for administrator
+              review.
             </p>
           )}
           <div className="ro-form">
             <input
-              placeholder="Staff name"
+              placeholder="Your name"
               value={profileForm.staffName}
               onChange={(e) =>
                 setProfileForm({ ...profileForm, staffName: e.target.value })
@@ -337,217 +273,75 @@ export default function RemoteOperationsWorkspace() {
               }
             />
             <button className="ro-save" onClick={saveProfile}>
-              <Plus size={13} /> Save profile
+              <Plus size={13} /> Submit remote-work context
             </button>
           </div>
         </section>
 
-        {/* Client records */}
         <section className="ro-card">
           <div className="ro-card-head">
             <span className="ro-eyebrow">
-              <MessageSquare size={13} /> Client coordination
+              <MessageSquare size={13} /> Delivery support
             </span>
-            <h2>Meetings and client questions</h2>
+            <h2>Questions, issues &amp; handovers</h2>
           </div>
-          <div className="ro-tabs">
-            <button
-              className={clientTab === "meeting" ? "active" : ""}
-              onClick={() => setClientTab("meeting")}
+          <p className="ro-empty ro-empty--intro">
+            Use this space for delivery support. Accepted task briefs and
+            project activities remain in My Projects.
+          </p>
+          <div className="ro-issue-form ro-issue-form--stacked">
+            <select
+              value={issueForm.issueType}
+              onChange={(e) =>
+                setIssueForm({ ...issueForm, issueType: e.target.value })
+              }
             >
-              Client meeting
-            </button>
-            <button
-              className={clientTab === "question" ? "active" : ""}
-              onClick={() => setClientTab("question")}
-            >
-              Client question
-            </button>
-          </div>
-          {clientRecords.length ? (
-            <div className="ro-list">
-              {clientRecords.slice(0, 5).map((c) => (
-                <div key={c.id} className="ro-item">
-                  <strong>{c.title}</strong>
-                  <span className="ro-muted">
-                    {c.kind === "meeting" ? "Meeting" : "Question"}
-                    {c.follow_up_date ? ` · follow-up ${c.follow_up_date}` : ""}
-                  </span>
-                  {c.admin_response ? (
-                    <span className="ro-admin-note">
-                      Response: {c.admin_response}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <div className="ro-form">
+              <option value="question">Question</option>
+              <option value="issue">Issue</option>
+              <option value="handover">Handover</option>
+            </select>
             <input
-              placeholder={
-                clientTab === "meeting" ? "Meeting title" : "Question title"
-              }
-              value={clientForm.title}
+              placeholder="Short title"
+              value={issueForm.title}
               onChange={(e) =>
-                setClientForm({ ...clientForm, title: e.target.value })
+                setIssueForm({ ...issueForm, title: e.target.value })
               }
             />
             <textarea
-              placeholder="Decision, follow-up or communication record"
-              value={clientForm.recordDetail}
+              placeholder="Context, decision needed or handover detail"
+              value={issueForm.detail}
               onChange={(e) =>
-                setClientForm({ ...clientForm, recordDetail: e.target.value })
+                setIssueForm({ ...issueForm, detail: e.target.value })
               }
             />
-            <div className="ro-two">
-              <input
-                type="date"
-                value={clientForm.startDate}
-                onChange={(e) =>
-                  setClientForm({ ...clientForm, startDate: e.target.value })
-                }
-              />
-              <input
-                type="date"
-                value={clientForm.followUpDate}
-                onChange={(e) =>
-                  setClientForm({ ...clientForm, followUpDate: e.target.value })
-                }
-              />
-            </div>
-            <button className="ro-save" onClick={saveClient}>
-              <Plus size={13} /> Save client record
-            </button>
-          </div>
-        </section>
-
-        {/* Quotes */}
-        <section className="ro-card">
-          <div className="ro-card-head">
-            <span className="ro-eyebrow">
-              <FileText size={13} /> Commercial pipeline
-            </span>
-            <h2>Project quotes</h2>
-          </div>
-          {quotes.length ? (
-            <div className="ro-list">
-              {quotes.slice(0, 5).map((q) => (
-                <div key={q.id} className="ro-item">
-                  <strong>{q.quote_reference || "Quote"}</strong>
-                  <span className="ro-muted">
-                    {q.quote_stage}
-                    {q.quote_value_aud != null
-                      ? ` · $${Number(q.quote_value_aud).toLocaleString("en-AU")}`
-                      : ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <div className="ro-form">
-            <div className="ro-two">
-              <input
-                placeholder="Quote reference"
-                value={quoteForm.quoteReference}
-                onChange={(e) =>
-                  setQuoteForm({ ...quoteForm, quoteReference: e.target.value })
-                }
-              />
-              <select
-                value={quoteForm.quoteStage}
-                onChange={(e) =>
-                  setQuoteForm({ ...quoteForm, quoteStage: e.target.value })
-                }
-              >
-                <option value="draft">Draft</option>
-                <option value="sent">Sent</option>
-                <option value="accepted">Accepted</option>
-                <option value="declined">Declined</option>
-              </select>
-            </div>
-            <div className="ro-two">
-              <input
-                placeholder="Quote value (AUD)"
-                value={quoteForm.quoteValueAud}
-                onChange={(e) =>
-                  setQuoteForm({ ...quoteForm, quoteValueAud: e.target.value })
-                }
-              />
-              <input
-                type="date"
-                value={quoteForm.quoteDate}
-                onChange={(e) =>
-                  setQuoteForm({ ...quoteForm, quoteDate: e.target.value })
-                }
-              />
-            </div>
-            <textarea
-              placeholder="Commercial notes and next action"
-              value={quoteForm.commercialNotes}
-              onChange={(e) =>
-                setQuoteForm({ ...quoteForm, commercialNotes: e.target.value })
-              }
-            />
-            <button className="ro-save" onClick={saveQuote}>
-              <Plus size={13} /> Save quote
+            <button className="ro-save" onClick={saveIssue}>
+              <Plus size={13} /> Send to delivery team
             </button>
           </div>
         </section>
       </div>
 
-      {/* Management follow-up */}
       <section className="ro-followup">
         <div className="ro-card-head">
           <span className="ro-eyebrow">
-            <MessageSquare size={13} /> Management follow-up
+            <MessageSquare size={13} /> My delivery support history
           </span>
-          <h2>Open questions, issues and client records</h2>
-        </div>
-        <div className="ro-issue-form">
-          <select
-            value={issueForm.issueType}
-            onChange={(e) =>
-              setIssueForm({ ...issueForm, issueType: e.target.value })
-            }
-          >
-            <option value="question">Question</option>
-            <option value="issue">Issue</option>
-            <option value="handover">Handover</option>
-            <option value="client">Client</option>
-          </select>
-          <input
-            placeholder="Title"
-            value={issueForm.title}
-            onChange={(e) =>
-              setIssueForm({ ...issueForm, title: e.target.value })
-            }
-          />
-          <input
-            placeholder="Detail"
-            value={issueForm.detail}
-            onChange={(e) =>
-              setIssueForm({ ...issueForm, detail: e.target.value })
-            }
-          />
-          <button className="ro-save" onClick={saveIssue}>
-            <Plus size={13} /> Add
-          </button>
+          <h2>Submitted questions, issues &amp; handovers</h2>
         </div>
         {issues.length ? (
           <div className="ro-list">
-            {issues.map((i) => (
-              <div key={i.id} className="ro-item ro-issue">
+            {issues.map((item) => (
+              <div key={item.id} className="ro-item ro-issue">
                 <div>
-                  <strong>{i.title}</strong>
+                  <strong>{item.title}</strong>
                   <span className="ro-muted">
-                    {" "}
-                    · {i.issue_type} · {i.status.replace("_", " ")}
+                    {` · ${item.issue_type} · ${item.status.replace("_", " ")}`}
                   </span>
                 </div>
-                {i.detail ? <span>{i.detail}</span> : null}
-                {i.admin_response ? (
+                {item.detail ? <span>{item.detail}</span> : null}
+                {item.admin_response ? (
                   <span className="ro-admin-note">
-                    Response: {i.admin_response}
+                    Response: {item.admin_response}
                   </span>
                 ) : null}
               </div>
@@ -555,8 +349,7 @@ export default function RemoteOperationsWorkspace() {
           </div>
         ) : (
           <p className="ro-empty">
-            No open remote-operations records. Staff questions, project issues
-            and client records appear here for management follow-up.
+            Your submitted questions, issues and handovers will appear here.
           </p>
         )}
       </section>

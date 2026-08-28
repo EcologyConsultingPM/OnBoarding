@@ -16099,3 +16099,40 @@ main {
     transition: none;
   }
 }
+
+/* ── Staff Notifications: task brief panel inherits the dark workflow surface ── */
+.sn-pending-card .rt {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sn-pending-card .rt-head h2 {
+  color: #fffdf8;
+}
+.sn-pending-card .rt-sub,
+.sn-pending-card .rt-empty {
+  color: rgba(234, 244, 229, 0.74);
+}
+.sn-pending-card .rt-card {
+  border-color: rgba(231, 201, 121, 0.21);
+  background: rgba(6, 31, 18, 0.6);
+}
+.sn-pending-card .rt-card-task,
+.sn-pending-card .rt-line strong {
+  color: #fffdf8;
+}
+.sn-pending-card .rt-card-meta,
+.sn-pending-card .rt-line {
+  color: rgba(234, 244, 229, 0.74);
+}
+.sn-pending-card .rt-open-btn {
+  border-color: rgba(231, 201, 121, 0.55);
+  color: #193b24;
+  background: #e7c979;
+}
+.sn-pending-card .rt-open-btn:hover {
+  background: #f2d98c;
+}
