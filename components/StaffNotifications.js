@@ -33,11 +33,21 @@ export default function StaffNotifications() {
         <div className="sn-section-head compact">
           <div>
             <span className="sn-kicker">Decision required</span>
-            <h2 id="sn-pending-title"><ClipboardList size={18} /> Pending task briefs</h2>
-            <p>Accept a task to move it into My Projects and add its due date to your calendar.</p>
+            <h2 id="sn-pending-title">
+              <ClipboardList size={18} /> Pending task briefs
+            </h2>
+            <p>
+              Accept a task to move it into My Projects and add its due date to
+              your calendar.
+            </p>
           </div>
         </div>
-        <RemoteTasks isAdmin={false} staffStates={["awaiting_acceptance"]} compact showHome={false} />
+        <RemoteTasks
+          isAdmin={false}
+          staffStates={["awaiting_acceptance"]}
+          compact
+          showHome={false}
+        />
       </section>
 
       <div className="sn-layout">
