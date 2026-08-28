@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
+import CoreTrainingQuizzes from "./CoreTrainingQuizzes";
 
 const TYPE_ICON = {
   section: GraduationCap,
@@ -27,6 +28,7 @@ export default function StaffLearningLibrary() {
   const [nodes, setNodes] = useState([]);
   const [trail, setTrail] = useState([]);
   const [error, setError] = useState("");
+  const [showCoreTrainingQuizzes, setShowCoreTrainingQuizzes] = useState(false);
 
   const load = useCallback(
     async (parentId) => {
@@ -52,8 +54,16 @@ export default function StaffLearningLibrary() {
   }, [session, parent, load]);
 
   const openNode = (n) => {
+    if (n.title === "01 Core Training Modules") {
+      setShowCoreTrainingQuizzes(true);
+      return;
+    }
     if (n.node_type !== "item") setParent(n.id);
   };
+
+  if (showCoreTrainingQuizzes) {
+    return <CoreTrainingQuizzes onBack={() => setShowCoreTrainingQuizzes(false)} />;
+  }
 
   return (
     <div className="ld staff-learning">

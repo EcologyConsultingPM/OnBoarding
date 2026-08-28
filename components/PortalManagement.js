@@ -807,7 +807,15 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         </section>
       )}
 
-      {view === "stafflist" && <PortalStaffList />}
+      {view === "stafflist" && (
+        <PortalStaffList
+          onAddStaff={() => {
+            setIssued(null);
+            setError("");
+            setView("access");
+          }}
+        />
+      )}
 
       {view === "visibility" && isPrimary ? (
         <PortalVisibilityManager
