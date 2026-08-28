@@ -1,5 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
-import { listDirectoryUsers } from "../../../lib/staffDirectory";
+import { listDirectoryUsers, normaliseStaffEmail } from "../../../lib/staffDirectory";
 import {
   PORTAL_RESOURCES,
   isPrimaryAdministrator,
@@ -106,6 +106,12 @@ export async function POST(request) {
     const recipient = activeStaff.find((person) => person.id === userId);
     if (!recipient) {
       return Response.json({ error: "Visibility can be changed only for an active Staff List member." }, { status: 400 });
+    }
+    if (normaliseStaffEmail(recipient.email) === "aaron.dooley@ecologyconsulting.au") {
+      return Response.json(
+        { error: "The primary administrator always retains portal access." },
+        { status: 400 },
+      );
     }
 
     const { error } = await access.admin.from("portal_visibility_overrides").upsert(
