@@ -70,7 +70,7 @@ export default function AdminLearningLibrary() {
   };
 
   return (
-    <div className="ld">
+    <div className="ld admin-learning-library">
       <header className="ld-hero">
         <span>Ecology Consulting · People &amp; learning</span>
         <h1>Learning &amp; Development library</h1>

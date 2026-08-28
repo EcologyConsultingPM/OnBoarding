@@ -10,6 +10,7 @@ import { FAUNA_PROFILES } from "../lib/faunaData";
 import { SURVEY_FLORA } from "../lib/surveyFlora";
 import { SURVEY_FAUNA } from "../lib/surveyFauna";
 import SurveyRequirements from "./SurveyRequirements";
+import WorkspaceNav from "./WorkspaceNav";
 
 const FLORA_LC = {
   "Critically Endangered": { fg: "#ff9b86", bg: "rgba(212,86,63,.16)", short: "CE", accent: "#d4563f" },
@@ -24,8 +25,39 @@ const FAUNA_LC = {
   "Extinct in the Wild": { fg: "#b49ad4", bg: "rgba(180,154,212,.15)", short: "EW", accent: "#8b73ad" },
   "Conservation Dependent": { fg: "#7fd6c4", bg: "rgba(127,214,196,.14)", short: "CD", accent: "#5fae9e" },
 };
-function faunaListing(p) { return (p.listing || "").split(" | ")[0]; }
+function listingValues(profile) {
+  return String(profile?.listing || "")
+    .split(" | ")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+function faunaListing(p) { return listingValues(p)[0] || ""; }
 function faunaStream(p) { return (p.stream || "").split(" | ")[0]; }
+function jurisdictionFlags(profile) {
+  const jurisdiction = String(profile?.jur || "");
+  return {
+    epbc: /Commonwealth/i.test(jurisdiction),
+    nsw: /NSW/i.test(jurisdiction),
+    act: /ACT/i.test(jurisdiction),
+  };
+}
+function legislationBadges(profile) {
+  const flags = jurisdictionFlags(profile);
+  const listings = listingValues(profile).join(" / ") || "Threatened";
+  const badges = [];
+  if (flags.epbc) badges.push({ key: "epbc", label: `EPBC · ${listings}`, tone: "epbc" });
+  if (flags.nsw) badges.push({ key: "bc", label: `NSW BC Act · ${listings}`, tone: "bc" });
+  if (flags.act) badges.push({ key: "act", label: `ACT · ${listings}`, tone: "act" });
+  return badges;
+}
+function matchesLegislation(profile, filter) {
+  const flags = jurisdictionFlags(profile);
+  if (filter === "epbc") return flags.epbc;
+  if (filter === "nsw") return flags.nsw;
+  if (filter === "both") return flags.epbc && flags.nsw;
+  if (filter === "act") return flags.act;
+  return true;
+}
 
 const AZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const PAGE = 24;
@@ -71,7 +103,7 @@ function SurveyLinkCard({ kingdom, onOpen }) {
   );
 }
 
-export default function SpeciesProfiles({ onToast }) {
+export default function SpeciesProfiles({ onToast, onHome }) {
   const { session } = useAuth();
   const [kingdom, setKingdom] = useState("flora");
   const [subView, setSubView] = useState("profiles"); // profiles | survey
@@ -81,6 +113,7 @@ export default function SpeciesProfiles({ onToast }) {
   const [sort, setSort] = useState("sci");
   const [letter, setLetter] = useState("All");
   const [listing, setListing] = useState("All");
+  const [legislation, setLegislation] = useState("all");
   const [group, setGroup] = useState("All"); // family (flora) or stream (fauna)
   const [limit, setLimit] = useState(PAGE);
   const [openIdx, setOpenIdx] = useState(-1);
@@ -106,7 +139,7 @@ export default function SpeciesProfiles({ onToast }) {
   }, [authFetch, apiBase]);
 
   useEffect(() => { if (session?.access_token) loadSubs(); }, [session, kingdom, loadSubs]);
-  useEffect(() => { setQ(""); setLetter("All"); setListing("All"); setGroup("All"); setLimit(PAGE); setOpenIdx(-1); }, [kingdom]);
+  useEffect(() => { setQ(""); setLetter("All"); setListing("All"); setLegislation("all"); setGroup("All"); setLimit(PAGE); setOpenIdx(-1); }, [kingdom]);
 
   const PROFILES = kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES;
   const LC = kingdom === "flora" ? FLORA_LC : FAUNA_LC;
@@ -124,9 +157,10 @@ export default function SpeciesProfiles({ onToast }) {
   const filtered = useMemo(() => {
     const n = dq.trim().toLowerCase();
     let list = PROFILES.filter((p) => {
-      const pl = kingdom === "flora" ? p.listing : faunaListing(p);
+      const pl = listingValues(p);
       const pg = kingdom === "flora" ? p.family : faunaStream(p);
-      if (listing !== "All" && pl !== listing) return false;
+      if (listing !== "All" && !pl.includes(listing)) return false;
+      if (!matchesLegislation(p, legislation)) return false;
       if (group !== "All" && pg !== group) return false;
       if (letter !== "All") {
         const key = sort === "com" ? (p.common || "") : (p.name || "");
@@ -143,19 +177,20 @@ export default function SpeciesProfiles({ onToast }) {
       return a.name.localeCompare(b.name);
     });
     return list;
-  }, [PROFILES, dq, listing, group, letter, sort, kingdom]);
+  }, [PROFILES, dq, listing, legislation, group, letter, sort, kingdom]);
 
   const shown = filtered.slice(0, limit);
   const availableLetters = useMemo(() => {
     const base = PROFILES.filter((p) => {
-      const pl = kingdom === "flora" ? p.listing : faunaListing(p);
+      const pl = listingValues(p);
       const pg = kingdom === "flora" ? p.family : faunaStream(p);
-      if (listing !== "All" && pl !== listing) return false;
+      if (listing !== "All" && !pl.includes(listing)) return false;
+      if (!matchesLegislation(p, legislation)) return false;
       if (group !== "All" && pg !== group) return false;
       return true;
     });
     return new Set(base.map((p) => ((sort === "com" ? p.common : p.name) || "").charAt(0).toUpperCase()));
-  }, [PROFILES, listing, group, sort, kingdom]);
+  }, [PROFILES, listing, legislation, group, sort, kingdom]);
 
   const resetPaging = () => { setLimit(PAGE); setOpenIdx(-1); };
   const cur = openIdx >= 0 ? shown[openIdx] : null;
@@ -209,11 +244,12 @@ export default function SpeciesProfiles({ onToast }) {
   const photoNeeded = useMemo(() => PROFILES.filter((p) => (p.views || 0) < 3).length, [PROFILES]);
 
   if (subView === "survey") {
-    return <SurveyRequirements initialKingdom={kingdom} onBack={() => setSubView("profiles")} />;
+    return <SurveyRequirements initialKingdom={kingdom} onBack={() => setSubView("profiles")} onHome={onHome} />;
   }
 
   return (
-    <div className={px}>
+    <div className={`${px} species-profiles-workspace`}>
+      <WorkspaceNav onHome={onHome} onBack={onHome} backLabel="Back to Staff Portal" />
       <header className={px + "-hero"}>
         <span>{kingdom === "flora" ? "NSW & ACT · Controlled flora taxa" : "NSW, ACT & Commonwealth · Controlled fauna taxa"}</span>
         <h1>{kingdom === "flora" ? "Flora Profile Guide" : "Fauna Profile Guide"}</h1>
@@ -280,6 +316,15 @@ export default function SpeciesProfiles({ onToast }) {
         </div>
 
         <div className={px + "-row"}>
+          <span className={px + "-row-label"}>Listed under</span>
+          <div className={px + "-chips spk-legislation-filters"}>
+            {[['all', 'All records'], ['epbc', 'Commonwealth · EPBC'], ['nsw', 'NSW · BC Act'], ['both', 'EPBC + BC Act'], ...(kingdom === 'flora' ? [['act', 'ACT']] : [])].map(([value, label]) => (
+              <button key={value} className={px + "-chip" + (legislation === value ? " sel" : "")} onClick={() => { setLegislation(value); resetPaging(); }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className={px + "-row"}>
           <span className={px + "-row-label"}>{kingdom === "flora" ? "Family" : "Group"}</span>
           <select value={group} onChange={(e) => { setGroup(e.target.value); resetPaging(); }} className={px + "-select"}>
             <option value="All">All {kingdom === "flora" ? "families" : "groups"} ({groups.length})</option>
@@ -306,7 +351,7 @@ export default function SpeciesProfiles({ onToast }) {
             const byCommon = sort === "com" && p.common;
             const verified = subs.some((s) => s.taxon_name === p.name && s.status === "verified");
             return (
-              <button key={p.name} className={px + "-card"} style={{ borderLeftColor: c.accent }} onClick={() => setOpenIdx(i)}>
+              <button key={p.name} className={px + "-card"} style={{ borderLeftColor: c.accent }} onClick={() => setOpenIdx(i)} aria-label={`Open ${p.name}${p.common ? ` (${p.common})` : ""} profile`}>
                 <div className={px + "-card-top"}>
                   <div>
                     <div className={px + "-card-primary"} style={{ fontStyle: byCommon ? "normal" : "italic" }}>{byCommon ? p.common : p.name}</div>
@@ -314,6 +359,9 @@ export default function SpeciesProfiles({ onToast }) {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                     <span className={px + "-badge"} style={{ background: c.bg, color: c.fg }}>{c.short}</span>
+                    <div className="spk-listing-badges">
+                      {legislationBadges(p).map((badge) => <span key={badge.key} className={`spk-listing-badge ${badge.tone}`}>{badge.label}</span>)}
+                    </div>
                     {verified && <span className={px + "-verified"}>✓ verified</span>}
                   </div>
                 </div>
@@ -341,7 +389,8 @@ export default function SpeciesProfiles({ onToast }) {
           <div className={px + "-drawer"} onClick={(e) => e.stopPropagation()}>
             <div className={px + "-drawer-head"}>
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                <span className={px + "-badge"} style={{ background: (LC[kingdom === "flora" ? cur.listing : faunaListing(cur)] || LC.Vulnerable).bg, color: (LC[kingdom === "flora" ? cur.listing : faunaListing(cur)] || LC.Vulnerable).fg }}>{kingdom === "flora" ? cur.listing : faunaListing(cur)}</span>
+                <span className={px + "-badge"} style={{ background: (LC[faunaListing(cur)] || LC.Vulnerable).bg, color: (LC[faunaListing(cur)] || LC.Vulnerable).fg }}>{listingValues(cur).join(" / ") || "Threatened"}</span>
+                {legislationBadges(cur).map((badge) => <span key={badge.key} className={`spk-listing-badge ${badge.tone}`}>{badge.label}</span>)}
                 <span className="fp-badge-neutral">{cur.jur}</span>
               </div>
               <button className={px + "-drawer-close"} onClick={() => setOpenIdx(-1)}><X size={15} /></button>

@@ -43,6 +43,7 @@ import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
 import AdminWhsGovernance from "./AdminWhsGovernance";
+import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
 import AdminLearningLibrary from "./AdminLearningLibrary";
@@ -5217,7 +5218,7 @@ export default function OnboardingWorkbook() {
           ) : mode === "ldlibrary" && !inAdminPortal ? (
             <StaffLearningLibrary />
           ) : mode === "species" && !inAdminPortal ? (
-            <SpeciesProfiles onToast={showToast} />
+            <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (

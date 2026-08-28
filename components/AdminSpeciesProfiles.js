@@ -88,7 +88,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
   }
 
   return (
-    <div className="afp">
+    <div className="afp admin-species-profiles">
       <header className="fp-hero">
         <span>Ecology Consulting · {kingdom === "flora" ? "Flora" : "Fauna"} expert</span>
         <h1>Species Profiles &amp; Survey Requirements</h1>

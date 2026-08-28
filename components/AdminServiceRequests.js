@@ -54,7 +54,7 @@ export default function AdminServiceRequests() {
   const detailLine = (r) => Object.entries(r.details || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(" · ");
 
   return (
-    <div className="sr">
+    <div className="sr admin-service-requests">
       <header className="sr-hero">
         <span>Ecology Consulting · Service desk</span>
         <h1>Service requests</h1>

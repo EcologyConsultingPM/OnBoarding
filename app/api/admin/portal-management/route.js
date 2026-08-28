@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PRIMARY_ENV = "PRIMARY_ADMIN_EMAIL";
+const FALLBACK_PRIMARY_EMAIL = "aaron.dooley@ecologyconsulting.au";
 const ROLE_KEYS = new Set([
   "fauna_expert",
   "flora_expert",
@@ -27,7 +28,7 @@ function validStaffEmail(email) {
 }
 
 function primaryEmail() {
-  return normaliseEmail(process.env[PRIMARY_ENV]);
+  return normaliseEmail(process.env[PRIMARY_ENV]) || FALLBACK_PRIMARY_EMAIL;
 }
 
 function isPrimary(access) {

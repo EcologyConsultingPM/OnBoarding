@@ -21,10 +21,15 @@ function primaryOnly(access) {
 
 function requestedResources(value) {
   if (!value) return PORTAL_RESOURCES.map((resource) => resource.key);
-  return String(value)
+  const requested = String(value)
     .split(",")
     .map((key) => key.trim())
+    .flatMap((key) => key === "staff" ? PORTAL_RESOURCES.filter((resource) => resource.portal === "staff").map((resource) => resource.key) : [key])
     .filter((key) => resourceDefinition(key));
+  const roots = new Set(requested);
+  return PORTAL_RESOURCES
+    .filter((resource) => roots.has(resource.key) || (resource.parent && roots.has(resource.parent)))
+    .map((resource) => resource.key);
 }
 
 export async function GET(request) {
@@ -48,6 +53,17 @@ export async function GET(request) {
     }
 
     const staff = await listDirectoryUsers(access.admin, { activeOnly: true });
+    const managesAdminResources = keys.some((key) => resourceDefinition(key)?.portal === "admin");
+    let eligibleStaff = staff;
+    if (managesAdminResources) {
+      const { data: adminRows, error: adminError } = await access.admin
+        .from("admin_emails")
+        .select("email");
+      if (adminError) return Response.json({ error: adminError.message }, { status: 400 });
+      const administratorEmails = new Set((adminRows || []).map((row) => normaliseStaffEmail(row.email)));
+      administratorEmails.add("aaron.dooley@ecologyconsulting.au");
+      eligibleStaff = staff.filter((person) => administratorEmails.has(normaliseStaffEmail(person.email)));
+    }
     const { data, error } = await access.admin
       .from("portal_visibility_overrides")
       .select("user_id, resource_key, is_visible, updated_at")
@@ -72,7 +88,7 @@ export async function GET(request) {
       rowsByUser.get(row.user_id)[row.resource_key] = row.is_visible;
     }
     const people = await Promise.all(
-      staff.map(async (person) => ({
+      eligibleStaff.map(async (person) => ({
         ...person,
         isPrimary: normaliseStaffEmail(person.email) === "aaron.dooley@ecologyconsulting.au",
         visibility: await visibilityForUser(
@@ -113,6 +129,20 @@ export async function POST(request) {
         { error: "The primary administrator always retains portal access." },
         { status: 400 },
       );
+    }
+    const resource = resourceDefinition(resourceKey);
+    if (resource?.portal === "admin") {
+      const { data: adminRows, error: adminError } = await access.admin
+        .from("admin_emails")
+        .select("email");
+      if (adminError) return Response.json({ error: adminError.message }, { status: 400 });
+      const administratorEmails = new Set((adminRows || []).map((row) => normaliseStaffEmail(row.email)));
+      if (!administratorEmails.has(normaliseStaffEmail(recipient.email))) {
+        return Response.json(
+          { error: "Admin portal visibility can only be granted to an active administrator." },
+          { status: 400 },
+        );
+      }
     }
 
     const { error } = await access.admin.from("portal_visibility_overrides").upsert(

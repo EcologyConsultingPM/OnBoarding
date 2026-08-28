@@ -18,7 +18,8 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
     if (!session?.access_token) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/portal-visibility?scope=manage", {
+      const resources = showAll ? "staff" : resourceKey;
+      const response = await fetch(`/api/portal-visibility?scope=manage&resources=${encodeURIComponent(resources)}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const data = await response.json();
@@ -106,7 +107,7 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
               <ShieldCheck size={14} /> Aaron-only access control
             </span>
             <h2 id="pvm-title">Portal visibility</h2>
-            <p>Choose a portal area, then use the eye control to grant or remove visibility for an active Staff List member.</p>
+            <p>Choose a portal area, then use the eye control to grant or remove visibility for an eligible active staff member.</p>
           </div>
           <button type="button" className="pvm-close" onClick={onClose} aria-label="Close visibility controls">
             <X size={18} />
@@ -162,7 +163,7 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
                 </div>
               );
             })}
-            {!staff.length ? <p className="pvm-empty">No active staff are available in the Staff List yet.</p> : null}
+            {!staff.length ? <p className="pvm-empty">No eligible active staff are available for this portal area yet.</p> : null}
           </div>
         )}
       </section>
