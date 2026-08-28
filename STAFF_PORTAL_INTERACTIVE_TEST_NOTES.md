@@ -121,3 +121,11 @@ A responsive layout defect is visible in the new delivery-support form: the ques
 ## Portal visibility migration activation
 
 The user explicitly approved application of `sql/2026-08-28-portal-visibility-controls.sql` to the connected Ecology Consulting Supabase production project `qjsdglkipgncttztksxl`. The additive migration completed successfully. The schema now contains `public.portal_visibility_overrides`, has no rows (so no existing staff access was changed), has foreign keys to `auth.users` for the recipient and the editor, and has row-level security enabled without browser-client policies. The review-branch implementation is commit `04c3ab9`; its access-management interface and direct-route guards require review-deployment verification before release.
+
+## Current branch-alias visual verification
+
+The protected review-branch alias successfully loaded for the signed-in Aaron Dooley session. Staff Home is centred at desktop width: a two-column card grid occupies the left operational region and the Staff noticeboard/work-deadlines column is aligned to its right, with no previous oversized blank third column. The native fauna/flora card treatment, header controls, visual balance and top-level order are correct. The view remains on a staff session; current visibility-control eye actions are expected in the Admin Portal.
+
+## Portal visibility control interface check
+
+On the signed-in review-branch Admin Portal, every main domain card renders the new eye action in its upper-right corner. Selecting the Projects & Operations eye opened the dark eucalyptus `Aaron-only access control` modal, labelled `Portal visibility`, with the intended instruction to choose an area and grant or remove access for an active Staff List member. No visibility state was changed. The initial modal render and close control are correct; the pending Staff List data response will be checked before confirming end-to-end readiness.

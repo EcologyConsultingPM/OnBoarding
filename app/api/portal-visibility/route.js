@@ -74,6 +74,7 @@ export async function GET(request) {
     const people = await Promise.all(
       staff.map(async (person) => ({
         ...person,
+        isPrimary: normaliseStaffEmail(person.email) === "aaron.dooley@ecologyconsulting.au",
         visibility: await visibilityForUser(
           { ...access, user: { ...access.user, id: person.id, email: person.email } },
           keys,

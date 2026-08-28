@@ -16464,3 +16464,8 @@ main {
     width: 100%;
   }
 }
+
+.pvm-eye.visible:disabled {
+  cursor: default;
+  opacity: 0.88;
+}

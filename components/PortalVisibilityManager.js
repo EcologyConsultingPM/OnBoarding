@@ -138,7 +138,8 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
         ) : (
           <div className="pvm-staff-list">
             {staff.map((person) => {
-              const visible = person.visibility?.[selectedResource] === true;
+              const permanentlyVisible = person.isPrimary === true;
+              const visible = permanentlyVisible || person.visibility?.[selectedResource] === true;
               const actionKey = `${person.id}:${selectedResource}`;
               const isSaving = saving === actionKey;
               return (
@@ -150,13 +151,13 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
                   <button
                     type="button"
                     className={`pvm-eye${visible ? " visible" : " hidden"}`}
-                    disabled={Boolean(saving)}
+                    disabled={Boolean(saving) || permanentlyVisible}
                     onClick={() => update(person, !visible)}
-                    aria-label={`${visible ? "Remove" : "Grant"} ${selected?.label || "portal area"} access for ${person.name || person.email}`}
-                    title={visible ? "Visible — click to lock" : "Locked — click to allow"}
+                    aria-label={permanentlyVisible ? "Primary administrator access is always visible" : `${visible ? "Remove" : "Grant"} ${selected?.label || "portal area"} access for ${person.name || person.email}`}
+                    title={permanentlyVisible ? "Primary administrator access is always visible" : visible ? "Visible — click to lock" : "Locked — click to allow"}
                   >
                     {isSaving ? <Loader2 className="spin" size={16} /> : visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    <span>{visible ? "Visible" : "Locked"}</span>
+                    <span>{permanentlyVisible ? "Primary admin" : visible ? "Visible" : "Locked"}</span>
                   </button>
                 </div>
               );
