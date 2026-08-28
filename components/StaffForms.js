@@ -77,7 +77,6 @@ export default function StaffForms() {
   const [view, setView] = useState("hub");
   const [activeKey, setActiveKey] = useState(null);
   const [form, setForm] = useState({});
-  const [requests, setRequests] = useState([]);
   const [whsHistory, setWhsHistory] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -97,13 +96,8 @@ export default function StaffForms() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const [rRes, wRes] = await Promise.all([
-        authFetch("GET", "/api/service-requests"),
-        authFetch("GET", "/api/whs-forms"),
-      ]);
-      const rData = await rRes.json();
+      const wRes = await authFetch("GET", "/api/whs-forms");
       const wData = await wRes.json();
-      if (rRes.ok) setRequests(rData.requests || []);
       if (wRes.ok) setWhsHistory(wData.forms || []);
     } catch (e) {
       setError(e.message);
@@ -143,23 +137,6 @@ export default function StaffForms() {
       .find((f) => ["text"].includes(f[2]));
     const title = (form[firstText?.[0]] || schema.label).toString().trim();
 
-    if (schema.kind === "request") {
-      try {
-        const res = await authFetch("POST", "/api/service-requests", {
-          request_type: activeKey,
-          title: `${schema.label}: ${title}`,
-          details: form,
-        });
-        const d = await res.json();
-        if (!res.ok) throw new Error(d.error);
-        backToHub();
-        await loadHistory();
-        notify("Request submitted for approval.");
-      } catch (e) {
-        setError(e.message);
-      }
-      return;
-    }
     try {
       const res = await authFetch("POST", "/api/whs-forms", {
         form_type: activeKey,
@@ -183,19 +160,6 @@ export default function StaffForms() {
     }
   };
 
-  const cancel = async (id) => {
-    if (!window.confirm("Cancel this request?")) return;
-    try {
-      const res = await authFetch("PATCH", "/api/service-requests/" + id, {
-        action: "cancel",
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error);
-      await loadHistory();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
 
   const renderField = ([key, label, type]) => {
     if (type === "signature")
@@ -287,15 +251,6 @@ export default function StaffForms() {
   // ---------- HISTORY ----------
   if (view === "history") {
     const all = [
-      ...requests.map((r) => ({
-        id: r.id,
-        when: r.created_at,
-        title: r.title,
-        kind: r.request_type,
-        status: r.status,
-        note: r.admin_note,
-        cancelable: r.status === "submitted",
-      })),
       ...whsHistory.map((w) => ({
         id: w.id,
         when: w.created_at,
@@ -303,7 +258,6 @@ export default function StaffForms() {
         kind: w.form_type.replace(/_/g, " "),
         status: w.status,
         note: w.review_note,
-        cancelable: false,
       })),
     ].sort((a, b) => new Date(b.when) - new Date(a.when));
     return (
@@ -312,8 +266,8 @@ export default function StaffForms() {
           <span>Ecology Consulting - Your records</span>
           <h1>Submission history</h1>
           <p>
-            Every form and request you have submitted, with its current status.
-            This record stays in your portal.
+            Every WHS form you have submitted, with its current status. Leave,
+            training and equipment requests are managed in My Projects.
           </p>
         </header>
         <button className="sf-back" onClick={() => setView("hub")}>
@@ -338,14 +292,6 @@ export default function StaffForms() {
                   >
                     {st.label}
                   </span>
-                  {r.cancelable ? (
-                    <button
-                      className="sf-row-cancel"
-                      onClick={() => cancel(r.id)}
-                    >
-                      Cancel
-                    </button>
-                  ) : null}
                 </div>
               );
             })}
@@ -365,7 +311,7 @@ export default function StaffForms() {
         <header className="sf-hero">
           <span>
             Ecology Consulting -{" "}
-            {schema.kind === "request" ? "Staff services" : "WHS field form"}
+            WHS field form
           </span>
           <h1>{schema.label}</h1>
           <p>{BLURBS[activeKey] || ""}</p>
@@ -417,9 +363,9 @@ export default function StaffForms() {
   const byGroup = FORM_GROUPS.map((g) => ({
     label: g,
     forms: Object.entries(FORM_SCHEMAS)
-      .filter(([, s]) => s.group === g)
+      .filter(([, s]) => s.group === g && s.kind !== "request")
       .map(([key, s]) => ({ key, label: s.label, kind: s.kind })),
-  }));
+  })).filter((group) => group.forms.length > 0);
 
   return (
     <div className="sf">
@@ -428,9 +374,9 @@ export default function StaffForms() {
         <span>Ecology Consulting - Staff services</span>
         <h1>WHS &amp; EC Forms</h1>
         <p>
-          Field forms, WHS reports and staff requests - all in one place.
-          Submissions are saved to your history; requests and incidents route to
-          admin for review.
+          Field forms, WHS reports and approved internal governance in one
+          place. Submissions are saved to your history and route to the
+          appropriate administrator for review.
         </p>
       </header>
       {error ? (
@@ -443,9 +389,14 @@ export default function StaffForms() {
           <CheckCircle2 size={15} /> {message}
         </p>
       ) : null}
-      <button className="sf-history-btn" onClick={() => setView("history")}>
-        <History size={15} /> View my submission history
-      </button>
+      <div className="sf-hub-actions">
+        <a className="sf-service-request-link" href="/staff/projects/service-requests">
+          <CalendarDays size={15} /> Leave, training and equipment requests
+        </a>
+        <button className="sf-history-btn" onClick={() => setView("history")}>
+          <History size={15} /> View my WHS submission history
+        </button>
+      </div>
 
       {byGroup.map((g) => (
         <section key={g.label} className="sf-group">

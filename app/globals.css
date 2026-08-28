@@ -15433,3 +15433,391 @@ main {
     width: min(calc(100% - 32px), 960px) !important;
   }
 }
+
+/* ── My Projects / Service Requests ───────────────────────────────── */
+.staff-service-requests {
+  min-width: 0;
+}
+.staff-service-requests .my-projects-section-head {
+  padding-top: 8px;
+}
+.ssr-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  gap: 18px;
+  align-items: start;
+}
+.ssr-card {
+  min-width: 0;
+  border: 1px solid rgba(176, 201, 159, 0.22);
+  border-radius: 17px;
+  color: #eff4ec;
+  background:
+    radial-gradient(
+      circle at 90% 6%,
+      rgba(227, 190, 91, 0.12),
+      transparent 26%
+    ),
+    linear-gradient(145deg, #0a3924, #052719);
+  box-shadow: 0 20px 44px -32px rgba(0, 20, 12, 0.95);
+}
+.ssr-compose-card {
+  padding: clamp(19px, 2.3vw, 28px);
+}
+.ssr-history-card {
+  padding: clamp(19px, 2.3vw, 26px);
+  background:
+    radial-gradient(
+      circle at 90% 6%,
+      rgba(86, 148, 121, 0.16),
+      transparent 28%
+    ),
+    linear-gradient(145deg, #093422, #062419);
+}
+.ssr-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 17px;
+}
+.ssr-card-heading > svg {
+  flex: 0 0 auto;
+  padding: 9px;
+  box-sizing: content-box;
+  border: 1px solid rgba(232, 197, 107, 0.3);
+  border-radius: 11px;
+  color: #ead078;
+  background: rgba(4, 29, 18, 0.48);
+}
+.ssr-card-heading span {
+  display: block;
+  color: #e5be5f;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ssr-card h3 {
+  margin: 5px 0 0;
+  color: #fff9ea;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(1.42rem, 2vw, 1.84rem);
+  font-weight: 500;
+  line-height: 1.05;
+}
+.ssr-type-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 13px;
+  padding: 6px;
+  border: 1px solid rgba(176, 201, 159, 0.18);
+  border-radius: 11px;
+  background: rgba(2, 27, 17, 0.56);
+}
+.ssr-type-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 39px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #cddbc9;
+  background: transparent;
+  cursor: pointer;
+  font:
+    700 0.74rem/1 "Archivo",
+    sans-serif;
+}
+.ssr-type-row button:hover {
+  color: #fff9e9;
+  background: rgba(255, 255, 255, 0.06);
+}
+.ssr-type-row button.selected {
+  border-color: rgba(232, 196, 100, 0.55);
+  color: #23371f;
+  background: linear-gradient(135deg, #e2b953, #f1d583);
+}
+.ssr-help {
+  margin: 0 1px 17px;
+  color: #bcd0b8;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.ssr-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+.ssr-field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+.ssr-field--full {
+  grid-column: 1 / -1;
+}
+.ssr-field > span {
+  color: #dce8d6;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.ssr-field > span b {
+  color: #e8bf60;
+}
+.ssr-field input,
+.ssr-field textarea,
+.ssr-field select {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgba(185, 208, 171, 0.3);
+  border-radius: 9px;
+  outline: none;
+  color: #eff5eb;
+  background: rgba(1, 23, 14, 0.6);
+  font:
+    400 0.87rem/1.45 "Archivo",
+    sans-serif;
+}
+.ssr-field input,
+.ssr-field select {
+  min-height: 42px;
+  padding: 0 11px;
+}
+.ssr-field textarea {
+  min-height: 94px;
+  resize: vertical;
+  padding: 10px 11px;
+}
+.ssr-field select option {
+  color: #1d3120;
+  background: #fffdf8;
+}
+.ssr-field input::placeholder,
+.ssr-field textarea::placeholder {
+  color: #8fa78e;
+}
+.ssr-field input:focus,
+.ssr-field textarea:focus,
+.ssr-field select:focus {
+  border-color: #e5be5f;
+  box-shadow: 0 0 0 3px rgba(229, 190, 95, 0.14);
+}
+.ssr-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 18px;
+  padding: 0 18px;
+  border: 1px solid rgba(248, 225, 146, 0.68);
+  border-radius: 9px;
+  color: #20341f;
+  background: linear-gradient(135deg, #e3ba54, #f2d984);
+  box-shadow: 0 13px 24px -18px rgba(0, 0, 0, 0.9);
+  cursor: pointer;
+  font:
+    800 0.79rem/1 "Archivo",
+    sans-serif;
+}
+.ssr-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.ssr-submit:disabled,
+.ssr-withdraw:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+.ssr-list {
+  display: grid;
+  gap: 10px;
+}
+.ssr-list article {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 13px;
+  padding: 13px;
+  border: 1px solid rgba(177, 203, 162, 0.18);
+  border-radius: 11px;
+  background: rgba(1, 24, 14, 0.5);
+}
+.ssr-list-copy {
+  min-width: 0;
+}
+.ssr-list-copy strong {
+  display: block;
+  color: #fff9eb;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.ssr-list-copy small {
+  display: block;
+  margin-top: 3px;
+  color: #9db59b;
+  font-size: 0.71rem;
+}
+.ssr-list-copy p,
+.ssr-list-copy em {
+  display: block;
+  margin: 7px 0 0;
+  color: #bdcfb8;
+  font-size: 0.76rem;
+  font-style: normal;
+  line-height: 1.5;
+}
+.ssr-list-copy em {
+  color: #e8ce80;
+}
+.ssr-list-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.ssr-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  text-transform: capitalize;
+  white-space: nowrap;
+  font:
+    800 0.65rem/1 "Archivo",
+    sans-serif;
+}
+.ssr-status.submitted,
+.ssr-status.reviewed {
+  border-color: rgba(229, 190, 95, 0.45);
+  color: #f4d77d;
+  background: rgba(229, 190, 95, 0.13);
+}
+.ssr-status.approved,
+.ssr-status.actioned {
+  border-color: rgba(110, 192, 125, 0.45);
+  color: #aee0ae;
+  background: rgba(89, 166, 104, 0.15);
+}
+.ssr-status.declined {
+  border-color: rgba(223, 118, 103, 0.48);
+  color: #f2aaa0;
+  background: rgba(194, 79, 64, 0.15);
+}
+.ssr-status.cancelled,
+.ssr-status.archived {
+  border-color: rgba(175, 190, 174, 0.26);
+  color: #c4d0c1;
+  background: rgba(186, 196, 184, 0.1);
+}
+.ssr-withdraw {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 0 8px;
+  border: 1px solid rgba(234, 160, 150, 0.4);
+  border-radius: 7px;
+  color: #f0aaa0;
+  background: transparent;
+  cursor: pointer;
+  font:
+    700 0.67rem/1 "Archivo",
+    sans-serif;
+}
+.ssr-withdraw:hover:not(:disabled) {
+  background: rgba(185, 69, 58, 0.16);
+}
+.ssr-empty,
+.ssr-error,
+.ssr-success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.ssr-empty {
+  min-height: 86px;
+  margin: 0;
+  color: #b9cbb6;
+  border: 1px dashed rgba(184, 208, 171, 0.26);
+  background: rgba(1, 24, 14, 0.34);
+}
+.ssr-error {
+  border: 1px solid rgba(225, 119, 102, 0.42);
+  color: #f5b6ab;
+  background: rgba(130, 40, 30, 0.22);
+}
+.ssr-success {
+  border: 1px solid rgba(121, 190, 125, 0.4);
+  color: #cce8c7;
+  background: rgba(42, 113, 59, 0.22);
+}
+@media (max-width: 900px) {
+  .ssr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .ssr-type-row,
+  .ssr-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ssr-list article {
+    display: grid;
+  }
+  .ssr-list-actions {
+    justify-items: start;
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+}
+
+/* WHS Forms now links to the single authoritative request workflow in My Projects. */
+.sf-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.sf-service-request-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 39px;
+  padding: 0 14px;
+  border: 1px solid rgba(216, 178, 61, 0.64);
+  border-radius: 9px;
+  color: #21331f;
+  background: linear-gradient(135deg, #dfb850, #f0d583);
+  box-shadow: 0 12px 24px -20px rgba(20, 33, 19, 0.72);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.sf-service-request-link:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+@media (max-width: 540px) {
+  .sf-hub-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .sf-hub-actions > * {
+    justify-content: center;
+  }
+}
