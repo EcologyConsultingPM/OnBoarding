@@ -43,6 +43,7 @@ import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
 import AdminWhsGovernance from "./AdminWhsGovernance";
+import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
 import AdminLearningLibrary from "./AdminLearningLibrary";

@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { requirePortalResource } from "../../../../lib/portalVisibility";
+import { sendPortalEmail } from "../../../../lib/transactionalEmail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,27 @@ export async function PATCH(request, { params }) {
       });
       if (eventError) {
         console.error("Could not create service request decision event", eventError);
+      }
+
+      try {
+        const { data: recipientData, error: recipientError } =
+          await access.admin.auth.admin.getUserById(existing.created_by);
+        const recipientEmail = recipientData?.user?.email;
+        if (!recipientError && recipientEmail) {
+          await sendPortalEmail({
+            request,
+            to: recipientEmail,
+            subject: `Service request ${decision}`,
+            heading: `Your service request was ${decision}`,
+            body:
+              data.admin_note ||
+              `Your ${String(data.request_type || "service").replaceAll("_", " ")} request has been ${decision}.`,
+            ctaLabel: "View your request",
+            ctaPath: "/staff/projects/service-requests",
+          });
+        }
+      } catch (emailError) {
+        console.error("Could not send service request decision email", emailError);
       }
       return Response.json({ request: data });
     }

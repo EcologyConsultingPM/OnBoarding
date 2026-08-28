@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
+import { sendPortalEmail } from "../../../lib/transactionalEmail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const TYPE_LABELS = {
   equipment: "equipment request",
 };
 
-async function notifyAdministrators(admin, requestRecord, submittedBy) {
+async function notifyAdministrators(admin, requestRecord, submittedBy, request) {
   try {
     const { data: adminRecords, error: adminError } = await admin
       .from("admin_emails")
@@ -32,14 +33,14 @@ async function notifyAdministrators(admin, requestRecord, submittedBy) {
     });
     if (usersError) throw usersError;
 
-    const recipientIds = (usersData?.users || [])
-      .filter((user) => administratorEmails.has(String(user.email || "").toLowerCase()))
-      .map((user) => user.id);
-    if (!recipientIds.length) return;
+    const recipientUsers = (usersData?.users || []).filter((user) =>
+      administratorEmails.has(String(user.email || "").toLowerCase()),
+    );
+    if (!recipientUsers.length) return;
 
     const { error: eventError } = await admin.from("portal_events").insert(
-      recipientIds.map((recipientId) => ({
-        recipient_id: recipientId,
+      recipientUsers.map((user) => ({
+        recipient_id: user.id,
         event_type: "service_request_submitted",
         severity: "action",
         title: `New ${TYPE_LABELS[requestRecord.request_type] || "service request"}`,
@@ -50,6 +51,20 @@ async function notifyAdministrators(admin, requestRecord, submittedBy) {
       })),
     );
     if (eventError) throw eventError;
+
+    await Promise.allSettled(
+      recipientUsers.map((user) =>
+        sendPortalEmail({
+          request,
+          to: user.email,
+          subject: `New ${TYPE_LABELS[requestRecord.request_type] || "service request"} awaiting review`,
+          heading: "Service request awaiting review",
+          body: `${submittedBy || "A staff member"} submitted: ${requestRecord.title}. Review the request in the Service Desk.`,
+          ctaLabel: "Open Service Desk",
+          ctaPath: "/",
+        }),
+      ),
+    );
   } catch (notificationError) {
     // The request is already recorded. A transient notification failure must not
     // discard a valid staff submission; it remains visible in the admin queue.
@@ -114,7 +129,16 @@ export async function POST(request) {
       })
       .select(COLUMNS).single();
     if (error) return Response.json({ error: error.message }, { status: 400 });
-    await notifyAdministrators(access.admin, data, access.user.email);
+    await notifyAdministrators(access.admin, data, access.user.email, request);
+    await sendPortalEmail({
+      request,
+      to: access.user.email,
+      subject: "Service request received",
+      heading: "Your service request has been received",
+      body: `Your ${TYPE_LABELS[data.request_type] || "service request"} is awaiting administrator review: ${data.title}`,
+      ctaLabel: "View your request",
+      ctaPath: "/staff/projects/service-requests",
+    });
     return Response.json({ request: data }, { status: 201 });
   } catch (error) {
     return serverError(error);

@@ -16526,3 +16526,318 @@ main {
 .staff-list__add:focus-visible { outline: 3px solid rgba(242,206,101,.6); outline-offset: 3px; }
 @media (max-width:700px) { .staff-list__hero { flex-direction: column; } .staff-list__hero-actions { width:100%; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:stretch; } .staff-list__count { min-width:0; text-align:left; } }
 @media (max-width:580px) { .ssr-compose-actions { align-items:stretch; flex-direction:column-reverse; } .ssr-compose-actions .ssr-submit,.ssr-clear-draft { width:100%; } }
+
+/* ── High-impact Admin operations workspaces ───────────────────────────── */
+.admin-learning-library,
+.admin-service-requests,
+.admin-species-profiles,
+.reg-watch {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: clamp(22px, 3vw, 44px);
+}
+
+.admin-learning-library .ld-hero,
+.admin-service-requests .sr-hero,
+.admin-species-profiles .fp-hero,
+.reg-watch .reg-watch__hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 210px;
+  padding: clamp(27px, 4vw, 48px);
+  border: 1px solid rgba(218, 193, 112, 0.34);
+  border-radius: 24px;
+  color: #f7f3e8;
+  box-shadow: 0 24px 54px rgba(5, 31, 20, 0.26);
+}
+
+.admin-learning-library .ld-hero::before,
+.admin-service-requests .sr-hero::before,
+.admin-species-profiles .fp-hero::before,
+.reg-watch .reg-watch__hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(102deg, rgba(3, 29, 20, 0.98), rgba(7, 57, 37, 0.92) 54%, rgba(13, 91, 57, 0.84)), url("/assets/wattle.png") center / cover;
+}
+
+.admin-service-requests .sr-hero::before {
+  background: linear-gradient(102deg, rgba(3, 29, 20, 0.98), rgba(12, 66, 44, 0.92) 52%, rgba(67, 77, 25, 0.78)), url("/assets/kangaroo-paw.jpg") center / cover;
+}
+
+.admin-species-profiles .fp-hero::before {
+  background: linear-gradient(102deg, rgba(3, 29, 20, 0.98), rgba(9, 62, 42, 0.91) 54%, rgba(18, 98, 68, 0.8)), url("/assets/bottlebrush.png") center / cover;
+}
+
+.reg-watch .reg-watch__hero::before {
+  background: linear-gradient(102deg, rgba(3, 29, 20, 0.98), rgba(23, 58, 38, 0.92) 56%, rgba(92, 73, 24, 0.78)), url("/assets/redtail-cockatoo.png") center / cover;
+}
+
+.admin-learning-library .ld-hero::after,
+.admin-service-requests .sr-hero::after,
+.admin-species-profiles .fp-hero::after,
+.reg-watch .reg-watch__hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -190px;
+  top: -250px;
+  width: 420px;
+  height: 420px;
+  border: 2px solid rgba(226, 197, 104, 0.46);
+  border-radius: 50%;
+  box-shadow: 0 0 0 52px rgba(79, 173, 118, 0.07), 0 0 0 104px rgba(226, 197, 104, 0.05);
+}
+
+.admin-learning-library .ld-hero > span,
+.admin-service-requests .sr-hero > span,
+.admin-species-profiles .fp-hero > span,
+.reg-watch .reg-watch__hero > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: #e8cd7f;
+  font-size: 0.71rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.admin-learning-library .ld-hero h1,
+.admin-service-requests .sr-hero h1,
+.admin-species-profiles .fp-hero h1,
+.reg-watch .reg-watch__hero h2 {
+  max-width: 850px;
+  margin: 0;
+  color: #ffffff;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(2rem, 3.5vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.admin-learning-library .ld-hero p,
+.admin-service-requests .sr-hero p,
+.admin-species-profiles .fp-hero p,
+.reg-watch .reg-watch__hero p {
+  max-width: 760px;
+  margin: 15px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1rem;
+  line-height: 1.68;
+}
+
+.admin-learning-library .ld-crumbs,
+.admin-learning-library .ld-toolbar,
+.admin-service-requests .sr-controls,
+.admin-species-profiles .spk-toggle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-learning-library .ld-crumb,
+.admin-learning-library .ld-add-btn,
+.admin-learning-library .ld-add-save,
+.admin-service-requests .sr-review,
+.admin-service-requests .sr-approve,
+.admin-service-requests .sr-decline,
+.admin-species-profiles .afp-btn,
+.admin-species-profiles .spk-toggle button,
+.reg-watch .reg-watch__primary,
+.reg-watch .reg-watch__outline,
+.reg-watch .reg-watch__review-button {
+  min-height: 40px;
+  border: 1px solid rgba(196, 166, 77, 0.53);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1b6843, #11452f);
+  color: #fff8df;
+  font-weight: 750;
+  box-shadow: 0 9px 18px rgba(4, 33, 21, 0.15);
+}
+
+.admin-learning-library .ld-crumb,
+.admin-learning-library .ld-add-btn,
+.admin-learning-library .ld-add-save,
+.admin-service-requests .sr-review,
+.admin-service-requests .sr-approve,
+.admin-service-requests .sr-decline,
+.admin-species-profiles .afp-btn,
+.reg-watch .reg-watch__primary,
+.reg-watch .reg-watch__outline,
+.reg-watch .reg-watch__review-button {
+  padding: 9px 14px;
+}
+
+.admin-learning-library .ld-node,
+.admin-service-requests .sr-card,
+.admin-species-profiles .afp-queue,
+.admin-species-profiles .afp-browse,
+.reg-watch .reg-watch__toolbar,
+.reg-watch .reg-watch__card,
+.reg-watch .reg-watch__create {
+  margin-top: 16px;
+  border: 1px solid rgba(214, 200, 153, 0.25);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(8, 47, 32, 0.98), rgba(15, 76, 49, 0.96));
+  color: #eff8ee;
+  box-shadow: 0 14px 28px rgba(5, 31, 20, 0.12);
+}
+
+.admin-learning-library .ld-node + .ld-node,
+.admin-service-requests .sr-card + .sr-card,
+.reg-watch .reg-watch__card + .reg-watch__card {
+  margin-top: 12px;
+}
+
+.admin-learning-library .ld-node {
+  overflow: hidden;
+}
+
+.admin-learning-library .ld-node-main {
+  min-height: 92px;
+  background: transparent;
+  color: #f6fbf0;
+}
+
+.admin-learning-library .ld-node-main:hover:not(:disabled) {
+  background: rgba(224, 198, 108, 0.08);
+}
+
+.admin-learning-library .ld-node-icon {
+  background: rgba(226, 197, 104, 0.16) !important;
+  color: #ead386 !important;
+  border: 1px solid rgba(226, 197, 104, 0.26);
+}
+
+.admin-learning-library .ld-node-title,
+.admin-learning-library .ld-empty,
+.admin-learning-library .ld-node-chev {
+  color: #f3f8ed;
+}
+
+.admin-learning-library .ld-node-meta {
+  color: rgba(238, 248, 232, 0.7);
+}
+
+.admin-learning-library .ld-act,
+.admin-learning-library .ld-add-cancel,
+.admin-service-requests .sr-cancelbtn,
+.reg-watch .reg-watch__text,
+.reg-watch .reg-watch__clear-controls,
+.reg-watch .reg-watch__delete {
+  border: 1px solid rgba(226, 223, 193, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f6f4e8;
+}
+
+.admin-learning-library .ld-add,
+.admin-learning-library .ld-add input,
+.admin-learning-library .ld-add select,
+.admin-service-requests .sr-controls select,
+.admin-service-requests .sr-decide input,
+.reg-watch .reg-watch__control-fields input,
+.reg-watch .reg-watch__control-fields select,
+.reg-watch .reg-watch__form-grid input,
+.reg-watch .reg-watch__form-grid select,
+.reg-watch .reg-watch__form-grid textarea {
+  border-color: rgba(226, 197, 104, 0.28);
+  background: #0a3d2a;
+  color: #f7f4e7;
+}
+
+.admin-learning-library .ld-add input::placeholder,
+.admin-service-requests .sr-decide input::placeholder,
+.reg-watch .reg-watch__form-grid input::placeholder,
+.reg-watch .reg-watch__form-grid textarea::placeholder {
+  color: rgba(239, 247, 234, 0.58);
+}
+
+.admin-service-requests .sr-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(170px, 245px));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.admin-service-requests .sr-sum,
+.admin-service-requests .sr-controls {
+  border: 1px solid rgba(213, 196, 143, 0.25);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(6, 45, 30, 0.98), rgba(12, 76, 48, 0.94));
+  color: #f6fbef;
+  box-shadow: 0 14px 28px rgba(5, 31, 20, 0.11);
+}
+
+.admin-service-requests .sr-sum { padding: 18px 20px; }
+.admin-service-requests .sr-sum-v { font-family: "Newsreader", Georgia, serif; font-size: 2.1rem; }
+.admin-service-requests .sr-sum-v,
+.admin-service-requests .sr-count,
+.admin-service-requests .sr-meta,
+.admin-service-requests .sr-empty { color: #f2f7eb !important; }
+.admin-service-requests .sr-sum-l { color: rgba(242, 247, 235, 0.72) !important; letter-spacing: 0.12em; }
+.admin-service-requests .sr-controls { padding: 13px; }
+.admin-service-requests .sr-controls select,
+.admin-service-requests .sr-decide input { min-height: 42px; border-radius: 9px; }
+.admin-service-requests .sr-card { padding: 22px; }
+.admin-service-requests .sr-title { color: #ffffff; font-family: "Newsreader", Georgia, serif; font-size: 1.3rem; }
+.admin-service-requests .sr-detail,
+.admin-service-requests .sr-note { border-color: rgba(226, 197, 104, 0.22); background: rgba(255, 255, 255, 0.07); color: rgba(247, 250, 240, 0.88); }
+
+.admin-species-profiles .fp-hero-stats { margin-top: 22px; }
+.admin-species-profiles .fp-hero-stats strong,
+.admin-species-profiles .fp-hero-stats span { color: #ffffff; }
+.admin-species-profiles .spk-toggle.light { width: fit-content; padding: 7px; border: 1px solid rgba(213, 196, 143, 0.24); border-radius: 14px; background: #0a412d; }
+.admin-species-profiles .spk-toggle button { min-height: 38px; padding: 8px 18px; background: transparent; color: rgba(246, 250, 239, 0.75); }
+.admin-species-profiles .spk-toggle button.sel { background: linear-gradient(135deg, #1d774d, #0f5035); color: #fff9df; }
+.admin-species-profiles .afp-queue,
+.admin-species-profiles .afp-browse { padding: 22px 24px; }
+.admin-species-profiles .afp-queue-head,
+.admin-species-profiles .fp-section-label,
+.admin-species-profiles .fp-empty-title,
+.admin-species-profiles .afp-empty,
+.admin-species-profiles .afp-empty p,
+.admin-species-profiles .afp-browse-name,
+.admin-species-profiles .afp-browse-common { color: #f3f8ed !important; }
+.admin-species-profiles .afp-empty,
+.admin-species-profiles .afp-row,
+.admin-species-profiles .afp-browse-row { border-color: rgba(225, 210, 157, 0.22); background: rgba(255, 255, 255, 0.06); }
+.admin-species-profiles .fp-search { border-color: rgba(226, 197, 104, 0.3) !important; background: rgba(3, 38, 25, 0.9) !important; color: #e6ce80 !important; }
+.admin-species-profiles .fp-search input { color: #ffffff !important; }
+.admin-species-profiles .fp-search input::placeholder { color: rgba(245, 249, 237, 0.58); }
+
+.reg-watch { color: #eef7eb; }
+.reg-watch .reg-watch__hero-actions { position: relative; z-index: 1; }
+.reg-watch .reg-watch__summary { margin-top: 20px; }
+.reg-watch .reg-watch__summary > div { border: 1px solid rgba(213, 196, 143, 0.24); border-radius: 14px; background: linear-gradient(135deg, #0a472f, #0e6842); color: #f6fbef; }
+.reg-watch .reg-watch__summary strong,
+.reg-watch .reg-watch__summary span,
+.reg-watch .reg-watch__card h3,
+.reg-watch .reg-watch__card p,
+.reg-watch .reg-watch__meta,
+.reg-watch .reg-watch__source,
+.reg-watch .reg-watch__note,
+.reg-watch .reg-watch__empty { color: #f1f8ed; }
+.reg-watch .reg-watch__source,
+.reg-watch .reg-watch__note,
+.reg-watch .reg-watch__review-form { border-color: rgba(226, 197, 104, 0.23); background: rgba(255, 255, 255, 0.07); }
+.reg-watch .reg-watch__source a { color: #f0d57f; }
+
+@media (max-width: 760px) {
+  .admin-learning-library,
+  .admin-service-requests,
+  .admin-species-profiles,
+  .reg-watch { padding: 18px; }
+  .admin-learning-library .ld-hero,
+  .admin-service-requests .sr-hero,
+  .admin-species-profiles .fp-hero,
+  .reg-watch .reg-watch__hero { border-radius: 18px; padding: 25px 21px; }
+  .admin-service-requests .sr-summary { grid-template-columns: 1fr; }
+  .admin-learning-library .ld-node-main { min-height: 82px; }
+}
