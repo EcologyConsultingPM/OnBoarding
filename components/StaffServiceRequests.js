@@ -9,7 +9,9 @@ import {
   LifeBuoy,
   Loader2,
   Package,
+  Save,
   Send,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
@@ -158,6 +160,10 @@ export default function StaffServiceRequests({ embedded = false }) {
   const [withdrawingId, setWithdrawingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
+  const draftKey = session?.user?.id
+    ? `ec-service-request-draft:${session.user.id}`
+    : "";
 
   const headers = useCallback(
     () => ({
@@ -192,6 +198,51 @@ export default function StaffServiceRequests({ embedded = false }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const draft = JSON.parse(window.localStorage.getItem(draftKey) || "null");
+      if (draft && TYPES[draft.type]) {
+        setType(draft.type);
+        setTitle(typeof draft.title === "string" ? draft.title : "");
+        setDetails(draft.details && typeof draft.details === "object" ? draft.details : {});
+      }
+    } catch {
+      // A malformed local draft must not block the staff member's form.
+    } finally {
+      setDraftReady(true);
+    }
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftReady || !draftKey) return;
+    const hasDraft = title.trim() || Object.values(details).some((value) =>
+      String(value || "").trim(),
+    );
+    if (!hasDraft) {
+      window.localStorage.removeItem(draftKey);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({ type, title, details, updatedAt: new Date().toISOString() }),
+        );
+      } catch {
+        // Browser storage is a resilience layer only; nothing is submitted automatically.
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [details, draftKey, draftReady, title, type]);
+
+  const clearDraft = () => {
+    setTitle("");
+    setDetails({});
+    if (draftKey) window.localStorage.removeItem(draftKey);
+    setMessage("Unsubmitted request draft cleared from this browser.");
+  };
 
   const changeType = (nextType) => {
     setType(nextType);
@@ -235,6 +286,7 @@ export default function StaffServiceRequests({ embedded = false }) {
         throw new Error(body.error || "Could not submit the request.");
       setTitle("");
       setDetails({});
+      if (draftKey) window.localStorage.removeItem(draftKey);
       setMessage("Request submitted for administrator review.");
       window.setTimeout(() => setMessage(""), 3200);
       await load();
@@ -324,6 +376,11 @@ export default function StaffServiceRequests({ embedded = false }) {
             ))}
           </div>
           <p className="ssr-help">{typeMeta.hint}</p>
+          <p className="ssr-autosave">
+            <Save size={14} /> Unsubmitted details are automatically saved in
+            this browser only. They are not sent for review until you select
+            Submit for review.
+          </p>
           <div className="ssr-form-grid">
             <label className="ssr-field ssr-field--full">
               <span>
@@ -387,12 +444,21 @@ export default function StaffServiceRequests({ embedded = false }) {
               </label>
             ))}
           </div>
-          <button
-            type="button"
-            className="ssr-submit"
-            disabled={saving}
-            onClick={submit}
-          >
+          <div className="ssr-compose-actions">
+            <button
+              type="button"
+              className="ssr-clear-draft"
+              disabled={saving}
+              onClick={clearDraft}
+            >
+              <Trash2 size={14} /> Clear draft
+            </button>
+            <button
+              type="button"
+              className="ssr-submit"
+              disabled={saving}
+              onClick={submit}
+            >
             {saving ? (
               <>
                 <Loader2 size={15} className="spin" /> Submitting…
@@ -402,7 +468,8 @@ export default function StaffServiceRequests({ embedded = false }) {
                 <Send size={15} /> Submit for review
               </>
             )}
-          </button>
+            </button>
+          </div>
         </section>
         <section className="ssr-card ssr-history-card">
           <div className="ssr-card-heading">

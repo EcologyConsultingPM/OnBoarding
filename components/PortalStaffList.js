@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Pencil, Search, Users2, X } from "lucide-react";
+import { CheckCircle2, Pencil, Search, UserPlus, Users2, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const blankDraft = { firstName: "", lastName: "", phone: "", active: true };
@@ -15,7 +15,7 @@ function fullName(person) {
   );
 }
 
-export default function PortalStaffList() {
+export default function PortalStaffList({ onAddStaff }) {
   const { session } = useAuth();
   const [staff, setStaff] = useState([]);
   const [query, setQuery] = useState("");
@@ -126,11 +126,20 @@ export default function PortalStaffList() {
             & administrator control.
           </p>
         </div>
-        <div className="staff-list__count">
-          <strong>
-            {staff.filter((person) => person.active !== false).length}
-          </strong>
-          <span>available for allocation</span>
+        <div className="staff-list__hero-actions">
+          <div className="staff-list__count">
+            <strong>
+              {staff.filter((person) => person.active !== false).length}
+            </strong>
+            <span>available for allocation</span>
+          </div>
+          <button
+            type="button"
+            className="staff-list__add"
+            onClick={onAddStaff}
+          >
+            <UserPlus size={16} /> Add staff member
+          </button>
         </div>
       </header>
 
