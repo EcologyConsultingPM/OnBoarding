@@ -1,5 +1,7 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 
+import { staffDirectoryRecord } from "../../../../lib/staffDirectory";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -149,7 +151,8 @@ async function getDashboard(access) {
     adminEmails: (adminResult.data || []).map((row) => normaliseEmail(row.email)),
     staff: users
       .filter((user) => validStaffEmail(normaliseEmail(user.email)))
-      .map((user) => ({ id: user.id, email: normaliseEmail(user.email), name: displayName(user) }))
+      .map(staffDirectoryRecord)
+      .filter((person) => person.active)
       .sort((left, right) => left.name.localeCompare(right.name, "en-AU")),
     roleAssignments: authoritySchemaReady ? (roleResult.data || []).map((row) => mapAssignment(row, users)) : [],
     accessRequests: authoritySchemaReady ? (allRequests.data || []).map(mapRequest) : [],
@@ -283,6 +286,7 @@ async function assignRole(access, body) {
 
   const target = await userForEmail(access, targetEmail);
   if (!target) return jsonError("Create the staff account before allocating a specialist role.", 404);
+  if (!staffDirectoryRecord(target).active) return jsonError("This staff member is unavailable for new allocations in the Staff List.", 409);
 
   let existingQuery = access.admin
     .from("portal_role_assignments")

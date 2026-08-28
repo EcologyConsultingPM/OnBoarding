@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../../lib/serverAuth";
+import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,12 @@ export async function PUT(request, { params }) {
         allocated_hours: num(a.allocatedHours),
         hourly_rate: num(a.hourlyRate),
       });
+    }
+
+    const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+    const availableIds = new Set(directory.map((person) => person.id));
+    if (rows.some((row) => !availableIds.has(row.staff_user_id))) {
+      return Response.json({ error: "Project allocations must use available staff from the controlled Staff List." }, { status: 400 });
     }
 
     await access.admin.from("project_allocations").delete().eq("project_id", params.projectId);

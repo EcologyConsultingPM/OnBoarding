@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, FolderKanban, LifeBuoy, ListChecks } from "lucide-react";
+import {
+  ClipboardList,
+  FolderKanban,
+  LifeBuoy,
+  ListChecks,
+} from "lucide-react";
 import ProjectsList from "./ProjectsList";
 import ProjectHealth from "./ProjectHealth";
 import RemoteTasks from "./RemoteTasks";
@@ -28,14 +33,23 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
     <main className="my-projects-page">
       <header className="my-projects-hero">
         <div>
-          <span><FolderKanban size={14} /> Ecology Consulting · delivery workspace</span>
+          <span>
+            <FolderKanban size={14} /> Ecology Consulting · delivery workspace
+          </span>
           <h1>My Projects</h1>
-          <p>Accepted task briefs, allocated project activities, your locked Project Tracker and service requests in one place.</p>
+          <p>
+            Accepted task briefs, allocated project activities, your locked
+            Project Tracker and service requests in one place.
+          </p>
         </div>
         <WorkspaceNav audience="staff" />
       </header>
 
-      <nav className="my-projects-tabs" role="tablist" aria-label="My Projects areas">
+      <nav
+        className="my-projects-tabs"
+        role="tablist"
+        aria-label="My Projects areas"
+      >
         {TABS.map(({ id, label, Icon }) => (
           <button
             type="button"
@@ -43,7 +57,10 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
             role="tab"
             aria-selected={tab === id}
             className={tab === id ? "selected" : ""}
-            onClick={() => { setTab(id); setProjectId(null); }}
+            onClick={() => {
+              setTab(id);
+              setProjectId(null);
+            }}
           >
             <Icon size={15} /> {label}
           </button>
@@ -51,19 +68,35 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
       </nav>
 
       {tab === "activities" ? (
-        <section className="my-projects-activities" aria-labelledby="project-activities-heading">
+        <section
+          className="my-projects-activities"
+          aria-labelledby="project-activities-heading"
+        >
           {projectId ? (
             <div className="my-projects-project-detail">
-              <WorkspaceNav audience="staff" onBack={() => setProjectId(null)} backLabel="All my projects" />
-              <ProjectHealth projectId={projectId} onBack={() => setProjectId(null)} showBack={false} />
+              <WorkspaceNav
+                audience="staff"
+                onBack={() => setProjectId(null)}
+                backLabel="All my projects"
+              />
+              <ProjectHealth
+                projectId={projectId}
+                onBack={() => setProjectId(null)}
+                showBack={false}
+              />
             </div>
           ) : (
             <>
               <div className="my-projects-section-head">
                 <div>
                   <span>Allocated delivery</span>
-                  <h2 id="project-activities-heading"><ListChecks size={18} /> Project activities</h2>
-                  <p>Your allocated projects and accepted task briefs. New briefs remain in Notifications until you accept them.</p>
+                  <h2 id="project-activities-heading">
+                    <ListChecks size={18} /> Project activities
+                  </h2>
+                  <p>
+                    Your allocated projects and accepted task briefs. New briefs
+                    remain in Notifications until you accept them.
+                  </p>
                 </div>
               </div>
               <div className="my-projects-activity-grid">
@@ -73,7 +106,17 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
                 </section>
                 <section className="my-projects-panel">
                   <h3>Accepted task briefs</h3>
-                  <RemoteTasks isAdmin={false} staffStates={["accepted", "in_progress", "submitted", "revising"]} compact showHome={false} />
+                  <RemoteTasks
+                    isAdmin={false}
+                    staffStates={[
+                      "accepted",
+                      "in_progress",
+                      "submitted",
+                      "revising",
+                    ]}
+                    compact
+                    showHome={false}
+                  />
                 </section>
               </div>
             </>

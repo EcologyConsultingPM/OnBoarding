@@ -2,10 +2,35 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Plus, X, Link as LinkIcon, Download, RotateCcw, Check, Pencil,
-  ChevronDown, ChevronRight, FileText, LogOut, ShieldCheck, Users2, Lock, Unlock,
-  Loader2, CheckCircle2, AlertCircle, BookOpen, Settings, Home as HomeIcon, ClipboardList,
-  Building2, Leaf, TrendingUp, Send, ArrowUpRight, Clock3, BellRing,
+  Plus,
+  X,
+  Link as LinkIcon,
+  Download,
+  RotateCcw,
+  Check,
+  Pencil,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  LogOut,
+  ShieldCheck,
+  Users2,
+  Lock,
+  Unlock,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  BookOpen,
+  Settings,
+  Home as HomeIcon,
+  ClipboardList,
+  Building2,
+  Leaf,
+  TrendingUp,
+  Send,
+  ArrowUpRight,
+  Clock3,
+  BellRing,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -37,8 +62,13 @@ import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
 ----------------------------------------------------------------- */
 const saveListeners = new Set();
 let pendingSaves = 0;
-function emitSaveStatus(status) { saveListeners.forEach((fn) => fn(status)); }
-function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
+function emitSaveStatus(status) {
+  saveListeners.forEach((fn) => fn(status));
+}
+function onSaveStatus(fn) {
+  saveListeners.add(fn);
+  return () => saveListeners.delete(fn);
+}
 async function saveTracked(fn) {
   pendingSaves += 1;
   emitSaveStatus("saving");
@@ -54,34 +84,72 @@ async function saveTracked(fn) {
 }
 
 const C = {
-  bg: "#f4f4ee", ink: "#23301f", inkSoft: "#6b755f", inkFaint: "#8a927c",
-  line: "#e3e6d8", lineSoft: "#edf0e3", lineFaint: "#f0f2e6",
-  green900: "#16371f", green800: "#1e4d2b", green700: "#24522a", green600: "#2c4426",
-  green500: "#35692f", green400: "#3d7a35", green300: "#5b8f45", green200: "#6ea24f",
-  greenTint: "#e6efd8", greenTintSoft: "#eef3e4", cream: "#cfe3b8",
-  amber: "#b08948", amberLight: "#c9a25e", amberBg: "#fbf6ea", amberText: "#7a6233",
-  rust: "#c05a4a", cardBg: "#ffffff",
+  bg: "#f4f4ee",
+  ink: "#23301f",
+  inkSoft: "#6b755f",
+  inkFaint: "#8a927c",
+  line: "#e3e6d8",
+  lineSoft: "#edf0e3",
+  lineFaint: "#f0f2e6",
+  green900: "#16371f",
+  green800: "#1e4d2b",
+  green700: "#24522a",
+  green600: "#2c4426",
+  green500: "#35692f",
+  green400: "#3d7a35",
+  green300: "#5b8f45",
+  green200: "#6ea24f",
+  greenTint: "#e6efd8",
+  greenTintSoft: "#eef3e4",
+  cream: "#cfe3b8",
+  amber: "#b08948",
+  amberLight: "#c9a25e",
+  amberBg: "#fbf6ea",
+  amberText: "#7a6233",
+  rust: "#c05a4a",
+  cardBg: "#ffffff",
   // ── Editorial redesign tokens (from the design mockup) ──
-  paper: "#f5f2ea", paperCard: "#fffdf8", paperAlt: "#efece2",
-  forest: "#0e2a1c", forestDeep: "#0b2317", eucalypt: "#1f5a34", eucalyptDark: "#164426",
-  inkDeep: "#12211a", sage: "#7a877d", sageText: "#3a4740", sageSoft: "#5b6a5f",
-  gold: "#e7c979", goldDeep: "#c9962a", teal: "#1d6b6b", tealBright: "#238383",
-  rustAccent: "#b5352a", plum: "#7d3b5c", ochre: "#a34a32",
-  hair: "rgba(18,33,26,.1)", hairSoft: "rgba(18,33,26,.07)",
+  paper: "#f5f2ea",
+  paperCard: "#fffdf8",
+  paperAlt: "#efece2",
+  forest: "#0e2a1c",
+  forestDeep: "#0b2317",
+  eucalypt: "#1f5a34",
+  eucalyptDark: "#164426",
+  inkDeep: "#12211a",
+  sage: "#7a877d",
+  sageText: "#3a4740",
+  sageSoft: "#5b6a5f",
+  gold: "#e7c979",
+  goldDeep: "#c9962a",
+  teal: "#1d6b6b",
+  tealBright: "#238383",
+  rustAccent: "#b5352a",
+  plum: "#7d3b5c",
+  ochre: "#a34a32",
+  hair: "rgba(18,33,26,.1)",
+  hairSoft: "rgba(18,33,26,.07)",
 };
 const SERIF = "'Newsreader', Georgia, serif";
 const MONO = "'IBM Plex Mono', monospace";
 const FONT = "'Archivo', 'Helvetica Neue', sans-serif";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-function pct(done, total) { return total ? Math.round((done / total) * 100) : 0; }
+function pct(done, total) {
+  return total ? Math.round((done / total) * 100) : 0;
+}
 function sectionCounts(section) {
   const total = section.items.length;
   return { done: section.items.filter((i) => i.done).length, total };
 }
 function phaseCounts(phase) {
-  let done = 0, total = 0;
-  phase.sections.forEach((s) => { const c = sectionCounts(s); done += c.done; total += c.total; });
+  let done = 0,
+    total = 0;
+  phase.sections.forEach((s) => {
+    const c = sectionCounts(s);
+    done += c.done;
+    total += c.total;
+  });
   return { done, total };
 }
 function moduleCounts(mod) {
@@ -89,31 +157,80 @@ function moduleCounts(mod) {
   return { done: mod.subheadings.filter((s) => s.done).length, total };
 }
 function monthCounts(month) {
-  let done = 0, total = 0;
-  month.modules.forEach((m) => { const c = moduleCounts(m); done += c.done; total += c.total; });
+  let done = 0,
+    total = 0;
+  month.modules.forEach((m) => {
+    const c = moduleCounts(m);
+    done += c.done;
+    total += c.total;
+  });
   return { done, total };
 }
 function ldCounts(ldMonths) {
-  let done = 0, total = 0;
-  ldMonths.forEach((m) => { const c = monthCounts(m); done += c.done; total += c.total; });
+  let done = 0,
+    total = 0;
+  ldMonths.forEach((m) => {
+    const c = monthCounts(m);
+    done += c.done;
+    total += c.total;
+  });
   return { done, total };
 }
 
 const inputStyle = (dashed) => ({
-  border: `1px ${dashed ? "dashed" : "solid"} #e6e8da`, background: "#fafbf4", borderRadius: 8,
-  padding: "7px 9px", fontSize: 13, fontWeight: 600, color: C.ink, width: "100%", outline: "none",
-  fontFamily: FONT, boxSizing: "border-box",
+  border: `1px ${dashed ? "dashed" : "solid"} #e6e8da`,
+  background: "#fafbf4",
+  borderRadius: 8,
+  padding: "7px 9px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: C.ink,
+  width: "100%",
+  outline: "none",
+  fontFamily: FONT,
+  boxSizing: "border-box",
 });
-const smallBtn = { borderRadius: 6, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: FONT };
+const smallBtn = {
+  borderRadius: 6,
+  padding: "5px 10px",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
 const addSmallBtn = {
-  display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
-  color: C.green500, fontSize: 12, fontWeight: 800, cursor: "pointer", padding: 0, fontFamily: FONT,
+  display: "flex",
+  alignItems: "center",
+  gap: 5,
+  background: "none",
+  border: "none",
+  color: C.green500,
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+  padding: 0,
+  fontFamily: FONT,
 };
 
 function Toast({ text }) {
   if (!text) return null;
   return (
-    <div data-print="hide" style={{ position: "fixed", bottom: 20, right: 20, background: C.green800, color: "#fdfdf8", padding: "9px 16px", borderRadius: 8, fontFamily: FONT, fontSize: 13, boxShadow: "0 4px 14px rgba(0,0,0,0.2)", zIndex: 100 }}>
+    <div
+      data-print="hide"
+      style={{
+        position: "fixed",
+        bottom: 20,
+        right: 20,
+        background: C.green800,
+        color: "#fdfdf8",
+        padding: "9px 16px",
+        borderRadius: 8,
+        fontFamily: FONT,
+        fontSize: 13,
+        boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+        zIndex: 100,
+      }}
+    >
       {text}
     </div>
   );
@@ -124,44 +241,117 @@ function Toast({ text }) {
 
 function LinksCell({ links, canEdit, onAdd, onRemove }) {
   const [adding, setAdding] = useState(false);
-  const [label, setLabel] = useState(""); const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
 
   const submit = () => {
     if (!label.trim() || !url.trim()) return;
     let u = url.trim();
     if (!/^https?:\/\//i.test(u)) u = "https://" + u;
     onAdd(label.trim(), u);
-    setLabel(""); setUrl(""); setAdding(false);
+    setLabel("");
+    setUrl("");
+    setAdding(false);
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}
+    >
       {links.map((l) => (
-        <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+        <div
+          key={l.id}
+          style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}
+        >
           <LinkIcon size={11} color={C.green500} style={{ flexShrink: 0 }} />
-          <a href={l.url} target="_blank" rel="noreferrer"
-            style={{ fontSize: 12.5, fontWeight: 700, color: C.green500, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <a
+            href={l.url}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: C.green500,
+              textDecoration: "none",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {l.label}
           </a>
           {canEdit && (
-            <button data-print="hide" onClick={() => onRemove(l.id)} style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer", padding: 0, flexShrink: 0 }}>
+            <button
+              data-print="hide"
+              onClick={() => onRemove(l.id)}
+              style={{
+                background: "none",
+                border: "none",
+                color: C.inkFaint,
+                cursor: "pointer",
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
               <X size={11} />
             </button>
           )}
         </div>
       ))}
-      {canEdit && (adding ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }} data-print="hide">
-          <input autoFocus placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle(true)} />
-          <div style={{ display: "flex", gap: 4 }}>
-            <input placeholder="URL" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={{ ...inputStyle(true), flex: 1 }} />
-            <button onClick={submit} style={{ ...smallBtn, background: C.green400, color: "#fff", border: "none" }}>Add</button>
-            <button onClick={() => setAdding(false)} style={{ ...smallBtn, background: "none", border: "none", color: C.inkFaint }}>✕</button>
+      {canEdit &&
+        (adding ? (
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            data-print="hide"
+          >
+            <input
+              autoFocus
+              placeholder="Label"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              style={inputStyle(true)}
+            />
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                placeholder="URL"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+                style={{ ...inputStyle(true), flex: 1 }}
+              />
+              <button
+                onClick={submit}
+                style={{
+                  ...smallBtn,
+                  background: C.green400,
+                  color: "#fff",
+                  border: "none",
+                }}
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setAdding(false)}
+                style={{
+                  ...smallBtn,
+                  background: "none",
+                  border: "none",
+                  color: C.inkFaint,
+                }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <button data-print="hide" onClick={() => setAdding(true)} style={addSmallBtn}><Plus size={11} /> Link</button>
-      ))}
+        ) : (
+          <button
+            data-print="hide"
+            onClick={() => setAdding(true)}
+            style={addSmallBtn}
+          >
+            <Plus size={11} /> Link
+          </button>
+        ))}
     </div>
   );
 }
@@ -172,64 +362,185 @@ function LinksCell({ links, canEdit, onAdd, onRemove }) {
    - label + links add/remove: admin only
 ----------------------------------------------------------------- */
 
-function ItemRow({ item, showDate, isAdmin, onProgress, onLinkAdd, onLinkRemove, onRename, onRemove }) {
+function ItemRow({
+  item,
+  showDate,
+  isAdmin,
+  onProgress,
+  onLinkAdd,
+  onLinkRemove,
+  onRename,
+  onRemove,
+}) {
   const [editingLabel, setEditingLabel] = useState(false);
   const cols = showDate
     ? "34px minmax(0,1.3fr) 100px minmax(0,1fr) minmax(0,0.85fr)"
     : "34px minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.85fr)";
   const hasComment = !!item.comment;
   return (
-    <div style={{ borderBottom: `1px solid ${C.lineFaint}`, padding: "10px 0" }}>
-      <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, alignItems: "start" }}>
-      <button
-        className="check-box"
-        onClick={() => onProgress({ done: !item.done, date: !item.done ? (item.date || new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) : item.date })}
+    <div
+      style={{ borderBottom: `1px solid ${C.lineFaint}`, padding: "10px 0" }}
+    >
+      <div
         style={{
-          width: 26, height: 26, borderRadius: 8, border: `2px solid ${item.done ? C.green400 : "#c2cdb6"}`,
-          background: item.done ? C.green400 : "#fff", color: "#fff", cursor: "pointer", display: "flex",
-          alignItems: "center", justifyContent: "center", flexShrink: 0,
+          display: "grid",
+          gridTemplateColumns: cols,
+          gap: 12,
+          alignItems: "start",
         }}
       >
-        {item.done && <Check size={14} />}
-      </button>
+        <button
+          className="check-box"
+          onClick={() =>
+            onProgress({
+              done: !item.done,
+              date: !item.done
+                ? item.date ||
+                  new Date().toLocaleDateString("en-AU", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : item.date,
+            })
+          }
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 8,
+            border: `2px solid ${item.done ? C.green400 : "#c2cdb6"}`,
+            background: item.done ? C.green400 : "#fff",
+            color: "#fff",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {item.done && <Check size={14} />}
+        </button>
 
-      {isAdmin && editingLabel ? (
-        <input autoFocus defaultValue={item.title}
-          onBlur={(e) => { onRename(e.target.value || item.title); setEditingLabel(false); }}
-          onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
-          style={{ ...inputStyle(false), fontWeight: 700 }} />
-      ) : (
-        <span onClick={() => isAdmin && setEditingLabel(true)} style={{ fontSize: 14.5, fontWeight: 700, color: C.green600, lineHeight: 1.35, paddingTop: 4, cursor: isAdmin ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6 }}>
-          {item.title}
-          {isAdmin && <Pencil size={11} style={{ opacity: 0.35 }} data-print="hide" />}
-          {isAdmin && (
-            <button data-print="hide" onClick={onRemove} title="Remove row" style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer", padding: 0, marginLeft: "auto" }}>
-              <X size={13} />
-            </button>
-          )}
-        </span>
-      )}
+        {isAdmin && editingLabel ? (
+          <input
+            autoFocus
+            defaultValue={item.title}
+            onBlur={(e) => {
+              onRename(e.target.value || item.title);
+              setEditingLabel(false);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+            style={{ ...inputStyle(false), fontWeight: 700 }}
+          />
+        ) : (
+          <span
+            onClick={() => isAdmin && setEditingLabel(true)}
+            style={{
+              fontSize: 14.5,
+              fontWeight: 700,
+              color: C.green600,
+              lineHeight: 1.35,
+              paddingTop: 4,
+              cursor: isAdmin ? "pointer" : "default",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {item.title}
+            {isAdmin && (
+              <Pencil size={11} style={{ opacity: 0.35 }} data-print="hide" />
+            )}
+            {isAdmin && (
+              <button
+                data-print="hide"
+                onClick={onRemove}
+                title="Remove row"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: C.inkFaint,
+                  cursor: "pointer",
+                  padding: 0,
+                  marginLeft: "auto",
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </span>
+        )}
 
-      {showDate && (
-        <input value={item.date} onChange={(e) => onProgress({ date: e.target.value })} placeholder="Date" style={inputStyle(false)} />
-      )}
-      <textarea value={item.notes} onChange={(e) => onProgress({ notes: e.target.value })} placeholder="Notes" rows={1} style={{ ...inputStyle(false), resize: "vertical", fontWeight: 600 }} />
-      <LinksCell links={item.links} canEdit={isAdmin} onAdd={onLinkAdd} onRemove={onLinkRemove} />
+        {showDate && (
+          <input
+            value={item.date}
+            onChange={(e) => onProgress({ date: e.target.value })}
+            placeholder="Date"
+            style={inputStyle(false)}
+          />
+        )}
+        <textarea
+          value={item.notes}
+          onChange={(e) => onProgress({ notes: e.target.value })}
+          placeholder="Notes"
+          rows={1}
+          style={{ ...inputStyle(false), resize: "vertical", fontWeight: 600 }}
+        />
+        <LinksCell
+          links={item.links}
+          canEdit={isAdmin}
+          onAdd={onLinkAdd}
+          onRemove={onLinkRemove}
+        />
       </div>
 
       {(isAdmin || hasComment) && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8, marginLeft: 46, background: C.amberBg, border: `1px solid ${C.amberLight}`, borderRadius: 8, padding: "7px 10px" }}>
-          <span style={{ fontSize: 10.5, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: C.amberText, paddingTop: 3, flexShrink: 0 }}>Admin note</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            marginTop: 8,
+            marginLeft: 46,
+            background: C.amberBg,
+            border: `1px solid ${C.amberLight}`,
+            borderRadius: 8,
+            padding: "7px 10px",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 900,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: C.amberText,
+              paddingTop: 3,
+              flexShrink: 0,
+            }}
+          >
+            Admin note
+          </span>
           {isAdmin ? (
             <textarea
               defaultValue={item.comment}
               onBlur={(e) => onProgress({ comment: e.target.value })}
               placeholder="Feedback visible to the staff member…"
               rows={1}
-              style={{ ...inputStyle(false), flex: 1, background: "#fff", resize: "vertical", fontSize: 12.5 }}
+              style={{
+                ...inputStyle(false),
+                flex: 1,
+                background: "#fff",
+                resize: "vertical",
+                fontSize: 12.5,
+              }}
             />
           ) : (
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.amberText }}>{item.comment}</span>
+            <span
+              style={{ fontSize: 12.5, fontWeight: 600, color: C.amberText }}
+            >
+              {item.comment}
+            </span>
           )}
         </div>
       )}
@@ -245,11 +556,23 @@ function MentorChip({ mentor, isAdmin, onSave }) {
   if (editing) {
     return (
       <input
-        autoFocus defaultValue={mentor}
-        onBlur={(e) => { onSave(e.target.value); setEditing(false); }}
+        autoFocus
+        defaultValue={mentor}
+        onBlur={(e) => {
+          onSave(e.target.value);
+          setEditing(false);
+        }}
         onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
         placeholder="Mentor name"
-        style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 700, border: `1px solid ${C.line}`, borderRadius: 20, padding: "5px 12px", width: 140 }}
+        style={{
+          fontFamily: FONT,
+          fontSize: 12.5,
+          fontWeight: 700,
+          border: `1px solid ${C.line}`,
+          borderRadius: 20,
+          padding: "5px 12px",
+          width: 140,
+        }}
       />
     );
   }
@@ -259,9 +582,18 @@ function MentorChip({ mentor, isAdmin, onSave }) {
       onClick={() => isAdmin && setEditing(true)}
       title="Confirmed mentor for this section"
       style={{
-        fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.green500, background: "#EAF3E0",
-        padding: "5px 12px", borderRadius: 20, flexShrink: 0, cursor: isAdmin ? "pointer" : "default",
-        display: "flex", alignItems: "center", gap: 5,
+        fontFamily: FONT,
+        fontSize: 12,
+        fontWeight: 700,
+        color: C.green500,
+        background: "#EAF3E0",
+        padding: "5px 12px",
+        borderRadius: 20,
+        flexShrink: 0,
+        cursor: isAdmin ? "pointer" : "default",
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
       }}
     >
       <Users2 size={11} /> {mentor || "Add mentor"}
@@ -292,10 +624,14 @@ function SectionCard({ section, isAdmin, showDate = true, onMutate, onToast }) {
     // signed-in user's own onboarding progress (staff_progress).
     const { comment, ...prog } = patch;
     if (comment !== undefined) {
-      saveTracked(() => db.updateAdminComment(itemId, comment)).catch(() => onToast("Couldn't save comment"));
+      saveTracked(() => db.updateAdminComment(itemId, comment)).catch(() =>
+        onToast("Couldn't save comment"),
+      );
     }
     if (Object.keys(prog).length) {
-      saveTracked(() => db.saveMyProgress(itemId, prog)).catch(() => onToast("Couldn't save — try again"));
+      saveTracked(() => db.saveMyProgress(itemId, prog)).catch(() =>
+        onToast("Couldn't save — try again"),
+      );
     }
   };
   const progress = (itemId, patch) => {
@@ -303,71 +639,220 @@ function SectionCard({ section, isAdmin, showDate = true, onMutate, onToast }) {
       const it = section.items.find((i) => i.id === itemId);
       Object.assign(it, patch);
     });
-    pendingPatch.current[itemId] = { ...(pendingPatch.current[itemId] || {}), ...patch };
+    pendingPatch.current[itemId] = {
+      ...(pendingPatch.current[itemId] || {}),
+      ...patch,
+    };
     clearTimeout(saveTimers.current[itemId]);
-    if ("done" in patch) { flush(itemId); return; }
+    if ("done" in patch) {
+      flush(itemId);
+      return;
+    }
     saveTimers.current[itemId] = setTimeout(() => flush(itemId), 700);
   };
   const addRow = async () => {
     const label = window.prompt("Item name");
     if (!label) return;
     try {
-      const item = await db.addItem({ section_id: section.id }, label, section.items.length);
-      onMutate((d) => { section.items.push({ id: item.id, title: label, showDate: true, done: false, date: "", notes: "", comment: "", links: [] }); });
-    } catch { onToast("Couldn't add row"); }
+      const item = await db.addItem(
+        { section_id: section.id },
+        label,
+        section.items.length,
+      );
+      onMutate((d) => {
+        section.items.push({
+          id: item.id,
+          title: label,
+          showDate: true,
+          done: false,
+          date: "",
+          notes: "",
+          comment: "",
+          links: [],
+        });
+      });
+    } catch {
+      onToast("Couldn't add row");
+    }
   };
   const saveMentor = async (mentor) => {
-    onMutate((d) => { section.mentor = mentor; });
-    saveTracked(() => db.updateSectionMentor(section.id, mentor)).catch(() => onToast("Couldn't save mentor"));
+    onMutate((d) => {
+      section.mentor = mentor;
+    });
+    saveTracked(() => db.updateSectionMentor(section.id, mentor)).catch(() =>
+      onToast("Couldn't save mentor"),
+    );
   };
 
   return (
-    <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(35,48,31,0.05)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", background: `linear-gradient(100deg, ${C.greenTintSoft}, #f8f9f1 70%)`, borderBottom: `1px solid ${C.line}` }}>
-        <div style={{ width: 8, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.green400}, ${C.green200})`, flexShrink: 0 }} />
+    <div
+      style={{
+        background: C.cardBg,
+        border: `1px solid ${C.line}`,
+        borderRadius: 16,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(35,48,31,0.05)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "16px 22px",
+          background: `linear-gradient(100deg, ${C.greenTintSoft}, #f8f9f1 70%)`,
+          borderBottom: `1px solid ${C.line}`,
+        }}
+      >
+        <div
+          style={{
+            width: 8,
+            height: 28,
+            borderRadius: 99,
+            background: `linear-gradient(180deg, ${C.green400}, ${C.green200})`,
+            flexShrink: 0,
+          }}
+        />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: C.ink, fontFamily: FONT }}>{section.title}</h3>
-          {section.note && <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginTop: 2 }}>{section.note}</div>}
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 17,
+              fontWeight: 900,
+              color: C.ink,
+              fontFamily: FONT,
+            }}
+          >
+            {section.title}
+          </h3>
+          {section.note && (
+            <div
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: C.inkSoft,
+                marginTop: 2,
+              }}
+            >
+              {section.note}
+            </div>
+          )}
         </div>
-        <MentorChip mentor={section.mentor} isAdmin={isAdmin} onSave={saveMentor} />
-        <span style={{ fontSize: 12.5, fontWeight: 800, color: complete ? "#fff" : C.green500, background: complete ? C.green400 : C.greenTint, borderRadius: 99, padding: "4px 12px", flexShrink: 0 }}>
+        <MentorChip
+          mentor={section.mentor}
+          isAdmin={isAdmin}
+          onSave={saveMentor}
+        />
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: 800,
+            color: complete ? "#fff" : C.green500,
+            background: complete ? C.green400 : C.greenTint,
+            borderRadius: 99,
+            padding: "4px 12px",
+            flexShrink: 0,
+          }}
+        >
           {done} / {total}
         </span>
       </div>
       <div style={{ padding: "8px 22px 18px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "10px 0 6px", fontSize: 11, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase", color: C.inkFaint, borderBottom: `1px solid ${C.lineSoft}` }}>
-          <span>Done</span><span>Item</span>{showDate && <span>Date</span>}<span>Notes</span><span>Links</span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: cols,
+            gap: 12,
+            padding: "10px 0 6px",
+            fontSize: 11,
+            fontWeight: 900,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            color: C.inkFaint,
+            borderBottom: `1px solid ${C.lineSoft}`,
+          }}
+        >
+          <span>Done</span>
+          <span>Item</span>
+          {showDate && <span>Date</span>}
+          <span>Notes</span>
+          <span>Links</span>
         </div>
         {section.items.map((item) => (
-          <ItemRow key={item.id} item={item} showDate={showDate} isAdmin={isAdmin}
+          <ItemRow
+            key={item.id}
+            item={item}
+            showDate={showDate}
+            isAdmin={isAdmin}
             onProgress={(patch) => progress(item.id, patch)}
             onLinkAdd={async (label, url) => {
               try {
-                const link = await db.addLink(item.id, label, url, item.links.length);
-                onMutate((d) => { item.links.push({ id: link.id, label, url }); });
-              } catch { onToast("Couldn't add link"); }
+                const link = await db.addLink(
+                  item.id,
+                  label,
+                  url,
+                  item.links.length,
+                );
+                onMutate((d) => {
+                  item.links.push({ id: link.id, label, url });
+                });
+              } catch {
+                onToast("Couldn't add link");
+              }
             }}
             onLinkRemove={async (linkId) => {
-              try { await db.removeLink(linkId); onMutate((d) => { item.links = item.links.filter((l) => l.id !== linkId); }); }
-              catch { onToast("Couldn't remove link"); }
+              try {
+                await db.removeLink(linkId);
+                onMutate((d) => {
+                  item.links = item.links.filter((l) => l.id !== linkId);
+                });
+              } catch {
+                onToast("Couldn't remove link");
+              }
             }}
             onRename={async (label) => {
-              try { await db.renameItem(item.id, label); onMutate((d) => { item.title = label; }); }
-              catch { onToast("Couldn't rename row"); }
+              try {
+                await db.renameItem(item.id, label);
+                onMutate((d) => {
+                  item.title = label;
+                });
+              } catch {
+                onToast("Couldn't rename row");
+              }
             }}
             onRemove={async () => {
               if (!window.confirm(`Remove "${item.title}"?`)) return;
-              try { await db.deleteItem(item.id); onMutate((d) => { section.items = section.items.filter((i) => i.id !== item.id); }); }
-              catch { onToast("Couldn't remove row"); }
+              try {
+                await db.deleteItem(item.id);
+                onMutate((d) => {
+                  section.items = section.items.filter((i) => i.id !== item.id);
+                });
+              } catch {
+                onToast("Couldn't remove row");
+              }
             }}
           />
         ))}
         {isAdmin && (
-          <button onClick={addRow} data-print="hide" style={{
-            marginTop: 12, display: "flex", alignItems: "center", gap: 8, border: `1px dashed #b7c4a8`,
-            background: "#f8faf2", color: C.green500, borderRadius: 10, padding: "8px 16px", fontSize: 13,
-            fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-          }}>
+          <button
+            onClick={addRow}
+            data-print="hide"
+            style={{
+              marginTop: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              border: `1px dashed #b7c4a8`,
+              background: "#f8faf2",
+              color: C.green500,
+              borderRadius: 10,
+              padding: "8px 16px",
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: "pointer",
+              fontFamily: FONT,
+            }}
+          >
             <Plus size={13} /> Add row
           </button>
         )}
@@ -385,22 +870,107 @@ function PhaseBlock({ phase, num, isAdmin, onMutate, onToast }) {
   const p = pct(done, total);
 
   return (
-    <section id={`phase-${phase.id}`} style={{ display: "flex", flexDirection: "column", gap: 20, scrollMarginTop: 74 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, borderRadius: 16, padding: "18px 24px", background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`, color: "#fdfdf8", boxShadow: "0 6px 18px rgba(30,77,43,0.22)" }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#e8f0d8", flexShrink: 0 }}>{num}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>{phase.label}</h2>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.cream, marginTop: 2 }}>{phase.subtitle}</div>
+    <section
+      id={`phase-${phase.id}`}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        scrollMarginTop: 74,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          borderRadius: 16,
+          padding: "18px 24px",
+          background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`,
+          color: "#fdfdf8",
+          boxShadow: "0 6px 18px rgba(30,77,43,0.22)",
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.16)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            fontWeight: 900,
+            color: "#e8f0d8",
+            flexShrink: 0,
+          }}
+        >
+          {num}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{ width: 110, height: 8, borderRadius: 99, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 99, background: "#d5e4b5", width: `${p}%`, transition: "width 0.4s ease" }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 900,
+              letterSpacing: "-0.01em",
+              fontFamily: FONT,
+            }}
+          >
+            {phase.label}
+          </h2>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.cream,
+              marginTop: 2,
+            }}
+          >
+            {phase.subtitle}
           </div>
-          <span style={{ fontSize: 13, fontWeight: 800, color: "#e8f0d8" }}>{p}%</span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 110,
+              height: 8,
+              borderRadius: 99,
+              background: "rgba(255,255,255,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 99,
+                background: "#d5e4b5",
+                width: `${p}%`,
+                transition: "width 0.4s ease",
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#e8f0d8" }}>
+            {p}%
+          </span>
         </div>
       </div>
       {phase.sections.map((s) => (
-        <SectionCard key={s.id} section={s} isAdmin={isAdmin} onMutate={onMutate} onToast={onToast} />
+        <SectionCard
+          key={s.id}
+          section={s}
+          isAdmin={isAdmin}
+          onMutate={onMutate}
+          onToast={onToast}
+        />
       ))}
     </section>
   );
@@ -408,13 +978,33 @@ function PhaseBlock({ phase, num, isAdmin, onMutate, onToast }) {
 function BulletListView({ items, editable, onChange, placeholder }) {
   if (!editable) {
     return (
-      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-        {items.length === 0 && <li style={{ color: C.inkFaint, listStyle: "none", marginLeft: -18 }}>—</li>}
-        {items.map((v, i) => <li key={i} style={{ fontSize: 13.5, color: C.ink, fontWeight: 600 }}>{v}</li>)}
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 18,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {items.length === 0 && (
+          <li style={{ color: C.inkFaint, listStyle: "none", marginLeft: -18 }}>
+            —
+          </li>
+        )}
+        {items.map((v, i) => (
+          <li key={i} style={{ fontSize: 13.5, color: C.ink, fontWeight: 600 }}>
+            {v}
+          </li>
+        ))}
       </ul>
     );
   }
-  const update = (i, val) => { const next = [...items]; next[i] = val; onChange(next); };
+  const update = (i, val) => {
+    const next = [...items];
+    next[i] = val;
+    onChange(next);
+  };
   const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
   const add = () => onChange([...items, ""]);
   return (
@@ -422,11 +1012,28 @@ function BulletListView({ items, editable, onChange, placeholder }) {
       {items.map((v, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: C.green400, fontWeight: 900 }}>•</span>
-          <input value={v} onChange={(e) => update(i, e.target.value)} placeholder={placeholder} style={{ ...inputStyle(false), flex: 1 }} />
-          <button onClick={() => remove(i)} style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer" }}><X size={13} /></button>
+          <input
+            value={v}
+            onChange={(e) => update(i, e.target.value)}
+            placeholder={placeholder}
+            style={{ ...inputStyle(false), flex: 1 }}
+          />
+          <button
+            onClick={() => remove(i)}
+            style={{
+              background: "none",
+              border: "none",
+              color: C.inkFaint,
+              cursor: "pointer",
+            }}
+          >
+            <X size={13} />
+          </button>
         </div>
       ))}
-      <button onClick={add} style={addSmallBtn}><Plus size={12} /> Add</button>
+      <button onClick={add} style={addSmallBtn}>
+        <Plus size={12} /> Add
+      </button>
     </div>
   );
 }
@@ -435,127 +1042,358 @@ function MiniChecklistView({ items, editable, onChange }) {
   if (!editable) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.length === 0 && <span style={{ color: C.inkFaint, fontSize: 13 }}>—</span>}
+        {items.length === 0 && (
+          <span style={{ color: C.inkFaint, fontSize: 13 }}>—</span>
+        )}
         {items.map((it, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${it.done ? C.green400 : "#c2cdb6"}`, background: it.done ? C.green400 : "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          <div
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 5,
+                border: `2px solid ${it.done ? C.green400 : "#c2cdb6"}`,
+                background: it.done ? C.green400 : "#fff",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               {it.done && <Check size={11} color="#fff" />}
             </span>
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: it.done ? C.inkSoft : C.ink, textDecoration: it.done ? "line-through" : "none" }}>{it.label || "—"}</span>
+            <span
+              style={{
+                fontSize: 13.5,
+                fontWeight: 600,
+                color: it.done ? C.inkSoft : C.ink,
+                textDecoration: it.done ? "line-through" : "none",
+              }}
+            >
+              {it.label || "—"}
+            </span>
           </div>
         ))}
       </div>
     );
   }
-  const toggle = (i) => onChange(items.map((it, idx) => (idx === i ? { ...it, done: !it.done } : it)));
-  const setLabel = (i, label) => onChange(items.map((it, idx) => (idx === i ? { ...it, label } : it)));
+  const toggle = (i) =>
+    onChange(
+      items.map((it, idx) => (idx === i ? { ...it, done: !it.done } : it)),
+    );
+  const setLabel = (i, label) =>
+    onChange(items.map((it, idx) => (idx === i ? { ...it, label } : it)));
   const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
   const add = () => onChange([...items, { label: "", done: false }]);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {items.map((it, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => toggle(i)} className="check-box" style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${it.done ? C.green400 : "#c2cdb6"}`, background: it.done ? C.green400 : "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <button
+            onClick={() => toggle(i)}
+            className="check-box"
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 6,
+              border: `2px solid ${it.done ? C.green400 : "#c2cdb6"}`,
+              background: it.done ? C.green400 : "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
             {it.done && <Check size={12} color="#fff" />}
           </button>
-          <input value={it.label} onChange={(e) => setLabel(i, e.target.value)} placeholder="Describe this item" style={{ ...inputStyle(false), flex: 1 }} />
-          <button onClick={() => remove(i)} style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer" }}><X size={13} /></button>
+          <input
+            value={it.label}
+            onChange={(e) => setLabel(i, e.target.value)}
+            placeholder="Describe this item"
+            style={{ ...inputStyle(false), flex: 1 }}
+          />
+          <button
+            onClick={() => remove(i)}
+            style={{
+              background: "none",
+              border: "none",
+              color: C.inkFaint,
+              cursor: "pointer",
+            }}
+          >
+            <X size={13} />
+          </button>
         </div>
       ))}
-      <button onClick={add} style={addSmallBtn}><Plus size={12} /> Add</button>
+      <button onClick={add} style={addSmallBtn}>
+        <Plus size={12} /> Add
+      </button>
     </div>
   );
 }
 
 function MaterialsListView({ materials, editable, onChange }) {
-  const [label, setLabel] = useState(""); const [url, setUrl] = useState(""); const [type, setType] = useState("doc");
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const [type, setType] = useState("doc");
   const submit = () => {
     if (!label.trim()) return;
     let u = url.trim();
     if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
     onChange([...materials, { type, label: label.trim(), url: u }]);
-    setLabel(""); setUrl("");
+    setLabel("");
+    setUrl("");
   };
   const remove = (i) => onChange(materials.filter((_, idx) => idx !== i));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {materials.length === 0 && !editable && <span style={{ color: C.inkFaint, fontSize: 13 }}>—</span>}
+      {materials.length === 0 && !editable && (
+        <span style={{ color: C.inkFaint, fontSize: 13 }}>—</span>
+      )}
       {materials.map((m, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 16 }}>{m.type === "video" ? "🎥" : "📄"}</span>
+          <span style={{ fontSize: 16 }}>
+            {m.type === "video" ? "🎥" : "📄"}
+          </span>
           {m.url ? (
-            <a href={m.url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 700, color: C.green500, flex: 1 }}>{m.label}</a>
+            <a
+              href={m.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: C.green500,
+                flex: 1,
+              }}
+            >
+              {m.label}
+            </a>
           ) : (
-            <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, flex: 1 }}>{m.label}</span>
+            <span
+              style={{ fontSize: 14, fontWeight: 700, color: C.ink, flex: 1 }}
+            >
+              {m.label}
+            </span>
           )}
-          {editable && <button onClick={() => remove(i)} style={{ background: "none", border: "none", color: C.inkFaint, cursor: "pointer" }}><X size={13} /></button>}
+          {editable && (
+            <button
+              onClick={() => remove(i)}
+              style={{
+                background: "none",
+                border: "none",
+                color: C.inkFaint,
+                cursor: "pointer",
+              }}
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
       ))}
       {editable && (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => setType(type === "doc" ? "video" : "doc")} title="Toggle document / video" style={{ border: `1px solid ${C.line}`, borderRadius: 8, background: "#fff", cursor: "pointer", padding: "6px 9px", fontSize: 14 }}>{type === "video" ? "🎥" : "📄"}</button>
-          <input placeholder="Material name" value={label} onChange={(e) => setLabel(e.target.value)} style={{ ...inputStyle(false), flex: 1.2 }} />
-          <input placeholder="Link (optional)" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={{ ...inputStyle(false), flex: 1.2 }} />
-          <button onClick={submit} style={{ ...smallBtn, background: C.green400, color: "#fff", border: "none" }}>Add</button>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            marginTop: 4,
+          }}
+        >
+          <button
+            onClick={() => setType(type === "doc" ? "video" : "doc")}
+            title="Toggle document / video"
+            style={{
+              border: `1px solid ${C.line}`,
+              borderRadius: 8,
+              background: "#fff",
+              cursor: "pointer",
+              padding: "6px 9px",
+              fontSize: 14,
+            }}
+          >
+            {type === "video" ? "🎥" : "📄"}
+          </button>
+          <input
+            placeholder="Material name"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            style={{ ...inputStyle(false), flex: 1.2 }}
+          />
+          <input
+            placeholder="Link (optional)"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            style={{ ...inputStyle(false), flex: 1.2 }}
+          />
+          <button
+            onClick={submit}
+            style={{
+              ...smallBtn,
+              background: C.green400,
+              color: "#fff",
+              border: "none",
+            }}
+          >
+            Add
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-const fieldLabel = { display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, fontWeight: 800, color: C.amberText, fontFamily: FONT };
-const fieldTitle = { fontSize: 12.5, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: C.amberText, marginBottom: 8, fontFamily: FONT };
+const fieldLabel = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  fontSize: 12.5,
+  fontWeight: 800,
+  color: C.amberText,
+  fontFamily: FONT,
+};
+const fieldTitle = {
+  fontSize: 12.5,
+  fontWeight: 900,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: C.amberText,
+  marginBottom: 8,
+  fontFamily: FONT,
+};
 
 function SignOffCard({ signoff, editable, onSave }) {
   const [local, setLocal] = useState(signoff);
   useEffect(() => setLocal(signoff), [signoff]);
-  const set = (patch) => { const next = { ...local, ...patch }; setLocal(next); onSave(next); };
+  const set = (patch) => {
+    const next = { ...local, ...patch };
+    setLocal(next);
+    onSave(next);
+  };
 
-  const Field = ({ label, value, field, textarea }) => editable ? (
-    <label style={fieldLabel}>{label}
-      {textarea
-        ? <textarea value={local[field]} onChange={(e) => set({ [field]: e.target.value })} rows={2} style={{ ...inputStyle(false), resize: "vertical" }} />
-        : <input value={local[field]} onChange={(e) => set({ [field]: e.target.value })} style={inputStyle(false)} />}
-    </label>
-  ) : (
-    <div>
-      <div style={fieldTitle}>{label}</div>
-      <div style={{ fontSize: 13.5, color: C.ink, fontWeight: 600 }}>{value || "—"}</div>
-    </div>
-  );
+  const Field = ({ label, value, field, textarea }) =>
+    editable ? (
+      <label style={fieldLabel}>
+        {label}
+        {textarea ? (
+          <textarea
+            value={local[field]}
+            onChange={(e) => set({ [field]: e.target.value })}
+            rows={2}
+            style={{ ...inputStyle(false), resize: "vertical" }}
+          />
+        ) : (
+          <input
+            value={local[field]}
+            onChange={(e) => set({ [field]: e.target.value })}
+            style={inputStyle(false)}
+          />
+        )}
+      </label>
+    ) : (
+      <div>
+        <div style={fieldTitle}>{label}</div>
+        <div style={{ fontSize: 13.5, color: C.ink, fontWeight: 600 }}>
+          {value || "—"}
+        </div>
+      </div>
+    );
 
   return (
-    <div style={{ background: C.amberBg, border: `2px dashed ${C.amberLight}`, borderRadius: 16, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+    <div
+      style={{
+        background: C.amberBg,
+        border: `2px dashed ${C.amberLight}`,
+        borderRadius: 16,
+        padding: "20px 24px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 18,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase", color: "#fff", background: C.amber, borderRadius: 6, padding: "4px 10px" }}>Sign-Off</span>
-        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.amberText, fontFamily: FONT }}>Assessment &amp; sign-off record</h4>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 900,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            color: "#fff",
+            background: C.amber,
+            borderRadius: 6,
+            padding: "4px 10px",
+          }}
+        >
+          Sign-Off
+        </span>
+        <h4
+          style={{
+            margin: 0,
+            fontSize: 16,
+            fontWeight: 900,
+            color: C.amberText,
+            fontFamily: FONT,
+          }}
+        >
+          Assessment &amp; sign-off record
+        </h4>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <Field label="Target Completion" value={local.targetCompletion} field="targetCompletion" />
+        <Field
+          label="Target Completion"
+          value={local.targetCompletion}
+          field="targetCompletion"
+        />
         <Field label="Subject Matter Expert" value={local.sme} field="sme" />
       </div>
 
-      <Field label="Overview" value={local.overview} field="overview" textarea />
+      <Field
+        label="Overview"
+        value={local.overview}
+        field="overview"
+        textarea
+      />
 
       <div>
         <div style={fieldTitle}>Learning Outcomes</div>
-        <BulletListView items={local.learningOutcomes} editable={editable} onChange={(v) => set({ learningOutcomes: v })} placeholder="Understand…" />
+        <BulletListView
+          items={local.learningOutcomes}
+          editable={editable}
+          onChange={(v) => set({ learningOutcomes: v })}
+          placeholder="Understand…"
+        />
       </div>
 
       <div>
         <div style={fieldTitle}>Training Materials</div>
-        <MaterialsListView materials={local.materials} editable={editable} onChange={(v) => set({ materials: v })} />
+        <MaterialsListView
+          materials={local.materials}
+          editable={editable}
+          onChange={(v) => set({ materials: v })}
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div>
           <div style={fieldTitle}>Assessment</div>
-          <MiniChecklistView items={local.assessment} editable={editable} onChange={(v) => set({ assessment: v })} />
+          <MiniChecklistView
+            items={local.assessment}
+            editable={editable}
+            onChange={(v) => set({ assessment: v })}
+          />
         </div>
         <div>
           <div style={fieldTitle}>Evidence</div>
-          <MiniChecklistView items={local.evidence} editable={editable} onChange={(v) => set({ evidence: v })} />
+          <MiniChecklistView
+            items={local.evidence}
+            editable={editable}
+            onChange={(v) => set({ evidence: v })}
+          />
         </div>
       </div>
 
@@ -566,22 +1404,56 @@ function SignOffCard({ signoff, editable, onSave }) {
             {["Still Developing", "Competent"].map((label) => {
               const active = local.outcome === label;
               return (
-                <button key={label} className="check-box" onClick={() => set({ outcome: active ? null : label })} style={{
-                  border: `1.5px solid ${active ? C.green400 : C.line}`, background: active ? C.green400 : "#fff",
-                  color: active ? "#fff" : C.ink, borderRadius: 99, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-                }}>{label}</button>
+                <button
+                  key={label}
+                  className="check-box"
+                  onClick={() => set({ outcome: active ? null : label })}
+                  style={{
+                    border: `1.5px solid ${active ? C.green400 : C.line}`,
+                    background: active ? C.green400 : "#fff",
+                    color: active ? "#fff" : C.ink,
+                    borderRadius: 99,
+                    padding: "8px 18px",
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                  }}
+                >
+                  {label}
+                </button>
               );
             })}
           </div>
         ) : (
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: local.outcome === "Competent" ? C.green500 : C.inkSoft }}>{local.outcome || "Not yet assessed"}</span>
+          <span
+            style={{
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: local.outcome === "Competent" ? C.green500 : C.inkSoft,
+            }}
+          >
+            {local.outcome || "Not yet assessed"}
+          </span>
         )}
       </div>
 
       <Field label="Assessed By" value={local.assessedBy} field="assessedBy" />
 
-      <div style={{ borderTop: `1px solid ${C.amberLight}`, paddingTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <Field label="SME Sign-Off — Name" value={local.signName} field="signName" />
+      <div
+        style={{
+          borderTop: `1px solid ${C.amberLight}`,
+          paddingTop: 16,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+        }}
+      >
+        <Field
+          label="SME Sign-Off — Name"
+          value={local.signName}
+          field="signName"
+        />
         <Field label="Date" value={local.signDate} field="signDate" />
       </div>
     </div>
@@ -592,17 +1464,32 @@ function SignOffCard({ signoff, editable, onSave }) {
 // exhaustive or exact for every possible module title an admin might add.
 function matchLibraryTopic(title) {
   const t = (title || "").toLowerCase();
-  if (t.includes("legislation") || t.includes("pathway") || t.includes("approval")) return "Pathways & Legislation";
+  if (
+    t.includes("legislation") ||
+    t.includes("pathway") ||
+    t.includes("approval")
+  )
+    return "Pathways & Legislation";
   if (t.includes("flora") || t.includes("habitat")) return "Flora";
   if (t.includes("fauna")) return "Fauna";
   if (t.includes("report")) return "Reporting";
-  if (t.includes("gis") || t.includes("mapping") || t.includes("spatial")) return "GIS";
-  if (t.includes("business") || t.includes("operations")) return "Business Operations";
+  if (t.includes("gis") || t.includes("mapping") || t.includes("spatial"))
+    return "GIS";
+  if (t.includes("business") || t.includes("operations"))
+    return "Business Operations";
   if (t.includes("project") || t.includes("delivery")) return "Projects";
   return null;
 }
 
-function ModuleBlock({ month, module, idx, isAdmin, onMutate, onToast, onGoToLibraryTopic }) {
+function ModuleBlock({
+  month,
+  module,
+  idx,
+  isAdmin,
+  onMutate,
+  onToast,
+  onGoToLibraryTopic,
+}) {
   const [open, setOpen] = useState(idx === 0);
   const [editingTitle, setEditingTitle] = useState(false);
   const { done, total } = moduleCounts(module);
@@ -616,123 +1503,339 @@ function ModuleBlock({ month, module, idx, isAdmin, onMutate, onToast, onGoToLib
     const patch = pendingPatch.current[itemId];
     if (!patch) return;
     pendingPatch.current[itemId] = null;
-    saveTracked(() => db.saveItemProgress(itemId, patch, undefined)).catch(() => onToast("Couldn't save — try again"));
+    saveTracked(() => db.saveItemProgress(itemId, patch, undefined)).catch(() =>
+      onToast("Couldn't save — try again"),
+    );
   };
   const progress = (itemId, patch) => {
-    onMutate((d) => { Object.assign(module.subheadings.find((s) => s.id === itemId), patch); });
-    pendingPatch.current[itemId] = { ...(pendingPatch.current[itemId] || {}), ...patch };
+    onMutate((d) => {
+      Object.assign(
+        module.subheadings.find((s) => s.id === itemId),
+        patch,
+      );
+    });
+    pendingPatch.current[itemId] = {
+      ...(pendingPatch.current[itemId] || {}),
+      ...patch,
+    };
     clearTimeout(saveTimers.current[itemId]);
-    if ("done" in patch) { flush(itemId); return; }
+    if ("done" in patch) {
+      flush(itemId);
+      return;
+    }
     saveTimers.current[itemId] = setTimeout(() => flush(itemId), 700);
   };
 
   const saveSignoff = (next) => {
-    onMutate((d) => { module.signoff = next; });
+    onMutate((d) => {
+      module.signoff = next;
+    });
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      saveTracked(() => db.updateSignoff(module.id, next)).catch(() => onToast("Couldn't save sign-off"));
+      saveTracked(() => db.updateSignoff(module.id, next)).catch(() =>
+        onToast("Couldn't save sign-off"),
+      );
     }, 500);
   };
 
   const saveTitle = (title) => {
     const clean = title.trim() || module.title;
-    onMutate((d) => { module.title = clean; });
+    onMutate((d) => {
+      module.title = clean;
+    });
     setEditingTitle(false);
-    saveTracked(() => db.updateModule(module.id, { title: clean })).catch(() => onToast("Couldn't save module heading"));
+    saveTracked(() => db.updateModule(module.id, { title: clean })).catch(() =>
+      onToast("Couldn't save module heading"),
+    );
   };
 
   const deleteModule = async () => {
-    if (!window.confirm(`Delete "${module.title}" and all its content?`)) return;
+    if (!window.confirm(`Delete "${module.title}" and all its content?`))
+      return;
     try {
       await db.deleteModule(module.id);
-      onMutate((d) => { month.modules = month.modules.filter((m) => m.id !== module.id); });
-    } catch { onToast("Couldn't delete module"); }
+      onMutate((d) => {
+        month.modules = month.modules.filter((m) => m.id !== module.id);
+      });
+    } catch {
+      onToast("Couldn't delete module");
+    }
   };
 
   const addTopic = async () => {
     const label = window.prompt("Topic name");
     if (!label) return;
     try {
-      const item = await db.addItem({ module_id: module.id }, label, module.subheadings.length);
-      onMutate((d) => { module.subheadings.push({ id: item.id, title: label, showDate: false, done: false, date: "", notes: "", comment: "", links: [] }); });
-    } catch { onToast("Couldn't add topic"); }
+      const item = await db.addItem(
+        { module_id: module.id },
+        label,
+        module.subheadings.length,
+      );
+      onMutate((d) => {
+        module.subheadings.push({
+          id: item.id,
+          title: label,
+          showDate: false,
+          done: false,
+          date: "",
+          notes: "",
+          comment: "",
+          links: [],
+        });
+      });
+    } catch {
+      onToast("Couldn't add topic");
+    }
   };
 
   return (
-    <div style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(35,48,31,0.05)" }}>
-      <div onClick={() => !editingTitle && setOpen((o) => !o)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", background: `linear-gradient(100deg, ${C.greenTintSoft}, #f8f9f1 70%)`, cursor: editingTitle ? "default" : "pointer", borderBottom: open ? `1px solid ${C.line}` : "none" }}>
-        <div style={{ width: 8, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.green400}, ${C.green200})`, flexShrink: 0 }} />
+    <div
+      style={{
+        background: C.cardBg,
+        border: `1px solid ${C.line}`,
+        borderRadius: 16,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(35,48,31,0.05)",
+      }}
+    >
+      <div
+        onClick={() => !editingTitle && setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "16px 22px",
+          background: `linear-gradient(100deg, ${C.greenTintSoft}, #f8f9f1 70%)`,
+          cursor: editingTitle ? "default" : "pointer",
+          borderBottom: open ? `1px solid ${C.line}` : "none",
+        }}
+      >
+        <div
+          style={{
+            width: 8,
+            height: 28,
+            borderRadius: 99,
+            background: `linear-gradient(180deg, ${C.green400}, ${C.green200})`,
+            flexShrink: 0,
+          }}
+        />
         <div style={{ flex: 1, minWidth: 0 }}>
           {isAdmin && editingTitle ? (
             <input
-              autoFocus defaultValue={module.title} onClick={(e) => e.stopPropagation()}
+              autoFocus
+              defaultValue={module.title}
+              onClick={(e) => e.stopPropagation()}
               onBlur={(e) => saveTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
               style={{ ...inputStyle(false), fontWeight: 900, fontSize: 15 }}
             />
           ) : (
             <h3
-              onClick={(e) => { if (isAdmin) { e.stopPropagation(); setEditingTitle(true); } }}
-              style={{ margin: 0, fontSize: 16.5, fontWeight: 900, color: C.ink, fontFamily: FONT, cursor: isAdmin ? "text" : "default", display: "flex", alignItems: "center", gap: 6 }}
+              onClick={(e) => {
+                if (isAdmin) {
+                  e.stopPropagation();
+                  setEditingTitle(true);
+                }
+              }}
+              style={{
+                margin: 0,
+                fontSize: 16.5,
+                fontWeight: 900,
+                color: C.ink,
+                fontFamily: FONT,
+                cursor: isAdmin ? "text" : "default",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
             >
               {idx + 1}. {module.title}
-              {isAdmin && <Pencil size={11} style={{ opacity: 0.35, flexShrink: 0 }} data-print="hide" />}
+              {isAdmin && (
+                <Pencil
+                  size={11}
+                  style={{ opacity: 0.35, flexShrink: 0 }}
+                  data-print="hide"
+                />
+              )}
             </h3>
           )}
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.inkSoft, marginTop: 2 }}>SME: {module.sme}</div>
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: C.inkSoft,
+              marginTop: 2,
+            }}
+          >
+            SME: {module.sme}
+          </div>
         </div>
-        <span style={{ fontSize: 12.5, fontWeight: 800, color: p === 100 ? "#fff" : C.green500, background: p === 100 ? C.green400 : C.greenTint, borderRadius: 99, padding: "4px 12px", flexShrink: 0 }}>{done} / {total}</span>
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: 800,
+            color: p === 100 ? "#fff" : C.green500,
+            background: p === 100 ? C.green400 : C.greenTint,
+            borderRadius: 99,
+            padding: "4px 12px",
+            flexShrink: 0,
+          }}
+        >
+          {done} / {total}
+        </span>
         {isAdmin && (
-          <button data-print="hide" onClick={(e) => { e.stopPropagation(); deleteModule(); }} title="Delete module" style={{ background: "none", border: "none", color: C.rust, cursor: "pointer" }}>
+          <button
+            data-print="hide"
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteModule();
+            }}
+            title="Delete module"
+            style={{
+              background: "none",
+              border: "none",
+              color: C.rust,
+              cursor: "pointer",
+            }}
+          >
             <X size={16} />
           </button>
         )}
-        <span data-print="hide">{open ? <ChevronDown size={18} color={C.inkSoft} /> : <ChevronRight size={18} color={C.inkSoft} />}</span>
+        <span data-print="hide">
+          {open ? (
+            <ChevronDown size={18} color={C.inkSoft} />
+          ) : (
+            <ChevronRight size={18} color={C.inkSoft} />
+          )}
+        </span>
       </div>
 
-      <div className="module-body" style={{ padding: "8px 22px 22px", display: open ? "flex" : "none", flexDirection: "column", gap: 18 }}>
+      <div
+        className="module-body"
+        style={{
+          padding: "8px 22px 22px",
+          display: open ? "flex" : "none",
+          flexDirection: "column",
+          gap: 18,
+        }}
+      >
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "34px minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.85fr)", gap: 12, padding: "10px 0 6px", fontSize: 11, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase", color: C.inkFaint, borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span>Done</span><span>Topic</span><span>Notes</span><span>Links</span>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "34px minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.85fr)",
+              gap: 12,
+              padding: "10px 0 6px",
+              fontSize: 11,
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+              color: C.inkFaint,
+              borderBottom: `1px solid ${C.lineSoft}`,
+            }}
+          >
+            <span>Done</span>
+            <span>Topic</span>
+            <span>Notes</span>
+            <span>Links</span>
           </div>
           {module.subheadings.map((s) => (
-            <ItemRow key={s.id} item={s} showDate={false} isAdmin={isAdmin}
+            <ItemRow
+              key={s.id}
+              item={s}
+              showDate={false}
+              isAdmin={isAdmin}
               onProgress={(patch) => progress(s.id, patch)}
               onLinkAdd={async (label, url) => {
-                try { const link = await db.addLink(s.id, label, url, s.links.length); onMutate((d) => { s.links.push({ id: link.id, label, url }); }); }
-                catch { onToast("Couldn't add link"); }
+                try {
+                  const link = await db.addLink(
+                    s.id,
+                    label,
+                    url,
+                    s.links.length,
+                  );
+                  onMutate((d) => {
+                    s.links.push({ id: link.id, label, url });
+                  });
+                } catch {
+                  onToast("Couldn't add link");
+                }
               }}
               onLinkRemove={async (linkId) => {
-                try { await db.removeLink(linkId); onMutate((d) => { s.links = s.links.filter((l) => l.id !== linkId); }); }
-                catch { onToast("Couldn't remove link"); }
+                try {
+                  await db.removeLink(linkId);
+                  onMutate((d) => {
+                    s.links = s.links.filter((l) => l.id !== linkId);
+                  });
+                } catch {
+                  onToast("Couldn't remove link");
+                }
               }}
               onRename={async (label) => {
-                try { await db.renameItem(s.id, label); onMutate((d) => { s.title = label; }); }
-                catch { onToast("Couldn't rename topic"); }
+                try {
+                  await db.renameItem(s.id, label);
+                  onMutate((d) => {
+                    s.title = label;
+                  });
+                } catch {
+                  onToast("Couldn't rename topic");
+                }
               }}
               onRemove={async () => {
                 if (!window.confirm(`Remove "${s.title}"?`)) return;
-                try { await db.deleteItem(s.id); onMutate((d) => { module.subheadings = module.subheadings.filter((x) => x.id !== s.id); }); }
-                catch { onToast("Couldn't remove topic"); }
+                try {
+                  await db.deleteItem(s.id);
+                  onMutate((d) => {
+                    module.subheadings = module.subheadings.filter(
+                      (x) => x.id !== s.id,
+                    );
+                  });
+                } catch {
+                  onToast("Couldn't remove topic");
+                }
               }}
             />
           ))}
           {isAdmin && (
-            <button data-print="hide" onClick={addTopic} style={{ ...addSmallBtn, marginTop: 10 }}>
+            <button
+              data-print="hide"
+              onClick={addTopic}
+              style={{ ...addSmallBtn, marginTop: 10 }}
+            >
               <Plus size={12} /> Add topic
             </button>
           )}
         </div>
         {libraryTopic && onGoToLibraryTopic && (
-          <button data-print="hide" onClick={() => onGoToLibraryTopic(libraryTopic)} style={{
-            alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, background: C.greenTintSoft,
-            border: `1px solid ${C.greenTint}`, borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800,
-            color: C.green700, cursor: "pointer", fontFamily: FONT,
-          }}>
-            <BookOpen size={13} /> Related resources &amp; quizzes ({libraryTopic}) →
+          <button
+            data-print="hide"
+            onClick={() => onGoToLibraryTopic(libraryTopic)}
+            style={{
+              alignSelf: "flex-start",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: C.greenTintSoft,
+              border: `1px solid ${C.greenTint}`,
+              borderRadius: 8,
+              padding: "8px 14px",
+              fontSize: 12.5,
+              fontWeight: 800,
+              color: C.green700,
+              cursor: "pointer",
+              fontFamily: FONT,
+            }}
+          >
+            <BookOpen size={13} /> Related resources &amp; quizzes (
+            {libraryTopic}) →
           </button>
         )}
-        <SignOffCard signoff={module.signoff} editable={isAdmin} onSave={saveSignoff} />
+        <SignOffCard
+          signoff={module.signoff}
+          editable={isAdmin}
+          onSave={saveSignoff}
+        />
       </div>
     </div>
   );
@@ -743,75 +1846,226 @@ function MonthNameEditable({ month, isAdmin, onSave }) {
   if (isAdmin && editing) {
     return (
       <input
-        autoFocus defaultValue={month.name}
-        onBlur={(e) => { onSave(e.target.value.trim() || month.name); setEditing(false); }}
+        autoFocus
+        defaultValue={month.name}
+        onBlur={(e) => {
+          onSave(e.target.value.trim() || month.name);
+          setEditing(false);
+        }}
         onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
-        style={{ ...inputStyle(false), width: 160, fontWeight: 900, fontSize: 14, letterSpacing: "0.02em", textTransform: "uppercase" }}
+        style={{
+          ...inputStyle(false),
+          width: 160,
+          fontWeight: 900,
+          fontSize: 14,
+          letterSpacing: "0.02em",
+          textTransform: "uppercase",
+        }}
       />
     );
   }
   return (
     <h3
       onClick={() => isAdmin && setEditing(true)}
-      style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.green600, fontFamily: FONT, letterSpacing: "0.02em", textTransform: "uppercase", cursor: isAdmin ? "text" : "default", display: "flex", alignItems: "center", gap: 5 }}
+      style={{
+        margin: 0,
+        fontSize: 15,
+        fontWeight: 900,
+        color: C.green600,
+        fontFamily: FONT,
+        letterSpacing: "0.02em",
+        textTransform: "uppercase",
+        cursor: isAdmin ? "text" : "default",
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+      }}
     >
       {month.name}
-      {isAdmin && <Pencil size={10} style={{ opacity: 0.35 }} data-print="hide" />}
+      {isAdmin && (
+        <Pencil size={10} style={{ opacity: 0.35 }} data-print="hide" />
+      )}
     </h3>
   );
 }
 
-function LDPhase({ ldMonths, num, isAdmin, onMutate, onToast, onGoToLibraryTopic }) {
+function LDPhase({
+  ldMonths,
+  num,
+  isAdmin,
+  onMutate,
+  onToast,
+  onGoToLibraryTopic,
+}) {
   const { done, total } = ldCounts(ldMonths);
   const p = pct(done, total);
 
   const addMonth = async () => {
-    const name = window.prompt("Name the new month (e.g. Month 2)", `Month ${ldMonths.length + 1}`);
+    const name = window.prompt(
+      "Name the new month (e.g. Month 2)",
+      `Month ${ldMonths.length + 1}`,
+    );
     if (!name) return;
     try {
       const m = await db.addMonth(name, ldMonths.length);
-      onMutate((d) => { d.ldMonths.push({ id: m.id, name, modules: [] }); });
-    } catch { onToast("Couldn't add month"); }
+      onMutate((d) => {
+        d.ldMonths.push({ id: m.id, name, modules: [] });
+      });
+    } catch {
+      onToast("Couldn't add month");
+    }
   };
   const addModule = async (month) => {
     const title = window.prompt("Module title");
     if (!title) return;
     const sme = window.prompt("Subject matter expert(s)") || "";
     try {
-      const mod = await db.addModule(month.id, title, sme, month.modules.length);
+      const mod = await db.addModule(
+        month.id,
+        title,
+        sme,
+        month.modules.length,
+      );
       onMutate((d) => {
         month.modules.push({
-          id: mod.id, title, sme, subheadings: [],
-          signoff: { targetCompletion: "", sme, overview: "", learningOutcomes: [], materials: [], assessment: [], evidence: [], outcome: null, assessedBy: sme, signName: "", signDate: "" },
+          id: mod.id,
+          title,
+          sme,
+          subheadings: [],
+          signoff: {
+            targetCompletion: "",
+            sme,
+            overview: "",
+            learningOutcomes: [],
+            materials: [],
+            assessment: [],
+            evidence: [],
+            outcome: null,
+            assessedBy: sme,
+            signName: "",
+            signDate: "",
+          },
         });
       });
-    } catch { onToast("Couldn't add module"); }
+    } catch {
+      onToast("Couldn't add module");
+    }
   };
 
   const toggleLock = async (month) => {
     const next = !month.unlocked;
-    onMutate((d) => { month.unlocked = next; });
-    try { await db.updateMonthLock(month.id, next); } catch { onToast("Couldn't update lock"); }
+    onMutate((d) => {
+      month.unlocked = next;
+    });
+    try {
+      await db.updateMonthLock(month.id, next);
+    } catch {
+      onToast("Couldn't update lock");
+    }
   };
 
   const saveMonthName = (month, name) => {
-    onMutate((d) => { month.name = name; });
-    saveTracked(() => db.updateMonthName(month.id, name)).catch(() => onToast("Couldn't save month heading"));
+    onMutate((d) => {
+      month.name = name;
+    });
+    saveTracked(() => db.updateMonthName(month.id, name)).catch(() =>
+      onToast("Couldn't save month heading"),
+    );
   };
 
   return (
-    <section id="phase-ld" style={{ display: "flex", flexDirection: "column", gap: 20, scrollMarginTop: 74 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, borderRadius: 16, padding: "18px 24px", background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`, color: "#fdfdf8", boxShadow: "0 6px 18px rgba(30,77,43,0.22)" }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#e8f0d8", flexShrink: 0 }}>{num}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, letterSpacing: "-0.01em", fontFamily: FONT }}>Learning &amp; Development Modules</h2>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.cream, marginTop: 2 }}>Training curriculum, by month — each module carries its own sign-off record</div>
+    <section
+      id="phase-ld"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        scrollMarginTop: 74,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          borderRadius: 16,
+          padding: "18px 24px",
+          background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`,
+          color: "#fdfdf8",
+          boxShadow: "0 6px 18px rgba(30,77,43,0.22)",
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.16)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            fontWeight: 900,
+            color: "#e8f0d8",
+            flexShrink: 0,
+          }}
+        >
+          {num}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{ width: 110, height: 8, borderRadius: 99, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 99, background: "#d5e4b5", width: `${p}%`, transition: "width 0.4s ease" }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 900,
+              letterSpacing: "-0.01em",
+              fontFamily: FONT,
+            }}
+          >
+            Learning &amp; Development Modules
+          </h2>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.cream,
+              marginTop: 2,
+            }}
+          >
+            Training curriculum, by month — each module carries its own sign-off
+            record
           </div>
-          <span style={{ fontSize: 13, fontWeight: 800, color: "#e8f0d8" }}>{p}%</span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 110,
+              height: 8,
+              borderRadius: 99,
+              background: "rgba(255,255,255,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 99,
+                background: "#d5e4b5",
+                width: `${p}%`,
+                transition: "width 0.4s ease",
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#e8f0d8" }}>
+            {p}%
+          </span>
         </div>
       </div>
 
@@ -820,38 +2074,104 @@ function LDPhase({ ldMonths, num, isAdmin, onMutate, onToast, onGoToLibraryTopic
         // them (with the toggle) so they can draft ahead before unlocking.
         if (!isAdmin && !month.unlocked) return null;
         return (
-        <div key={month.id} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <MonthNameEditable month={month} isAdmin={isAdmin} onSave={(name) => saveMonthName(month, name)} />
+          <div
+            key={month.id}
+            style={{ display: "flex", flexDirection: "column", gap: 14 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <MonthNameEditable
+                month={month}
+                isAdmin={isAdmin}
+                onSave={(name) => saveMonthName(month, name)}
+              />
+              {isAdmin && (
+                <button
+                  data-print="hide"
+                  onClick={() => toggleLock(month)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    borderRadius: 20,
+                    padding: "4px 10px",
+                    background: month.unlocked ? C.greenTint : "#f3e3d3",
+                    color: month.unlocked ? C.green500 : C.amberText,
+                  }}
+                >
+                  {month.unlocked ? (
+                    <>
+                      <Unlock size={11} /> Unlocked — visible to staff
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={11} /> Locked — admin only
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {month.modules.map((mod, idx) => (
+              <ModuleBlock
+                key={mod.id}
+                month={month}
+                module={mod}
+                idx={idx}
+                isAdmin={isAdmin}
+                onMutate={onMutate}
+                onToast={onToast}
+                onGoToLibraryTopic={onGoToLibraryTopic}
+              />
+            ))}
             {isAdmin && (
-              <button data-print="hide" onClick={() => toggleLock(month)} style={{
-                display: "flex", alignItems: "center", gap: 5, border: "none", cursor: "pointer",
-                fontFamily: FONT, fontSize: 11, fontWeight: 800, borderRadius: 20, padding: "4px 10px",
-                background: month.unlocked ? C.greenTint : "#f3e3d3", color: month.unlocked ? C.green500 : C.amberText,
-              }}>
-                {month.unlocked ? <><Unlock size={11} /> Unlocked — visible to staff</> : <><Lock size={11} /> Locked — admin only</>}
+              <button
+                data-print="hide"
+                onClick={() => addModule(month)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: `1px dashed #b7c4a8`,
+                  background: "#f8faf2",
+                  color: C.green500,
+                  borderRadius: 10,
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: FONT,
+                }}
+              >
+                <Plus size={13} /> Add module to {month.name}
               </button>
             )}
           </div>
-          {month.modules.map((mod, idx) => (
-            <ModuleBlock key={mod.id} month={month} module={mod} idx={idx} isAdmin={isAdmin} onMutate={onMutate} onToast={onToast} onGoToLibraryTopic={onGoToLibraryTopic} />
-          ))}
-          {isAdmin && (
-            <button data-print="hide" onClick={() => addModule(month)} style={{
-              display: "flex", alignItems: "center", gap: 8, border: `1px dashed #b7c4a8`, background: "#f8faf2",
-              color: C.green500, borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-            }}>
-              <Plus size={13} /> Add module to {month.name}
-            </button>
-          )}
-        </div>
         );
       })}
       {isAdmin && (
-        <button data-print="hide" onClick={addMonth} style={{
-          alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 8, border: `1px solid ${C.green400}`,
-          background: "#fff", color: C.green500, borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-        }}>
+        <button
+          data-print="hide"
+          onClick={addMonth}
+          style={{
+            alignSelf: "flex-start",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            border: `1px solid ${C.green400}`,
+            background: "#fff",
+            color: C.green500,
+            borderRadius: 10,
+            padding: "9px 18px",
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: "pointer",
+            fontFamily: FONT,
+          }}
+        >
           <Plus size={13} /> Add month
         </button>
       )}
@@ -880,7 +2200,11 @@ function StaffLoginsPanel({ onToast }) {
     setSecondsLeft(120);
     const tick = setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) { clearInterval(tick); setIssued(null); return 0; }
+        if (s <= 1) {
+          clearInterval(tick);
+          setIssued(null);
+          return 0;
+        }
         return s - 1;
       });
     }, 1000);
@@ -889,21 +2213,42 @@ function StaffLoginsPanel({ onToast }) {
 
   const create = async () => {
     const email = newEmail.trim().toLowerCase();
-    if (!email.endsWith("@ecologyconsulting.au")) { onToast("Must be an @ecologyconsulting.au email"); return; }
-    if (customPassword && customPassword.length < 8) { onToast("Custom password must be at least 8 characters"); return; }
+    if (!email.endsWith("@ecologyconsulting.au")) {
+      onToast("Must be an @ecologyconsulting.au email");
+      return;
+    }
+    if (customPassword && customPassword.length < 8) {
+      onToast("Custom password must be at least 8 characters");
+      return;
+    }
     setBusy(true);
     setIssued(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const res = await fetch("/api/admin/invite-staff", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
-        body: JSON.stringify({ email, password: customPassword || undefined, forceChange }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          email,
+          password: customPassword || undefined,
+          forceChange,
+        }),
       });
       const body = await res.json();
-      if (!res.ok) { onToast(body.error || "Couldn't create login"); return; }
+      if (!res.ok) {
+        onToast(body.error || "Couldn't create login");
+        return;
+      }
       setIssued({ email: body.email, tempPassword: body.tempPassword });
-      setNewEmail(""); setCustomPassword(""); setForceChange(true); setShowAdvanced(false);
+      setNewEmail("");
+      setCustomPassword("");
+      setForceChange(true);
+      setShowAdvanced(false);
     } catch {
       onToast("Couldn't reach the server");
     } finally {
@@ -912,68 +2257,244 @@ function StaffLoginsPanel({ onToast }) {
   };
 
   return (
-    <div data-print="hide" style={{ background: "#fff", border: `2px solid ${C.green400}`, borderRadius: 16, padding: "16px 22px" }}>
-      <div onClick={() => setOpen((o) => !o)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-        <span style={{
-          fontSize: 10.5, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#fff", background: C.green400, borderRadius: 20, padding: "3px 10px", flexShrink: 0,
-        }}>
+    <div
+      data-print="hide"
+      style={{
+        background: "#fff",
+        border: `2px solid ${C.green400}`,
+        borderRadius: 16,
+        padding: "16px 22px",
+      }}
+    >
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 900,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "#fff",
+            background: C.green400,
+            borderRadius: 20,
+            padding: "3px 10px",
+            flexShrink: 0,
+          }}
+        >
           Step 1 — Admin only
         </span>
         <Lock size={16} color={C.green500} />
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: C.ink, fontFamily: FONT, flex: 1 }}>Set up a new staff member</h3>
-        {open ? <ChevronDown size={16} color={C.inkSoft} /> : <ChevronRight size={16} color={C.inkSoft} />}
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 15,
+            fontWeight: 900,
+            color: C.ink,
+            fontFamily: FONT,
+            flex: 1,
+          }}
+        >
+          Set up a new staff member
+        </h3>
+        {open ? (
+          <ChevronDown size={16} color={C.inkSoft} />
+        ) : (
+          <ChevronRight size={16} color={C.inkSoft} />
+        )}
       </div>
       {open && (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, lineHeight: 1.6 }}>
-            This is where onboarding a new person actually starts — an admin action, done from here, not from the staff sign-in screen itself:
+        <div
+          style={{
+            marginTop: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12.5,
+              color: C.inkSoft,
+              fontWeight: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            This is where onboarding a new person actually starts — an admin
+            action, done from here, not from the staff sign-in screen itself:
           </p>
-          <p style={{ margin: 0, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, lineHeight: 1.6 }}>
-            1. You create their login here (below) — they get a one-time temporary password<br />
-            2. You relay it to them directly (Slack, in person, phone)<br />
-            3. They sign in, set their own password, and fill in their own Employee Details as their first onboarding step<br />
-            4. From there they work through the rest of the onboarding worksheet themselves — you can follow their progress any time from the roster below
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12.5,
+              color: C.inkSoft,
+              fontWeight: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            1. You create their login here (below) — they get a one-time
+            temporary password
+            <br />
+            2. You relay it to them directly (Slack, in person, phone)
+            <br />
+            3. They sign in, set their own password, and fill in their own
+            Employee Details as their first onboarding step
+            <br />
+            4. From there they work through the rest of the onboarding worksheet
+            themselves — you can follow their progress any time from the roster
+            below
           </p>
           <div style={{ display: "flex", gap: 6 }}>
-            <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@ecologyconsulting.au"
-              onKeyDown={(e) => e.key === "Enter" && create()} style={{ ...inputStyle(false), flex: 1 }} />
-            <button onClick={create} disabled={busy} style={{ ...smallBtn, background: C.green400, color: "#fff", border: "none", opacity: busy ? 0.6 : 1 }}>
+            <input
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@ecologyconsulting.au"
+              onKeyDown={(e) => e.key === "Enter" && create()}
+              style={{ ...inputStyle(false), flex: 1 }}
+            />
+            <button
+              onClick={create}
+              disabled={busy}
+              style={{
+                ...smallBtn,
+                background: C.green400,
+                color: "#fff",
+                border: "none",
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
               {busy ? "Creating…" : "Create login"}
             </button>
           </div>
 
-          <button onClick={() => setShowAdvanced((s) => !s)} style={{ ...addSmallBtn, alignSelf: "flex-start" }}>
-            {showAdvanced ? "Hide" : "Show"} advanced options (choose your own password — for a specific test account, not for everyone)
+          <button
+            onClick={() => setShowAdvanced((s) => !s)}
+            style={{ ...addSmallBtn, alignSelf: "flex-start" }}
+          >
+            {showAdvanced ? "Hide" : "Show"} advanced options (choose your own
+            password — for a specific test account, not for everyone)
           </button>
           {showAdvanced && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, background: C.greenTintSoft, borderRadius: 8, padding: "10px 12px" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                background: C.greenTintSoft,
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            >
               <input
-                type="text" value={customPassword} onChange={(e) => setCustomPassword(e.target.value)}
+                type="text"
+                value={customPassword}
+                onChange={(e) => setCustomPassword(e.target.value)}
                 placeholder="Custom password (optional, min. 8 characters)"
                 style={inputStyle(false)}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
-                <input type="checkbox" checked={forceChange} onChange={(e) => setForceChange(e.target.checked)} />
-                Require this account to set its own password on first login (recommended — leave checked for anyone but a personal test account)
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: C.inkSoft,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={forceChange}
+                  onChange={(e) => setForceChange(e.target.checked)}
+                />
+                Require this account to set its own password on first login
+                (recommended — leave checked for anyone but a personal test
+                account)
               </label>
             </div>
           )}
 
           {issued && (
-            <div style={{ background: C.amberBg, border: `1px solid ${C.amberLight}`, borderRadius: 8, padding: "10px 12px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: C.amberText }}>
-                  Copy it now — hides in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+            <div
+              style={{
+                background: C.amberBg,
+                border: `1px solid ${C.amberLight}`,
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <div
+                  style={{ fontSize: 12, fontWeight: 800, color: C.amberText }}
+                >
+                  Copy it now — hides in {Math.floor(secondsLeft / 60)}:
+                  {String(secondsLeft % 60).padStart(2, "0")}
                 </div>
-                <button onClick={() => setIssued(null)} style={{ background: "none", border: `1px solid ${C.amberLight}`, color: C.amberText, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: FONT }}>
+                <button
+                  onClick={() => setIssued(null)}
+                  style={{
+                    background: "none",
+                    border: `1px solid ${C.amberLight}`,
+                    color: C.amberText,
+                    borderRadius: 6,
+                    padding: "3px 9px",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                  }}
+                >
                   Hide now
                 </button>
               </div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{issued.email}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: C.ink, marginTop: 2, userSelect: "all" }}>{issued.tempPassword}</div>
-              <div style={{ height: 3, borderRadius: 99, background: "#eaddc0", marginTop: 8, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(secondsLeft / 120) * 100}%`, background: C.amber, transition: "width 1s linear" }} />
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>
+                {issued.email}
+              </div>
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: C.ink,
+                  marginTop: 2,
+                  userSelect: "all",
+                }}
+              >
+                {issued.tempPassword}
+              </div>
+              <div
+                style={{
+                  height: 3,
+                  borderRadius: 99,
+                  background: "#eaddc0",
+                  marginTop: 8,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${(secondsLeft / 120) * 100}%`,
+                    background: C.amber,
+                    transition: "width 1s linear",
+                  }}
+                />
               </div>
             </div>
           )}
@@ -982,7 +2503,6 @@ function StaffLoginsPanel({ onToast }) {
     </div>
   );
 }
-
 
 /* ---------------------------------------------------------------
    Admin: staff onboarding progress (list + read-only detail report)
@@ -1006,84 +2526,299 @@ function StaffReport({ staff, onBack, onToast }) {
     let alive = true;
     setLoading(true);
     db.fetchWorkbook(staff.id)
-      .then((wb) => { if (alive) setBoard(wb); })
-      .catch(() => { if (alive) onToast("Couldn't load this staff member's progress"); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+      .then((wb) => {
+        if (alive) setBoard(wb);
+      })
+      .catch(() => {
+        if (alive) onToast("Couldn't load this staff member's progress");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [staff.id, onToast]);
 
-  const done = staff.done, total = staff.total, p = pct(done, total);
+  const done = staff.done,
+    total = staff.total,
+    p = pct(done, total);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      <button onClick={onBack} data-print="hide" style={{
-        alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, background: "#fff",
-        border: `1px solid ${C.lineSoft}`, color: C.green600, borderRadius: 8, padding: "7px 12px",
-        fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-      }}>
-        <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> All staff
+      <button
+        onClick={onBack}
+        data-print="hide"
+        style={{
+          alignSelf: "flex-start",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#fff",
+          border: `1px solid ${C.lineSoft}`,
+          color: C.green600,
+          borderRadius: 8,
+          padding: "7px 12px",
+          fontSize: 13,
+          fontWeight: 800,
+          cursor: "pointer",
+          fontFamily: FONT,
+        }}
+      >
+        <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> All
+        staff
       </button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16, borderRadius: 16, padding: "18px 24px", background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`, color: "#fdfdf8" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 99, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, flexShrink: 0 }}>
-          {staff.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          borderRadius: 16,
+          padding: "18px 24px",
+          background: `linear-gradient(120deg, ${C.green800} 0%, ${C.green500} 55%, ${C.green300} 100%)`,
+          color: "#fdfdf8",
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 99,
+            background: "rgba(255,255,255,0.18)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            fontWeight: 900,
+            flexShrink: 0,
+          }}
+        >
+          {staff.name
+            .split(" ")
+            .map((w) => w[0])
+            .slice(0, 2)
+            .join("")
+            .toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>{staff.name}</h2>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.cream }}>{staff.email}</div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>
+            {staff.name}
+          </h2>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.cream }}>
+            {staff.email}
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <div style={{ width: 120, height: 8, borderRadius: 99, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 99, background: "#d5e4b5", width: `${p}%` }} />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 120,
+              height: 8,
+              borderRadius: 99,
+              background: "rgba(255,255,255,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 99,
+                background: "#d5e4b5",
+                width: `${p}%`,
+              }}
+            />
           </div>
           <span style={{ fontSize: 14, fontWeight: 900 }}>{p}%</span>
         </div>
       </div>
 
-      {loading && <div style={{ padding: 30, textAlign: "center", color: C.inkSoft, fontWeight: 700 }}>Loading progress…</div>}
+      {loading && (
+        <div
+          style={{
+            padding: 30,
+            textAlign: "center",
+            color: C.inkSoft,
+            fontWeight: 700,
+          }}
+        >
+          Loading progress…
+        </div>
+      )}
 
-      {board && board.phases.map((phase) => {
-        const pc = phaseCounts(phase);
-        return (
-          <div key={phase.id} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.green700 }}>{phase.label}</h3>
-              <span style={{ fontSize: 12, fontWeight: 800, color: C.inkFaint }}>{pc.done}/{pc.total}</span>
-            </div>
-            {phase.sections.map((s) => (
-              <div key={s.id} style={{ background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", background: C.greenTintSoft, borderBottom: `1px solid ${C.line}` }}>
-                  <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: C.ink, flex: 1 }}>{s.title}</h4>
-                  {s.mentor && <span style={{ fontSize: 11.5, fontWeight: 700, color: C.green500, background: "#EAF3E0", padding: "3px 10px", borderRadius: 20, display: "flex", alignItems: "center", gap: 4 }}><Users2 size={10} /> {s.mentor}</span>}
-                </div>
-                <div style={{ padding: "4px 18px 12px" }}>
-                  {s.items.map((item) => (
-                    <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.lineFaint}` }}>
-                      <div style={{
-                        width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
-                        border: `2px solid ${item.done ? C.green400 : "#c2cdb6"}`, background: item.done ? C.green400 : "#fff",
-                        color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>{item.done && <Check size={12} />}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: C.green600 }}>{item.title}</div>
-                        <div style={{ display: "flex", gap: 18, marginTop: 3, flexWrap: "wrap" }}>
-                          {item.showDate && <span style={{ fontSize: 12, fontWeight: 600, color: item.date ? C.inkSoft : C.inkFaint }}>Date: {item.date || "—"}</span>}
-                          <span style={{ fontSize: 12, fontWeight: 600, color: item.notes ? C.inkSoft : C.inkFaint }}>Notes: {item.notes || "—"}</span>
-                        </div>
-                        {item.comment && (
-                          <div style={{ marginTop: 6, fontSize: 12, fontWeight: 600, color: C.amberText, background: C.amberBg, border: `1px solid ${C.amberLight}`, borderRadius: 6, padding: "5px 9px" }}>
-                            <strong>Admin note:</strong> {item.comment}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {board &&
+        board.phases.map((phase) => {
+          const pc = phaseCounts(phase);
+          return (
+            <div
+              key={phase.id}
+              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 900,
+                    color: C.green700,
+                  }}
+                >
+                  {phase.label}
+                </h3>
+                <span
+                  style={{ fontSize: 12, fontWeight: 800, color: C.inkFaint }}
+                >
+                  {pc.done}/{pc.total}
+                </span>
               </div>
-            ))}
-          </div>
-        );
-      })}
+              {phase.sections.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    background: C.cardBg,
+                    border: `1px solid ${C.line}`,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "12px 18px",
+                      background: C.greenTintSoft,
+                      borderBottom: `1px solid ${C.line}`,
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: 14.5,
+                        fontWeight: 900,
+                        color: C.ink,
+                        flex: 1,
+                      }}
+                    >
+                      {s.title}
+                    </h4>
+                    {s.mentor && (
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: C.green500,
+                          background: "#EAF3E0",
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Users2 size={10} /> {s.mentor}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ padding: "4px 18px 12px" }}>
+                    {s.items.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 12,
+                          padding: "9px 0",
+                          borderBottom: `1px solid ${C.lineFaint}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            flexShrink: 0,
+                            marginTop: 1,
+                            border: `2px solid ${item.done ? C.green400 : "#c2cdb6"}`,
+                            background: item.done ? C.green400 : "#fff",
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {item.done && <Check size={12} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: C.green600,
+                            }}
+                          >
+                            {item.title}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 18,
+                              marginTop: 3,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {item.showDate && (
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: item.date ? C.inkSoft : C.inkFaint,
+                                }}
+                              >
+                                Date: {item.date || "—"}
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: item.notes ? C.inkSoft : C.inkFaint,
+                              }}
+                            >
+                              Notes: {item.notes || "—"}
+                            </span>
+                          </div>
+                          {item.comment && (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.amberText,
+                                background: C.amberBg,
+                                border: `1px solid ${C.amberLight}`,
+                                borderRadius: 6,
+                                padding: "5px 9px",
+                              }}
+                            >
+                              <strong>Admin note:</strong> {item.comment}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
     </div>
   );
 }
@@ -1095,51 +2830,207 @@ function StaffProgress({ onToast }) {
   useEffect(() => {
     let alive = true;
     db.fetchStaffProgress()
-      .then((res) => { if (alive) setState({ loading: false, staff: res.staff, error: "" }); })
-      .catch((e) => { if (alive) setState({ loading: false, staff: [], error: e.message || "Failed to load" }); });
-    return () => { alive = false; };
+      .then((res) => {
+        if (alive) setState({ loading: false, staff: res.staff, error: "" });
+      })
+      .catch((e) => {
+        if (alive)
+          setState({
+            loading: false,
+            staff: [],
+            error: e.message || "Failed to load",
+          });
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  if (selected) return <StaffReport staff={selected} onBack={() => setSelected(null)} onToast={onToast} />;
+  if (selected)
+    return (
+      <StaffReport
+        staff={selected}
+        onBack={() => setSelected(null)}
+        onToast={onToast}
+      />
+    );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: C.green700 }}>Staff Onboarding Progress</h2>
-        <p style={{ margin: "4px 0 0", fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>
-          Everyone who has signed in. Click a name to view their completed items, dates, and notes.
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 22,
+            fontWeight: 900,
+            color: C.green700,
+          }}
+        >
+          Staff Onboarding Progress
+        </h2>
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: C.inkSoft,
+          }}
+        >
+          Everyone who has signed in. Click a name to view their completed
+          items, dates, and notes.
         </p>
       </div>
 
-      {state.loading && <div style={{ padding: 30, textAlign: "center", color: C.inkSoft, fontWeight: 700 }}>Loading staff…</div>}
-      {state.error && <div style={{ padding: 16, background: C.amberBg, border: `1px solid ${C.amberLight}`, borderRadius: 12, color: C.amberText, fontWeight: 700 }}>{state.error}</div>}
+      {state.loading && (
+        <div
+          style={{
+            padding: 30,
+            textAlign: "center",
+            color: C.inkSoft,
+            fontWeight: 700,
+          }}
+        >
+          Loading staff…
+        </div>
+      )}
+      {state.error && (
+        <div
+          style={{
+            padding: 16,
+            background: C.amberBg,
+            border: `1px solid ${C.amberLight}`,
+            borderRadius: 12,
+            color: C.amberText,
+            fontWeight: 700,
+          }}
+        >
+          {state.error}
+        </div>
+      )}
       {!state.loading && !state.error && state.staff.length === 0 && (
-        <div style={{ padding: 24, textAlign: "center", color: C.inkSoft, fontWeight: 600, background: C.cardBg, border: `1px dashed ${C.line}`, borderRadius: 12 }}>
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: C.inkSoft,
+            fontWeight: 600,
+            background: C.cardBg,
+            border: `1px dashed ${C.line}`,
+            borderRadius: 12,
+          }}
+        >
           No staff have signed in yet.
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {state.staff.map((s) => (
-          <button key={s.id} onClick={() => setSelected(s)} style={{
-            display: "flex", alignItems: "center", gap: 16, textAlign: "left", cursor: "pointer",
-            background: C.cardBg, border: `1px solid ${C.line}`, borderRadius: 14, padding: "14px 18px", fontFamily: FONT,
-          }}>
-            <div style={{ width: 42, height: 42, borderRadius: 99, background: C.greenTint, color: C.green600, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 900, flexShrink: 0 }}>
-              {s.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+          <button
+            key={s.id}
+            onClick={() => setSelected(s)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              textAlign: "left",
+              cursor: "pointer",
+              background: C.cardBg,
+              border: `1px solid ${C.line}`,
+              borderRadius: 14,
+              padding: "14px 18px",
+              fontFamily: FONT,
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 99,
+                background: C.greenTint,
+                color: C.green600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 15,
+                fontWeight: 900,
+                flexShrink: 0,
+              }}
+            >
+              {s.name
+                .split(" ")
+                .map((w) => w[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 900, color: C.ink }}>{s.name}</span>
-                {s.isAdmin && <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase", color: "#8a6d1a", background: "#f6ebca", borderRadius: 20, padding: "2px 8px", display: "flex", alignItems: "center", gap: 3 }}><ShieldCheck size={10} /> Admin</span>}
+                <span style={{ fontSize: 15, fontWeight: 900, color: C.ink }}>
+                  {s.name}
+                </span>
+                {s.isAdmin && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 900,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      color: "#8a6d1a",
+                      background: "#f6ebca",
+                      borderRadius: 20,
+                      padding: "2px 8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 3,
+                    }}
+                  >
+                    <ShieldCheck size={10} /> Admin
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{s.email} · last active {relativeTime(s.lastSignIn)}</div>
+              <div
+                style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}
+              >
+                {s.email} · last active {relativeTime(s.lastSignIn)}
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-              <div style={{ width: 130, height: 8, borderRadius: 99, background: C.lineSoft, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 99, background: s.percent === 100 ? C.green400 : C.green300, width: `${s.percent}%` }} />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: 130,
+                  height: 8,
+                  borderRadius: 99,
+                  background: C.lineSoft,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    borderRadius: 99,
+                    background: s.percent === 100 ? C.green400 : C.green300,
+                    width: `${s.percent}%`,
+                  }}
+                />
               </div>
-              <span style={{ fontSize: 13, fontWeight: 900, color: C.green600, width: 68, textAlign: "right" }}>{s.done}/{s.total} · {s.percent}%</span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: C.green600,
+                  width: 68,
+                  textAlign: "right",
+                }}
+              >
+                {s.done}/{s.total} · {s.percent}%
+              </span>
               <ChevronRight size={18} color={C.inkFaint} />
             </div>
           </button>
@@ -1159,7 +3050,12 @@ function StaffProgress({ onToast }) {
    email link, then set one here yourself, no other admin needed)
 ----------------------------------------------------------------- */
 
-function SettingsModal({ onClose, onToast }) {
+function SettingsModal({
+  onClose,
+  onToast,
+  displayMode = "auto",
+  onDisplayModeChange,
+}) {
   const { setNewPassword } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -1169,48 +3065,211 @@ function SettingsModal({ onClose, onToast }) {
   const submit = async (e) => {
     e.preventDefault();
     setMessage("");
-    if (password.length < 10) { setStatus("error"); setMessage("Use at least 10 characters."); return; }
-    if (password !== confirm) { setStatus("error"); setMessage("Passwords don't match."); return; }
+    if (password.length < 10) {
+      setStatus("error");
+      setMessage("Use at least 10 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setStatus("error");
+      setMessage("Passwords don't match.");
+      return;
+    }
     setStatus("sending");
     const { error } = await setNewPassword(password);
-    if (error) { setStatus("error"); setMessage(error); return; }
+    if (error) {
+      setStatus("error");
+      setMessage(error);
+      return;
+    }
     setStatus("done");
     onToast("Password updated");
     setTimeout(onClose, 900);
   };
 
   return (
-    <div data-print="hide" style={{ position: "fixed", inset: 0, background: "rgba(22,55,31,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "28px 26px", width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: C.ink, fontFamily: FONT }}>Change your password</h3>
-        <p style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginTop: 6, lineHeight: 1.5 }}>
-          Sets the password for your own account. If you've been signing in with a temporary password or an email link, this makes password sign-in yours going forward.
+    <div
+      data-print="hide"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(22,55,31,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 200,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: "28px 26px",
+          width: "100%",
+          maxWidth: 380,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 17,
+            fontWeight: 900,
+            color: C.ink,
+            fontFamily: FONT,
+          }}
+        >
+          Settings
+        </h3>
+        <section
+          className="display-settings"
+          aria-labelledby="display-settings-heading"
+        >
+          <div>
+            <strong id="display-settings-heading">Display layout</strong>
+            <p>
+              Desktop is selected automatically on wide screens. Tablet and
+              mobile are optional preview modes.
+            </p>
+          </div>
+          <div
+            className="display-settings__options"
+            role="radiogroup"
+            aria-label="Display layout"
+          >
+            {[
+              { id: "auto", label: "Auto" },
+              { id: "desktop", label: "Desktop" },
+              { id: "tablet", label: "Tablet" },
+              { id: "mobile", label: "Mobile" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={displayMode === option.id}
+                className={displayMode === option.id ? "selected" : ""}
+                onClick={() => onDisplayModeChange?.(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+        <hr className="display-settings__divider" />
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 17,
+            fontWeight: 900,
+            color: C.ink,
+            fontFamily: FONT,
+          }}
+        >
+          Change your password
+        </h3>
+        <p
+          style={{
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: C.inkSoft,
+            marginTop: 6,
+            lineHeight: 1.5,
+          }}
+        >
+          Sets the password for your own account. If you've been signing in with
+          a temporary password or an email link, this makes password sign-in
+          yours going forward.
         </p>
         {status === "done" ? (
-          <div style={{ marginTop: 16, background: C.greenTintSoft, border: `1px solid ${C.greenTint}`, borderRadius: 10, padding: "12px 14px", fontSize: 13, fontWeight: 700, color: C.green700 }}>
+          <div
+            style={{
+              marginTop: 16,
+              background: C.greenTintSoft,
+              border: `1px solid ${C.greenTint}`,
+              borderRadius: 10,
+              padding: "12px 14px",
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.green700,
+            }}
+          >
             Password updated.
           </div>
         ) : (
-          <form onSubmit={submit} style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            <input type="password" required autoFocus value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="New password (at least 10 characters)" autoComplete="new-password" style={inputStyle(false)} />
-            <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Confirm new password" autoComplete="new-password" style={inputStyle(false)} />
+          <form
+            onSubmit={submit}
+            style={{
+              marginTop: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <input
+              type="password"
+              required
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="New password (at least 10 characters)"
+              autoComplete="new-password"
+              style={inputStyle(false)}
+            />
+            <input
+              type="password"
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              style={inputStyle(false)}
+            />
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <button type="submit" disabled={status === "sending"} style={{
-                flex: 1, background: C.green400, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px",
-                fontSize: 13.5, fontWeight: 800, cursor: status === "sending" ? "default" : "pointer", opacity: status === "sending" ? 0.7 : 1, fontFamily: FONT,
-              }}>
+              <button
+                type="submit"
+                disabled={status === "sending"}
+                style={{
+                  flex: 1,
+                  background: C.green400,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  cursor: status === "sending" ? "default" : "pointer",
+                  opacity: status === "sending" ? 0.7 : 1,
+                  fontFamily: FONT,
+                }}
+              >
                 {status === "sending" ? "Saving…" : "Save password"}
               </button>
-              <button type="button" onClick={onClose} style={{
-                background: "#fff", border: `1px solid ${C.line}`, color: C.inkSoft, borderRadius: 8, padding: "10px 14px",
-                fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
-              }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${C.line}`,
+                  color: C.inkSoft,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: FONT,
+                }}
+              >
                 Cancel
               </button>
             </div>
-            {status === "error" && <div style={{ color: C.rust, fontSize: 12.5, fontWeight: 700 }}>{message}</div>}
+            {status === "error" && (
+              <div style={{ color: C.rust, fontSize: 12.5, fontWeight: 700 }}>
+                {message}
+              </div>
+            )}
           </form>
         )}
       </div>
@@ -1225,25 +3284,43 @@ function SaveStatus() {
     return onSaveStatus((s) => {
       setStatus(s);
       clearTimeout(revert.current);
-      if (s === "saved") revert.current = setTimeout(() => setStatus("synced"), 1800);
+      if (s === "saved")
+        revert.current = setTimeout(() => setStatus("synced"), 1800);
     });
   }, []);
   if (status === "idle") return null;
   const map = {
-    saving: { icon: <Loader2 size={13} className="wb-spin" />, text: "Saving…" },
+    saving: {
+      icon: <Loader2 size={13} className="wb-spin" />,
+      text: "Saving…",
+    },
     saved: { icon: <CheckCircle2 size={13} />, text: "Saved" },
     synced: { icon: <CheckCircle2 size={13} />, text: "All changes saved" },
-    error: { icon: <AlertCircle size={13} />, text: "Save failed — retrying on next change" },
+    error: {
+      icon: <AlertCircle size={13} />,
+      text: "Save failed — retrying on next change",
+    },
   };
   const s = map[status] || map.synced;
   const danger = status === "error";
   return (
-    <div data-print="hide" aria-live="polite" style={{
-      display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800,
-      color: danger ? "#ffd9d1" : C.cream, background: "rgba(255,255,255,0.12)",
-      border: `1px solid ${danger ? "rgba(255,150,130,0.5)" : "rgba(255,255,255,0.25)"}`,
-      borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap",
-    }}>
+    <div
+      data-print="hide"
+      aria-live="polite"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12,
+        fontWeight: 800,
+        color: danger ? "#ffd9d1" : C.cream,
+        background: "rgba(255,255,255,0.12)",
+        border: `1px solid ${danger ? "rgba(255,150,130,0.5)" : "rgba(255,255,255,0.25)"}`,
+        borderRadius: 8,
+        padding: "6px 10px",
+        whiteSpace: "nowrap",
+      }}
+    >
       {s.icon} {s.text}
     </div>
   );
@@ -1261,29 +3338,72 @@ function SaveStatus() {
 
 function WorkbookSidebar({ navItems }) {
   return (
-    <aside className="wb-sidebar" data-print="hide" style={{
-      width: 220, flexShrink: 0, position: "sticky", top: 84, alignSelf: "flex-start",
-      display: "flex", flexDirection: "column", gap: 4,
-      maxHeight: "calc(100vh - 110px)", overflowY: "auto",
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint, padding: "0 10px 6px" }}>
+    <aside
+      className="wb-sidebar"
+      data-print="hide"
+      style={{
+        width: 220,
+        flexShrink: 0,
+        position: "sticky",
+        top: 84,
+        alignSelf: "flex-start",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        maxHeight: "calc(100vh - 110px)",
+        overflowY: "auto",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 900,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: C.inkFaint,
+          padding: "0 10px 6px",
+        }}
+      >
         On this page
       </div>
       {navItems.map((n) => {
         const complete = n.total > 0 && n.done === n.total;
         return (
           <a
-            key={n.id} href={`#phase-${n.id}`}
+            key={n.id}
+            href={`#phase-${n.id}`}
             style={{
-              textDecoration: "none", display: "flex", alignItems: "center", gap: 8,
-              padding: "9px 10px", borderRadius: 8, color: C.green600, fontSize: 13, fontWeight: 700,
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "9px 10px",
+              borderRadius: 8,
+              color: C.green600,
+              fontSize: 13,
+              fontWeight: 700,
               border: `1px solid transparent`,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = C.lineSoft; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#fff";
+              e.currentTarget.style.borderColor = C.lineSoft;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.borderColor = "transparent";
+            }}
           >
             <span style={{ flex: 1, minWidth: 0 }}>{n.label}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 900, color: complete ? C.green400 : C.inkFaint, flexShrink: 0 }}>{n.done}/{n.total}</span>
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 900,
+                color: complete ? C.green400 : C.inkFaint,
+                flexShrink: 0,
+              }}
+            >
+              {n.done}/{n.total}
+            </span>
           </a>
         );
       })}
@@ -1297,7 +3417,13 @@ function WorkbookSidebar({ navItems }) {
 
 function displayNameFromEmail(email) {
   const local = (email || "").split("@")[0] || "";
-  return local.split(/[._-]+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || email;
+  return (
+    local
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(" ") || email
+  );
 }
 
 function ActionTile({ icon, label, desc, color, onClick }) {
@@ -1305,20 +3431,47 @@ function ActionTile({ icon, label, desc, color, onClick }) {
     <button
       onClick={onClick}
       style={{
-        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, textAlign: "left",
-        cursor: "pointer", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 16,
-        padding: "22px 22px", fontFamily: FONT, flex: 1, minWidth: 220,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 12,
+        textAlign: "left",
+        cursor: "pointer",
+        background: "#fff",
+        border: `1px solid ${C.line}`,
+        borderRadius: 16,
+        padding: "22px 22px",
+        fontFamily: FONT,
+        flex: 1,
+        minWidth: 220,
         boxShadow: "0 2px 10px rgba(35,48,31,0.05)",
       }}
     >
-      <div style={{
-        width: 46, height: 46, borderRadius: 12, background: `linear-gradient(135deg, ${color}, ${color}cc)`,
-        display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
-      }}>
+      <div
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 12,
+          background: `linear-gradient(135deg, ${color}, ${color}cc)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+        }}
+      >
         {icon}
       </div>
       <div style={{ fontSize: 16, fontWeight: 900, color: C.ink }}>{label}</div>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, lineHeight: 1.5 }}>{desc}</div>
+      <div
+        style={{
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: C.inkSoft,
+          lineHeight: 1.5,
+        }}
+      >
+        {desc}
+      </div>
     </button>
   );
 }
@@ -1330,11 +3483,23 @@ function AdminHome({ onNavigate }) {
 
   useEffect(() => {
     if (!session?.access_token) return;
-    fetch("/api/admin-counts", { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((r) => r.json()).then((d) => setCounts(d.counts || {})).catch(() => {});
-    fetch("/api/regulatory-watch", { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((r) => r.ok ? r.json() : { updates: [] })
-      .then((d) => setRegulatoryOpen((d.updates || []).filter((update) => ["new", "reviewing"].includes(update.status)).length))
+    fetch("/api/admin-counts", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setCounts(d.counts || {}))
+      .catch(() => {});
+    fetch("/api/regulatory-watch", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { updates: [] }))
+      .then((d) =>
+        setRegulatoryOpen(
+          (d.updates || []).filter((update) =>
+            ["new", "reviewing"].includes(update.status),
+          ).length,
+        ),
+      )
       .catch(() => setRegulatoryOpen(0));
   }, [session]);
 
@@ -1342,79 +3507,333 @@ function AdminHome({ onNavigate }) {
   // areas use the same image-backed domain-card language as Staff Home so the control
   // centre is recognisable at a glance, rather than a collection of flat panels.
   const domains = [
-    { eyebrow: "Project control", title: "Projects & Operations", desc: "Project setup, allocations, schedules, client records and the portfolio health report.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Building2, mode: "adminprojects", photo: "palm-cockatoo.png" },
-    { eyebrow: "Commercial control", title: "Quote Pipeline", desc: "Track enquiry, proposal, review and award stages without leaving the control centre.", accent: "#d87955", accent2: "#34150d", Icon: FileText, mode: "quotepipeline", photo: "rosella.png" },
-    { eyebrow: "Remote delivery", title: "Remote Operations Oversight", desc: "Assign, accept, review and complete remote task briefs across the team.", accent: "#d789a6", accent2: "#321322", Icon: Users2, mode: "remoteops", photo: "bottlebrush.png" },
-    { eyebrow: "Safety & governance", title: "WHS & Compliance", desc: "WHS monitoring, controlled governance, drafts, toolbox talks and incident oversight.", accent: "#9cbf5a", accent2: "#203615", Icon: ShieldCheck, mode: "whsmonitor", photo: "wedgetail-eagle.jpg" },
-    { eyebrow: "Official change alert", title: "Regulatory Watch", desc: "Review official legislative, BAM and threatened flora/fauna survey updates before staff are notified.", accent: "#e7c979", accent2: "#423414", Icon: AlertCircle, mode: "regulatorywatch", photo: "redtail-cockatoo.png", regulatoryOpen },
-    { eyebrow: "Learning library", title: "Learning & Development", desc: "Core training modules, decision aids, manager tools and governance — with review and approval.", accent: "#d789a6", accent2: "#321322", Icon: BookOpen, mode: "ldlibrary", photo: "lorikeet.png" },
-    { eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Threatened flora and fauna reference, field-photo verification and survey timing standards.", accent: "#5fc9c9", accent2: "#0b3838", Icon: Leaf, mode: "speciesprofiles", photo: "wattle.png" },
-    { eyebrow: "Portal stewardship", title: "Portal Management", desc: "Staff access, roles, development progress and controlled onboarding assignments.", accent: "#e7c979", accent2: "#3a2c0c", Icon: Users2, mode: "portalmgmt", photo: "koala.png" },
-    { eyebrow: "Service desk", title: "Service Requests", desc: "Review and action staff leave, training and equipment requests.", accent: "#8fbfdd", accent2: "#16232c", Icon: Send, mode: "servicerequests", photo: "kookaburra.png" },
+    {
+      eyebrow: "Project control",
+      title: "Projects & Operations",
+      desc: "Project setup, allocations, schedules, client records and the portfolio health report.",
+      accent: "#5fc9c9",
+      accent2: "#0b3838",
+      Icon: Building2,
+      mode: "adminprojects",
+      photo: "palm-cockatoo.png",
+    },
+    {
+      eyebrow: "Commercial control",
+      title: "Quote Pipeline",
+      desc: "Track enquiry, proposal, review and award stages without leaving the control centre.",
+      accent: "#d87955",
+      accent2: "#34150d",
+      Icon: FileText,
+      mode: "quotepipeline",
+      photo: "rosella.png",
+    },
+    {
+      eyebrow: "Remote delivery",
+      title: "Remote Operations Oversight",
+      desc: "Assign, accept, review and complete remote task briefs across the team.",
+      accent: "#d789a6",
+      accent2: "#321322",
+      Icon: Users2,
+      mode: "remoteops",
+      photo: "bottlebrush.png",
+    },
+    {
+      eyebrow: "Safety & governance",
+      title: "WHS & Compliance",
+      desc: "WHS monitoring, controlled governance, drafts, toolbox talks and incident oversight.",
+      accent: "#9cbf5a",
+      accent2: "#203615",
+      Icon: ShieldCheck,
+      mode: "whsmonitor",
+      photo: "wedgetail-eagle.jpg",
+    },
+    {
+      eyebrow: "Official change alert",
+      title: "Regulatory Watch",
+      desc: "Review official legislative, BAM and threatened flora/fauna survey updates before staff are notified.",
+      accent: "#e7c979",
+      accent2: "#423414",
+      Icon: AlertCircle,
+      mode: "regulatorywatch",
+      photo: "redtail-cockatoo.png",
+      regulatoryOpen,
+    },
+    {
+      eyebrow: "Learning library",
+      title: "Learning & Development",
+      desc: "Core training modules, decision aids, manager tools and governance — with review and approval.",
+      accent: "#d789a6",
+      accent2: "#321322",
+      Icon: BookOpen,
+      mode: "ldlibrary",
+      photo: "lorikeet.png",
+    },
+    {
+      eyebrow: "Species reference",
+      title: "Species Profiles & Survey Requirements",
+      desc: "Threatened flora and fauna reference, field-photo verification and survey timing standards.",
+      accent: "#5fc9c9",
+      accent2: "#0b3838",
+      Icon: Leaf,
+      mode: "speciesprofiles",
+      photo: "wattle.png",
+    },
+    {
+      eyebrow: "Portal stewardship",
+      title: "Portal Management",
+      desc: "Staff access, roles, development progress and controlled onboarding assignments.",
+      accent: "#e7c979",
+      accent2: "#3a2c0c",
+      Icon: Users2,
+      mode: "portalmgmt",
+      photo: "koala.png",
+    },
+    {
+      eyebrow: "Service desk",
+      title: "Service Requests",
+      desc: "Review and action staff leave, training and equipment requests.",
+      accent: "#8fbfdd",
+      accent2: "#16232c",
+      Icon: Send,
+      mode: "servicerequests",
+      photo: "kookaburra.png",
+    },
   ];
 
   return (
-    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 26, fontFamily: FONT }}>
-
-
+    <div
+      style={{
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 26,
+        fontFamily: FONT,
+      }}
+    >
       {/* 2-column tall tiles — icon badge + accent glow + diagonal pattern,
           so each domain reads distinctly even without a background photo. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="admin-tile-grid">
-        {domains.map(({ eyebrow, title, desc, accent, accent2, Icon, soon, mode, href, photo, regulatoryOpen: domainRegulatoryOpen }) => (
-          <a
-            key={title}
-            href="#"
-            onClick={(e) => { e.preventDefault(); if (soon) return; if (href) window.location.href = href; else onNavigate(mode); }}
-            className="ec-row domain-tile"
-            style={{
-              position: "relative", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 210, padding: 24,
-              borderRadius: 18, overflow: "hidden", color: "#fff", textDecoration: "none",
-              background: `linear-gradient(150deg, #101a17 0%, #0a1210 60%, #060b0a 100%)`,
-              border: `1px solid ${accent}33`,
-              boxShadow: `0 1px 2px rgba(18,33,26,.07), 0 24px 46px -28px rgba(18,33,26,.65), inset 0 1px 0 rgba(255,255,255,.04)`,
-              opacity: soon ? 0.9 : 1, cursor: soon ? "default" : "pointer",
-            }}
-          >
-            {/* Native flora/fauna reference image, eucalyptus duotone and subtle pattern. */}
-            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `url('/assets/${photo}') center/cover`, filter: "grayscale(.18) contrast(1.06)", opacity: .88, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", zIndex: 0, inset: 0, background: `linear-gradient(142deg, ${accent2}c9 0%, rgba(7, 20, 13, .48) 56%, ${accent2}94 100%)`, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", zIndex: 0, inset: 0, backgroundImage: `repeating-linear-gradient(115deg, ${accent}16 0px, ${accent}16 2px, transparent 2px, transparent 34px)`, pointerEvents: "none" }} />
-            <div style={{ position: "absolute", zIndex: 0, right: -60, bottom: -60, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`, pointerEvents: "none" }} />
-            {/* top accent bar */}
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, transparent 85%)` }} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gap: 16,
+        }}
+        className="admin-tile-grid"
+      >
+        {domains.map(
+          ({
+            eyebrow,
+            title,
+            desc,
+            accent,
+            accent2,
+            Icon,
+            soon,
+            mode,
+            href,
+            photo,
+            regulatoryOpen: domainRegulatoryOpen,
+          }) => (
+            <a
+              key={title}
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                if (soon) return;
+                if (href) window.location.href = href;
+                else onNavigate(mode);
+              }}
+              className="ec-row domain-tile"
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                minHeight: 210,
+                padding: 24,
+                borderRadius: 18,
+                overflow: "hidden",
+                color: "#fff",
+                textDecoration: "none",
+                background: `linear-gradient(150deg, #101a17 0%, #0a1210 60%, #060b0a 100%)`,
+                border: `1px solid ${accent}33`,
+                boxShadow: `0 1px 2px rgba(18,33,26,.07), 0 24px 46px -28px rgba(18,33,26,.65), inset 0 1px 0 rgba(255,255,255,.04)`,
+                opacity: soon ? 0.9 : 1,
+                cursor: soon ? "default" : "pointer",
+              }}
+            >
+              {/* Native flora/fauna reference image, eucalyptus duotone and subtle pattern. */}
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 0,
+                  inset: 0,
+                  background: `url('/assets/${photo}') center/cover`,
+                  filter: "grayscale(.18) contrast(1.06)",
+                  opacity: 0.88,
+                  pointerEvents: "none",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 0,
+                  inset: 0,
+                  background: `linear-gradient(142deg, ${accent2}c9 0%, rgba(7, 20, 13, .48) 56%, ${accent2}94 100%)`,
+                  pointerEvents: "none",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 0,
+                  inset: 0,
+                  backgroundImage: `repeating-linear-gradient(115deg, ${accent}16 0px, ${accent}16 2px, transparent 2px, transparent 34px)`,
+                  pointerEvents: "none",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 0,
+                  right: -60,
+                  bottom: -60,
+                  width: 220,
+                  height: 220,
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle, ${accent}3d 0%, transparent 70%)`,
+                  pointerEvents: "none",
+                }}
+              />
+              {/* top accent bar */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 3,
+                  background: `linear-gradient(90deg, ${accent}, transparent 85%)`,
+                }}
+              />
 
-            <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                background: `linear-gradient(135deg, ${accent}, ${accent2})`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `0 8px 18px -6px ${accent}88`,
-              }}>
-                {Icon && <Icon size={21} color="#f6faf8" strokeWidth={2.2} />}
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    flexShrink: 0,
+                    background: `linear-gradient(135deg, ${accent}, ${accent2})`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 8px 18px -6px ${accent}88`,
+                  }}
+                >
+                  {Icon && <Icon size={21} color="#f6faf8" strokeWidth={2.2} />}
+                </div>
+                <ArrowUpRight
+                  size={18}
+                  color={`${accent}`}
+                  style={{ opacity: 0.55, flexShrink: 0 }}
+                />
               </div>
-              <ArrowUpRight size={18} color={`${accent}` } style={{ opacity: 0.55, flexShrink: 0 }} />
-            </div>
 
-            <div style={{ position: "relative", zIndex: 1 }}>
-              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, marginBottom: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                {eyebrow}
-                {soon && <span style={{ background: "rgba(255,255,255,0.15)", borderRadius: 5, padding: "1px 7px", letterSpacing: "0.05em", color: "#fff" }}>Soon</span>}
-                {counts[mode] > 0 && (
-                  <span style={{ background: accent, color: "#0a120f", borderRadius: 999, padding: "2px 10px", fontWeight: 800, letterSpacing: "0.02em" }}>
-                    {counts[mode]} pending
-                  </span>
-                )}
-                {domainRegulatoryOpen > 0 && (
-                  <span style={{ background: "#e7c979", color: "#1b3824", borderRadius: 999, padding: "2px 10px", fontWeight: 900, letterSpacing: "0.02em" }}>
-                    {domainRegulatoryOpen} regulatory review{domainRegulatoryOpen === 1 ? "" : "s"}
-                  </span>
-                )}
+              <div style={{ position: "relative", zIndex: 1 }}>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    color: accent,
+                    marginBottom: 9,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {eyebrow}
+                  {soon && (
+                    <span
+                      style={{
+                        background: "rgba(255,255,255,0.15)",
+                        borderRadius: 5,
+                        padding: "1px 7px",
+                        letterSpacing: "0.05em",
+                        color: "#fff",
+                      }}
+                    >
+                      Soon
+                    </span>
+                  )}
+                  {counts[mode] > 0 && (
+                    <span
+                      style={{
+                        background: accent,
+                        color: "#0a120f",
+                        borderRadius: 999,
+                        padding: "2px 10px",
+                        fontWeight: 800,
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {counts[mode]} pending
+                    </span>
+                  )}
+                  {domainRegulatoryOpen > 0 && (
+                    <span
+                      style={{
+                        background: "#e7c979",
+                        color: "#1b3824",
+                        borderRadius: 999,
+                        padding: "2px 10px",
+                        fontWeight: 900,
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {domainRegulatoryOpen} regulatory review
+                      {domainRegulatoryOpen === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontFamily: SERIF,
+                    fontSize: 25,
+                    lineHeight: 1.12,
+                    marginBottom: 8,
+                    color: "#f6faf8",
+                  }}
+                >
+                  {title}
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12.8,
+                    lineHeight: 1.55,
+                    color: "rgba(242,248,246,0.72)",
+                    maxWidth: "46ch",
+                  }}
+                >
+                  {desc}
+                </p>
               </div>
-              <div style={{ fontFamily: SERIF, fontSize: 25, lineHeight: 1.12, marginBottom: 8, color: "#f6faf8" }}>{title}</div>
-              <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.55, color: "rgba(242,248,246,0.72)", maxWidth: "46ch" }}>{desc}</p>
-            </div>
-          </a>
-        ))}
+            </a>
+          ),
+        )}
       </div>
     </div>
   );
@@ -1431,116 +3850,514 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
 
   useEffect(() => {
     if (!session?.access_token) return;
-    fetch("/api/staff-feedback", { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((r) => r.json()).then((d) => setFeedback({ outcomes: d.outcomes || [], unseen: d.unseen || 0 })).catch(() => {});
-    fetch("/api/portal-events?limit=100", { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((r) => r.json()).then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : [])).catch(() => {});
+    fetch("/api/staff-feedback", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((d) =>
+        setFeedback({ outcomes: d.outcomes || [], unseen: d.unseen || 0 }),
+      )
+      .catch(() => {});
+    fetch("/api/portal-events?limit=100", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : []))
+      .catch(() => {});
   }, [session]);
 
   const markSeen = async () => {
     setShowOutcomes(true);
     if (feedback.unseen > 0 && session?.access_token) {
       try {
-        await fetch("/api/staff-feedback", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: "{}" });
+        await fetch("/api/staff-feedback", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: "{}",
+        });
         setFeedback((f) => ({ ...f, unseen: 0 }));
       } catch {}
     }
   };
 
-
-
   // My Onboarding is shown only after an administrator has Lock & Assigned at
   // least one module for this staff member. This prevents a blank domain from
   // appearing for staff who have not been given an onboarding programme.
   const allDomains = [
-    { key: "notifications", n: "01", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project allocations and decisions requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
-    { key: "projects", n: "02", eyebrow: "Delivery workspace", title: "My Projects", desc: "Accepted tasks, allocated activities, project tracking and service requests.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "timesheets", n: "03", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history, filters, XLSX export and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
-    { key: "staffforms", n: "04", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
-    { key: "ldlibrary", n: "05", eyebrow: "People & learning", title: "Learning & Development", desc: "Your approved training modules, resources and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
-    { key: "species", n: "06", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
-    { key: "mine", n: "07", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your individually assigned onboarding modules and progress record.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
-    { key: "remote", n: "08", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, coordination records and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    {
+      key: "notifications",
+      n: "01",
+      eyebrow: "Workflow & alerts",
+      title: "Notifications",
+      desc: "Task briefs, project allocations and decisions requiring your attention.",
+      Icon: BellRing,
+      photo: "redtail-cockatoo",
+      base: "#19452e",
+      g1: "#286544",
+      g2: "#071c11",
+      href: "/staff/notifications",
+    },
+    {
+      key: "projects",
+      n: "02",
+      eyebrow: "Delivery workspace",
+      title: "My Projects",
+      desc: "Accepted tasks, allocated activities, project tracking and service requests.",
+      Icon: FileText,
+      photo: "kangaroo",
+      base: "#1d6b6b",
+      g1: "#238383",
+      g2: "#0c2b2b",
+      href: "/staff/projects",
+    },
+    {
+      key: "timesheets",
+      n: "03",
+      eyebrow: "Time & delivery",
+      title: "Timesheets",
+      desc: "Project tracker history, filters, XLSX export and official time entry.",
+      Icon: Clock3,
+      photo: "koala",
+      base: "#365a6c",
+      g1: "#47758a",
+      g2: "#132b38",
+      href: "/staff/timesheets",
+    },
+    {
+      key: "staffforms",
+      n: "04",
+      eyebrow: "Safety, requests & governance",
+      title: "WHS & EC Forms",
+      desc: "Forms, requests, and approved internal policies and procedures.",
+      Icon: ShieldCheck,
+      photo: "kookaburra",
+      base: "#8a5b2e",
+      g1: "#c9962a",
+      g2: "#2a1c08",
+    },
+    {
+      key: "ldlibrary",
+      n: "05",
+      eyebrow: "People & learning",
+      title: "Learning & Development",
+      desc: "Your approved training modules, resources and quizzes.",
+      Icon: BookOpen,
+      photo: "lorikeet",
+      base: "#7d3b5c",
+      g1: "#9c4a72",
+      g2: "#2a1420",
+    },
+    {
+      key: "species",
+      n: "06",
+      eyebrow: "Species reference",
+      title: "Species Profiles & Survey Requirements",
+      desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.",
+      Icon: BookOpen,
+      photo: "wattle",
+      base: "#1e5b36",
+      g1: "#2f8f8f",
+      g2: "#0b2317",
+    },
+    {
+      key: "mine",
+      n: "07",
+      requiresOnboarding: true,
+      eyebrow: "Getting started",
+      title: "My Onboarding",
+      desc: "Your individually assigned onboarding modules and progress record.",
+      Icon: ClipboardList,
+      photo: "wattle",
+      base: "#2f5c2f",
+      g1: "#3b7a3d",
+      g2: "#123320",
+    },
+    {
+      key: "remote",
+      n: "08",
+      eyebrow: "International delivery",
+      title: "Remote Operations",
+      desc: "Remote-work profiles, coordination records and delivery handovers.",
+      Icon: Users2,
+      photo: "bottlebrush",
+      base: "#a34a32",
+      g1: "#c05a3e",
+      g2: "#2a1109",
+      href: "/staff/remote-operations",
+    },
   ];
-  const unreadForDomain = (key) => portalEvents.filter((event) => {
-    if (event.read_at) return false;
-    if (key === "notifications") return true;
-    if (key === "projects") return ["remote_tasks", "project_activities", "project_tracker_entries"].includes(event.source_table) || String(event.event_type || "").includes("project_") || String(event.event_type || "").includes("remote_task");
-    if (key === "timesheets") return String(event.event_type || "").includes("tracker") || String(event.event_type || "").includes("timesheet");
-    return false;
-  }).length;
-  const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding).map((domain) => ({ ...domain, unread: unreadForDomain(domain.key) }));
+  const unreadForDomain = (key) =>
+    portalEvents.filter((event) => {
+      if (event.read_at) return false;
+      if (key === "notifications") return true;
+      if (key === "projects")
+        return (
+          [
+            "remote_tasks",
+            "project_activities",
+            "project_tracker_entries",
+          ].includes(event.source_table) ||
+          String(event.event_type || "").includes("project_") ||
+          String(event.event_type || "").includes("remote_task")
+        );
+      if (key === "timesheets")
+        return (
+          String(event.event_type || "").includes("tracker") ||
+          String(event.event_type || "").includes("timesheet")
+        );
+      return false;
+    }).length;
+  const domains = allDomains
+    .filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding)
+    .map((domain) => ({ ...domain, unread: unreadForDomain(domain.key) }));
 
   return (
-    <div className="staff-home-shell" style={{ width: "100%", maxWidth: 1440, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
-
-
+    <div
+      className="staff-home-shell"
+      style={{
+        width: "100%",
+        maxWidth: 1440,
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 22,
+        fontFamily: FONT,
+      }}
+    >
       {showOutcomes && feedback.outcomes.length > 0 && (
-        <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>Recent outcomes</h2>
-            <button onClick={() => setShowOutcomes(false)} style={{ background: "none", border: "none", color: C.sage, cursor: "pointer", fontFamily: MONO, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Hide</button>
+        <div
+          style={{
+            background: C.paperCard,
+            border: `1px solid ${C.hair}`,
+            borderRadius: 15,
+            padding: "18px 20px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: SERIF,
+                fontSize: 18,
+                fontWeight: 400,
+                color: C.inkDeep,
+              }}
+            >
+              Recent outcomes
+            </h2>
+            <button
+              onClick={() => setShowOutcomes(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: C.sage,
+                cursor: "pointer",
+                fontFamily: MONO,
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Hide
+            </button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {feedback.outcomes.slice(0, 8).map((o) => {
               const good = o.status === "approved" || o.status === "reviewed";
               const actioned = o.status === "actioned";
               const col = actioned ? C.gold : good ? C.eucalypt : C.rustAccent;
-              const label = { approved: "Approved", declined: "Declined", reviewed: "Reviewed", actioned: "Action required" }[o.status] || o.status;
+              const label =
+                {
+                  approved: "Approved",
+                  declined: "Declined",
+                  reviewed: "Reviewed",
+                  actioned: "Action required",
+                }[o.status] || o.status;
               return (
-                <div key={o.kind + o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: `1px solid ${C.hairSoft}`, borderRadius: 10, borderLeft: `3px solid ${col}` }}>
+                <div
+                  key={o.kind + o.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    border: `1px solid ${C.hairSoft}`,
+                    borderRadius: 10,
+                    borderLeft: `3px solid ${col}`,
+                  }}
+                >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{o.title}</div>
-                    {o.note && <div style={{ fontSize: 12, color: C.sageText, marginTop: 3 }}>Note: {o.note}</div>}
-                    <div style={{ fontSize: 11, color: C.sage, marginTop: 3 }}>{o.at ? new Date(o.at).toLocaleDateString("en-AU") : ""}</div>
+                    <div
+                      style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}
+                    >
+                      {o.title}
+                    </div>
+                    {o.note && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: C.sageText,
+                          marginTop: 3,
+                        }}
+                      >
+                        Note: {o.note}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: C.sage, marginTop: 3 }}>
+                      {o.at ? new Date(o.at).toLocaleDateString("en-AU") : ""}
+                    </div>
                   </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.03em", color: col, background: `${col}14`, padding: "3px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>{label}</span>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                      color: col,
+                      background: `${col}14`,
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
                 </div>
               );
             })}
           </div>
-          <p style={{ margin: "12px 0 0", fontSize: 11.5, color: C.sage, fontStyle: "italic" }}>Full detail is in your submission history within the WHS &amp; EC Forms area.</p>
+          <p
+            style={{
+              margin: "12px 0 0",
+              fontSize: 11.5,
+              color: C.sage,
+              fontStyle: "italic",
+            }}
+          >
+            Full detail is in your submission history within the WHS &amp; EC
+            Forms area.
+          </p>
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: 26, alignItems: "start" }} className="staff-home-grid">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 330px",
+          gap: 26,
+          alignItems: "start",
+        }}
+        className="staff-home-grid"
+      >
         {/* Domains — left */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="staff-domain-grid">
-            {domains.map(({ key, n, eyebrow, title, desc, Icon, photo, base, g1, g2, href, unread }) => (
-              <a
-                key={key}
-                href="#"
-                onClick={(e) => { e.preventDefault(); if (href) window.location.href = href; else onNavigate(key); }}
-                className="ec-row"
-                style={{ position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end", minHeight: 214, padding: 22, borderRadius: 16, overflow: "hidden", color: "#fff", background: base, textDecoration: "none", boxShadow: "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)" }}
-              >
-                <div style={{ position: "absolute", inset: 0, background: `url('/assets/${photo}.png') center/cover`, filter: "grayscale(0.35)", opacity: 0.82 }} />
-                <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 82%)`, mixBlendMode: "multiply" }} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.88), rgba(6,18,12,.05) 68%)" }} />
-                <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={17} /></div>
-                    {unread ? <span className="ec-row-unread" aria-label={`${unread > 99 ? "More than 99" : unread} unread items`}>{unread > 99 ? "99+" : unread}</span> : null}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+              gap: 16,
+            }}
+            className="staff-domain-grid"
+          >
+            {domains.map(
+              ({
+                key,
+                n,
+                eyebrow,
+                title,
+                desc,
+                Icon,
+                photo,
+                base,
+                g1,
+                g2,
+                href,
+                unread,
+              }) => (
+                <a
+                  key={key}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (href) window.location.href = href;
+                    else onNavigate(key);
+                  }}
+                  className="ec-row"
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "flex-end",
+                    minHeight: 214,
+                    padding: 22,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    color: "#fff",
+                    background: base,
+                    textDecoration: "none",
+                    boxShadow:
+                      "0 1px 2px rgba(18,33,26,.07), 0 22px 44px -30px rgba(18,33,26,.55)",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: `url('/assets/${photo}.png') center/cover`,
+                      filter: "grayscale(0.35)",
+                      opacity: 0.82,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: `linear-gradient(150deg, ${g1}, ${g2} 82%)`,
+                      mixBlendMode: "multiply",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(to top, rgba(6,18,12,.88), rgba(6,18,12,.05) 68%)",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      flexDirection: "column",
+                      height: "100%",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 9,
+                          background: "rgba(255,255,255,.16)",
+                          border: "1px solid rgba(255,255,255,.24)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={17} />
+                      </div>
+                      {unread ? (
+                        <span
+                          className="ec-row-unread"
+                          aria-label={`${unread > 99 ? "More than 99" : unread} unread items`}
+                        >
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 10,
+                          letterSpacing: "0.18em",
+                          textTransform: "uppercase",
+                          color: "rgba(233,201,121,0.95)",
+                          marginBottom: 8,
+                        }}
+                      >
+                        {eyebrow}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: SERIF,
+                          fontSize: 25,
+                          lineHeight: 1.12,
+                          marginBottom: 7,
+                        }}
+                      >
+                        {title}
+                      </div>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 12.8,
+                          lineHeight: 1.5,
+                          color: "rgba(255,255,255,0.8)",
+                        }}
+                      >
+                        {desc}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(233,201,121,0.95)", marginBottom: 8 }}>{eyebrow}</div>
-                    <div style={{ fontFamily: SERIF, fontSize: 25, lineHeight: 1.12, marginBottom: 7 }}>{title}</div>
-                    <p style={{ margin: 0, fontSize: 12.8, lineHeight: 1.5, color: "rgba(255,255,255,0.8)" }}>{desc}</p>
-                  </div>
-                </div>
-              </a>
-            ))}
+                </a>
+              ),
+            )}
           </div>
         </div>
 
         {/* Noticeboard + calendar — right */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: 18, fontWeight: 400, color: C.inkDeep }}>Staff noticeboard</h2>
-              <a href="/staff/noticeboard" style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500, color: C.teal, textDecoration: "none" }}>Open →</a>
+          <div
+            style={{
+              background: C.paperCard,
+              border: `1px solid ${C.hair}`,
+              borderRadius: 15,
+              padding: "18px 20px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontFamily: SERIF,
+                  fontSize: 18,
+                  fontWeight: 400,
+                  color: C.inkDeep,
+                }}
+              >
+                Staff noticeboard
+              </h2>
+              <a
+                href="/staff/noticeboard"
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10.5,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                  color: C.teal,
+                  textDecoration: "none",
+                }}
+              >
+                Open →
+              </a>
             </div>
             <StaffPortalEvents />
           </div>
@@ -1556,24 +4373,89 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
 // page (they are full standalone workspaces, not embeddable panels).
 function WhsFormsHub() {
   const forms = [
-    { href: "/staff/toolbox-talks", title: "Toolbox Talk Record", desc: "Record a field toolbox talk, attendance and any corrective actions.", color: "#3d7a35" },
-    { href: "/staff/incident-reports", title: "Incident Report", desc: "Report an incident or near miss. Notifiable incidents must be reported to SafeWork NSW immediately.", color: "#c0392b" },
-    { href: "/staff/whs-drafts", title: "WHS Draft Studio", desc: "Draft a numbered SWMS or psychosocial risk assessment. Each draft requires competent review before use.", color: "#4197D0" },
+    {
+      href: "/staff/toolbox-talks",
+      title: "Toolbox Talk Record",
+      desc: "Record a field toolbox talk, attendance and any corrective actions.",
+      color: "#3d7a35",
+    },
+    {
+      href: "/staff/incident-reports",
+      title: "Incident Report",
+      desc: "Report an incident or near miss. Notifiable incidents must be reported to SafeWork NSW immediately.",
+      color: "#c0392b",
+    },
+    {
+      href: "/staff/whs-drafts",
+      title: "WHS Draft Studio",
+      desc: "Draft a numbered SWMS or psychosocial risk assessment. Each draft requires competent review before use.",
+      color: "#4197D0",
+    },
   ];
   return (
     <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <h1 style={{ margin: "0 0 6px", fontSize: 24, fontWeight: 900, color: C.green800, fontFamily: FONT }}>WHS Forms</h1>
-      <p style={{ margin: "0 0 22px", fontSize: 14, fontWeight: 600, color: C.inkSoft, lineHeight: 1.55 }}>
-        Field WHS records and controlled working drafts. All AI-assisted or drafted WHS content is a draft requiring competent human review before approved use.
+      <h1
+        style={{
+          margin: "0 0 6px",
+          fontSize: 24,
+          fontWeight: 900,
+          color: C.green800,
+          fontFamily: FONT,
+        }}
+      >
+        WHS Forms
+      </h1>
+      <p
+        style={{
+          margin: "0 0 22px",
+          fontSize: 14,
+          fontWeight: 600,
+          color: C.inkSoft,
+          lineHeight: 1.55,
+        }}
+      >
+        Field WHS records and controlled working drafts. All AI-assisted or
+        drafted WHS content is a draft requiring competent human review before
+        approved use.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {forms.map((form) => (
-          <a key={form.href} href={form.href} style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none", background: C.cardBg, border: `1px solid ${C.line}`, borderLeft: `4px solid ${form.color}`, borderRadius: 12, padding: "16px 18px" }}>
+          <a
+            key={form.href}
+            href={form.href}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              textDecoration: "none",
+              background: C.cardBg,
+              border: `1px solid ${C.line}`,
+              borderLeft: `4px solid ${form.color}`,
+              borderRadius: 12,
+              padding: "16px 18px",
+            }}
+          >
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: C.ink }}>{form.title}</div>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{form.desc}</div>
+              <div style={{ fontSize: 15.5, fontWeight: 800, color: C.ink }}>
+                {form.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: C.inkSoft,
+                  marginTop: 3,
+                  lineHeight: 1.45,
+                }}
+              >
+                {form.desc}
+              </div>
             </div>
-            <ChevronRight size={18} color={C.inkFaint} style={{ flexShrink: 0 }} />
+            <ChevronRight
+              size={18}
+              color={C.inkFaint}
+              style={{ flexShrink: 0 }}
+            />
           </a>
         ))}
       </div>
@@ -1582,7 +4464,13 @@ function WhsFormsHub() {
 }
 
 export default function OnboardingWorkbook() {
-  const { user, isAdmin: hasAdminRights, portal, setPortal, signOut } = useAuth();
+  const {
+    user,
+    isAdmin: hasAdminRights,
+    portal,
+    setPortal,
+    signOut,
+  } = useAuth();
   // The whole workbook keys off "isAdmin" for what to show/allow. Being in the
   // staff portal means seeing the staff experience even if you hold admin
   // rights, so the effective admin flag is role AND portal — not role alone.
@@ -1591,7 +4479,9 @@ export default function OnboardingWorkbook() {
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [mode, setMode] = useState(() => (inAdminPortal ? "home" : "staffhome")); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
+  const [mode, setMode] = useState(() =>
+    inAdminPortal ? "home" : "staffhome",
+  ); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
   // Always reset to the selected portal's domain home when the person switches
   // between Staff and Admin. Without this guard an admin sub-domain mode (for
   // example `adminprojects`) can survive a switch to Staff and fall through to
@@ -1610,7 +4500,10 @@ export default function OnboardingWorkbook() {
   }, [portal, inAdminPortal]);
   const [libraryTopic, setLibraryTopic] = useState(null);
   const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
-  const goToLibraryTopic = useCallback((topic) => { setLibraryTopic(topic); setMode("library"); }, []);
+  const goToLibraryTopic = useCallback((topic) => {
+    setLibraryTopic(topic);
+    setMode("library");
+  }, []);
 
   // The Staff Portal must not advertise My Onboarding until an administrator has
   // explicitly locked and assigned at least one module to the signed-in user.
@@ -1618,7 +4511,9 @@ export default function OnboardingWorkbook() {
     let current = true;
     if (!user?.id) {
       setHasAssignedOnboarding(false);
-      return () => { current = false; };
+      return () => {
+        current = false;
+      };
     }
     supabase
       .from("assigned_modules")
@@ -1627,14 +4522,20 @@ export default function OnboardingWorkbook() {
       .eq("unlocked", true)
       .limit(1)
       .then(({ data, error }) => {
-        if (current) setHasAssignedOnboarding(!error && (data || []).length > 0);
+        if (current)
+          setHasAssignedOnboarding(!error && (data || []).length > 0);
       })
-      .catch(() => { if (current) setHasAssignedOnboarding(false); });
-    return () => { current = false; };
+      .catch(() => {
+        if (current) setHasAssignedOnboarding(false);
+      });
+    return () => {
+      current = false;
+    };
   }, [user?.id]);
 
   useEffect(() => {
-    if (!inAdminPortal && !hasAssignedOnboarding && mode === "mine") setMode("staffhome");
+    if (!inAdminPortal && !hasAssignedOnboarding && mode === "mine")
+      setMode("staffhome");
   }, [hasAssignedOnboarding, inAdminPortal, mode]);
   useEffect(() => {
     const handler = () => setMode("remoteops");
@@ -1651,6 +4552,20 @@ export default function OnboardingWorkbook() {
     };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [displayMode, setDisplayMode] = useState("auto");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("ec-display-mode");
+      if (["auto", "desktop", "tablet", "mobile"].includes(saved))
+        setDisplayMode(saved);
+    } catch {}
+  }, []);
+  const updateDisplayMode = useCallback((nextMode) => {
+    setDisplayMode(nextMode);
+    try {
+      window.localStorage.setItem("ec-display-mode", nextMode);
+    } catch {}
+  }, []);
   // Projects & Operations intentionally contains delivery setup and portfolio
   // health only. Quote Pipeline is its own Commercial Control domain card.
   const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
@@ -1665,7 +4580,10 @@ export default function OnboardingWorkbook() {
     setMode("adminprojects");
   }, [inAdminPortal, mode]);
 
-  const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(""), 2200); }, []);
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2200);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -1678,26 +4596,66 @@ export default function OnboardingWorkbook() {
     setLoaded(true);
   }, [showToast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const mutate = (fn) => setData((prev) => {
-    // structuredClone-free shallow-safe mutation: operate on the same
-    // object graph the callback closures already captured, then
-    // shallow-copy to trigger a re-render.
-    fn(prev);
-    return { ...prev, phases: [...prev.phases], ldMonths: [...prev.ldMonths] };
-  });
+  const mutate = (fn) =>
+    setData((prev) => {
+      // structuredClone-free shallow-safe mutation: operate on the same
+      // object graph the callback closures already captured, then
+      // shallow-copy to trigger a re-render.
+      fn(prev);
+      return {
+        ...prev,
+        phases: [...prev.phases],
+        ldMonths: [...prev.ldMonths],
+      };
+    });
 
   if (!loaded || !data) {
-    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontFamily: FONT, color: C.green800 }}>Loading the onboarding workbook…</div>;
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          fontFamily: FONT,
+          color: C.green800,
+        }}
+      >
+        Loading the onboarding workbook…
+      </div>
+    );
   }
 
-  const navItems = [...data.phases.map((p) => ({ id: p.id, label: p.label, ...phaseCounts(p) })),
-    { id: "ld", label: "Learning & Development", ...ldCounts(data.ldMonths) }];
+  const navItems = [
+    ...data.phases.map((p) => ({
+      id: p.id,
+      label: p.label,
+      ...phaseCounts(p),
+    })),
+    { id: "ld", label: "Learning & Development", ...ldCounts(data.ldMonths) },
+  ];
 
   return (
-    <div style={{ minHeight: "100%", background: C.bg, fontFamily: FONT, color: C.ink, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.line}` }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+    <div
+      className={`ec-portal-shell ec-display-${displayMode}`}
+      style={{
+        minHeight: "100%",
+        background: C.bg,
+        fontFamily: FONT,
+        color: C.ink,
+        borderRadius: 12,
+        overflow: "hidden",
+        border: `1px solid ${C.line}`,
+      }}
+    >
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      />
       <style>{`
         @keyframes wb-spin { to { transform: rotate(360deg); } }
         .wb-spin { animation: wb-spin 0.8s linear infinite; }
@@ -1712,28 +4670,110 @@ export default function OnboardingWorkbook() {
       `}</style>
 
       {/* Header */}
-      <header style={{ position: "relative", overflow: "hidden", background: C.forest, color: "#f2f6ef" }}>
-        <div style={{ position: "absolute", inset: 0, background: "url('/assets/rosella.png') center 38%/cover", filter: "grayscale(0.4)", opacity: 0.34 }} />
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, ${C.forestDeep} 0%, #1c5231 55%, #3d7a45 100%)`, mixBlendMode: "multiply" }} />
-        <div style={{ position: "relative", maxWidth: 1240, margin: "0 auto", padding: "24px 32px 22px", display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
-          <div style={{ background: "#fff", borderRadius: 9, padding: "8px 11px", display: "flex", alignItems: "center" }}>
-            <img src="/logo.png" alt="Ecology Consulting" style={{ height: 28, width: "auto", display: "block" }} />
+      <header
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: C.forest,
+          color: "#f2f6ef",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "url('/assets/rosella.png') center 38%/cover",
+            filter: "grayscale(0.4)",
+            opacity: 0.34,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `linear-gradient(100deg, ${C.forestDeep} 0%, #1c5231 55%, #3d7a45 100%)`,
+            mixBlendMode: "multiply",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            maxWidth: 1240,
+            margin: "0 auto",
+            padding: "24px 32px 22px",
+            display: "flex",
+            alignItems: "center",
+            gap: 22,
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 9,
+              padding: "8px 11px",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <img
+              src="/logo.png"
+              alt="Ecology Consulting"
+              style={{ height: 28, width: "auto", display: "block" }}
+            />
           </div>
           <div style={{ flex: "1 1 240px" }}>
-            <div style={{ fontFamily: SERIF, fontSize: 25, fontWeight: 400, lineHeight: 1.15 }}>Welcome, {displayNameFromEmail(user?.email)}</div>
-            <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,246,239,0.62)", marginTop: 5 }}>
-              {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {inAdminPortal ? "Admin portal" : "Staff portal"}
+            <div
+              style={{
+                fontFamily: SERIF,
+                fontSize: 25,
+                fontWeight: 400,
+                lineHeight: 1.15,
+              }}
+            >
+              Welcome, {displayNameFromEmail(user?.email)}
+            </div>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "rgba(242,246,239,0.62)",
+                marginTop: 5,
+              }}
+            >
+              {new Date().toLocaleDateString("en-AU", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}{" "}
+              · {inAdminPortal ? "Admin portal" : "Staff portal"}
             </div>
           </div>
-          <div data-print="hide" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div
+            data-print="hide"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
             <button
               onClick={() => {
                 setMode(inAdminPortal ? "home" : "staffhome");
-                if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+                if (typeof window !== "undefined")
+                  window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               className="ec-hdr-btn"
               style={ecHdrBtnGold}
-              title={inAdminPortal ? "Return to the admin home" : "Return to the staff home"}
+              title={
+                inAdminPortal
+                  ? "Return to the admin home"
+                  : "Return to the staff home"
+              }
             >
               <HomeIcon size={13} /> Home
             </button>
@@ -1742,15 +4782,45 @@ export default function OnboardingWorkbook() {
                 onClick={() => setPortal(inAdminPortal ? "staff" : "admin")}
                 className="ec-hdr-btn"
                 style={inAdminPortal ? ecHdrBtn : ecHdrBtnGold}
-                title={inAdminPortal ? "Switch to your staff portal" : "Switch to the admin portal"}
+                title={
+                  inAdminPortal
+                    ? "Switch to your staff portal"
+                    : "Switch to the admin portal"
+                }
               >
-                {inAdminPortal ? <><Users2 size={13} /> Staff portal</> : <><ShieldCheck size={13} /> Admin portal</>}
+                {inAdminPortal ? (
+                  <>
+                    <Users2 size={13} /> Staff portal
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={13} /> Admin portal
+                  </>
+                )}
               </button>
             )}
             <SaveStatus />
-            <button onClick={() => setSettingsOpen(true)} className="ec-hdr-btn" style={ecHdrBtn}><Settings size={13} /> Settings</button>
-            <button onClick={() => window.print()} className="ec-hdr-btn" style={ecHdrBtn}><FileText size={13} /> Save as PDF</button>
-            <button onClick={() => { if (window.confirm("Log out of the portal?")) signOut(); }} className="ec-hdr-btn" style={ecHdrBtnGhost}>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="ec-hdr-btn"
+              style={ecHdrBtn}
+            >
+              <Settings size={13} /> Settings
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="ec-hdr-btn"
+              style={ecHdrBtn}
+            >
+              <FileText size={13} /> Save as PDF
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm("Log out of the portal?")) signOut();
+              }}
+              className="ec-hdr-btn"
+              style={ecHdrBtnGhost}
+            >
               <LogOut size={13} /> Log out
             </button>
           </div>
@@ -1760,96 +4830,313 @@ export default function OnboardingWorkbook() {
       {/* Domain cards and the persistent header Home control are the sole portal-level navigation.
           Embedded sub-tabs remain available inside each selected domain. */}
       {inAdminPortal && (
-      <nav hidden aria-label="Retired portal topic navigation" style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.paperAlt}f2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.hair}`, padding: "13px 32px" }}>
-        <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
-          {[
-            { key: "staffhome", label: "Home", desc: "Your staff portal home", Icon: HomeIcon, staffOnly: true },
-            { key: "home", label: "Home", desc: "Your starting point", Icon: HomeIcon, adminOnly: true },
-            { key: "portalmgmt", label: "Portal Management", desc: "Staff, progress & onboarding", Icon: Users2, adminOnly: true },
-            { key: "mine", label: "My Onboarding", desc: "Your personally assigned modules", Icon: ClipboardList, staffOnly: true, requiresOnboarding: true },
-            { key: "staffforms", label: "WHS & EC Forms", desc: "Forms, requests and Internal Governance", Icon: ShieldCheck, staffOnly: true },
-{ key: "ldlibrary", label: "Learning & Development", desc: "Modules, resources & quizzes", Icon: BookOpen, staffOnly: true },
-            { key: "species", label: "Species Profiles & Survey Requirements", desc: "Flora, fauna & survey timing standards", Icon: BookOpen, staffOnly: true },
-            { key: "projects", label: "Projects & Tracker", desc: "Your allocations, schedules, work status and budget", Icon: FileText, staffOnly: true, href: "/staff/projects" },
-            { key: "timesheets", label: "Timesheets", desc: "Project tracker history and official time entry", Icon: Clock3, staffOnly: true, href: "/staff/timesheets" },
-            { key: "remoteops", label: "Remote Operations", desc: "Assigned task briefs, updates and delivery handovers", Icon: Users2, staffOnly: true, href: "/staff/remote-operations" },
-          ].filter((item) => {
-            if (item.requiresOnboarding && !hasAssignedOnboarding) return false;
-            if (item.staffOnly) return !inAdminPortal;
-            if (item.adminOnly) return inAdminPortal;
-            return true;
-          }).map(({ key, label, desc, Icon, href }) => {
-            const active = mode === key;
-            return (
-              <button key={key} onClick={() => { if (href) { window.location.href = href; return; } setMode(key); if (key === "library") setLibraryTopic(null); }} className="ec-nav-tab" style={{
-                cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start",
-                padding: "9px 15px", borderRadius: 10, fontFamily: FONT, textAlign: "left", minWidth: 150,
-                border: `1px solid ${active ? "transparent" : C.hairSoft}`,
-                background: active ? C.paperCard : "rgba(255,253,248,0.55)",
-                boxShadow: active ? `inset 3px 0 0 ${C.eucalypt}` : "none",
-              }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: active ? C.inkDeep : C.sageText }}>
-                  <Icon size={14} /> {label}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 400, color: C.sage, lineHeight: 1.3 }}>{desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+        <nav
+          hidden
+          aria-label="Retired portal topic navigation"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 50,
+            background: `${C.paperAlt}f2`,
+            backdropFilter: "blur(10px)",
+            borderBottom: `1px solid ${C.hair}`,
+            padding: "13px 32px",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1240,
+              margin: "0 auto",
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "stretch",
+            }}
+          >
+            {[
+              {
+                key: "staffhome",
+                label: "Home",
+                desc: "Your staff portal home",
+                Icon: HomeIcon,
+                staffOnly: true,
+              },
+              {
+                key: "home",
+                label: "Home",
+                desc: "Your starting point",
+                Icon: HomeIcon,
+                adminOnly: true,
+              },
+              {
+                key: "portalmgmt",
+                label: "Portal Management",
+                desc: "Staff, progress & onboarding",
+                Icon: Users2,
+                adminOnly: true,
+              },
+              {
+                key: "mine",
+                label: "My Onboarding",
+                desc: "Your personally assigned modules",
+                Icon: ClipboardList,
+                staffOnly: true,
+                requiresOnboarding: true,
+              },
+              {
+                key: "staffforms",
+                label: "WHS & EC Forms",
+                desc: "Forms, requests and Internal Governance",
+                Icon: ShieldCheck,
+                staffOnly: true,
+              },
+              {
+                key: "ldlibrary",
+                label: "Learning & Development",
+                desc: "Modules, resources & quizzes",
+                Icon: BookOpen,
+                staffOnly: true,
+              },
+              {
+                key: "species",
+                label: "Species Profiles & Survey Requirements",
+                desc: "Flora, fauna & survey timing standards",
+                Icon: BookOpen,
+                staffOnly: true,
+              },
+              {
+                key: "projects",
+                label: "Projects & Tracker",
+                desc: "Your allocations, schedules, work status and budget",
+                Icon: FileText,
+                staffOnly: true,
+                href: "/staff/projects",
+              },
+              {
+                key: "timesheets",
+                label: "Timesheets",
+                desc: "Project tracker history and official time entry",
+                Icon: Clock3,
+                staffOnly: true,
+                href: "/staff/timesheets",
+              },
+              {
+                key: "remoteops",
+                label: "Remote Operations",
+                desc: "Assigned task briefs, updates and delivery handovers",
+                Icon: Users2,
+                staffOnly: true,
+                href: "/staff/remote-operations",
+              },
+            ]
+              .filter((item) => {
+                if (item.requiresOnboarding && !hasAssignedOnboarding)
+                  return false;
+                if (item.staffOnly) return !inAdminPortal;
+                if (item.adminOnly) return inAdminPortal;
+                return true;
+              })
+              .map(({ key, label, desc, Icon, href }) => {
+                const active = mode === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (href) {
+                        window.location.href = href;
+                        return;
+                      }
+                      setMode(key);
+                      if (key === "library") setLibraryTopic(null);
+                    }}
+                    className="ec-nav-tab"
+                    style={{
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      alignItems: "flex-start",
+                      padding: "9px 15px",
+                      borderRadius: 10,
+                      fontFamily: FONT,
+                      textAlign: "left",
+                      minWidth: 150,
+                      border: `1px solid ${active ? "transparent" : C.hairSoft}`,
+                      background: active
+                        ? C.paperCard
+                        : "rgba(255,253,248,0.55)",
+                      boxShadow: active
+                        ? `inset 3px 0 0 ${C.eucalypt}`
+                        : "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: active ? C.inkDeep : C.sageText,
+                      }}
+                    >
+                      <Icon size={14} /> {label}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 400,
+                        color: C.sage,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {desc}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </nav>
       )}
 
       {/* Main content */}
-      <div className="wb-layout" style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px 80px", display: "flex", gap: 32, alignItems: "flex-start", background: C.paper }}>
+      <div
+        className="wb-layout"
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          padding: "40px 32px 80px",
+          display: "flex",
+          gap: 32,
+          alignItems: "flex-start",
+          background: C.paper,
+        }}
+      >
         {/* Retired checklist-only shell: portal users always land on a domain home. */}
-        <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 56 }}>
+        <main
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 56,
+          }}
+        >
           {mode === "staffhome" && !inAdminPortal ? (
-            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
+            <StaffHome
+              user={user}
+              onNavigate={setMode}
+              hasAssignedOnboarding={hasAssignedOnboarding}
+            />
           ) : mode === "library" ? (
-            <ResourceLibrary key={libraryTopic || "root"} isAdmin={isAdmin} onToast={showToast} initialTopic={libraryTopic} />
+            <ResourceLibrary
+              key={libraryTopic || "root"}
+              isAdmin={isAdmin}
+              onToast={showToast}
+              initialTopic={libraryTopic}
+            />
           ) : mode === "whs" ? (
             <WhsFormsHub />
           ) : mode === "mine" && !inAdminPortal && hasAssignedOnboarding ? (
             <MyOnboarding onToast={showToast} />
           ) : mode === "mine" && !inAdminPortal ? (
-            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
-                    ) : isAdmin && mode === "portalmgmt" ? (
+            <StaffHome
+              user={user}
+              onNavigate={setMode}
+              hasAssignedOnboarding={hasAssignedOnboarding}
+            />
+          ) : isAdmin && mode === "portalmgmt" ? (
             <PortalManagement
               onToast={showToast}
-              onboardingContent={(
+              onboardingContent={
                 <div className="pm-onboarding-content">
                   <StaffProgress onToast={showToast} />
-                  <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+                  <DraftOnboarding
+                    onToast={showToast}
+                    currentEmail={user?.email}
+                  />
                   <AdminOnboardingAssignments onToast={showToast} />
                 </div>
-              )}
+              }
             />
-
           ) : isAdmin && mode === "draft" ? (
             <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
           ) : isAdmin && mode === "adminprojects" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="admin-subtabs" data-print="hide" role="tablist" aria-label="Projects and Operations areas">
-                <button role="tab" aria-selected={projectsSubview === "setup"}
-                  className={"admin-subtab" + (projectsSubview === "setup" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("setup")}>Setup &amp; allocations</button>
-                <button role="tab" aria-selected={projectsSubview === "tracker"}
-                  className={"admin-subtab" + (projectsSubview === "tracker" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("tracker")}><ClipboardList size={13} /> Project Tracker</button>
-                <button role="tab" aria-selected={projectsSubview === "health"}
-                  className={"admin-subtab" + (projectsSubview === "health" ? " sel" : "")}
-                  onClick={() => setProjectsSubview("health")}><TrendingUp size={13} /> Health report</button>
+              <div
+                className="admin-subtabs"
+                data-print="hide"
+                role="tablist"
+                aria-label="Projects and Operations areas"
+              >
+                <button
+                  role="tab"
+                  aria-selected={projectsSubview === "setup"}
+                  className={
+                    "admin-subtab" + (projectsSubview === "setup" ? " sel" : "")
+                  }
+                  onClick={() => setProjectsSubview("setup")}
+                >
+                  Setup &amp; allocations
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={projectsSubview === "tracker"}
+                  className={
+                    "admin-subtab" +
+                    (projectsSubview === "tracker" ? " sel" : "")
+                  }
+                  onClick={() => setProjectsSubview("tracker")}
+                >
+                  <ClipboardList size={13} /> Project Tracker
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={projectsSubview === "health"}
+                  className={
+                    "admin-subtab" +
+                    (projectsSubview === "health" ? " sel" : "")
+                  }
+                  onClick={() => setProjectsSubview("health")}
+                >
+                  <TrendingUp size={13} /> Health report
+                </button>
               </div>
-              {projectsSubview === "setup" && <AdminProjectSetup initialProjectId={projectSetupTargetId} />}
-              {projectsSubview === "tracker" && <AdminProjectTracker initialProjectId={projectTrackerTargetId} onToast={showToast} onOpenProjectSetup={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} />}
-              {projectsSubview === "health" && <ProjectHealthReport onManageProject={(projectId) => { setProjectSetupTargetId(projectId); setProjectsSubview("setup"); }} onOpenProjectTracker={(projectId) => { setProjectTrackerTargetId(projectId); setProjectsSubview("tracker"); }} />}
+              {projectsSubview === "setup" && (
+                <AdminProjectSetup initialProjectId={projectSetupTargetId} />
+              )}
+              {projectsSubview === "tracker" && (
+                <AdminProjectTracker
+                  initialProjectId={projectTrackerTargetId}
+                  onToast={showToast}
+                  onOpenProjectSetup={(projectId) => {
+                    setProjectSetupTargetId(projectId);
+                    setProjectsSubview("setup");
+                  }}
+                />
+              )}
+              {projectsSubview === "health" && (
+                <ProjectHealthReport
+                  onManageProject={(projectId) => {
+                    setProjectSetupTargetId(projectId);
+                    setProjectsSubview("setup");
+                  }}
+                  onOpenProjectTracker={(projectId) => {
+                    setProjectTrackerTargetId(projectId);
+                    setProjectsSubview("tracker");
+                  }}
+                />
+              )}
             </div>
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
           ) : isAdmin && mode === "whsmonitor" ? (
-            <AdminWhsGovernance onToast={showToast} initialSubdomain="monitor" />
+            <AdminWhsGovernance
+              onToast={showToast}
+              initialSubdomain="monitor"
+            />
           ) : isAdmin && mode === "regulatorywatch" ? (
             <AdminRegulatoryWatch onToast={showToast} />
           ) : isAdmin && mode === "servicerequests" ? (
@@ -1867,13 +5154,16 @@ export default function OnboardingWorkbook() {
           ) : isAdmin && mode === "staff" ? (
             <PortalManagement
               onToast={showToast}
-              onboardingContent={(
+              onboardingContent={
                 <div className="pm-onboarding-content">
                   <StaffProgress onToast={showToast} />
-                  <DraftOnboarding onToast={showToast} currentEmail={user?.email} />
+                  <DraftOnboarding
+                    onToast={showToast}
+                    currentEmail={user?.email}
+                  />
                   <AdminOnboardingAssignments onToast={showToast} />
                 </div>
-              )}
+              }
             />
           ) : inAdminPortal ? (
             <AdminHome user={user} onNavigate={setMode} />
@@ -1881,34 +5171,82 @@ export default function OnboardingWorkbook() {
             // Safe staff fallback: the retired workbook is never a portal landing
             // page. If an obsolete URL or delayed state supplies an unknown mode,
             // return the staff member to the card-based Staff Portal home instead.
-            <StaffHome user={user} onNavigate={setMode} hasAssignedOnboarding={hasAssignedOnboarding} />
+            <StaffHome
+              user={user}
+              onNavigate={setMode}
+              hasAssignedOnboarding={hasAssignedOnboarding}
+            />
           )}
         </main>
       </div>
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onToast={showToast} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onToast={showToast}
+          displayMode={displayMode}
+          onDisplayModeChange={updateDisplayMode}
+        />
+      )}
       <Toast text={toast} />
     </div>
   );
 }
 
 const heroBtn = {
-  display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.3)",
-  color: "#fdfdf8", borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: FONT,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  background: "rgba(255,255,255,0.14)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  color: "#fdfdf8",
+  borderRadius: 8,
+  padding: "7px 12px",
+  fontSize: 12.5,
+  fontWeight: 800,
+  cursor: "pointer",
+  fontFamily: FONT,
 };
 
 const ecHdrBtn = {
-  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 500,
-  padding: "9px 13px", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 8,
-  background: "rgba(255,255,255,0.08)", color: "#eaf1e8", cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  fontFamily: FONT,
+  fontSize: 12.5,
+  fontWeight: 500,
+  padding: "9px 13px",
+  border: "1px solid rgba(255,255,255,0.22)",
+  borderRadius: 8,
+  background: "rgba(255,255,255,0.08)",
+  color: "#eaf1e8",
+  cursor: "pointer",
 };
 const ecHdrBtnGold = {
-  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 600,
-  padding: "9px 14px", border: "1px solid rgba(233,201,121,0.5)", borderRadius: 8,
-  background: "rgba(233,201,121,0.16)", color: "#f0dca8", cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  fontFamily: FONT,
+  fontSize: 12.5,
+  fontWeight: 600,
+  padding: "9px 14px",
+  border: "1px solid rgba(233,201,121,0.5)",
+  borderRadius: 8,
+  background: "rgba(233,201,121,0.16)",
+  color: "#f0dca8",
+  cursor: "pointer",
 };
 const ecHdrBtnGhost = {
-  display: "flex", alignItems: "center", gap: 7, fontFamily: FONT, fontSize: 12.5, fontWeight: 500,
-  padding: "9px 13px", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 8,
-  background: "transparent", color: "rgba(234,241,232,0.8)", cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  fontFamily: FONT,
+  fontSize: 12.5,
+  fontWeight: 500,
+  padding: "9px 13px",
+  border: "1px solid rgba(255,255,255,0.22)",
+  borderRadius: 8,
+  background: "transparent",
+  color: "rgba(234,241,232,0.8)",
+  cursor: "pointer",
 };

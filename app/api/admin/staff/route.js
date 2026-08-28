@@ -1,94 +1,81 @@
-import { createClient } from "@supabase/supabase-js";
+import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { isEcologyStaffEmail, listDirectoryUsers, normaliseStaffEmail, staffDirectoryRecord } from "../../../../lib/staffDirectory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_DOMAIN = "@ecologyconsulting.au";
-
-// Derive a display name from an email local part, e.g.
-// "aaron.dooley@ecologyconsulting.au" -> "Aaron Dooley".
-function nameFromEmail(email) {
-  const local = (email || "").split("@")[0] || "";
-  return local
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(" ") || email;
+function responseError(error, status = 400) {
+  return Response.json({ error }, { status });
 }
 
-async function listAllUsers(admin) {
-  const users = [];
-  let page = 1;
-  while (page <= 50) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    users.push(...data.users);
-    if (data.users.length < 200) break;
-    page++;
-  }
-  return users;
+function cleanName(value, limit = 80) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, limit);
+}
+function cleanPhone(value) {
+  return String(value || "").trim().replace(/[^0-9+()\-\s]/g, "").slice(0, 32);
+}
+
+async function adminAccess(request) {
+  const access = await requireSession(request);
+  if (access.error) return { error: access.error };
+  if (!access.isAdmin) return { error: responseError("Administrator access is required.", 403) };
+  return { access };
 }
 
 export async function GET(request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !serviceKey) {
-    return Response.json({ error: "Staff directory is not configured on the server." }, { status: 503 });
+  try {
+    const auth = await adminAccess(request);
+    if (auth.error) return auth.error;
+    const staff = await listDirectoryUsers(auth.access.admin);
+    return Response.json({ staff });
+  } catch (error) {
+    return serverError(error);
   }
-  // 1) Verify the caller's session token.
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!token) return Response.json({ error: "Not authenticated." }, { status: 401 });
-  const anon = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: userData, error: userErr } = await anon.auth.getUser(token);
-  const caller = userData?.user;
-  if (userErr || !caller?.email) {
-    return Response.json({ error: "Invalid session." }, { status: 401 });
+}
+
+// Directory details are stored in each staff user's secure Auth metadata so the
+// same central source is used by staff creation, allocation and task assignment.
+// This route does not change account passwords or administrator privileges.
+export async function PATCH(request) {
+  try {
+    const auth = await adminAccess(request);
+    if (auth.error) return auth.error;
+    const body = await request.json();
+    const id = String(body?.id || "").trim();
+    if (!id) return responseError("A staff record is required.");
+
+    const { data: lookup, error: lookupError } = await auth.access.admin.auth.admin.getUserById(id);
+    if (lookupError || !lookup?.user || !isEcologyStaffEmail(lookup.user.email)) return responseError("Staff record not found.", 404);
+
+    const firstName = cleanName(body?.firstName);
+    const lastName = cleanName(body?.lastName);
+    if (!firstName || !lastName) return responseError("First and last name are required.");
+    const existing = lookup.user.user_metadata || {};
+    const metadata = {
+      ...existing,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: `${firstName} ${lastName}`,
+      phone: cleanPhone(body?.phone),
+      staff_directory_active: body?.active !== false,
+    };
+    const { data, error } = await auth.access.admin.auth.admin.updateUserById(id, { user_metadata: metadata });
+    if (error) return responseError(error.message);
+    return Response.json({ staff: staffDirectoryRecord(data.user) });
+  } catch (error) {
+    return serverError(error);
   }
-  const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  // 2) Confirm the caller is an admin.
-  const { data: adminRow } = await admin
-    .from("admin_emails")
-    .select("email")
-    .ilike("email", caller.email)
-    .maybeSingle();
-  if (!adminRow) {
-    return Response.json({ error: "Admin access required." }, { status: 403 });
+}
+
+export async function POST(request) {
+  try {
+    const auth = await adminAccess(request);
+    if (auth.error) return auth.error;
+    const body = await request.json();
+    const email = normaliseStaffEmail(body?.email);
+    if (!isEcologyStaffEmail(email)) return responseError("Enter a valid Ecology Consulting email address.");
+    return responseError("Create a new staff account through Access & administrator control, then maintain their phone and allocation availability here.", 409);
+  } catch (error) {
+    return serverError(error);
   }
-  // 3) Gather the roster, the set of admins, per-user progress, and the
-  //    total number of onboarding checklist items (section items only).
-  const [users, adminsRes, progressRes, sectionItemsRes] = await Promise.all([
-    listAllUsers(admin),
-    admin.from("admin_emails").select("email"),
-    admin.from("staff_progress").select("user_id, done"),
-    admin.from("checklist_items").select("id").not("section_id", "is", null),
-  ]);
-  const adminSet = new Set((adminsRes.data || []).map((a) => (a.email || "").toLowerCase()));
-  const total = (sectionItemsRes.data || []).length;
-  const doneByUser = {};
-  (progressRes.data || []).forEach((p) => {
-    if (!doneByUser[p.user_id]) doneByUser[p.user_id] = 0;
-    if (p.done) doneByUser[p.user_id] += 1;
-  });
-  const staff = users
-    .filter((u) => (u.email || "").toLowerCase().endsWith(ALLOWED_DOMAIN))
-    .filter((u) => u.last_sign_in_at) // only people who have actually signed in
-    .map((u) => {
-      const email = (u.email || "").toLowerCase();
-      const done = doneByUser[u.id] || 0;
-      return {
-        id: u.id,
-        email,
-        name: nameFromEmail(email),
-        isAdmin: adminSet.has(email),
-        done,
-        total,
-        percent: total ? Math.round((done / total) * 100) : 0,
-        lastSignIn: u.last_sign_in_at,
-        createdAt: u.created_at,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return Response.json({ staff, total });
 }

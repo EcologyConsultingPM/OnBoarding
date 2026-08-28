@@ -1,5 +1,7 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 
+import { listDirectoryUsers } from "../../../lib/staffDirectory";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -54,9 +56,8 @@ export async function GET(request) {
         assigner: nameById.get(task.created_by) || null,
       }));
       if (access.isAdmin) {
-        staff = users
-          .map((u) => ({ id: u.id, name: u.user_metadata?.full_name || u.email, email: u.email }))
-          .sort((a, b) => a.name.localeCompare(b.name));
+        // Assignment choices are sourced only from the controlled Staff List.
+        staff = await listDirectoryUsers(access.admin, { activeOnly: true });
       }
     }
 
@@ -80,6 +81,8 @@ export async function POST(request) {
 
     const body = await request.json();
     if (!body.assigned_to) return badRequest("Choose a staff member to assign.");
+    const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+    if (!directory.some((person) => person.id === body.assigned_to)) return badRequest("Choose an available staff member from the Staff List.");
     if (!body.project || !body.project.trim()) return badRequest("Project is required.");
     if (!body.task || !body.task.trim()) return badRequest("Task description is required.");
 
