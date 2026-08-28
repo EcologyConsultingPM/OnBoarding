@@ -21,9 +21,15 @@ Targeted responsive rules now provide the following layout behaviour.
 
 A portal-wide shell safeguard prevents horizontal page overflow, while designated dense-data wrappers retain local horizontal scrolling rather than forcing the entire page beyond the viewport.
 
+## Mobile domain-card requirement
+
+At **900px and below**, the Staff and Admin home dashboards now force all domain-card grids into a single vertical, full-width column. This applies in automatic mode and also overrides a previously saved desktop, tablet or mobile display preference when the device itself is narrow. The rule covers Staff Home, Staff Domain, Admin Tile and Admin Domain grids, with card shells allowed to shrink safely rather than creating a horizontal row or page overflow.
+
+The root layout also declares a `device-width` viewport so phone browsers use their actual CSS viewport width when applying these rules.
+
 ## Static verification
 
-The responsive contract completed successfully. It confirmed removal of the simulated frame, full-width WHS content, 1040px/760px/480px breakpoint coverage, portal overflow protection, locally scrollable dense tables, and pre-existing general 900px/640px portal breakpoints.
+The responsive contract completed successfully. It confirmed removal of the simulated frame, full-width WHS content, 1040px/760px/480px breakpoint coverage, portal overflow protection, the explicit device-width viewport declaration, vertical full-width Staff/Admin mobile-card coverage, locally scrollable dense tables, and pre-existing general 900px/640px portal breakpoints.
 
 ## Limitation
 

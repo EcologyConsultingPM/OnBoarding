@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const component = fs.readFileSync("components/WhsEcFormsDomain.js", "utf8");
 const css = fs.readFileSync("app/globals.css", "utf8");
+const layout = fs.readFileSync("app/layout.js", "utf8");
 const requirements = [
   [
     "WHS no longer renders a simulated device frame",
@@ -26,6 +27,14 @@ const requirements = [
   [
     "portal shell blocks horizontal canvas overflow",
     /\.ec-portal-shell\s*\{[\s\S]*?overflow-x:\s*clip/.test(css),
+  ],
+  [
+    "the root layout declares a device-width mobile viewport",
+    /width:\s*"device-width"[\s\S]*?initialScale:\s*1/.test(layout),
+  ],
+  [
+    "mobile Staff and Admin domain-card grids are forced into one vertical full-width column",
+    /\/\* Mobile home dashboard card stack:[\s\S]*?@media \(max-width: 900px\)[\s\S]*?\.staff-home-grid[\s\S]*?\.staff-domain-grid[\s\S]*?\.admin-tile-grid[\s\S]*?\.admin-domain-grid[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) !important/.test(css),
   ],
   [
     "wide data tables can scroll inside their own container",

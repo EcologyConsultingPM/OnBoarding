@@ -16660,3 +16660,34 @@ main {
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Mobile home dashboard card stack: cards must read as a full-width vertical
+   list on actual phone-sized viewports, regardless of saved display preference. */
+@media (max-width: 900px) {
+  .ec-display-auto :is(.staff-home-grid, .staff-domain-grid, .admin-tile-grid, .admin-domain-grid),
+  .ec-display-desktop :is(.staff-home-grid, .staff-domain-grid, .admin-tile-grid, .admin-domain-grid),
+  .ec-display-tablet :is(.staff-home-grid, .staff-domain-grid, .admin-tile-grid, .admin-domain-grid),
+  .ec-display-mobile :is(.staff-home-grid, .staff-domain-grid, .admin-tile-grid, .admin-domain-grid),
+  :is(.staff-home-grid, .staff-domain-grid, .admin-tile-grid, .admin-domain-grid) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-flow: row;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .staff-home-grid > *,
+  .staff-domain-grid > *,
+  .admin-tile-grid > *,
+  .admin-domain-grid > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .staff-domain-grid .ec-row,
+  .admin-tile-grid .admin-domain-card-shell,
+  .admin-tile-grid .domain-tile,
+  .admin-domain-grid .admin-domain-card {
+    width: 100%;
+    min-width: 0;
+  }
+}
