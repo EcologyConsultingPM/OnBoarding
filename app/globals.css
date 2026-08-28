@@ -16526,3 +16526,137 @@ main {
 .staff-list__add:focus-visible { outline: 3px solid rgba(242,206,101,.6); outline-offset: 3px; }
 @media (max-width:700px) { .staff-list__hero { flex-direction: column; } .staff-list__hero-actions { width:100%; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:stretch; } .staff-list__count { min-width:0; text-align:left; } }
 @media (max-width:580px) { .ssr-compose-actions { align-items:stretch; flex-direction:column-reverse; } .ssr-compose-actions .ssr-submit,.ssr-clear-draft { width:100%; } }
+
+/* ── Device-adaptive portal repairs ────────────────────────────────────── */
+/* Operational areas follow the actual viewport. WHS forms no longer sit
+   inside a simulated device frame, so the browser and selected portal layout
+   can respond naturally at each screen width. */
+.ec-portal-shell,
+.ec-portal-shell main {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ec-portal-shell {
+  overflow-x: clip;
+}
+
+.whs-domain {
+  width: min(100%, 1320px);
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.whs-domain-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 20px;
+}
+
+.whs-domain-tabs button {
+  flex: 0 1 auto;
+  min-height: 42px;
+}
+
+.whs-domain__content {
+  width: 100%;
+  min-width: 0;
+}
+
+.whs-domain__content .sf-grid,
+.whs-domain__content .swms-two-fields,
+.whs-domain__content .governance-form-grid,
+.whs-domain__content .governance-action-panel {
+  min-width: 0;
+}
+
+.whs-domain__content :is(input, select, textarea) {
+  max-width: 100%;
+}
+
+.whs-domain__content .sf-picker,
+.whs-domain__content .sf-grid,
+.whs-domain__content .swms-two-fields,
+.whs-domain__content .governance-layout,
+.whs-domain__content .governance-metrics,
+.whs-domain__content .governance-form-grid,
+.whs-domain__content .governance-action-panel,
+.whs-domain__content .governance-meta {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1040px) {
+  .whs-domain {
+    width: 100%;
+  }
+
+  .whs-domain__content .sf-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .whs-domain__content .governance-layout {
+    grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .whs-domain__content .governance-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .whs-domain-tabs {
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+
+  .whs-domain-tabs button {
+    flex: 1 1 220px;
+    justify-content: center;
+  }
+
+  .whs-domain__content .sf-picker,
+  .whs-domain__content .sf-grid,
+  .whs-domain__content .swms-two-fields,
+  .whs-domain__content .governance-layout,
+  .whs-domain__content .governance-form-grid,
+  .whs-domain__content .governance-action-panel,
+  .whs-domain__content .governance-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .whs-domain__content .governance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .whs-domain__content .governance-form-grid label.wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .whs-domain-tabs button {
+    flex-basis: 100%;
+    font-size: 12px;
+  }
+
+  .whs-domain__content .governance-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Dense data remains readable on narrow screens without forcing the portal
+   canvas beyond the device width. */
+.ec-portal-shell .table-wrap,
+.ec-portal-shell .quote-table-wrap,
+.ec-portal-shell .tracker-table-wrap,
+.ec-portal-shell .timesheet-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
