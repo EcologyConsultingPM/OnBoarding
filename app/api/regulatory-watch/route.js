@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,8 @@ export async function GET(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Administrators only.", 403);
+    const denied = await requirePortalResource(access, "admin.regulatory_watch");
+    if (denied) return denied;
 
     const [sourcesResult, updatesResult] = await Promise.all([
       access.admin.from("regulatory_sources").select("*").order("category").order("title"),
@@ -63,6 +66,8 @@ export async function POST(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Administrators only.", 403);
+    const denied = await requirePortalResource(access, "admin.regulatory_watch");
+    if (denied) return denied;
     const body = await request.json();
 
     if (body.action === "add_source") {
@@ -117,6 +122,8 @@ export async function PATCH(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Administrators only.", 403);
+    const denied = await requirePortalResource(access, "admin.regulatory_watch");
+    if (denied) return denied;
     const body = await request.json();
     const id = String(body.id || "");
     if (!id) return jsonError("Choose a Regulatory Watch update.");
@@ -188,6 +195,8 @@ export async function DELETE(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Administrators only.", 403);
+    const denied = await requirePortalResource(access, "admin.regulatory_watch");
+    if (denied) return denied;
 
     const { searchParams } = new URL(request.url);
     const id = String(searchParams.get("id") || "");

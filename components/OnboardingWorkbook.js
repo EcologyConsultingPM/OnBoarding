@@ -31,6 +31,7 @@ import {
   ArrowUpRight,
   Clock3,
   BellRing,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
@@ -53,6 +54,7 @@ import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import StaffPortalEvents from "./StaffPortalEvents";
 import SpeciesProfiles from "./SpeciesProfiles";
 import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
+import PortalVisibilityManager from "./PortalVisibilityManager";
 
 /* ---------------------------------------------------------------
    Auto-save status tracker (module-level pub/sub)
@@ -3477,9 +3479,12 @@ function ActionTile({ icon, label, desc, color, onClick }) {
 }
 
 function AdminHome({ onNavigate }) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [counts, setCounts] = useState({});
   const [regulatoryOpen, setRegulatoryOpen] = useState(0);
+  const [visibilityTarget, setVisibilityTarget] = useState("");
+  const [visibility, setVisibility] = useState({});
+  const isPrimary = user?.email?.trim().toLowerCase() === "aaron.dooley@ecologyconsulting.au";
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3503,6 +3508,18 @@ function AdminHome({ onNavigate }) {
       .catch(() => setRegulatoryOpen(0));
   }, [session]);
 
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/portal-visibility?scope=me", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((response) =>
+        response.ok ? response.json() : { visibility: {} },
+      )
+      .then((data) => setVisibility(data.visibility || {}))
+      .catch(() => setVisibility({}));
+  }, [session]);
+
   // Project Health remains inside Projects & Operations. The remaining administration
   // areas use the same image-backed domain-card language as Staff Home so the control
   // centre is recognisable at a glance, rather than a collection of flat panels.
@@ -3515,6 +3532,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#0b3838",
       Icon: Building2,
       mode: "adminprojects",
+      resourceKey: "admin.projects",
       photo: "palm-cockatoo.png",
     },
     {
@@ -3525,6 +3543,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#34150d",
       Icon: FileText,
       mode: "quotepipeline",
+      resourceKey: "admin.quote_pipeline",
       photo: "rosella.png",
     },
     {
@@ -3535,6 +3554,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#321322",
       Icon: Users2,
       mode: "remoteops",
+      resourceKey: "admin.remote_operations",
       photo: "bottlebrush.png",
     },
     {
@@ -3545,6 +3565,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#203615",
       Icon: ShieldCheck,
       mode: "whsmonitor",
+      resourceKey: "admin.whs",
       photo: "wedgetail-eagle.jpg",
     },
     {
@@ -3555,6 +3576,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#423414",
       Icon: AlertCircle,
       mode: "regulatorywatch",
+      resourceKey: "admin.regulatory_watch",
       photo: "redtail-cockatoo.png",
       regulatoryOpen,
     },
@@ -3566,6 +3588,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#321322",
       Icon: BookOpen,
       mode: "ldlibrary",
+      resourceKey: "admin.learning",
       photo: "lorikeet.png",
     },
     {
@@ -3576,6 +3599,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#0b3838",
       Icon: Leaf,
       mode: "speciesprofiles",
+      resourceKey: "admin.species",
       photo: "wattle.png",
     },
     {
@@ -3586,6 +3610,7 @@ function AdminHome({ onNavigate }) {
       accent2: "#3a2c0c",
       Icon: Users2,
       mode: "portalmgmt",
+      resourceKey: "admin.portal_management",
       photo: "koala.png",
     },
     {
@@ -3596,9 +3621,16 @@ function AdminHome({ onNavigate }) {
       accent2: "#16232c",
       Icon: Send,
       mode: "servicerequests",
+      resourceKey: "admin.service_requests",
       photo: "kookaburra.png",
     },
   ];
+
+  const canSeeDomain = (resourceKey) => {
+    if (isPrimary) return true;
+    if (resourceKey === "admin.quote_pipeline") return visibility[resourceKey] === true;
+    return visibility[resourceKey] !== false;
+  };
 
   return (
     <div
@@ -3620,7 +3652,7 @@ function AdminHome({ onNavigate }) {
         }}
         className="admin-tile-grid"
       >
-        {domains.map(
+        {domains.filter((domain) => canSeeDomain(domain.resourceKey)).map(
           ({
             eyebrow,
             title,
@@ -3632,10 +3664,11 @@ function AdminHome({ onNavigate }) {
             mode,
             href,
             photo,
+            resourceKey,
             regulatoryOpen: domainRegulatoryOpen,
           }) => (
+            <div key={title} className="admin-domain-card-shell">
             <a
-              key={title}
               href="#"
               onClick={(e) => {
                 e.preventDefault();
@@ -3832,9 +3865,27 @@ function AdminHome({ onNavigate }) {
                 </p>
               </div>
             </a>
+            {isPrimary ? (
+              <button
+                type="button"
+                className="portal-visibility-eye"
+                title={`Manage visibility for ${title}`}
+                aria-label={`Manage visibility for ${title}`}
+                onClick={() => setVisibilityTarget(resourceKey)}
+              >
+                <Eye size={16} />
+              </button>
+            ) : null}
+            </div>
           ),
         )}
       </div>
+      {isPrimary && visibilityTarget ? (
+        <PortalVisibilityManager
+          resourceKey={visibilityTarget}
+          onClose={() => setVisibilityTarget("")}
+        />
+      ) : null}
     </div>
   );
 }
@@ -3847,9 +3898,18 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   const [feedback, setFeedback] = useState({ outcomes: [], unseen: 0 });
   const [showOutcomes, setShowOutcomes] = useState(false);
   const [portalEvents, setPortalEvents] = useState([]);
+  const [visibility, setVisibility] = useState({});
 
   useEffect(() => {
     if (!session?.access_token) return;
+    fetch("/api/portal-visibility?scope=me", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((response) =>
+        response.ok ? response.json() : { visibility: {} },
+      )
+      .then((data) => setVisibility(data.visibility || {}))
+      .catch(() => setVisibility({}));
     fetch("/api/staff-feedback", {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
@@ -3889,6 +3949,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   const allDomains = [
     {
       key: "notifications",
+      resourceKey: "staff.notifications",
       n: "01",
       eyebrow: "Workflow & alerts",
       title: "Notifications",
@@ -3902,6 +3963,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "projects",
+      resourceKey: "staff.projects",
       n: "02",
       eyebrow: "Delivery workspace",
       title: "My Projects",
@@ -3915,6 +3977,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "timesheets",
+      resourceKey: "staff.timesheets",
       n: "03",
       eyebrow: "Time & delivery",
       title: "Timesheets",
@@ -3928,6 +3991,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "staffforms",
+      resourceKey: "staff.forms",
       n: "04",
       eyebrow: "Safety, requests & governance",
       title: "WHS & EC Forms",
@@ -3940,6 +4004,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "ldlibrary",
+      resourceKey: "staff.learning",
       n: "05",
       eyebrow: "People & learning",
       title: "Learning & Development",
@@ -3952,6 +4017,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "species",
+      resourceKey: "staff.species",
       n: "06",
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
@@ -3964,6 +4030,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "mine",
+      resourceKey: "staff.onboarding",
       n: "07",
       requiresOnboarding: true,
       eyebrow: "Getting started",
@@ -3977,6 +4044,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     },
     {
       key: "remote",
+      resourceKey: "staff.remote_operations",
       n: "08",
       eyebrow: "International delivery",
       title: "Remote Operations",
@@ -4012,6 +4080,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     }).length;
   const domains = allDomains
     .filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding)
+    .filter((domain) => visibility[domain.resourceKey] !== false)
     .map((domain) => ({ ...domain, unread: unreadForDomain(domain.key) }));
 
   return (

@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,11 @@ export async function PATCH(request, { params }) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+    );
+    if (denied) return denied;
     const body = await request.json();
     const action = body.action;
 

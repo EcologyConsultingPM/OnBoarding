@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,8 @@ export async function GET(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.quote_pipeline");
+    if (denied) return denied;
 
     const { data, error } = await access.admin.from("quote_pipeline").select(COLUMNS).order("updated_at", { ascending: false });
     if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -76,6 +79,8 @@ export async function POST(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.quote_pipeline");
+    if (denied) return denied;
     const body = await request.json();
     const { data, error } = await access.admin
       .from("quote_pipeline")

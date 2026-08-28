@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,6 +92,12 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.remote_operations" : "staff.remote_operations",
+    );
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const spec = TYPES[searchParams.get("type")];
     if (!spec)
@@ -115,6 +122,12 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.remote_operations" : "staff.remote_operations",
+    );
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const spec = TYPES[searchParams.get("type")];
     if (!spec)
@@ -155,6 +168,12 @@ export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.remote_operations" : "staff.remote_operations",
+    );
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const spec = TYPES[searchParams.get("type")];
     const id = searchParams.get("id");

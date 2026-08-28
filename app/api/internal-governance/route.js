@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,6 +105,11 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.internal_governance" : "staff.forms.governance",
+    );
+    if (denied) return denied;
 
     const { data, error } = await access.admin
       .from("policy_documents")
@@ -174,6 +180,11 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.internal_governance" : "staff.forms.governance",
+    );
+    if (denied) return denied;
     const body = await request.json();
 
     if (body.action === "acknowledge") {
@@ -240,6 +251,11 @@ export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.internal_governance" : "staff.forms.governance",
+    );
+    if (denied) return denied;
     if (!access.isAdmin) return jsonError("Administrators only.", 403);
     const body = await request.json();
     const document = await findDocument(access.admin, body.id);
@@ -358,6 +374,11 @@ export async function PUT(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.internal_governance" : "staff.forms.governance",
+    );
+    if (denied) return denied;
     const { id } = await request.json();
     const document = await findDocument(access.admin, id);
     if (!document || (!access.isAdmin && !canStaffRead(document, access.user.id))) {

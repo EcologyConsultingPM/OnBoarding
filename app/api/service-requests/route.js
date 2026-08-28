@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +61,11 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+    );
+    if (denied) return denied;
 
     // Admins see all requests (the Service Requests queue); staff see their own.
     let query = access.admin.from("service_requests").select(COLUMNS).order("updated_at", { ascending: false });
@@ -87,6 +93,11 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+    );
+    if (denied) return denied;
     const body = await request.json();
     if (!TYPES.includes(body.request_type)) return Response.json({ error: "Invalid request type." }, { status: 400 });
     const title = (body.title || "").toString().trim();

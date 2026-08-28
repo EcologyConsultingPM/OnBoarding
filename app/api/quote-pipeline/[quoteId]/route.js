@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export async function PATCH(request, { params }) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.quote_pipeline");
+    if (denied) return denied;
 
     const body = await request.json();
     const { data, error } = await access.admin
@@ -50,6 +53,8 @@ export async function DELETE(request, { params }) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.quote_pipeline");
+    if (denied) return denied;
     const { error } = await access.admin.from("quote_pipeline").delete().eq("id", params.quoteId);
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ success: true });

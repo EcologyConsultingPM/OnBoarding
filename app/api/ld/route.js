@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,11 @@ export async function GET(request) {
     // An administrator may deliberately open the Staff Portal. In that view,
     // preserve the staff audience rather than exposing library-management nodes.
     const staffAudience = url.searchParams.get("audience") === "staff" || !access.isAdmin;
+    const denied = await requirePortalResource(
+      access,
+      staffAudience ? "staff.learning" : "admin.learning",
+    );
+    if (denied) return denied;
 
     let query = access.admin.from("ld_nodes").select(COLUMNS).order("sort_order", { ascending: true });
     // Apply the same visibility rules the RLS enforces, but through the service
@@ -74,6 +80,8 @@ export async function POST(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.learning");
+    if (denied) return denied;
     const b = await request.json();
     const title = (b.title || "").toString().trim();
     if (!title) return Response.json({ error: "A title is required." }, { status: 400 });

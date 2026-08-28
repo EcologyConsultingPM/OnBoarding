@@ -25,6 +25,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import PortalSystemHealth from "./PortalSystemHealth";
 import PortalStaffList from "./PortalStaffList";
+import PortalVisibilityManager from "./PortalVisibilityManager";
 
 const ROLE_OPTIONS = [
   {
@@ -444,6 +445,15 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           caption="Assignment-ready staff directory"
           onClick={() => setView("stafflist")}
         />
+        {isPrimary ? (
+          <TabButton
+            active={view === "visibility"}
+            icon={EyeOff}
+            label="Portal Visibility"
+            caption="Control staff access to each domain and sub-domain"
+            onClick={() => setView("visibility")}
+          />
+        ) : null}
         <TabButton
           active={view === "roles"}
           icon={ShieldPlus}
@@ -798,6 +808,14 @@ export default function PortalManagement({ onboardingContent, onToast }) {
       )}
 
       {view === "stafflist" && <PortalStaffList />}
+
+      {view === "visibility" && isPrimary ? (
+        <PortalVisibilityManager
+          resourceKey="staff.projects"
+          showAll
+          onClose={() => setView("access")}
+        />
+      ) : null}
 
       {view === "roles" && (
         <section

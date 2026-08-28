@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ export async function PATCH(request, { params }) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.learning");
+    if (denied) return denied;
     const b = await request.json();
 
     // Approval workflow actions.
@@ -52,6 +55,8 @@ export async function DELETE(request, { params }) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.learning");
+    if (denied) return denied;
     const { error } = await access.admin.from("ld_nodes").delete().eq("id", params.nodeId);
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ success: true });
