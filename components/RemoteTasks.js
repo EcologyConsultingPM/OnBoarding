@@ -23,7 +23,7 @@ const CALENDAR_ACTIVE_STATES = ["accepted", "in_progress", "submitted", "revisin
 
 // Task Briefs: staff must accept an assigned brief before it becomes active.
 // The StaffHome calendar reads accepted/active task due dates from the same API.
-export default function RemoteTasks({ isAdmin }) {
+export default function RemoteTasks({ isAdmin, staffStates = null, compact = false, showHome = true }) {
   const { session } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -101,12 +101,17 @@ export default function RemoteTasks({ isAdmin }) {
 
   const field = (label, node) => <label className="rt-f"><span>{label}</span>{node}</label>;
   const terminal = (status) => ["complete", "declined", "withdrawn"].includes(status);
+  // Notifications is the decision gate. Other staff workspaces may request
+  // only accepted/active states so a pending task never appears twice.
+  const visibleTasks = !isAdmin && Array.isArray(staffStates)
+    ? tasks.filter((task) => staffStates.includes(task.status))
+    : tasks;
 
   return (
-    <section className="rt" aria-label="Task briefs">
+    <section className={`rt${compact ? " rt--compact" : ""}`} aria-label="Task briefs">
       <div className="rt-head">
         <h2><ClipboardList size={17} /> Task briefs</h2>
-        {!isAdmin ? <a className="workspace-home-link rt-home-link" href="/">Home</a> : null}
+        {!isAdmin && showHome ? <a className="workspace-home-link rt-home-link" href="/">Home</a> : null}
         {isAdmin && (
           <button className="rt-new" onClick={() => setCreating((current) => !current)}>
             <Plus size={14} /> Assign a task
@@ -142,7 +147,7 @@ export default function RemoteTasks({ isAdmin }) {
       )}
 
       <div className="rt-list">
-        {tasks.length ? tasks.map((task) => {
+        {visibleTasks.length ? visibleTasks.map((task) => {
           const status = STATUS[task.status] || STATUS.awaiting_acceptance;
           const isOpen = openId === task.id;
           const overdue = task.due_date && STAFF_VISIBLE_ACTIVE.includes(task.status) && task.status !== "complete" && new Date(task.due_date) < new Date(new Date().toDateString());
@@ -205,7 +210,7 @@ export default function RemoteTasks({ isAdmin }) {
               )}
             </article>
           );
-        }) : <p className="rt-empty">{isAdmin ? "No tasks assigned yet. Use ‘Assign a task’ to create one." : "No task briefs assigned to you right now."}</p>}
+        }) : <p className="rt-empty">{isAdmin ? "No tasks assigned yet. Use ‘Assign a task’ to create one." : Array.isArray(staffStates) && staffStates.includes("awaiting_acceptance") ? "No task briefs are awaiting your decision." : Array.isArray(staffStates) ? "No accepted task briefs are active in My Projects." : "No task briefs assigned to you right now."}</p>}
       </div>
     </section>
   );

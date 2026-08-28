@@ -14,7 +14,7 @@ function localToday() { const now = new Date(); return `${now.getFullYear()}-${S
 function formatDate(value) { if (!value) return "—"; const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }); }
 function blankForm(project) { const source = project?.sources?.[0]; const allocation = source?.allocations?.[0]; return { projectId: project?.id || "", sourceId: source?.id || "", allocationId: allocation?.id || "", workDate: localToday(), category: project?.template?.categories?.[0] || "", information: "", hours: "", status: "not_commenced", notableIssues: "", customData: {} }; }
 
-export default function StaffProjectTracker() {
+export default function StaffProjectTracker({ embedded = false }) {
   const { session } = useAuth();
   const [projects, setProjects] = useState([]);
   const [entries, setEntries] = useState([]);
@@ -58,8 +58,8 @@ export default function StaffProjectTracker() {
     } catch (saveError) { setError(saveError.message || "Could not save the Project Tracker entry."); } finally { setSaving(false); }
   };
 
-  if (loading) return <main className="staff-tracker"><div className="st-loading"><Loader2 size={18} className="spin" /> Loading your Project Tracker…</div></main>;
-  return <main className="staff-tracker"><header className="st-hero"><a className="workspace-home-link" href="/">Home</a><span><ClipboardList size={14} /> Ecology Consulting · staff project tracking</span><h1>Project Tracker</h1><p>Record your allocated project work against the locked project tracker. Your submitted entry remains visible in Timesheets as a reference for official time entry.</p></header>
+  if (loading) return <main className={`staff-tracker${embedded ? " st-embedded" : ""}`}><div className="st-loading"><Loader2 size={18} className="spin" /> Loading your Project Tracker…</div></main>;
+  return <main className={`staff-tracker${embedded ? " st-embedded" : ""}`}><header className="st-hero">{!embedded ? <a className="workspace-home-link" href="/">Home</a> : null}<span><ClipboardList size={14} /> Ecology Consulting · staff project tracking</span><h1>Project Tracker</h1><p>Record your allocated project work against the locked project tracker. Your submitted entry remains visible in Timesheets as a reference for official time entry.</p></header>
     {!ready ? <div className="st-notice"><AlertCircle size={17} /><span>Project Tracker entries will become available once an administrator has enabled your project, configured its template and locked it for staff use.</span></div> : null}
     {error ? <div className="st-error"><AlertCircle size={16} /> {error}</div> : null}{message ? <div className="st-success"><CheckCircle2 size={16} /> {message}</div> : null}
     {!projects.length ? <div className="st-empty"><ClipboardList size={22} /><strong>No Project Tracker is available yet</strong><span>When an administrator allocates you to an active project and locks its tracker template, it will appear here.</span></div> : <section className="st-entry-card"><div className="st-card-head"><div><span className="st-kicker">New entry</span><h2>Record project activity</h2><p>Fields marked as core are locked by the administrator template.</p></div><span className="st-template-lock"><CheckCircle2 size={14} /> Locked template</span></div>

@@ -107,7 +107,7 @@ export async function POST(request) {
       severity: "action_required",
       title: "New Remote Task awaiting acceptance",
       body: `${data.project}: ${data.task}${data.due_date ? ` · Due ${new Date(data.due_date).toLocaleDateString("en-AU")}` : ""}`,
-      href: "/staff/remote-operations",
+      href: "/staff/notifications",
       source_table: "remote_tasks",
       source_id: data.id,
     });
@@ -217,6 +217,17 @@ export async function PATCH(request) {
 
     if (error) return badRequest(error.message);
 
+    if (body.action === "accept") {
+      // The pending notice has served its purpose. Retain the event for audit,
+      // but clear it from the unread badge as work moves into My Projects.
+      await access.admin.from("portal_events")
+        .update({ read_at: now })
+        .eq("recipient_id", access.user.id)
+        .eq("source_table", "remote_tasks")
+        .eq("source_id", existing.id)
+        .is("read_at", null);
+    }
+
     const patchEvent = {
       accept: { recipient: existing.created_by, type: "remote_task_accepted", severity: "information", title: "Remote Task accepted", body: `${existing.project}: ${existing.task} has been accepted.` },
       decline: { recipient: existing.created_by, type: "remote_task_declined", severity: "action_required", title: "Remote Task declined / reassignment requested", body: `${existing.project}: ${existing.task}${values.decline_reason ? ` · ${values.decline_reason}` : ""}` },
@@ -232,7 +243,7 @@ export async function PATCH(request) {
       severity: patchEvent.severity,
       title: patchEvent.title,
       body: patchEvent.body,
-      href: "/staff/remote-operations",
+      href: patchEvent.recipient === existing.assigned_to ? "/staff/projects" : "/staff/notifications",
       source_table: "remote_tasks",
       source_id: existing.id,
     }) : null;

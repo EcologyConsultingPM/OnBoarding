@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Activity,
   AlertCircle,
   BadgeCheck,
   BookOpenCheck,
@@ -22,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import PortalSystemHealth from "./PortalSystemHealth";
 
 const ROLE_OPTIONS = [
   {
@@ -337,6 +339,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         <TabButton active={view === "access"} icon={LockKeyhole} label="Access & administrator control" caption="Staff access and administrator authority" onClick={() => setView("access")} />
         <TabButton active={view === "roles"} icon={ShieldPlus} label="Specialist roles & assessors" caption="Fauna, flora, WHS, reporting and modules" onClick={() => setView("roles")} />
         <TabButton active={view === "onboarding"} icon={ClipboardCheck} label="Onboarding assignments & progress" caption="Draft, lock, assign and monitor progress" onClick={() => setView("onboarding")} />
+        <TabButton active={view === "system"} icon={Activity} label="Backup & system health" caption="Private archive status and operational log" onClick={() => setView("system")} />
       </nav>
 
       {controlError && <AccessNotice tone="error"><AlertCircle size={16} /><span>{controlError}</span></AccessNotice>}
@@ -470,6 +473,8 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           {onboardingContent || <AccessNotice><AlertCircle size={16} /><span>Onboarding controls are not available in this portal view.</span></AccessNotice>}
         </section>
       )}
+
+      {view === "system" && <PortalSystemHealth />}
 
       <datalist id="pm-staff-directory">
         {staffDirectory.map((person) => <option key={person.id || person.email} value={person.email}>{person.name || person.email}</option>)}

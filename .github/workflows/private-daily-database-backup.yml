@@ -1,0 +1,97 @@
+name: Private daily database backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 18:40 UTC daily. Use one scheduled run only to preserve the zero-cost budget.
+    - cron: "40 18 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecology-private-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_STATUS_TOKEN: ${{ secrets.BACKUP_STATUS_TOKEN }}
+      BACKUP_ARCHIVE_PASSWORD: ${{ secrets.BACKUP_ARCHIVE_PASSWORD }}
+      BACKUP_STATUS_URL: https://on-boarding-ivory.vercel.app/api/cron/backup-status
+      # Keep the automated archive safely within a conservative zero-cost ceiling.
+      MAX_ARCHIVE_BYTES: 104857600
+      RETENTION_DAYS: 1
+      RUN_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Validate private backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL"
+          test -n "$BACKUP_STATUS_TOKEN"
+          test -n "$BACKUP_ARCHIVE_PASSWORD"
+
+      - name: Report backup start
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 \
+            -X POST "$BACKUP_STATUS_URL" \
+            -H "Authorization: Bearer $BACKUP_STATUS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"run_id\":\"$RUN_ID\",\"status\":\"running\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS}"
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Create private logical database archive
+        id: dump
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f backup/roles.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f backup/data.sql
+          tar -czf backup/database.tar.gz -C backup roles.sql schema.sql data.sql
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in backup/database.tar.gz -out backup/ecology-database.tar.gz.enc -pass env:BACKUP_ARCHIVE_PASSWORD
+          rm -f backup/roles.sql backup/schema.sql backup/data.sql backup/database.tar.gz
+          bytes=$(stat -c%s backup/ecology-database.tar.gz.enc)
+          if [ "$bytes" -gt "$MAX_ARCHIVE_BYTES" ]; then
+            echo "Encrypted archive ($bytes bytes) exceeds the configured zero-cost ceiling ($MAX_ARCHIVE_BYTES bytes)." >&2
+            exit 1
+          fi
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum backup/ecology-database.tar.gz.enc | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Retain encrypted private archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecology-private-database-${{ github.run_id }}
+          path: backup/ecology-database.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Report backup outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ job.status }}" = "success" ]; then
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"succeeded\",\"workflow_name\":\"private-daily-database-backup\",\"archive_bytes\":${{ steps.dump.outputs.bytes }},\"archive_sha256\":\"${{ steps.dump.outputs.sha256 }}\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
+          else
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"failed\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"error_summary\":\"The private daily backup workflow failed or exceeded its zero-cost archive ceiling. Open the private GitHub Actions run for details.\",\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
+          fi
+          curl --fail --silent --show-error --retry 2 \
+            -X POST "$BACKUP_STATUS_URL" \
+            -H "Authorization: Bearer $BACKUP_STATUS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$payload"

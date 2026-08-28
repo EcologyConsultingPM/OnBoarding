@@ -7,8 +7,10 @@ import {
   ExternalLink,
   ShieldCheck,
 } from "lucide-react";
+import WorkspaceNav from "./WorkspaceNav";
 import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
+import RemoteTasks from "./RemoteTasks";
 
 export default function StaffNotifications() {
   return (
@@ -24,9 +26,18 @@ export default function StaffNotifications() {
             governance updates appear here as they are assigned to you.
           </p>
         </div>
-        <a className="workspace-home-link" href="/">
-          Home
-        </a>
+        <WorkspaceNav audience="staff" />
+      </section>
+
+      <section className="sn-pending-card" aria-labelledby="sn-pending-title">
+        <div className="sn-section-head compact">
+          <div>
+            <span className="sn-kicker">Decision required</span>
+            <h2 id="sn-pending-title"><ClipboardList size={18} /> Pending task briefs</h2>
+            <p>Accept a task to move it into My Projects and add its due date to your calendar.</p>
+          </div>
+        </div>
+        <RemoteTasks isAdmin={false} staffStates={["awaiting_acceptance"]} compact showHome={false} />
       </section>
 
       <div className="sn-layout">

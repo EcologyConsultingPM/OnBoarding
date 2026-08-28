@@ -15,13 +15,16 @@ export async function GET(request) {
 
     const url = new URL(request.url);
     const parent = url.searchParams.get("parent");
+    // An administrator may deliberately open the Staff Portal. In that view,
+    // preserve the staff audience rather than exposing library-management nodes.
+    const staffAudience = url.searchParams.get("audience") === "staff" || !access.isAdmin;
 
     let query = access.admin.from("ld_nodes").select(COLUMNS).order("sort_order", { ascending: true });
     // Apply the same visibility rules the RLS enforces, but through the service
     // client we must replicate them for non-admins.
     if (parent) query = query.eq("parent_id", parent);
     else query = query.is("parent_id", null);
-    if (!access.isAdmin) query = query.eq("visibility", "staff").eq("approval_status", "approved");
+    if (staffAudience) query = query.eq("visibility", "staff").eq("approval_status", "approved");
 
     const { data, error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -32,7 +35,7 @@ export async function GET(request) {
     let counts = {};
     if (ids.length) {
       let cq = access.admin.from("ld_nodes").select("parent_id").in("parent_id", ids);
-      if (!access.isAdmin) cq = cq.eq("visibility", "staff").eq("approval_status", "approved");
+      if (staffAudience) cq = cq.eq("visibility", "staff").eq("approval_status", "approved");
       const { data: kids } = await cq;
       for (const k of kids || []) counts[k.parent_id] = (counts[k.parent_id] || 0) + 1;
     }
@@ -49,10 +52,16 @@ export async function GET(request) {
       }
     }
 
+    const shapedNodes = nodes
+      .map((n) => ({ ...n, childCount: counts[n.id] || 0 }))
+      // A staff library should show content, not empty management folders.
+      .filter((n) => !staffAudience || n.node_type === "item" || n.childCount > 0);
+
     return Response.json({
-      nodes: nodes.map((n) => ({ ...n, childCount: counts[n.id] || 0 })),
+      nodes: shapedNodes,
       trail,
       isAdmin: access.isAdmin,
+      audience: staffAudience ? "staff" : "admin",
     });
   } catch (error) {
     return serverError(error);
