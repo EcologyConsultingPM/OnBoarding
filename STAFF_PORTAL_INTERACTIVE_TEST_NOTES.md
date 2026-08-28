@@ -129,3 +129,17 @@ The protected review-branch alias successfully loaded for the signed-in Aaron Do
 ## Portal visibility control interface check
 
 On the signed-in review-branch Admin Portal, every main domain card renders the new eye action in its upper-right corner. Selecting the Projects & Operations eye opened the dark eucalyptus `Aaron-only access control` modal, labelled `Portal visibility`, with the intended instruction to choose an area and grant or remove access for an active Staff List member. No visibility state was changed. The initial modal render and close control are correct; the pending Staff List data response will be checked before confirming end-to-end readiness.
+
+## Primary administrator safeguard refresh
+
+The persisted review-branch alias refreshed after commit `6a2d82c` and retained the signed-in Aaron administrator session. All domain-card eye controls remain present. Opening the Projects & Operations control again begins a fresh Staff List load; the final permanent-primary badge will be checked once that response settles. No access state was edited.
+
+## Deployment propagation check
+
+Immediately before the second alias refresh, the visible modal still showed the prior `Visible` label for Aaron rather than the new permanent `Primary admin` label. This indicates the branch alias had not yet served commit `6a2d82c` at that moment, despite the Git push. After a further deployment wait, the alias refreshed to its loading state and requires a final load check. No visibility action was selected or submitted.
+
+The second refreshed alias load returned the Admin Portal and all eye controls. The Projects & Operations modal was opened again without mutation; its first frame shows expected loading state. Awaiting the active Staff List response for final confirmation of the permanent-primary label.
+
+## Portal visibility workflow verification
+
+The latest branch alias correctly shows Aaron as `Primary admin` with the explicit hint that primary-administrator access is always visible; this control is no longer presented as removable. The Projects & Operations eye control also exposes distinct sub-domain choices for Setup & Allocations, Project Tracker and Health Report. Selecting the Project Tracker tab updated the target label for the staff rows without changing any permissions. The control is therefore correctly structured for separate domain-level and sub-domain-level visibility decisions. No eye-toggle action was used for staff, so current staff access was not altered during testing.
