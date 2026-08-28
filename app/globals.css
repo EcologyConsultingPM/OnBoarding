@@ -15865,3 +15865,237 @@ main {
     padding: 15px 16px;
   }
 }
+
+/* ── Staff Learning & Development: restricted content, full portal treatment ── */
+.ld.staff-learning {
+  width: min(100% - 48px, 1240px);
+  max-width: 1240px;
+  margin: 0 auto;
+  gap: 18px;
+  padding: 14px 0 56px;
+}
+.ld.staff-learning .ld-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 236px;
+  padding: clamp(26px, 4vw, 48px);
+  border: 1px solid rgba(182, 207, 160, 0.24);
+  border-radius: 20px;
+  color: #f5f8ee;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(4, 34, 21, 0.98) 0%,
+      rgba(5, 48, 29, 0.92) 52%,
+      rgba(13, 69, 41, 0.66) 100%
+    ),
+    url("/assets/everlastings.png") center 42% / cover no-repeat;
+  box-shadow: 0 24px 46px -34px rgba(0, 21, 12, 0.92);
+}
+.ld.staff-learning .ld-hero::after {
+  position: absolute;
+  inset: auto -4% -62% auto;
+  width: 430px;
+  height: 430px;
+  border: 1px solid rgba(231, 195, 96, 0.22);
+  border-radius: 50%;
+  content: "";
+  box-shadow:
+    0 0 0 38px rgba(231, 195, 96, 0.045),
+    0 0 0 78px rgba(231, 195, 96, 0.035);
+  pointer-events: none;
+}
+.ld.staff-learning .ld-hero .workspace-nav {
+  position: absolute;
+  z-index: 1;
+  top: 22px;
+  right: 24px;
+}
+.ld.staff-learning .ld-hero > span,
+.ld.staff-learning .ld-hero h1,
+.ld.staff-learning .ld-hero p {
+  position: relative;
+  z-index: 1;
+}
+.ld.staff-learning .ld-hero > span {
+  display: block;
+  max-width: 70ch;
+  color: #e6c669;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.ld.staff-learning .ld-hero h1 {
+  max-width: 760px;
+  margin: 14px 0 12px;
+  color: #fff9e7;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(2.3rem, 4.7vw, 4.3rem);
+  font-weight: 450;
+  letter-spacing: -0.045em;
+  line-height: 0.94;
+}
+.ld.staff-learning .ld-hero p {
+  max-width: 700px;
+  margin: 0;
+  color: #d4e0ce;
+  font-size: clamp(0.93rem, 1.5vw, 1.04rem);
+  line-height: 1.6;
+}
+.ld.staff-learning .ld-crumbs {
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid rgba(110, 145, 101, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(90deg, #eef2e8, #f9f7f0);
+  box-shadow: 0 13px 24px -26px rgba(22, 45, 27, 0.6);
+}
+.ld.staff-learning .ld-crumb {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #1d5b38;
+  font-size: 0.77rem;
+  font-weight: 800;
+}
+.ld.staff-learning .ld-crumb:hover {
+  color: #183e29;
+  background: rgba(38, 103, 62, 0.11);
+}
+.ld.staff-learning .ld-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.ld.staff-learning .ld-node-view {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 148px;
+  gap: 15px;
+  width: 100%;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid rgba(153, 185, 137, 0.28);
+  border-radius: 16px;
+  color: #ecf3e8;
+  background:
+    radial-gradient(
+      circle at 91% 8%,
+      rgba(232, 193, 83, 0.14),
+      transparent 30%
+    ),
+    linear-gradient(145deg, #0b3a25, #062719);
+  box-shadow: 0 18px 36px -28px rgba(2, 27, 15, 0.92);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+.ld.staff-learning .ld-node-view::after {
+  position: absolute;
+  inset: auto -25px -45px auto;
+  width: 126px;
+  height: 126px;
+  border: 1px solid rgba(231, 195, 96, 0.22);
+  border-radius: 50%;
+  content: "";
+}
+.ld.staff-learning .ld-node-view:hover:not(:disabled) {
+  border-color: rgba(231, 195, 96, 0.57);
+  box-shadow: 0 24px 42px -28px rgba(2, 27, 15, 0.98);
+  transform: translateY(-3px);
+}
+.ld.staff-learning .ld-node-view:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.ld.staff-learning .ld-node-view:focus-visible {
+  outline: 3px solid rgba(231, 195, 96, 0.82);
+  outline-offset: 3px;
+}
+.ld.staff-learning .ld-node-view:disabled {
+  opacity: 0.9;
+  cursor: default;
+}
+.ld.staff-learning .ld-node-icon {
+  position: relative;
+  z-index: 1;
+  width: 49px;
+  height: 49px;
+  border: 1px solid rgba(232, 200, 109, 0.44);
+  border-radius: 13px;
+  color: #efd47e !important;
+  background: rgba(2, 29, 17, 0.54) !important;
+  box-shadow: 0 12px 20px -18px rgba(0, 0, 0, 0.9);
+}
+.ld.staff-learning .ld-node-text {
+  position: relative;
+  z-index: 1;
+}
+.ld.staff-learning .ld-node-title {
+  color: #fff9ea;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
+  font-weight: 500;
+  line-height: 1.05;
+}
+.ld.staff-learning .ld-node-meta {
+  margin-top: 7px;
+  color: #bad0b5;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ld.staff-learning .ld-node-chev {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  color: #e9c86e;
+}
+.ld.staff-learning .ld-empty {
+  grid-column: 1 / -1;
+  min-height: 136px;
+  margin: 0;
+  padding: 42px 22px;
+  border: 1px dashed rgba(147, 181, 134, 0.36);
+  border-radius: 15px;
+  color: #d2dfcb;
+  background: linear-gradient(145deg, #0a3823, #06281a);
+  font-size: 0.91rem;
+  font-style: normal;
+  line-height: 1.55;
+}
+.ld.staff-learning .ld-error {
+  margin: 0;
+  border-color: rgba(224, 115, 102, 0.55);
+  color: #f4b8ae;
+  background: #5b261f;
+}
+@media (max-width: 720px) {
+  .ld.staff-learning {
+    width: min(100% - 30px, 1240px);
+    padding-top: 5px;
+  }
+  .ld.staff-learning .ld-hero {
+    min-height: 250px;
+    padding: 72px 22px 26px;
+  }
+  .ld.staff-learning .ld-hero .workspace-nav {
+    top: 18px;
+    right: 18px;
+  }
+  .ld.staff-learning .ld-list {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld.staff-learning .ld-node-view {
+    transition: none;
+  }
+}

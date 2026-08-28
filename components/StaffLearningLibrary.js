@@ -56,7 +56,7 @@ export default function StaffLearningLibrary() {
   };
 
   return (
-    <div className="ld">
+    <div className="ld staff-learning">
       <header className="ld-hero">
         <WorkspaceNav audience="staff" />
         <span>Ecology Consulting · People &amp; learning</span>
