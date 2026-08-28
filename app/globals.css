@@ -2310,3 +2310,72 @@ main {
 @media (max-width: 660px) { .phr-hero { align-items: flex-start; flex-direction: column; padding: 20px 18px; background-size: 310px auto; }.phr-summary.extended { grid-template-columns: repeat(2, minmax(0, 1fr)); }.phr-side { grid-template-columns: 1fr; }.phr-controls-fields label { flex: 1 1 100%; }.phr-clear-controls { align-self: auto; width: 100%; }.phr-table-card, .phr-side section { padding: 13px; } }
 
 .apt-recent-entries p { margin: 12px 0 0; color: #adc4a9; font-size: 11px; }.apt-recent-entry { display: flex; align-items: center; justify-content: space-between; gap: 9px; border-top: 1px solid rgba(231,201,121,.13); padding: 9px 0; }.apt-recent-entry:first-of-type { margin-top: 8px; }.apt-recent-entry strong, .apt-recent-entry small { display: block; }.apt-recent-entry strong { color: #edf2e8; font-size: 10px; }.apt-recent-entry small { margin-top: 2px; color: #aabfa6; font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+
+/* Shared workspace navigation and staff workflow controls */
+.workspace-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; margin: 0 0 14px; }
+.workspace-nav__button, .workspace-nav__home { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 11px; border-radius: 9px; border: 1px solid rgba(231,202,126,.38); background: rgba(8,35,23,.72); color: #f7eed9; font: 700 12px/1.1 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .035em; text-decoration: none; cursor: pointer; }
+.workspace-nav__button:hover, .workspace-nav__home:hover { background: #1e5035; border-color: #e9c979; color: #fff8e8; }
+.workspace-nav__home { margin-left: auto; background: rgba(37,91,59,.9); }
+.ec-row-unread { display: inline-flex; min-width: 23px; min-height: 23px; align-items: center; justify-content: center; padding: 0 6px; border: 1px solid rgba(255,246,213,.85); border-radius: 999px; background: #e3b33a; box-shadow: 0 4px 12px rgba(0,0,0,.28); color: #1b291d; font: 800 11px/1 "IBM Plex Mono", ui-monospace, monospace; }
+.sn-pending-card { margin: 0 auto 22px; max-width: 1320px; padding: 20px 22px; border: 1px solid rgba(225,180,58,.38); border-radius: 16px; background: linear-gradient(135deg,rgba(35,77,49,.96),rgba(12,37,26,.98)); box-shadow: 0 16px 42px rgba(4,19,11,.22); }
+.sn-section-head.compact { margin-bottom: 14px; }
+.sn-section-head.compact h2 { margin: 4px 0 5px; }
+.sn-section-head.compact p { margin: 0; color: rgba(242,239,222,.76); }
+.timesheet-head-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.timesheet-export { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(224,179,60,.72); border-radius: 8px; background: #cf9a28; color: #142418; padding: 9px 12px; font-weight: 800; cursor: pointer; }
+.timesheet-export:hover:not(:disabled) { background: #e8bd55; }
+.timesheet-export:disabled { opacity: .55; cursor: wait; }
+@media (min-width: 1100px) {
+  .wb-layout { width: min(100%, 1540px) !important; max-width: 1540px !important; }
+  .wb-main { min-width: 0; width: 100%; }
+  .my-projects-page, .timesheet-page, .sn-page, .ld, .sf, .proj-page { max-width: 1320px; }
+  .my-projects-tabs, .admin-subtabs { width: 100%; flex-wrap: wrap; }
+}
+@media (max-width: 680px) {
+  .workspace-nav { margin-bottom: 12px; }
+  .workspace-nav__button, .workspace-nav__home { min-height: 32px; padding: 7px 9px; font-size: 11px; }
+  .sn-pending-card { padding: 16px; border-radius: 12px; }
+  .timesheet-head-actions { width: 100%; }
+  .timesheet-head-actions > * { flex: 1 1 140px; }
+}
+
+/* Portal Management — backup and operational health */
+.pm-system { max-width: 1380px; margin: 0 auto; }
+.pm-system__hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; padding: 24px 26px; border: 1px solid rgba(188, 203, 162, .22); border-radius: 17px; background: radial-gradient(circle at 88% 5%, rgba(199, 160, 59, .17), transparent 31%), linear-gradient(130deg, #113b27, #071e15); color: #f8f2e4; }
+.pm-system__hero h2 { display: flex; align-items: center; gap: 9px; margin: 6px 0 7px; color: #fffaf0; font: 500 clamp(27px, 3vw, 38px)/1.05 "Newsreader", Georgia, serif; }
+.pm-system__hero p { max-width: 760px; margin: 0; color: rgba(250, 245, 229, .76); line-height: 1.55; }
+.pm-system__metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.pm-system__metric { display: flex; align-items: flex-start; gap: 11px; min-height: 124px; padding: 17px; border: 1px solid rgba(173, 197, 151, .22); border-radius: 13px; background: linear-gradient(145deg, #123e29, #09291c); color: #f8f1df; }
+.pm-system__metric-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border: 1px solid rgba(237, 210, 129, .45); border-radius: 9px; color: #e9c979; background: rgba(235, 206, 122, .1); }
+.pm-system__metric small, .pm-system__metric em { display: block; color: rgba(244, 239, 220, .66); font-size: 11px; font-style: normal; line-height: 1.35; }
+.pm-system__metric strong { display: block; margin: 3px 0 5px; color: #fff9e8; font-size: 15px; line-height: 1.2; }
+.pm-system__metric.good { border-color: rgba(112, 184, 125, .34); }
+.pm-system__metric.warn { border-color: rgba(232, 190, 81, .42); }
+.pm-system__metric.bad { border-color: rgba(220, 108, 87, .52); }
+.pm-system__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.pm-system__card { min-width: 0; padding: 19px; border: 1px solid rgba(173, 197, 151, .24); border-radius: 14px; background: linear-gradient(145deg, rgba(16, 58, 38, .97), rgba(7, 31, 21, .98)); color: #f6f0e1; }
+.pm-system__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: #e9ca77; }
+.pm-system__head h3 { margin: 4px 0 0; color: #fffaf0; font: 600 22px/1.1 "Newsreader", Georgia, serif; }
+.pm-system__list { display: grid; gap: 8px; }
+.pm-system__row { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid rgba(206, 219, 188, .13); border-radius: 9px; background: rgba(255, 255, 255, .035); }
+.pm-system__row strong, .pm-system__row small, .pm-system__row em { display: block; }
+.pm-system__row strong { color: #fff8e8; font-size: 12.5px; }
+.pm-system__row small { margin-top: 2px; color: rgba(243, 238, 220, .68); font-size: 11px; }
+.pm-system__row em { margin-top: 4px; color: #f2b4a5; font-size: 11px; font-style: normal; }
+.pm-system__dot { width: 8px; height: 8px; flex: 0 0 8px; margin-top: 5px; border-radius: 50%; background: #d8aa32; }
+.pm-system__dot.succeeded, .pm-system__dot.healthy { background: #79bd7c; box-shadow: 0 0 0 3px rgba(121, 189, 124, .12); }
+.pm-system__dot.failed, .pm-system__dot.degraded { background: #d86453; box-shadow: 0 0 0 3px rgba(216, 100, 83, .12); }
+.pm-system__footnote { margin: 14px 2px 0; color: rgba(232, 241, 221, .72); font-size: 11.5px; line-height: 1.55; }
+@media (max-width: 980px) { .pm-system__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pm-system__grid { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .pm-system__hero { display: grid; padding: 18px; } .pm-system__hero .pm-submit { width: 100%; } .pm-system__metrics { grid-template-columns: 1fr; } .pm-system__metric { min-height: 104px; } }
+
+/* Desktop-first workspace correction: desktop screens use the full operational canvas. */
+@media (min-width: 1180px) {
+  .staff-home-shell { max-width: 1440px !important; }
+  .pm { max-width: 1400px !important; }
+  .ld, .aps, .phr, .wm, .afp, .svy, .proj-page, .timesheet-page, .ro-page, .my-projects-page, .sn-page { max-width: 1320px !important; }
+  .admin-tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .staff-home-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .pm-domain-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ld-shell, .ld-library, .ld-grid { max-width: 1320px; }
+}

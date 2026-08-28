@@ -10,6 +10,7 @@ import { useAuth } from "../lib/AuthProvider";
 import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
 import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
+import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
   leave: CalendarDays, training: GraduationCap, equipment: Package,
@@ -198,7 +199,7 @@ export default function StaffForms() {
 
   return (
     <div className="sf">
-      <header className="sf-hero"><span>Ecology Consulting - Staff services</span><h1>WHS &amp; EC Forms</h1><p>Field forms, WHS reports and staff requests - all in one place. Submissions are saved to your history; requests and incidents route to admin for review.</p></header>
+      <header className="sf-hero"><WorkspaceNav audience="staff" /><span>Ecology Consulting - Staff services</span><h1>WHS &amp; EC Forms</h1><p>Field forms, WHS reports and staff requests - all in one place. Submissions are saved to your history; requests and incidents route to admin for review.</p></header>
       {error ? <p className="sf-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="sf-success"><CheckCircle2 size={15} /> {message}</p> : null}
       <button className="sf-history-btn" onClick={() => setView("history")}><History size={15} /> View my submission history</button>

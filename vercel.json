@@ -3,6 +3,10 @@
     {
       "path": "/api/jobs/regulatory-watch",
       "schedule": "0 18 * * 1-5"
+    },
+    {
+      "path": "/api/jobs/system-health",
+      "schedule": "20 18 * * *"
     }
   ]
 }

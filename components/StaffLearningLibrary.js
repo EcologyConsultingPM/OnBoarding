@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { GraduationCap, Folder, FileText, ChevronRight, Home, AlertCircle, BookOpen } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WorkspaceNav from "./WorkspaceNav";
 
 const TYPE_ICON = { section: GraduationCap, career_level: Folder, module: Folder, folder: Folder, item: FileText };
 
@@ -15,8 +16,9 @@ export default function StaffLearningLibrary() {
 
   const load = useCallback(async (parentId) => {
     try {
-      const qs = parentId ? `?parent=${parentId}` : "";
-      const res = await fetch(`/api/ld${qs}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const params = new URLSearchParams({ audience: "staff" });
+      if (parentId) params.set("parent", parentId);
+      const res = await fetch(`/api/ld?${params.toString()}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setNodes(data.nodes); setTrail(data.trail || []);
@@ -30,15 +32,16 @@ export default function StaffLearningLibrary() {
   return (
     <div className="ld">
       <header className="ld-hero">
+        <WorkspaceNav audience="staff" />
         <span>Ecology Consulting · People &amp; learning</span>
         <h1>Learning &amp; Development</h1>
-        <p>Your training library — core modules, resources, decision aids and quizzes. Browse by career level and work through the material.</p>
+        <p>Your approved training modules, field and desktop resources, and quizzes. Library management material is available only in the Admin Portal.</p>
       </header>
 
       {error ? <p className="ld-error"><AlertCircle size={15} /> {error}</p> : null}
 
       <div className="ld-crumbs">
-        <button onClick={() => setParent(null)} className="ld-crumb"><Home size={14} /> Library</button>
+        <button onClick={() => setParent(null)} className="ld-crumb"><Home size={14} /> My Learning</button>
         {trail.map((t) => (
           <span key={t.id} className="ld-crumb-wrap">
             <ChevronRight size={13} className="ld-crumb-sep" />

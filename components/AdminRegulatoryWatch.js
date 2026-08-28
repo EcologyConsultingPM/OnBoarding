@@ -24,7 +24,13 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 function sourceOf(update) {
-  return Array.isArray(update.regulatory_sources) ? update.regulatory_sources[0] : update.regulatory_sources;
+  if (!update || typeof update !== "object") return null;
+  const value = update.regulatory_sources;
+  const source = Array.isArray(value) ? value.find((item) => item && typeof item === "object") : value;
+  return source && typeof source === "object" ? source : null;
+}
+function safeRecords(value) {
+  return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
 }
 
 // Regulatory Watch deliberately displays only to administrators. Automated
@@ -54,9 +60,12 @@ export default function AdminRegulatoryWatch({ onToast }) {
     try {
       const response = await fetch("/api/regulatory-watch", { headers: headers() });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not load Regulatory Watch.");
-      setSources(body.sources || []);
-      setUpdates(body.updates || []);
+      if (!response.ok) throw new Error(body?.error || "Could not load Regulatory Watch.");
+      // Historical watch records can legitimately have no retained source link.
+      // Keep those review items visible rather than allowing an unexpected
+      // relationship payload to fail the entire client workspace.
+      setSources(safeRecords(body?.sources));
+      setUpdates(safeRecords(body?.updates));
     } catch (err) {
       setError(err.message || "Could not load Regulatory Watch.");
     } finally {
@@ -67,7 +76,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
   useEffect(() => { load(); }, [load]);
 
   const visibleUpdates = useMemo(() => {
-    const filtered = updates.filter((update) => {
+    const filtered = safeRecords(updates).filter((update) => {
       const source = sourceOf(update);
       if (filters.view === "open" && !["new", "reviewing"].includes(update.status)) return false;
       if (filters.view !== "open" && filters.view !== "all" && update.status !== filters.view) return false;
@@ -88,8 +97,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
       return String(right.detected_at || "").localeCompare(String(left.detected_at || ""));
     });
   }, [filters, updates]);
-  const openCount = updates.filter((update) => ["new", "reviewing"].includes(update.status)).length;
-  const dueCount = updates.filter((update) => update.review_due_date && ["new", "reviewing"].includes(update.status) && new Date(`${update.review_due_date}T23:59:59`) < new Date()).length;
+  const openCount = safeRecords(updates).filter((update) => ["new", "reviewing"].includes(update.status)).length;
+  const dueCount = safeRecords(updates).filter((update) => update.review_due_date && ["new", "reviewing"].includes(update.status) && new Date(`${update.review_due_date}T23:59:59`) < new Date()).length;
 
   const review = async (update, notifyStaff = false) => {
     const draft = drafts[update.id] || {};
@@ -175,8 +184,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
       <div className="reg-watch__summary" aria-label="Regulatory Watch summary">
         <div><strong>{openCount}</strong><span>Open reviews</span></div>
         <div><strong className={dueCount ? "is-alert" : ""}>{dueCount}</strong><span>Overdue review</span></div>
-        <div><strong>{sources.filter((source) => source.active).length}</strong><span>Official sources</span></div>
-        <div><strong>{updates.filter((update) => update.staff_notified_at).length}</strong><span>Staff notices issued</span></div>
+        <div><strong>{safeRecords(sources).filter((source) => source.active).length}</strong><span>Official sources</span></div>
+        <div><strong>{safeRecords(updates).filter((update) => update.staff_notified_at).length}</strong><span>Staff notices issued</span></div>
       </div>
 
       {creating ? (

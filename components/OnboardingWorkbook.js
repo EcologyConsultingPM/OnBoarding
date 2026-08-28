@@ -1355,7 +1355,7 @@ function AdminHome({ onNavigate }) {
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 26, fontFamily: FONT }}>
-      
+
 
       {/* 2-column tall tiles — icon badge + accent glow + diagonal pattern,
           so each domain reads distinctly even without a background photo. */}
@@ -1427,11 +1427,14 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   const { session } = useAuth();
   const [feedback, setFeedback] = useState({ outcomes: [], unseen: 0 });
   const [showOutcomes, setShowOutcomes] = useState(false);
+  const [portalEvents, setPortalEvents] = useState([]);
 
   useEffect(() => {
     if (!session?.access_token) return;
     fetch("/api/staff-feedback", { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then((r) => r.json()).then((d) => setFeedback({ outcomes: d.outcomes || [], unseen: d.unseen || 0 })).catch(() => {});
+    fetch("/api/portal-events?limit=100", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json()).then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : [])).catch(() => {});
   }, [session]);
 
   const markSeen = async () => {
@@ -1444,27 +1447,33 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     }
   };
 
-  
+
 
   // My Onboarding is shown only after an administrator has Lock & Assigned at
   // least one module for this staff member. This prevents a blank domain from
   // appearing for staff who have not been given an onboarding programme.
   const allDomains = [
-    { key: "mine", n: "01", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your individually assigned onboarding modules and progress record.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
-    { key: "staffforms", n: "02", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
-    { key: "ldlibrary", n: "03", eyebrow: "People & learning", title: "Learning & Development", desc: "Core training modules, resources, decision aids and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
-    { key: "species", n: "04", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, compare licensed reference photos, attach a field photo for expert verification, and check targeted survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
-    { key: "projects", n: "05", eyebrow: "Delivery & commercial", title: "My Projects", desc: "Your allocations, schedule, work status and project information.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
-    { key: "projecttracker", n: "06", eyebrow: "Time & delivery", title: "Project Tracker", desc: "Record allocated project work using the administrator-locked tracker template.", Icon: ClipboardList, photo: "kangaroo-paw", base: "#35562b", g1: "#527b3c", g2: "#102413", href: "/staff/project-tracker" },
-    { key: "timesheets", n: "07", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
-    { key: "notifications", n: "08", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project activity allocations and updates requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
-    { key: "remote", n: "09", eyebrow: "International delivery", title: "Remote Operations", desc: "Your assigned task briefs, progress updates and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
+    { key: "notifications", n: "01", eyebrow: "Workflow & alerts", title: "Notifications", desc: "Task briefs, project allocations and decisions requiring your attention.", Icon: BellRing, photo: "redtail-cockatoo", base: "#19452e", g1: "#286544", g2: "#071c11", href: "/staff/notifications" },
+    { key: "projects", n: "02", eyebrow: "Delivery workspace", title: "My Projects", desc: "Accepted tasks, allocated activities, project tracking and service requests.", Icon: FileText, photo: "kangaroo", base: "#1d6b6b", g1: "#238383", g2: "#0c2b2b", href: "/staff/projects" },
+    { key: "timesheets", n: "03", eyebrow: "Time & delivery", title: "Timesheets", desc: "Project tracker history, filters, XLSX export and official time entry.", Icon: Clock3, photo: "koala", base: "#365a6c", g1: "#47758a", g2: "#132b38", href: "/staff/timesheets" },
+    { key: "staffforms", n: "04", eyebrow: "Safety, requests & governance", title: "WHS & EC Forms", desc: "Forms, requests, and approved internal policies and procedures.", Icon: ShieldCheck, photo: "kookaburra", base: "#8a5b2e", g1: "#c9962a", g2: "#2a1c08" },
+    { key: "ldlibrary", n: "05", eyebrow: "People & learning", title: "Learning & Development", desc: "Your approved training modules, resources and quizzes.", Icon: BookOpen, photo: "lorikeet", base: "#7d3b5c", g1: "#9c4a72", g2: "#2a1420" },
+    { key: "species", n: "06", eyebrow: "Species reference", title: "Species Profiles & Survey Requirements", desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.", Icon: BookOpen, photo: "wattle", base: "#1e5b36", g1: "#2f8f8f", g2: "#0b2317" },
+    { key: "mine", n: "07", requiresOnboarding: true, eyebrow: "Getting started", title: "My Onboarding", desc: "Your individually assigned onboarding modules and progress record.", Icon: ClipboardList, photo: "wattle", base: "#2f5c2f", g1: "#3b7a3d", g2: "#123320" },
+    { key: "remote", n: "08", eyebrow: "International delivery", title: "Remote Operations", desc: "Remote-work profiles, coordination records and delivery handovers.", Icon: Users2, photo: "bottlebrush", base: "#a34a32", g1: "#c05a3e", g2: "#2a1109", href: "/staff/remote-operations" },
   ];
-  const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding);
+  const unreadForDomain = (key) => portalEvents.filter((event) => {
+    if (event.read_at) return false;
+    if (key === "notifications") return true;
+    if (key === "projects") return ["remote_tasks", "project_activities", "project_tracker_entries"].includes(event.source_table) || String(event.event_type || "").includes("project_") || String(event.event_type || "").includes("remote_task");
+    if (key === "timesheets") return String(event.event_type || "").includes("tracker") || String(event.event_type || "").includes("timesheet");
+    return false;
+  }).length;
+  const domains = allDomains.filter((domain) => !domain.requiresOnboarding || hasAssignedOnboarding).map((domain) => ({ ...domain, unread: unreadForDomain(domain.key) }));
 
   return (
-    <div style={{ maxWidth: 1160, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
-      
+    <div className="staff-home-shell" style={{ width: "100%", maxWidth: 1440, margin: "0 auto", display: "flex", flexDirection: "column", gap: 22, fontFamily: FONT }}>
+
 
       {showOutcomes && feedback.outcomes.length > 0 && (
         <div style={{ background: C.paperCard, border: `1px solid ${C.hair}`, borderRadius: 15, padding: "18px 20px" }}>
@@ -1497,9 +1506,9 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: 26, alignItems: "start" }} className="staff-home-grid">
         {/* Domains — left */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }} className="staff-domain-grid">
-            {domains.map(({ key, n, eyebrow, title, desc, Icon, photo, base, g1, g2, href }) => (
+            {domains.map(({ key, n, eyebrow, title, desc, Icon, photo, base, g1, g2, href, unread }) => (
               <a
                 key={key}
                 href="#"
@@ -1511,7 +1520,10 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(150deg, ${g1}, ${g2} 82%)`, mixBlendMode: "multiply" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,18,12,.88), rgba(6,18,12,.05) 68%)" }} />
                 <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={17} /></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={17} /></div>
+                    {unread ? <span className="ec-row-unread" aria-label={`${unread > 99 ? "More than 99" : unread} unread items`}>{unread > 99 ? "99+" : unread}</span> : null}
+                  </div>
                   <div>
                     <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(233,201,121,0.95)", marginBottom: 8 }}>{eyebrow}</div>
                     <div style={{ fontFamily: SERIF, fontSize: 25, lineHeight: 1.12, marginBottom: 7 }}>{title}</div>

@@ -23,7 +23,7 @@ function money(value) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 }
 
-export default function ProjectHealth({ projectId, onBack }) {
+export default function ProjectHealth({ projectId, onBack, showBack = true }) {
   const { session } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -79,7 +79,7 @@ export default function ProjectHealth({ projectId, onBack }) {
 
   return (
     <div className="proj-detail">
-      <button className="proj-back" onClick={onBack}><ArrowLeft size={15} /> All projects</button>
+      {showBack ? <button className="proj-back" onClick={onBack}><ArrowLeft size={15} /> All projects</button> : null}
 
       <div className="proj-detail-head">
         <h1>{project.name}</h1>
