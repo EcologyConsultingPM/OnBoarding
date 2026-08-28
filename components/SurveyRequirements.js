@@ -1,11 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, Search, ShieldAlert } from "lucide-react";
+import { Search, ShieldAlert } from "lucide-react";
 import { SURVEY_FLORA } from "../lib/surveyFlora";
 import { SURVEY_FAUNA } from "../lib/surveyFauna";
+import WorkspaceNav from "./WorkspaceNav";
 
 const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+
+const FAUNA_TARGET_NAMES = [
+  { match: "southern myotis", common: "Southern Myotis", scientific: "Myotis macropus" },
+  { match: "grey-headed flying-fox", common: "Grey-headed Flying-fox", scientific: "Pteropus poliocephalus" },
+  { match: "koala", common: "Koala", scientific: "Phascolarctos cinereus" },
+];
+
+function faunaTargetName(row) {
+  const taxon = String(row?.taxon || "").toLowerCase();
+  return FAUNA_TARGET_NAMES.find((target) => taxon.includes(target.match)) || null;
+}
 
 function MonthTally({ tally, kingdom }) {
   const max = Math.max(...tally, 1);
@@ -30,7 +42,7 @@ function MonthStrip({ months, kingdom }) {
   );
 }
 
-export default function SurveyRequirements({ initialKingdom = "flora", onBack }) {
+export default function SurveyRequirements({ initialKingdom = "flora", onBack, onHome }) {
   const [kingdom, setKingdom] = useState(initialKingdom);
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(40);
@@ -57,7 +69,7 @@ export default function SurveyRequirements({ initialKingdom = "flora", onBack })
 
   return (
     <div className={"svy " + kingdom}>
-      {onBack && <button className="svy-back" onClick={onBack}><ChevronLeft size={14} /> Back to profile guide</button>}
+      <WorkspaceNav onHome={onHome} onBack={onBack} backLabel="Back to profile guide" />
 
       <header className="svy-hero">
         <span>NSW &amp; ACT · 2026 · Species-specific survey time and conditions</span>
@@ -94,6 +106,7 @@ export default function SurveyRequirements({ initialKingdom = "flora", onBack })
                   {r.common && <span className="svy-row-common">{r.common}</span>}
                 </div>
                 <p className="svy-row-req">{r.req}</p>
+                <div className="svy-calendar-caption">{Array.isArray(r.months) && r.months.length ? "Preferred species-specific survey period" : "Survey period must be set from the current target-species source"}</div>
                 <MonthStrip months={r.months} kingdom={kingdom} />
                 <div className="svy-src">{r.src}</div>
               </div>
@@ -107,18 +120,24 @@ export default function SurveyRequirements({ initialKingdom = "flora", onBack })
         <>
           <div className="svy-search"><Search size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fauna group survey benchmarks" /></div>
           <div className="svy-list">
-            {groups.map((g, i) => (
+            {groups.map((g, i) => {
+              const target = faunaTargetName(g);
+              const hasCalendar = Array.isArray(g.months) && g.months.length > 0;
+              return (
               <div key={i} className="svy-group-card">
                 <div className="svy-group-name">{g.taxon}</div>
+                {target ? <div className="svy-fauna-target-name"><strong>{target.common}</strong><em>{target.scientific}</em></div> : <p className="svy-fauna-group-note">Group benchmark — confirm the current target species and species-specific survey period before relying on this method.</p>}
                 <div className="svy-group-grid">
                   <div><span>Timing</span><p>{g.timing}</p></div>
                   <div><span>Benchmark effort</span><p>{g.benchmark}</p></div>
                   <div><span>Method control</span><p>{g.control}</p></div>
                 </div>
-                {g.months && g.months.length > 0 && <MonthStrip months={g.months} kingdom={kingdom} />}
+                <div className="svy-calendar-caption">{hasCalendar ? "Preferred species-specific survey period" : "Survey period must be set from the current target-species source"}</div>
+                <MonthStrip months={g.months} kingdom={kingdom} />
                 <div className="svy-src">{g.src}</div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

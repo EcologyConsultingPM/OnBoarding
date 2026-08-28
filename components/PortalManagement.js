@@ -71,6 +71,17 @@ const accessLabel = {
   both: "Staff + Admin",
 };
 
+const STAFF_DOMAIN_OPTIONS = [
+  { key: "staff.notifications", label: "Notifications", description: "Assignments, task briefs and updates" },
+  { key: "staff.projects", label: "My Projects", description: "Activities, tracker and requests" },
+  { key: "staff.timesheets", label: "Timesheets", description: "Tracker history and official time entry" },
+  { key: "staff.forms", label: "WHS & EC Forms", description: "Forms and internal governance" },
+  { key: "staff.learning", label: "Learning & Development", description: "Approved training and Core Training" },
+  { key: "staff.species", label: "Species Profiles", description: "Flora, fauna and survey reference" },
+  { key: "staff.remote_operations", label: "Remote Operations", description: "Remote-work support and handover" },
+];
+const DEFAULT_STAFF_DOMAINS = STAFF_DOMAIN_OPTIONS.map((option) => option.key);
+
 function jsonFromResponse(response) {
   return response.json().catch(() => ({}));
 }
@@ -128,6 +139,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
     email: "",
     phone: "",
     accessLevel: "staff",
+    visibleStaffResources: DEFAULT_STAFF_DOMAINS,
   });
   const [issued, setIssued] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -259,6 +271,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           lastName: form.lastName.trim(),
           phone: form.phone.trim(),
           accessLevel: form.accessLevel,
+          visibleStaffResources: isPrimary && form.accessLevel !== "admin" ? form.visibleStaffResources : undefined,
           forceChange: true,
         }),
       });
@@ -277,6 +290,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         email: "",
         phone: "",
         accessLevel: "staff",
+        visibleStaffResources: DEFAULT_STAFF_DOMAINS,
       });
       await refreshControl();
     } catch (submitError) {
@@ -454,6 +468,15 @@ export default function PortalManagement({ onboardingContent, onToast }) {
             onClick={() => setView("visibility")}
           />
         ) : null}
+        {isPrimary ? (
+          <TabButton
+            active={view === "commercial"}
+            icon={ShieldCheck}
+            label="Quote financial access"
+            caption="Control who can view dollar values and pipeline totals"
+            onClick={() => setView("commercial")}
+          />
+        ) : null}
         <TabButton
           active={view === "roles"}
           icon={ShieldPlus}
@@ -617,6 +640,37 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                 </p>
               )}
             </div>
+
+            {isPrimary && form.accessLevel !== "admin" && (
+              <div className="pm-access pm-staff-domain-access">
+                <span className="pm-access-label">Staff workspace access</span>
+                <p className="pm-staff-domain-access__intro">
+                  Choose what this person can see on their first Staff Portal sign-in. You can refine any choice later using the domain eye controls.
+                </p>
+                <div className="pm-staff-domain-access__grid">
+                  {STAFF_DOMAIN_OPTIONS.map((option) => {
+                    const selected = form.visibleStaffResources.includes(option.key);
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={`pm-staff-domain-option ${selected ? "sel" : ""}`}
+                        aria-pressed={selected}
+                        onClick={() => setForm({
+                          ...form,
+                          visibleStaffResources: selected
+                            ? form.visibleStaffResources.filter((key) => key !== option.key)
+                            : [...form.visibleStaffResources, option.key],
+                        })}
+                      >
+                        <span className="pm-staff-domain-option__check"><Check size={14} /></span>
+                        <span><strong>{option.label}</strong><small>{option.description}</small></span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {error && (
               <AccessNotice tone="error">
@@ -821,6 +875,13 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         <PortalVisibilityManager
           resourceKey="staff.projects"
           showAll
+          onClose={() => setView("access")}
+        />
+      ) : null}
+
+      {view === "commercial" && isPrimary ? (
+        <PortalVisibilityManager
+          resourceKey="admin.quote_pipeline"
           onClose={() => setView("access")}
         />
       ) : null}

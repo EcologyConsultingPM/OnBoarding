@@ -5218,7 +5218,7 @@ export default function OnboardingWorkbook() {
           ) : mode === "ldlibrary" && !inAdminPortal ? (
             <StaffLearningLibrary />
           ) : mode === "species" && !inAdminPortal ? (
-            <SpeciesProfiles onToast={showToast} />
+            <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (
