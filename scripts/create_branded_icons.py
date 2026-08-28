@@ -51,3 +51,27 @@ canvas.convert("RGBA").save(
     format="ICO",
     sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
 )
+
+# A branded Open Graph image replaces generic chain-link placeholders in messages.
+social = Image.new("RGBA", (1200, 630), "#052b20")
+social_pixels = social.load()
+for y in range(630):
+    for x in range(1200):
+        t = (x / 1200) * 0.72 + (y / 630) * 0.28
+        social_pixels[x, y] = (
+            int(4 + 10 * t),
+            int(39 + 59 * t),
+            int(29 + 38 * t),
+            255,
+        )
+
+social_draw = ImageDraw.Draw(social)
+social_draw.ellipse((755, -150, 1450, 545), outline="#d5b65a", width=8)
+social_draw.ellipse((850, -55, 1250, 345), outline="#4f7c45", width=4)
+social_draw.rounded_rectangle((84, 92, 109, 538), radius=12, fill="#d5b65a")
+
+social_logo = logo.copy()
+social_logo.thumbnail((690, 198), Image.Resampling.LANCZOS)
+social.alpha_composite(social_logo, (150, 212))
+
+social.save(ROOT / "app" / "opengraph-image.png", "PNG")

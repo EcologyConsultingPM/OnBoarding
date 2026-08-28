@@ -26,12 +26,21 @@ export const metadata = {
     title: "Ecology Consulting | Staff Portal",
     description:
       "Your secure workspace for project tasks, learning, WHS forms, governance and timesheet reference.",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Ecology Consulting Staff Portal",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Ecology Consulting | Staff Portal",
     description:
       "Your secure workspace for project tasks, learning, WHS forms, governance and timesheet reference.",
+    images: ["/opengraph-image.png"],
   },
   icons: {
     icon: [{ url: "/icon.png", type: "image/png", sizes: "512x512" }],
