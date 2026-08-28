@@ -15821,3 +15821,47 @@ main {
     justify-content: center;
   }
 }
+
+/* My Projects content sits on the light page canvas: preserve hierarchy with a dark section band. */
+.my-projects-page .my-projects-section-head {
+  align-items: center;
+  margin: 16px 0 18px;
+  padding: 17px 20px;
+  border: 1px solid rgba(141, 179, 131, 0.24);
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(224, 184, 79, 0.14),
+      transparent 32%
+    ),
+    linear-gradient(112deg, #093722, #06291a);
+  box-shadow: 0 15px 30px -27px rgba(0, 24, 14, 0.8);
+}
+.my-projects-page .my-projects-section-head h2 {
+  color: #fff9e8;
+}
+.my-projects-page .my-projects-section-head p {
+  max-width: 78ch;
+  color: #cfdfc9;
+}
+/* Remote Tasks is embedded in the Task briefs panel, so it must not render its standalone white shell. */
+.my-projects-panel > .rt {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.my-projects-panel > .rt .rt-head {
+  margin-bottom: 9px;
+}
+.my-projects-panel > .rt .rt-head h2 {
+  color: #fff9e8;
+}
+@media (max-width: 640px) {
+  .my-projects-page .my-projects-section-head {
+    align-items: flex-start;
+    padding: 15px 16px;
+  }
+}
