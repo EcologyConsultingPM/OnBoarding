@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,11 @@ export async function PATCH(request, { params }) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+    );
+    if (denied) return denied;
     const body = await request.json();
     const action = body.action;
 
@@ -30,6 +36,22 @@ export async function PATCH(request, { params }) {
         })
         .eq("id", params.requestId).select(COLUMNS).single();
       if (error) return Response.json({ error: error.message }, { status: 400 });
+      const decision = action === "approve" ? "approved" : "declined";
+      const { error: eventError } = await access.admin.from("portal_events").insert({
+        recipient_id: existing.created_by,
+        event_type: `service_request_${decision}`,
+        severity: action === "decline" ? "action" : "information",
+        title: `Service request ${decision}: ${data.title}`,
+        body:
+          data.admin_note ||
+          `Your ${String(data.request_type || "service").replaceAll("_", " ")} request has been ${decision}.`,
+        href: "/staff/projects/service-requests",
+        source_table: "service_requests",
+        source_id: data.id,
+      });
+      if (eventError) {
+        console.error("Could not create service request decision event", eventError);
+      }
       return Response.json({ request: data });
     }
 

@@ -1,5 +1,7 @@
 import { requireSession, serverError } from "../../../../../lib/serverAuth";
 
+import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -157,6 +159,12 @@ export async function PUT(request, { params }) {
         sort_order: index + 1,
         created_by: access.user.id,
       }));
+
+    const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+    const availableIds = new Set(directory.map((person) => person.id));
+    if (rows.some((row) => row.staff_user_id && !availableIds.has(row.staff_user_id))) {
+      return Response.json({ error: "Project activities must be assigned to an available staff member from the Staff List." }, { status: 400 });
+    }
 
     const { error: deleteError } = await access.admin.from("project_activities").delete().eq("project_id", params.projectId);
     if (deleteError) return Response.json({ error: deleteError.message }, { status: 400 });

@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.projects.activities");
+    if (denied) return denied;
 
     let calendarReady = true;
     let result = await access.admin
@@ -64,6 +67,8 @@ export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.projects.activities");
+    if (denied) return denied;
 
     const body = await request.json();
     const id = body.id;

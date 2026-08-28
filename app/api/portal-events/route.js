@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,8 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.notifications");
+    if (denied) return denied;
     const limit = Math.min(Math.max(Number(new URL(request.url).searchParams.get("limit")) || 6, 1), 30);
 
     const { data, error } = await access.admin
@@ -33,6 +36,8 @@ export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.notifications");
+    if (denied) return denied;
     const { id } = await request.json();
     if (!id) return Response.json({ error: "Event id is required." }, { status: 400 });
 

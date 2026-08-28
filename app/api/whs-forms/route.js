@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,11 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.whs_monitoring" : "staff.forms",
+    );
+    if (denied) return denied;
     const url = new URL(request.url);
     const typeFilter = url.searchParams.get("type");
 
@@ -40,6 +46,11 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const denied = await requirePortalResource(
+      access,
+      access.isAdmin ? "admin.whs_monitoring" : "staff.forms",
+    );
+    if (denied) return denied;
     const b = await request.json();
     if (!FORM_TYPES.includes(b.form_type)) return Response.json({ error: "Invalid form type." }, { status: 400 });
     const title = (b.title || "").toString().trim();

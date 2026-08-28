@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ async function ownEntries(access) {
 export async function GET(request) {
   try {
     const access = await requireSession(request); if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.projects.tracker"); if (denied) return denied;
     const [eligible, entries] = await Promise.all([eligibleProjects(access), ownEntries(access)]);
     return Response.json({ ready: eligible.available && entries.available, eligibleProjects: eligible.projects, entries: entries.entries });
   } catch (error) { return serverError(error); }
@@ -52,6 +54,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const access = await requireSession(request); if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.projects.tracker"); if (denied) return denied;
     const body = await request.json();
     const projectId = String(body?.projectId || ""); const sourceId = String(body?.sourceId || ""); const allocationId = String(body?.allocationId || "");
     const workDate = text(body?.workDate, 10); const activityCategory = text(body?.activityCategory, 120); const activityInformation = text(body?.activityInformation, 5000); const notableIssues = text(body?.notableIssues, 5000); const amount = hours(body?.hours); const status = String(body?.status || "");

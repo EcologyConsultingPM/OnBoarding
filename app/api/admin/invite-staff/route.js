@@ -31,6 +31,10 @@ function safeName(value, maximum = 100) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, maximum);
 }
 
+function safePhone(value) {
+  return String(value || "").trim().replace(/[^0-9+()\-\s]/g, "").slice(0, 32);
+}
+
 function createTemporaryPassword() {
   // A URL-safe random password with enough entropy for a single-use credential.
   return `${randomBytes(12).toString("base64url")}Ec!`;
@@ -52,6 +56,7 @@ export async function POST(request) {
     const email = normaliseEmail(body?.email);
     const firstName = safeName(body?.firstName);
     const lastName = safeName(body?.lastName);
+    const phone = safePhone(body?.phone);
     const accessLevel = String(body?.accessLevel || "staff").trim();
     const forceChange = body?.forceChange !== false;
 
@@ -74,6 +79,8 @@ export async function POST(request) {
       first_name: firstName,
       last_name: lastName,
       full_name: [firstName, lastName].filter(Boolean).join(" "),
+      phone,
+      staff_directory_active: existing?.user_metadata?.staff_directory_active !== false,
     };
     const application = {
       ...(existing?.app_metadata || {}),
