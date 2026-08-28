@@ -3,6 +3,12 @@ import { AuthProvider } from "../lib/AuthProvider";
 
 export const dynamic = "force-dynamic";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata = {
   metadataBase: new URL("https://www.ecologyconsultingsaas.app"),
   applicationName: "Ecology Consulting Staff Portal",
