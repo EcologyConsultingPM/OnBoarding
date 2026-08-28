@@ -16136,3 +16136,72 @@ main {
 .sn-pending-card .rt-open-btn:hover {
   background: #f2d98c;
 }
+
+/* ── Staff Remote Operations: compact staff-safe delivery support layout ── */
+.ro-page--staff .ro-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.ro-page--staff .ro-stat,
+.ro-page--staff .ro-card,
+.ro-page--staff .ro-followup {
+  border-color: rgba(186, 211, 165, 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(10, 53, 32, 0.98),
+    rgba(5, 32, 19, 0.98)
+  );
+  box-shadow: 0 18px 34px -27px rgba(0, 0, 0, 0.92);
+}
+.ro-page--staff .ro-stat-value,
+.ro-page--staff .ro-card-head h2,
+.ro-page--staff .ro-item strong {
+  color: #fff9ea;
+}
+.ro-page--staff .ro-stat-label,
+.ro-page--staff .ro-item span,
+.ro-page--staff .ro-muted {
+  color: rgba(224, 237, 217, 0.72) !important;
+}
+.ro-page--staff .ro-eyebrow {
+  color: #e7c979;
+}
+.ro-page--staff .ro-empty {
+  border-color: rgba(211, 231, 199, 0.22);
+  color: rgba(227, 239, 220, 0.78);
+  background: rgba(0, 24, 13, 0.35);
+}
+.ro-page--staff .ro-issue-form--stacked {
+  grid-template-columns: 1fr;
+  margin-bottom: 0;
+}
+.ro-page--staff .ro-issue-form--stacked input,
+.ro-page--staff .ro-issue-form--stacked select,
+.ro-page--staff .ro-issue-form--stacked textarea {
+  width: 100%;
+  min-width: 0;
+  border-color: rgba(188, 214, 172, 0.35);
+  color: #1f3525;
+  background: #f9f7f0;
+}
+.ro-page--staff .ro-issue-form--stacked textarea {
+  min-height: 94px;
+  padding: 10px 11px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.ro-page--staff .ro-save {
+  width: 100%;
+  border: 1px solid rgba(231, 201, 121, 0.62);
+  color: #183a24;
+  background: #e7c979;
+}
+.ro-page--staff .ro-save:hover {
+  background: #f2d98c;
+}
+@media (max-width: 900px) {
+  .ro-page--staff .ro-columns {
+    grid-template-columns: 1fr;
+  }
+}
