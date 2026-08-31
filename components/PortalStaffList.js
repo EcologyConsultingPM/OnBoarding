@@ -83,6 +83,33 @@ export default function PortalStaffList({ onAddStaff }) {
     setError("");
     setNotice("");
   };
+  const deactivate = async (person) => {
+    if (!window.confirm(`Remove ${fullName(person)} from new allocations and portal worklists? Their historical records will be retained.`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/staff", {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({
+          id: person.id,
+          firstName: person.firstName || person.name?.split(" ")?.[0] || "Staff",
+          lastName: person.lastName || person.name?.split(" ")?.slice(1).join(" ") || "Member",
+          phone: person.phone || "",
+          active: false,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Could not remove the staff member.");
+      setStaff((current) => current.map((item) => item.id === person.id ? { ...item, ...body.staff } : item));
+      setNotice(`${fullName(body.staff)} removed from new allocations. Historical records were retained.`);
+    } catch (requestError) {
+      setError(requestError.message || "Could not remove the staff member.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async (person) => {
     setSaving(true);
     setError("");
@@ -308,13 +335,25 @@ export default function PortalStaffList({ onAddStaff }) {
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          className="staff-list__edit"
-                          onClick={() => beginEdit(person)}
-                        >
-                          <Pencil size={14} /> Edit
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="staff-list__edit"
+                            onClick={() => beginEdit(person)}
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                          {person.active !== false ? (
+                            <button
+                              type="button"
+                              className="staff-list__cancel"
+                              disabled={saving}
+                              onClick={() => deactivate(person)}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </>
                       )}
                     </td>
                   </tr>
@@ -324,9 +363,9 @@ export default function PortalStaffList({ onAddStaff }) {
         </table>
       </section>
       <p className="staff-list__footnote">
-        Marking a person unavailable removes them from new allocation dropdowns.
+        Remove marks a person unavailable for new allocation dropdowns and portal worklists.
         It does not delete their account, change administrator access or remove
-        historic project records.
+        historic project, WHS, timesheet or audit records. Only Aaron Dooley and Tony Webster can remove staff, and protected administrators cannot be removed.
       </p>
     </section>
   );
