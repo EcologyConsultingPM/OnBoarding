@@ -22,7 +22,7 @@ function deriveFollowUp(sentOn, explicit) {
 }
 
 function mapValues(body, financialsVisible) {
-  const status = ["pending", "successful", "unsuccessful"].includes(body.status)
+  const status = ["pending", "successful", "unsuccessful", "withdrawn"].includes(body.status)
     ? body.status
     : "pending";
   return {
