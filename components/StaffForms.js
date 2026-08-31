@@ -19,6 +19,8 @@ import {
   ChevronLeft,
   HeartPulse,
   ListChecks,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
@@ -177,6 +179,71 @@ export default function StaffForms() {
 
 
   const renderField = ([key, label, type]) => {
+    if (type === "signature_rows") {
+      const rows = Array.isArray(form[key]) && form[key].length
+        ? form[key]
+        : [{ name: "", acknowledgement: "", signedAt: "", signature: "" }];
+      const updateRow = (index, patch) => {
+        const next = rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row);
+        set(key, next);
+      };
+      const addRow = () => set(key, [...rows, { name: "", acknowledgement: "", signedAt: "", signature: "" }]);
+      const removeRow = (index) => set(key, rows.length > 1 ? rows.filter((_, rowIndex) => rowIndex !== index) : [{ name: "", acknowledgement: "", signedAt: "", signature: "" }]);
+      return (
+        <section key={key} className="sf-team-signoff" aria-label={label}>
+          <div className="sf-team-signoff__head">
+            <div>
+              <span className="sf-team-signoff__kicker">Individual acknowledgement</span>
+              <strong>{label}</strong>
+              <p>Each person present must record their own acknowledgement and finger or mouse signature.</p>
+            </div>
+            <button type="button" className="sf-team-signoff__add" onClick={addRow}>
+              <Plus size={15} /> Add staff member
+            </button>
+          </div>
+          <div className="sf-team-signoff__rows">
+            {rows.map((row, index) => (
+              <article className="sf-team-signoff__row" key={`${key}-${index}`}>
+                <div className="sf-team-signoff__row-head">
+                  <span>Staff member {index + 1}</span>
+                  <button
+                    type="button"
+                    className="sf-team-signoff__remove"
+                    onClick={() => removeRow(index)}
+                    aria-label={`Remove staff member ${index + 1} sign-off`}
+                  >
+                    <Trash2 size={14} /> Remove
+                  </button>
+                </div>
+                <div className="sf-team-signoff__fields">
+                  <label className="sf-field">
+                    <span>Name</span>
+                    <input value={row.name} onChange={(event) => updateRow(index, { name: event.target.value })} placeholder="Full name" />
+                  </label>
+                  <label className="sf-field">
+                    <span>Acknowledgement</span>
+                    <select value={row.acknowledgement} onChange={(event) => updateRow(index, { acknowledgement: event.target.value })}>
+                      <option value="">Select…</option>
+                      <option value="I have read and understood this assessment">I have read and understood this assessment</option>
+                      <option value="I have participated in the toolbox talk">I have participated in the toolbox talk</option>
+                    </select>
+                  </label>
+                  <label className="sf-field">
+                    <span>Date and time</span>
+                    <input type="datetime-local" value={row.signedAt} onChange={(event) => updateRow(index, { signedAt: event.target.value })} />
+                  </label>
+                </div>
+                <SignaturePad
+                  label={`Staff member ${index + 1} signature`}
+                  value={row.signature || ""}
+                  onChange={(signature) => updateRow(index, { signature })}
+                />
+              </article>
+            ))}
+          </div>
+        </section>
+      );
+    }
     if (type === "signature")
       return (
         <SignaturePad
