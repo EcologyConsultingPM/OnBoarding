@@ -33,7 +33,7 @@ export default function AdminQuotePipeline() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY);
   const [filters, setFilters] = useState({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" });
-  const [view, setView] = useState("pipeline");
+  const [view, setView] = useState("drafts");
 
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -63,7 +63,7 @@ export default function AdminQuotePipeline() {
     setView(next);
     try {
       const url = new URL(window.location.href);
-      if (next === "pipeline") url.searchParams.delete("quoteView");
+      if (next === "drafts") url.searchParams.delete("quoteView");
       else url.searchParams.set("quoteView", next);
       window.history.replaceState({}, "", url);
     } catch {}
@@ -128,8 +128,8 @@ export default function AdminQuotePipeline() {
 
   return <div className="qp">
     <nav className="qp-subnav" aria-label="Quote Pipeline sub-domains">
-      <button type="button" className={view === "pipeline" ? "active" : ""} onClick={() => selectView("pipeline")}><TrendingUp size={16} /> Issued Quote Pipeline</button>
       <button type="button" className={view === "drafts" ? "active" : ""} onClick={() => selectView("drafts")}><FilePlus2 size={16} /> Quotes to be Drafted</button>
+      <button type="button" className={view === "pipeline" ? "active" : ""} onClick={() => selectView("pipeline")}><TrendingUp size={16} /> Issued Quote Pipeline</button>
       <button type="button" className={view === "improvements" ? "active" : ""} onClick={() => selectView("improvements")}><Sparkles size={16} /> Improvements</button>
     </nav>
 

@@ -21,9 +21,7 @@ const URGENCY = ["low", "medium", "high", "critical"];
 const EMPTY = {
   clientName: "", company: "", clientEmail: "", clientPhone: "", preferredContactMethod: "",
   projectName: "", projectLocation: "", localGovernmentArea: "", state: "NSW",
-  enquiryDescription: "", requiredServices: "", developmentType: "", siteConstraints: "", projectDrivers: "",
-  consentAuthority: "", authorityComments: "", biodiversityInformationRequest: "", refBarRequirements: "",
-  planningPathway: "", additionalAgencyRequirements: "", enquiryReceivedOn: new Date().toISOString().slice(0, 10),
+  enquiryDescription: "", requiredServices: "", additionalAgencyRequirements: "", enquiryReceivedOn: new Date().toISOString().slice(0, 10),
   clientRequiredBy: "", approvalTimeframes: "", urgency: "medium", assignedTo: "", clientContacted: false,
   contactDate: "", contactNotes: "", scopeConfirmed: "", quoteDraftLink: "", quoteSent: false,
   quoteSentOn: "", quoteRecipientEmail: "", status: "awaiting_review",
@@ -37,10 +35,6 @@ function fromDraft(draft) {
     projectName: draft.project_name || "", projectLocation: draft.project_location || "",
     localGovernmentArea: draft.local_government_area || "", state: draft.state || "",
     enquiryDescription: draft.enquiry_description || "", requiredServices: draft.required_services || "",
-    developmentType: draft.development_type || "", siteConstraints: draft.site_constraints || "",
-    projectDrivers: draft.project_drivers || "", consentAuthority: draft.consent_authority || "",
-    authorityComments: draft.authority_comments || "", biodiversityInformationRequest: draft.biodiversity_information_request || "",
-    refBarRequirements: draft.ref_bar_requirements || "", planningPathway: draft.planning_pathway || "",
     additionalAgencyRequirements: draft.additional_agency_requirements || "", enquiryReceivedOn: draft.enquiry_received_on || "",
     clientRequiredBy: draft.client_required_by || "", approvalTimeframes: draft.approval_timeframes || "",
     urgency: draft.urgency || "medium", assignedTo: draft.assigned_to || "", clientContacted: draft.client_contacted === true,
@@ -100,15 +94,7 @@ function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, on
         <FormInput label="Urgency"><select value={value.urgency} onChange={(event) => set("urgency", event.target.value)}>{URGENCY.map((urgency) => <option value={urgency} key={urgency}>{urgency[0].toUpperCase()}{urgency.slice(1)}</option>)}</select></FormInput>
         <FormInput label="Approval timeframes"><input value={value.approvalTimeframes} onChange={(event) => set("approvalTimeframes", event.target.value)} placeholder="Known authority or programme constraints" /></FormInput>
         <FormInput label="Detailed request description" wide><textarea value={value.enquiryDescription} onChange={(event) => set("enquiryDescription", event.target.value)} /></FormInput>
-        <FormInput label="Required ecology services" wide><textarea value={value.requiredServices} onChange={(event) => set("requiredServices", event.target.value)} placeholder="e.g. biodiversity assessment, flora survey, fauna survey" /></FormInput>
-        <FormInput label="Development type"><input value={value.developmentType} onChange={(event) => set("developmentType", event.target.value)} /></FormInput>
-        <FormInput label="Project drivers"><input value={value.projectDrivers} onChange={(event) => set("projectDrivers", event.target.value)} /></FormInput>
-        <FormInput label="Site constraints" wide><textarea value={value.siteConstraints} onChange={(event) => set("siteConstraints", event.target.value)} /></FormInput>
-        <FormInput label="Consent authority"><input value={value.consentAuthority} onChange={(event) => set("consentAuthority", event.target.value)} /></FormInput>
-        <FormInput label="Authority comments" wide><textarea value={value.authorityComments} onChange={(event) => set("authorityComments", event.target.value)} /></FormInput>
-        <FormInput label="Biodiversity information request" wide><textarea value={value.biodiversityInformationRequest} onChange={(event) => set("biodiversityInformationRequest", event.target.value)} /></FormInput>
-        <FormInput label="REF / BAR requirements" wide><textarea value={value.refBarRequirements} onChange={(event) => set("refBarRequirements", event.target.value)} /></FormInput>
-        <FormInput label="Planning pathway"><input value={value.planningPathway} onChange={(event) => set("planningPathway", event.target.value)} /></FormInput>
+        <FormInput label="Required ecology services" wide><textarea value={value.requiredServices} onChange={(event) => set("requiredServices", event.target.value)} /></FormInput>
         <FormInput label="Additional Council / agency requirements" wide><textarea value={value.additionalAgencyRequirements} onChange={(event) => set("additionalAgencyRequirements", event.target.value)} /></FormInput>
       </div>
 
