@@ -33,7 +33,7 @@ export async function PATCH(request, { params }) {
       access,
       "admin.quote_pipeline.financials",
     );
-    const status = ["pending", "successful", "unsuccessful"].includes(body.status)
+    const status = ["pending", "successful", "unsuccessful", "withdrawn"].includes(body.status)
       ? body.status
       : "pending";
     const values = {
