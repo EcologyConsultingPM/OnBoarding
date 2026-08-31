@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { isEcologyStaffEmail, listDirectoryUsers, normaliseStaffEmail, staffDirectoryRecord } from "../../../../lib/staffDirectory";
+import { isPrimaryAdministrator, isProtectedPrimaryEmail } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,13 @@ export async function PATCH(request) {
     const firstName = cleanName(body?.firstName);
     const lastName = cleanName(body?.lastName);
     if (!firstName || !lastName) return responseError("First and last name are required.");
+    if (isProtectedPrimaryEmail(lookup.user.email)) {
+      return responseError("Protected administrators cannot be removed from the Staff List.", 403);
+    }
+    if (body?.active === false && !isPrimaryAdministrator(auth.access)) {
+      return responseError("Only Aaron Dooley or Tony Webster can remove a staff member from new allocations.", 403);
+    }
+
     const existing = lookup.user.user_metadata || {};
     const metadata = {
       ...existing,

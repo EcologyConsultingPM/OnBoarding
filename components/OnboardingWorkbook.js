@@ -4555,7 +4555,19 @@ export default function OnboardingWorkbook() {
   const portalHomeMode = inAdminPortal ? "home" : "staffhome";
   const [mode, setMode] = useState(() => {
     if (typeof window === "undefined") return "staffhome";
-    return window.localStorage.getItem("ec-staff-portal-location") || "staffhome";
+    try {
+      // A copied browser tab preserves its own URL context; a new portal window
+      // without that context restores the last saved location for its portal.
+      const workspace = new URLSearchParams(window.location.search).get("workspace");
+      if (workspace) return workspace;
+      const storedPortal = window.localStorage.getItem("ec_portal");
+      const key = storedPortal === "admin"
+        ? "ec-admin-portal-location"
+        : "ec-staff-portal-location";
+      return window.localStorage.getItem(key) || (storedPortal === "admin" ? "home" : "staffhome");
+    } catch {
+      return "staffhome";
+    }
   }); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
 
   // Preserve a user's working location independently in the Staff and Admin
@@ -4569,16 +4581,34 @@ export default function OnboardingWorkbook() {
     previousPortal.current = activePortal;
     if (!changedPortal) return;
     try {
-      setMode(window.localStorage.getItem(portalLocationKey) || portalHomeMode);
+      // During initial admin-role resolution a copied tab can briefly render as
+      // Staff before its protected Admin portal is known. Keep an explicit URL
+      // workspace in that transition instead of replacing it with a home card.
+      const requestedWorkspace = new URLSearchParams(window.location.search).get("workspace");
+      setMode(requestedWorkspace || window.localStorage.getItem(portalLocationKey) || portalHomeMode);
     } catch {
       setMode(portalHomeMode);
     }
   }, [inAdminPortal, portalHomeMode, portalLocationKey]);
   useEffect(() => {
     try {
-      window.localStorage.setItem(portalLocationKey, mode || portalHomeMode);
+      const nextMode = mode || portalHomeMode;
+      window.localStorage.setItem(portalLocationKey, nextMode);
+
+      // Keep the exact active domain in the browser URL without navigating or
+      // dropping component state. This survives refresh, duplicated tabs and a
+      // user returning to a previously open portal window.
+      const url = new URL(window.location.href);
+      if (nextMode === portalHomeMode) url.searchParams.delete("workspace");
+      else url.searchParams.set("workspace", nextMode);
+      window.history.replaceState(window.history.state, "", url.toString());
     } catch {}
   }, [mode, portalHomeMode, portalLocationKey]);
+
+  // Deliberately do not listen for focus or storage events here. Each open tab
+  // keeps its own React state and URL, so moving between tabs never replaces the
+  // page being worked on. localStorage above is used only to seed a newly opened
+  // portal window that has no explicit workspace URL.
   const [libraryTopic, setLibraryTopic] = useState(null);
   const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
   const goToLibraryTopic = useCallback((topic) => {
