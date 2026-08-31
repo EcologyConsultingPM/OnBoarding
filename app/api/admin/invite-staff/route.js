@@ -1,11 +1,17 @@
 import { randomBytes } from "crypto";
 import { requireSession, serverError } from "../../../../lib/serverAuth";
-import { PORTAL_RESOURCES, visibilitySchemaMissing } from "../../../../lib/portalVisibility";
+import {
+  PORTAL_RESOURCES,
+  PRIMARY_ADMIN_EMAILS,
+  visibilitySchemaMissing,
+} from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PRIMARY_ENV = "PRIMARY_ADMIN_EMAIL";
+const PRIMARY_EMAILS_ENV = "PRIMARY_ADMIN_EMAILS";
+const PROTECTED_ADMIN_LABEL = "Aaron Dooley or Tony Webster";
 
 function jsonError(error, status = 400) {
   return Response.json({ error }, { status });
@@ -15,13 +21,16 @@ function normaliseEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function primaryEmail() {
-  return normaliseEmail(process.env[PRIMARY_ENV]);
+function primaryEmails() {
+  const configured = `${process.env[PRIMARY_EMAILS_ENV] || ""},${process.env[PRIMARY_ENV] || ""}`
+    .split(/[,;\s]+/)
+    .map(normaliseEmail)
+    .filter(validStaffEmail);
+  return [...new Set([...PRIMARY_ADMIN_EMAILS, ...configured])];
 }
 
 function primaryAccess(access) {
-  const configured = primaryEmail();
-  return Boolean(configured && normaliseEmail(access?.user?.email) === configured);
+  return primaryEmails().includes(normaliseEmail(access?.user?.email));
 }
 
 function validStaffEmail(email) {
@@ -44,15 +53,18 @@ function createTemporaryPassword() {
 const STAFF_RESOURCE_KEYS = PORTAL_RESOURCES.filter(
   (resource) => resource.portal === "staff",
 ).map((resource) => resource.key);
+const ADMIN_RESOURCE_KEYS = PORTAL_RESOURCES.filter(
+  (resource) => resource.portal === "admin",
+).map((resource) => resource.key);
 
-function selectedStaffResourceKeys(value) {
+function selectedResourceKeys(value, validKeys) {
   if (!Array.isArray(value)) return null;
   return [...new Set(value.map((key) => String(key || "").trim()))].filter(
-    (key) => STAFF_RESOURCE_KEYS.includes(key),
+    (key) => validKeys.includes(key),
   );
 }
 
-function staffResourceIsSelected(resourceKey, selectedKeys) {
+function resourceIsSelected(resourceKey, selectedKeys) {
   const resource = PORTAL_RESOURCES.find((item) => item.key === resourceKey);
   return Boolean(
     selectedKeys.includes(resourceKey) ||
@@ -79,7 +91,8 @@ export async function POST(request) {
     const phone = safePhone(body?.phone);
     const accessLevel = String(body?.accessLevel || "staff").trim();
     const forceChange = body?.forceChange !== false;
-    const requestedStaffResources = selectedStaffResourceKeys(body?.visibleStaffResources);
+    const requestedStaffResources = selectedResourceKeys(body?.visibleStaffResources, STAFF_RESOURCE_KEYS);
+    const requestedAdminResources = selectedResourceKeys(body?.visibleAdminResources, ADMIN_RESOURCE_KEYS);
 
     if (!validStaffEmail(email)) return jsonError("Email must be an @ecologyconsulting.au address.");
     if (!firstName) return jsonError("First name is required.");
@@ -87,13 +100,16 @@ export async function POST(request) {
 
     const needsAdminAccess = accessLevel === "admin" || accessLevel === "both";
     if (needsAdminAccess && !primaryAccess(access)) {
-      return jsonError("Only the configured primary administrator can grant administrator access.", 403);
-    }
-    if (needsAdminAccess && !primaryEmail()) {
-      return jsonError("Primary administrator protection is not configured. Administrator access cannot be granted.", 503);
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can grant administrator access.`, 403);
     }
     if (requestedStaffResources && !primaryAccess(access)) {
-      return jsonError("Only Aaron Dooley can set staff domain visibility during account setup.", 403);
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can set Staff-domain visibility during account setup.`, 403);
+    }
+    if (requestedAdminResources && !primaryAccess(access)) {
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can set Admin-domain visibility during account setup.`, 403);
+    }
+    if (requestedAdminResources && !needsAdminAccess) {
+      return jsonError("Admin-domain visibility can only be selected for an administrator account.", 400);
     }
 
     const temporaryPassword = createTemporaryPassword();
@@ -146,20 +162,34 @@ export async function POST(request) {
       if (error) return jsonError(error.message);
     }
 
-    if (requestedStaffResources) {
+    const visibilityRows = [
+      ...(requestedStaffResources
+        ? STAFF_RESOURCE_KEYS.map((resourceKey) => ({
+            user_id: userId,
+            resource_key: resourceKey,
+            is_visible: resourceIsSelected(resourceKey, requestedStaffResources),
+            updated_by: access.user.id,
+            updated_at: new Date().toISOString(),
+          }))
+        : []),
+      ...(requestedAdminResources
+        ? ADMIN_RESOURCE_KEYS.map((resourceKey) => ({
+            user_id: userId,
+            resource_key: resourceKey,
+            is_visible: resourceIsSelected(resourceKey, requestedAdminResources),
+            updated_by: access.user.id,
+            updated_at: new Date().toISOString(),
+          }))
+        : []),
+    ];
+    if (visibilityRows.length) {
       const { error } = await access.admin.from("portal_visibility_overrides").upsert(
-        STAFF_RESOURCE_KEYS.map((resourceKey) => ({
-          user_id: userId,
-          resource_key: resourceKey,
-          is_visible: staffResourceIsSelected(resourceKey, requestedStaffResources),
-          updated_by: access.user.id,
-          updated_at: new Date().toISOString(),
-        })),
+        visibilityRows,
         { onConflict: "user_id,resource_key" },
       );
       if (error) {
         if (visibilitySchemaMissing(error)) {
-          return jsonError("The staff visibility controls are not active in the database yet.", 503);
+          return jsonError("The selected portal visibility controls are not active in the database yet.", 503);
         }
         return jsonError(error.message);
       }

@@ -1,12 +1,17 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 
 import { staffDirectoryRecord } from "../../../../lib/staffDirectory";
+import {
+  PRIMARY_ADMIN_EMAILS,
+  isProtectedPrimaryEmail,
+} from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PRIMARY_ENV = "PRIMARY_ADMIN_EMAIL";
-const FALLBACK_PRIMARY_EMAIL = "aaron.dooley@ecologyconsulting.au";
+const PRIMARY_EMAILS_ENV = "PRIMARY_ADMIN_EMAILS";
+const PRIMARY_ADMIN_LABEL = "Aaron Dooley or Tony Webster";
 const ROLE_KEYS = new Set([
   "fauna_expert",
   "flora_expert",
@@ -27,13 +32,24 @@ function validStaffEmail(email) {
   return /^[^\s@]+@ecologyconsulting\.au$/i.test(email);
 }
 
+function primaryEmails() {
+  const configured = `${process.env[PRIMARY_EMAILS_ENV] || ""},${process.env[PRIMARY_ENV] || ""}`
+    .split(/[,;\s]+/)
+    .map(normaliseEmail)
+    .filter(validStaffEmail);
+  return [...new Set([...PRIMARY_ADMIN_EMAILS, ...configured])];
+}
+
 function primaryEmail() {
-  return normaliseEmail(process.env[PRIMARY_ENV]) || FALLBACK_PRIMARY_EMAIL;
+  return primaryEmails().join(", ");
 }
 
 function isPrimary(access) {
-  const configured = primaryEmail();
-  return Boolean(configured && normaliseEmail(access?.user?.email) === configured);
+  return primaryEmails().includes(normaliseEmail(access?.user?.email));
+}
+
+function isProtectedPrimary(email) {
+  return isProtectedPrimaryEmail(email) || primaryEmails().includes(normaliseEmail(email));
 }
 
 async function listUsers(access) {
@@ -54,26 +70,28 @@ async function userForEmail(access, email, users = null) {
   return all.find((candidate) => normaliseEmail(candidate.email) === email) || null;
 }
 
-async function primaryUser(access, users = null) {
-  const configured = primaryEmail();
-  if (!configured) return null;
-  return userForEmail(access, configured, users);
+async function primaryUsers(access, users = null) {
+  const all = users || await listUsers(access);
+  const protectedEmails = new Set(primaryEmails());
+  return all.filter((user) => protectedEmails.has(normaliseEmail(user.email)) && user.id);
 }
 
 async function sendPrimaryEvent(access, users, title, body, sourceId) {
-  const recipient = await primaryUser(access, users);
-  if (!recipient?.id) return;
-  const { error } = await access.admin.from("portal_events").insert({
-    recipient_id: recipient.id,
-    event_type: "admin_access_request",
-    severity: "approval",
-    title,
-    body,
-    href: "/?mode=portalmgmt",
-    source_table: "admin_access_requests",
-    source_id: sourceId || null,
-  });
-  if (error) console.warn("Could not create primary-admin portal event:", error.message);
+  const recipients = await primaryUsers(access, users);
+  if (!recipients.length) return;
+  const { error } = await access.admin.from("portal_events").insert(
+    recipients.map((recipient) => ({
+      recipient_id: recipient.id,
+      event_type: "admin_access_request",
+      severity: "approval",
+      title,
+      body,
+      href: "/?mode=portalmgmt",
+      source_table: "admin_access_requests",
+      source_id: sourceId || null,
+    })),
+  );
+  if (error) console.warn("Could not create protected-admin portal event:", error.message);
 }
 
 async function requireAdmin(request) {
@@ -146,7 +164,8 @@ async function getDashboard(access) {
 
   return {
     primaryEmail: primaryEmail() || null,
-    primaryConfigured: Boolean(primaryEmail()),
+    primaryEmails: primaryEmails(),
+    primaryConfigured: primaryEmails().length > 0,
     authoritySchemaReady,
     isPrimary: isPrimary(access),
     adminEmails: (adminResult.data || []).map((row) => normaliseEmail(row.email)),
@@ -171,9 +190,9 @@ export async function GET(request) {
 }
 
 async function grantAdmin(access, targetEmail) {
-  if (!isPrimary(access)) return jsonError("Only the configured primary administrator can grant administrator access.", 403);
+  if (!isPrimary(access)) return jsonError(`Only ${PRIMARY_ADMIN_LABEL} can grant administrator access.`, 403);
   if (!validStaffEmail(targetEmail)) return jsonError("Enter a valid Ecology Consulting email address.");
-  if (targetEmail === primaryEmail()) return jsonError("The primary administrator already has protected administrator access.");
+  if (isProtectedPrimary(targetEmail)) return jsonError("This protected administrator already has controlled administrator access.");
 
   const target = await userForEmail(access, targetEmail);
   if (!target) return jsonError("Create the staff account before granting administrator access.", 404);
@@ -187,9 +206,9 @@ async function grantAdmin(access, targetEmail) {
 }
 
 async function removeAdmin(access, targetEmail) {
-  if (!isPrimary(access)) return jsonError("Only the configured primary administrator can remove administrator access.", 403);
+  if (!isPrimary(access)) return jsonError(`Only ${PRIMARY_ADMIN_LABEL} can remove administrator access.`, 403);
   if (!validStaffEmail(targetEmail)) return jsonError("Enter a valid Ecology Consulting email address.");
-  if (targetEmail === primaryEmail()) return jsonError("The protected primary administrator cannot be removed through the portal.", 403);
+  if (isProtectedPrimary(targetEmail)) return jsonError("Protected administrators cannot be removed through the portal.", 403);
 
   const { data: records, error: listError } = await access.admin.from("admin_emails").select("email").order("email", { ascending: true });
   if (listError) return jsonError(listError.message);
@@ -208,7 +227,7 @@ async function createAdminRequest(access, body) {
   const reason = String(body.reason || "").trim().slice(0, 1000);
   if (!validStaffEmail(targetEmail)) return jsonError("Enter a valid Ecology Consulting email address.");
   if (!new Set(["grant", "remove"]).has(requestType)) return jsonError("Administrator-access requests must be a grant or removal request.");
-  if (targetEmail === primaryEmail()) return jsonError("The protected primary administrator cannot be changed through a request.", 403);
+  if (isProtectedPrimary(targetEmail)) return jsonError("Protected administrators cannot be changed through a request.", 403);
 
   const { data: existing, error: existingError } = await access.admin
     .from("admin_access_requests")
@@ -243,7 +262,7 @@ async function createAdminRequest(access, body) {
 }
 
 async function decideAdminRequest(access, body) {
-  if (!isPrimary(access)) return jsonError("Only the configured primary administrator can decide administrator-access requests.", 403);
+  if (!isPrimary(access)) return jsonError(`Only ${PRIMARY_ADMIN_LABEL} can decide administrator-access requests.`, 403);
   const requestId = String(body.requestId || "").trim();
   const decision = String(body.decision || "").trim();
   const decisionNote = String(body.decisionNote || "").trim().slice(0, 1000);

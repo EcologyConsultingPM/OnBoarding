@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COLUMNS =
-  "id, name, client_name, client_contact, sharepoint_link, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, created_at, updated_at";
+  "id, name, client_name, client_contact, sharepoint_link, sharepoint_label, description, scope_of_works, project_lead_user_id, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, created_at, updated_at";
 
 function opt(value) {
   const t = typeof value === "string" ? value.trim() : "";
@@ -50,7 +50,10 @@ export async function POST(request) {
         client_name: opt(body.clientName),
         client_contact: opt(body.clientContact),
         sharepoint_link: opt(body.sharepointLink),
+        sharepoint_label: opt(body.sharepointLabel),
         description: opt(body.description),
+        scope_of_works: opt(body.scopeOfWorks),
+        project_lead_user_id: opt(body.projectLeadUserId),
         start_date: opt(body.startDate),
         end_date: opt(body.endDate),
         budget_hours: num(body.budgetHours),

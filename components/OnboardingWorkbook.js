@@ -4549,25 +4549,36 @@ export default function OnboardingWorkbook() {
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [mode, setMode] = useState(() =>
-    inAdminPortal ? "home" : "staffhome",
-  ); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
-  // Always reset to the selected portal's domain home when the person switches
-  // between Staff and Admin. Without this guard an admin sub-domain mode (for
-  // example `adminprojects`) can survive a switch to Staff and fall through to
-  // the retired onboarding workbook. The first async portal resolution also
-  // lands safely on the right home.
-  const previousPortal = useRef(portal);
+  const portalLocationKey = inAdminPortal
+    ? "ec-admin-portal-location"
+    : "ec-staff-portal-location";
+  const portalHomeMode = inAdminPortal ? "home" : "staffhome";
+  const [mode, setMode] = useState(() => {
+    if (typeof window === "undefined") return "staffhome";
+    return window.localStorage.getItem("ec-staff-portal-location") || "staffhome";
+  }); // admin: "home" | staff: "staffhome" | "workbook" | "mine" | "library" | "whs" | ...
+
+  // Preserve a user's working location independently in the Staff and Admin
+  // experiences. Restoring a saved location prevents a browser reload or a
+  // switch between open windows from dropping the user back at the home cards;
+  // every rendered workspace remains separately guarded by isAdmin.
+  const previousPortal = useRef(inAdminPortal ? "admin" : "staff");
   useEffect(() => {
-    const changedPortal = previousPortal.current !== portal;
-    previousPortal.current = portal;
-    setMode((current) => {
-      if (changedPortal || current === "home" || current === "staffhome") {
-        return inAdminPortal ? "home" : "staffhome";
-      }
-      return current;
-    });
-  }, [portal, inAdminPortal]);
+    const activePortal = inAdminPortal ? "admin" : "staff";
+    const changedPortal = previousPortal.current !== activePortal;
+    previousPortal.current = activePortal;
+    if (!changedPortal) return;
+    try {
+      setMode(window.localStorage.getItem(portalLocationKey) || portalHomeMode);
+    } catch {
+      setMode(portalHomeMode);
+    }
+  }, [inAdminPortal, portalHomeMode, portalLocationKey]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(portalLocationKey, mode || portalHomeMode);
+    } catch {}
+  }, [mode, portalHomeMode, portalLocationKey]);
   const [libraryTopic, setLibraryTopic] = useState(null);
   const [hasAssignedOnboarding, setHasAssignedOnboarding] = useState(false);
   const goToLibraryTopic = useCallback((topic) => {

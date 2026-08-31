@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Megaphone, Plus, Check, X, Clock, Eye, AlertCircle, Send } from "lucide-react";
+import { Megaphone, Plus, Check, X, Clock, Eye, AlertCircle, Send, MessageCircle } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WorkspaceNav from "./WorkspaceNav";
 
 const STATUS_META = {
   draft: { label: "Draft", color: "#8a927c" },
@@ -20,6 +21,10 @@ export default function Noticeboard({ compact = false }) {
   const [error, setError] = useState("");
   const [composing, setComposing] = useState(false);
   const [form, setForm] = useState({ title: "", body: "", category: "" });
+  const [openReplyId, setOpenReplyId] = useState("");
+  const [repliesByNotice, setRepliesByNotice] = useState({});
+  const [replyDrafts, setReplyDrafts] = useState({});
+  const [replyBusy, setReplyBusy] = useState("");
 
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -54,6 +59,49 @@ export default function Noticeboard({ compact = false }) {
     } catch (e) { setError(e.message); }
   };
 
+  const loadReplies = async (noticeId) => {
+    try {
+      const res = await auth("GET", `/api/notices/${noticeId}/replies`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load replies.");
+      setRepliesByNotice((current) => ({ ...current, [noticeId]: data.replies || [] }));
+    } catch (e) {
+      setError(e.message || "Could not load replies.");
+    }
+  };
+
+  const toggleReplies = async (noticeId) => {
+    if (openReplyId === noticeId) {
+      setOpenReplyId("");
+      return;
+    }
+    setOpenReplyId(noticeId);
+    await loadReplies(noticeId);
+  };
+
+  const postReply = async (noticeId) => {
+    const body = String(replyDrafts[noticeId] || "").trim();
+    if (!body) {
+      setError("Write a reply before posting.");
+      return;
+    }
+    setReplyBusy(noticeId);
+    try {
+      const res = await auth("POST", `/api/notices/${noticeId}/replies`, { body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not post reply.");
+      setRepliesByNotice((current) => ({
+        ...current,
+        [noticeId]: [...(current[noticeId] || []), data.reply],
+      }));
+      setReplyDrafts((current) => ({ ...current, [noticeId]: "" }));
+    } catch (e) {
+      setError(e.message || "Could not post reply.");
+    } finally {
+      setReplyBusy("");
+    }
+  };
+
   const createNotice = async (submit) => {
     if (!form.title.trim()) { setError("A title is required."); return; }
     try {
@@ -72,6 +120,11 @@ export default function Noticeboard({ compact = false }) {
     <div className="nb">
       {!compact && (
         <header className="nb-hero">
+          <WorkspaceNav
+            audience={isAdmin ? "admin" : "staff"}
+            backHref={isAdmin ? "/admin" : "/"}
+            backLabel="Back to portal"
+          />
           <span><Megaphone size={17} /> Staff communications</span>
           <h1>Noticeboard</h1>
           <p>Anyone can draft a notice. An administrator approves its release, then the author publishes it to the board.</p>
@@ -130,6 +183,7 @@ export default function Noticeboard({ compact = false }) {
                   <strong>{n.title}</strong>
                   <span className="nb-status" style={{ background: `${meta.color}1a`, color: meta.color }}>{meta.label}</span>
                 </div>
+                <p className="nb-muted">Drafted by {n.author_email || "staff"} · {n.created_at ? new Date(n.created_at).toLocaleDateString("en-AU") : "date not recorded"}</p>
                 {n.admin_note ? <p className="nb-decline-note">Admin: {n.admin_note}</p> : null}
                 <div className="nb-mine-actions">
                   {n.status === "approved" && <button className="nb-publish" onClick={() => act(n.id, "publish")}>Publish to board</button>}
@@ -154,9 +208,27 @@ export default function Noticeboard({ compact = false }) {
                 </div>
                 {n.body ? <p>{n.body}</p> : null}
                 <div className="nb-notice-foot">
-                  <span className="nb-muted">{n.author_email || "staff"}{n.published_at ? ` · ${new Date(n.published_at).toLocaleDateString("en-AU")}` : ""}</span>
+                  <span className="nb-muted">Published by {n.author_email || "staff"}{n.published_at ? ` · ${new Date(n.published_at).toLocaleDateString("en-AU")}` : ""}</span>
+                  <button type="button" className="nb-reply-toggle" onClick={() => toggleReplies(n.id)} aria-expanded={openReplyId === n.id}>
+                    <MessageCircle size={13} /> {openReplyId === n.id ? "Hide replies" : "Replies"}
+                  </button>
                   {isAdmin && n.read_count !== undefined ? <span className="nb-reads"><Eye size={12} /> {n.read_count} read</span> : null}
                 </div>
+                {openReplyId === n.id ? (
+                  <div className="nb-replies">
+                    {(repliesByNotice[n.id] || []).map((reply) => (
+                      <div key={reply.id} className="nb-reply">
+                        <p>{reply.body}</p>
+                        <span className="nb-muted">{reply.author_email || "staff"} · {new Date(reply.created_at).toLocaleString("en-AU")}</span>
+                      </div>
+                    ))}
+                    {(repliesByNotice[n.id] || []).length === 0 ? <p className="nb-muted">No replies yet.</p> : null}
+                    <div className="nb-reply-compose">
+                      <textarea value={replyDrafts[n.id] || ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [n.id]: event.target.value }))} placeholder="Write a reply…" />
+                      <button type="button" className="nb-save" disabled={replyBusy === n.id} onClick={() => postReply(n.id)}><Send size={12} /> {replyBusy === n.id ? "Posting…" : "Post reply"}</button>
+                    </div>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

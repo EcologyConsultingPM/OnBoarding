@@ -2,6 +2,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 import { listDirectoryUsers, normaliseStaffEmail } from "../../../lib/staffDirectory";
 import {
   PORTAL_RESOURCES,
+  PRIMARY_ADMIN_EMAILS,
   isPrimaryAdministrator,
   resourceDefinition,
   visibilityForUser,
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 function primaryOnly(access) {
   if (isPrimaryAdministrator(access)) return null;
   return Response.json(
-    { error: "Only Aaron Dooley can change staff portal visibility." },
+    { error: "Only Aaron Dooley or Tony Webster can change portal visibility." },
     { status: 403 },
   );
 }
@@ -24,7 +25,7 @@ function requestedResources(value) {
   const requested = String(value)
     .split(",")
     .map((key) => key.trim())
-    .flatMap((key) => key === "staff" ? PORTAL_RESOURCES.filter((resource) => resource.portal === "staff").map((resource) => resource.key) : [key])
+    .flatMap((key) => ["staff", "admin", "all"].includes(key) ? PORTAL_RESOURCES.filter((resource) => key === "all" || resource.portal === key).map((resource) => resource.key) : [key])
     .filter((key) => resourceDefinition(key));
   const roots = new Set(requested);
   return PORTAL_RESOURCES
@@ -61,7 +62,7 @@ export async function GET(request) {
         .select("email");
       if (adminError) return Response.json({ error: adminError.message }, { status: 400 });
       const administratorEmails = new Set((adminRows || []).map((row) => normaliseStaffEmail(row.email)));
-      administratorEmails.add("aaron.dooley@ecologyconsulting.au");
+      PRIMARY_ADMIN_EMAILS.forEach((email) => administratorEmails.add(email));
       eligibleStaff = staff.filter((person) => administratorEmails.has(normaliseStaffEmail(person.email)));
     }
     const { data, error } = await access.admin
@@ -90,7 +91,7 @@ export async function GET(request) {
     const people = await Promise.all(
       eligibleStaff.map(async (person) => ({
         ...person,
-        isPrimary: normaliseStaffEmail(person.email) === "aaron.dooley@ecologyconsulting.au",
+        isPrimary: PRIMARY_ADMIN_EMAILS.includes(normaliseStaffEmail(person.email)),
         visibility: await visibilityForUser(
           { ...access, user: { ...access.user, id: person.id, email: person.email } },
           keys,
@@ -124,9 +125,9 @@ export async function POST(request) {
     if (!recipient) {
       return Response.json({ error: "Visibility can be changed only for an active Staff List member." }, { status: 400 });
     }
-    if (normaliseStaffEmail(recipient.email) === "aaron.dooley@ecologyconsulting.au") {
+    if (PRIMARY_ADMIN_EMAILS.includes(normaliseStaffEmail(recipient.email))) {
       return Response.json(
-        { error: "The primary administrator always retains portal access." },
+        { error: "Protected administrators always retain portal access." },
         { status: 400 },
       );
     }

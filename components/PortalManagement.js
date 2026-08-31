@@ -82,6 +82,19 @@ const STAFF_DOMAIN_OPTIONS = [
 ];
 const DEFAULT_STAFF_DOMAINS = STAFF_DOMAIN_OPTIONS.map((option) => option.key);
 
+const ADMIN_DOMAIN_OPTIONS = [
+  { key: "admin.projects", label: "Projects & Operations", description: "Project setup, tracker and health reporting" },
+  { key: "admin.quote_pipeline", label: "Quote Pipeline", description: "Quote status and operational pipeline" },
+  { key: "admin.remote_operations", label: "Remote Operations Oversight", description: "Remote-work oversight and handovers" },
+  { key: "admin.whs", label: "WHS & Compliance", description: "WHS monitoring and internal governance" },
+  { key: "admin.service_requests", label: "Service Requests", description: "Staff leave, training and equipment requests" },
+  { key: "admin.learning", label: "Learning & Development Library", description: "Controlled learning resources and modules" },
+  { key: "admin.species", label: "Species Profiles & Survey Requirements", description: "Controlled flora, fauna and survey guidance" },
+  { key: "admin.regulatory_watch", label: "Regulatory Watch", description: "Regulatory change monitoring and actions" },
+  { key: "admin.portal_management", label: "Portal Management", description: "Staff list, roles and system controls" },
+];
+const DEFAULT_ADMIN_DOMAINS = ADMIN_DOMAIN_OPTIONS.map((option) => option.key);
+
 function jsonFromResponse(response) {
   return response.json().catch(() => ({}));
 }
@@ -140,6 +153,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
     phone: "",
     accessLevel: "staff",
     visibleStaffResources: DEFAULT_STAFF_DOMAINS,
+    visibleAdminResources: DEFAULT_ADMIN_DOMAINS,
   });
   const [issued, setIssued] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -252,7 +266,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
     }
     if (!isPrimary && form.accessLevel !== "staff") {
       setError(
-        "Only Aaron Dooley can grant administrator access. Create staff access here, then submit an administrator-access request.",
+        "Only Aaron Dooley or Tony Webster can grant administrator access. Create staff access here, then submit an administrator-access request.",
       );
       return;
     }
@@ -272,6 +286,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           phone: form.phone.trim(),
           accessLevel: form.accessLevel,
           visibleStaffResources: isPrimary && form.accessLevel !== "admin" ? form.visibleStaffResources : undefined,
+          visibleAdminResources: isPrimary && form.accessLevel !== "staff" ? form.visibleAdminResources : undefined,
           forceChange: true,
         }),
       });
@@ -291,6 +306,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         phone: "",
         accessLevel: "staff",
         visibleStaffResources: DEFAULT_STAFF_DOMAINS,
+        visibleAdminResources: DEFAULT_ADMIN_DOMAINS,
       });
       await refreshControl();
     } catch (submitError) {
@@ -352,7 +368,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
         reason: requestForm.reason.trim(),
       });
       setRequestForm({ targetEmail: "", requestType: "grant", reason: "" });
-      onToast?.("Administrator-access request sent to Aaron Dooley");
+      onToast?.("Administrator-access request sent to the protected administrators");
       await refreshControl();
     } catch (actionError) {
       onToast?.(actionError.message);
@@ -627,7 +643,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                       <Icon size={16} />
                       <span className="pm-access-opt-t">{label}</span>
                       <span className="pm-access-opt-d">
-                        {restricted ? "Aaron Dooley only" : description}
+                        {restricted ? "Aaron or Tony only" : description}
                       </span>
                     </button>
                   );
@@ -636,7 +652,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
               {!isPrimary && (
                 <p id="pm-primary-only" className="pm-primary-only">
                   <LockKeyhole size={13} /> Administrator access can only be
-                  granted by Aaron Dooley.
+                  granted by Aaron Dooley or Tony Webster.
                 </p>
               )}
             </div>
@@ -661,6 +677,37 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                           visibleStaffResources: selected
                             ? form.visibleStaffResources.filter((key) => key !== option.key)
                             : [...form.visibleStaffResources, option.key],
+                        })}
+                      >
+                        <span className="pm-staff-domain-option__check"><Check size={14} /></span>
+                        <span><strong>{option.label}</strong><small>{option.description}</small></span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {isPrimary && form.accessLevel !== "staff" && (
+              <div className="pm-access pm-staff-domain-access">
+                <span className="pm-access-label">Admin workspace access</span>
+                <p className="pm-staff-domain-access__intro">
+                  Choose the Admin Portal domains this administrator can see at first sign-in. Quote financial values remain separately restricted and are not granted by this selection.
+                </p>
+                <div className="pm-staff-domain-access__grid">
+                  {ADMIN_DOMAIN_OPTIONS.map((option) => {
+                    const selected = form.visibleAdminResources.includes(option.key);
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={`pm-staff-domain-option ${selected ? "sel" : ""}`}
+                        aria-pressed={selected}
+                        onClick={() => setForm({
+                          ...form,
+                          visibleAdminResources: selected
+                            ? form.visibleAdminResources.filter((key) => key !== option.key)
+                            : [...form.visibleAdminResources, option.key],
                         })}
                       >
                         <span className="pm-staff-domain-option__check"><Check size={14} /></span>
@@ -735,8 +782,8 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                   <ShieldCheck size={18} /> Administrator access
                 </h2>
                 <p className="pm-sub">
-                  Administrator access is separately controlled. Only Aaron
-                  Dooley can grant, amend or remove it.
+                  Administrator access is separately controlled. Aaron Dooley
+                  and Tony Webster can grant, amend or remove it.
                 </p>
               </div>
               <span className="pm-section-mark pm-section-mark--gold">
@@ -751,8 +798,8 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                 <div className="pm-primary-banner">
                   <BadgeCheck size={17} />
                   <span>
-                    <strong>Primary administrator</strong> — you are the sole
-                    authority for administrator access changes.
+                    <strong>Protected administrator</strong> — you are one of the
+                    authorised controllers for administrator access changes.
                   </span>
                 </div>
                 <div className="pm-inline-form">
@@ -779,7 +826,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                 </div>
                 <AdminRegister
                   emails={adminEmails}
-                  primaryEmail={control?.primaryEmail}
+                  primaryEmails={control?.primaryEmails || []}
                   removable
                   onRemove={removeAdmin}
                 />
@@ -795,8 +842,8 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                   <LockKeyhole size={16} />
                   <span>
                     Your administrator account can manage staff setup and
-                    specialist roles. Administrator access changes require Aaron
-                    Dooley’s review.
+                    specialist roles. Administrator access changes require review
+                    by Aaron Dooley or Tony Webster.
                   </span>
                 </AccessNotice>
                 <div className="pm-request-form">
@@ -842,7 +889,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                           reason: event.target.value,
                         })
                       }
-                      placeholder="Context for Aaron’s review"
+                      placeholder="Context for protected-administrator review"
                     />
                   </label>
                   <button
@@ -851,7 +898,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
                     onClick={submitAccessRequest}
                     disabled={!authoritySchemaReady}
                   >
-                    <Send size={15} /> Send request to Aaron
+                    <Send size={15} /> Send request for review
                   </button>
                 </div>
                 <RequestRegister requests={accessRequests} />
@@ -1043,7 +1090,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
   );
 }
 
-function AdminRegister({ emails, primaryEmail, removable, onRemove }) {
+function AdminRegister({ emails, primaryEmails = [], removable, onRemove }) {
   return (
     <div className="pm-register pm-admin-register">
       <div className="pm-register-head">
@@ -1054,7 +1101,7 @@ function AdminRegister({ emails, primaryEmail, removable, onRemove }) {
         <p className="pm-muted">No administrator records found.</p>
       ) : (
         emails.map((email) => {
-          const isPrimary = email === primaryEmail;
+          const isPrimary = primaryEmails.includes(email);
           return (
             <div className="pm-register-row" key={email}>
               <span className="pm-register-row__identity">
@@ -1130,7 +1177,7 @@ function RequestRegister({ requests, primary = false, onDecide }) {
               </button>
             </span>
           ) : (
-            <span className="pm-status">Awaiting Aaron</span>
+            <span className="pm-status">Awaiting review</span>
           )}
         </div>
       ))}
