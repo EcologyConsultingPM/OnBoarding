@@ -18,7 +18,7 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
     if (!session?.access_token) return;
     setLoading(true);
     try {
-      const resources = showAll ? "staff" : resourceKey;
+      const resources = showAll ? "all" : resourceKey;
       const response = await fetch(`/api/portal-visibility?scope=manage&resources=${encodeURIComponent(resources)}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -39,7 +39,7 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
   }, [load]);
 
   const managedResources = useMemo(() => {
-    if (showAll) return resources.filter((resource) => resource.portal === "staff");
+    if (showAll) return resources;
     const root = resources.find((resource) => resource.key === resourceKey);
     if (!root) return [];
     return [root, ...resources.filter((resource) => resource.parent === resourceKey)];
@@ -104,10 +104,10 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
         <header className="pvm-header">
           <div>
             <span className="pvm-kicker">
-              <ShieldCheck size={14} /> Aaron-only access control
+              <ShieldCheck size={14} /> Protected administrator access control
             </span>
             <h2 id="pvm-title">Portal visibility</h2>
-            <p>Choose a portal area, then use the eye control to grant or remove visibility for an eligible active staff member.</p>
+            <p>Choose a Staff or Admin portal area, then use the eye control to grant or remove visibility for an eligible active staff member. Quote financial values remain a separately controlled Admin sub-domain.</p>
           </div>
           <button type="button" className="pvm-close" onClick={onClose} aria-label="Close visibility controls">
             <X size={18} />

@@ -102,6 +102,9 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
     clientName: "",
     clientContact: "",
     sharepointLink: "",
+    sharepointLabel: "Project workspace",
+    scopeOfWorks: "",
+    projectLeadUserId: "",
     description: "",
     startDate: "",
     endDate: "",
@@ -124,6 +127,9 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
         clientName: "",
         clientContact: "",
         sharepointLink: "",
+        sharepointLabel: "Project workspace",
+        scopeOfWorks: "",
+        projectLeadUserId: "",
         description: "",
         startDate: "",
         endDate: "",
@@ -241,15 +247,42 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
                 }
               />
             </div>
-            <input
-              placeholder="SharePoint link"
-              value={newProject.sharepointLink}
+            <div className="aps-two">
+              <input
+                placeholder="Project workspace link"
+                value={newProject.sharepointLink}
+                onChange={(e) =>
+                  setNewProject({ ...newProject, sharepointLink: e.target.value })
+                }
+              />
+              <input
+                placeholder="Workspace link label (e.g. SharePoint)"
+                value={newProject.sharepointLabel}
+                onChange={(e) =>
+                  setNewProject({ ...newProject, sharepointLabel: e.target.value })
+                }
+              />
+            </div>
+            <select
+              value={newProject.projectLeadUserId}
               onChange={(e) =>
-                setNewProject({ ...newProject, sharepointLink: e.target.value })
+                setNewProject({ ...newProject, projectLeadUserId: e.target.value })
+              }
+            >
+              <option value="">Project lead / manager (optional)</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>{person.name || person.email}</option>
+              ))}
+            </select>
+            <textarea
+              placeholder="Scope of works / agreed deliverables"
+              value={newProject.scopeOfWorks}
+              onChange={(e) =>
+                setNewProject({ ...newProject, scopeOfWorks: e.target.value })
               }
             />
             <textarea
-              placeholder="Description"
+              placeholder="Project notes / description"
               value={newProject.description}
               onChange={(e) =>
                 setNewProject({ ...newProject, description: e.target.value })
@@ -425,6 +458,9 @@ function ProjectDetail({
         clientName: project.client_name,
         clientContact: project.client_contact,
         sharepointLink: project.sharepoint_link,
+        sharepointLabel: project.sharepoint_label,
+        scopeOfWorks: project.scope_of_works,
+        projectLeadUserId: project.project_lead_user_id,
         description: project.description,
         startDate: project.start_date,
         endDate: project.end_date,
@@ -557,15 +593,42 @@ function ProjectDetail({
               }
             />
           </div>
-          <input
-            placeholder="SharePoint link"
-            value={project.sharepoint_link || ""}
+          <div className="aps-two">
+            <input
+              placeholder="Project workspace link"
+              value={project.sharepoint_link || ""}
+              onChange={(e) =>
+                setProject({ ...project, sharepoint_link: e.target.value })
+              }
+            />
+            <input
+              placeholder="Workspace link label (e.g. SharePoint)"
+              value={project.sharepoint_label || ""}
+              onChange={(e) =>
+                setProject({ ...project, sharepoint_label: e.target.value })
+              }
+            />
+          </div>
+          <select
+            value={project.project_lead_user_id || ""}
             onChange={(e) =>
-              setProject({ ...project, sharepoint_link: e.target.value })
+              setProject({ ...project, project_lead_user_id: e.target.value || null })
+            }
+          >
+            <option value="">Project lead / manager (optional)</option>
+            {staff.map((person) => (
+              <option key={person.id} value={person.id}>{person.name || person.email}</option>
+            ))}
+          </select>
+          <textarea
+            placeholder="Scope of works / agreed deliverables"
+            value={project.scope_of_works || ""}
+            onChange={(e) =>
+              setProject({ ...project, scope_of_works: e.target.value })
             }
           />
           <textarea
-            placeholder="Description"
+            placeholder="Project notes / description"
             value={project.description || ""}
             onChange={(e) =>
               setProject({ ...project, description: e.target.value })

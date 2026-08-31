@@ -21,7 +21,7 @@ jobs:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       BACKUP_STATUS_TOKEN: ${{ secrets.BACKUP_STATUS_TOKEN }}
       BACKUP_ARCHIVE_PASSWORD: ${{ secrets.BACKUP_ARCHIVE_PASSWORD }}
-      BACKUP_STATUS_URL: https://on-boarding-ivory.vercel.app/api/cron/backup-status
+      BACKUP_STATUS_URL: https://www.ecologyconsultingsaas.app/api/cron/backup-status
       # Keep the automated archive safely within a conservative zero-cost ceiling.
       MAX_ARCHIVE_BYTES: 104857600
       RETENTION_DAYS: 1

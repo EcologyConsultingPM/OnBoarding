@@ -86,7 +86,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
         {project.client_name ? <p>{project.client_name}{project.client_contact ? ` · ${project.client_contact}` : ""}</p> : null}
         {project.description ? <p className="proj-desc">{project.description}</p> : null}
         {project.sharepoint_link ? (
-          <a className="proj-sharepoint" href={project.sharepoint_link} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Project SharePoint</a>
+          <a className="proj-sharepoint" href={project.sharepoint_link} target="_blank" rel="noreferrer"><ExternalLink size={13} /> {project.sharepoint_label || "Project workspace"}</a>
         ) : null}
       </div>
 

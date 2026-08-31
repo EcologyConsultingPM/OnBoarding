@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Office Risk Assessment — Solum Safety Consulting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#16294D;--navy2:#22416E;--teal:#18707F;--amber:#B4451E;--gold:#C9A84C;--ink:#26303F;--muted:#69748A;--line:#E6EBF1;--paper:#FCFDFE;--rowalt:#F7F9FB}
+body{font-family:'IBM Plex Sans','Segoe UI',system-ui,Arial,sans-serif;background:#E7EAEF;color:var(--ink);font-size:13px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;background:var(--paper);min-height:100vh;box-shadow:0 8px 40px rgba(20,30,55,.12)}
+.topbar{height:8px;background:var(--navy)}
+/* ---- masthead ---- */
+.masthead{padding:26px 40px 22px;border-bottom:1px solid var(--line);position:relative}
+.masthead:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--teal)}
+.mast-row{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:20px}
+.logo-slot{width:188px;height:66px;border:1.5px dashed #C2CBD8;border-radius:8px;background:#F3F6FA;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex:none;transition:.15s;position:relative}
+.logo-slot:hover{border-color:var(--teal);background:#EEF5F6}
+.logo-slot img{max-width:100%;max-height:100%;object-fit:contain;display:none}
+.logo-slot.filled{border-style:solid;border-color:var(--line);background:#fff}
+.logo-slot.filled img{display:block}
+.logo-slot.filled .logo-ph{display:none}
+.logo-ph{font-size:11px;font-weight:600;color:#94A0B2;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.logo-rm{position:absolute;top:3px;right:5px;font-size:11px;color:#B4451E;background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 5px;line-height:16px;display:none;cursor:pointer}
+.logo-slot.filled .logo-rm{display:block}
+.mast-meta{text-align:right;flex:none}
+.mast-meta .code-chip{font-family:'Archivo','Segoe UI',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--navy);background:#EAF0F6;border-radius:5px;padding:5px 11px;display:inline-block}
+.mast-meta .date{font-size:10.5px;color:var(--muted);margin-top:6px;letter-spacing:.03em}
+.eyebrow{font-family:'Archivo','Segoe UI',sans-serif;font-size:11px;font-weight:700;letter-spacing:.2em;color:var(--teal);margin-bottom:7px}
+.doc-title{font-family:'Archivo','Segoe UI',sans-serif;font-size:31px;font-weight:800;letter-spacing:-.01em;color:var(--navy);line-height:1.08}
+.rule{width:64px;height:4px;background:var(--amber);border-radius:2px;margin:14px 0 13px}
+.legis{display:flex;flex-wrap:wrap;gap:7px}
+.legis span{font-size:10px;font-weight:600;letter-spacing:.03em;color:#54627A;background:#F0F3F7;border:1px solid var(--line);border-radius:20px;padding:3px 11px}
+.company-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px;padding-top:20px;border-top:1px dashed #DCE3EC}
+.cfield label{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8B95A7;margin-bottom:4px}
+.cfield input{width:100%;border:none;border-bottom:1.5px solid #D3DBE6;background:transparent;padding:4px 2px;font-size:13px;font-family:inherit;color:var(--navy);font-weight:600;outline:none}
+.cfield input:focus{border-color:var(--teal)}
+/* ---- actions ---- */
+.actions{background:#F4F6F9;border-bottom:1px solid var(--line);padding:11px 40px;display:flex;gap:10px;align-items:center}
+.actions h2{flex:1;font-size:11.5px;color:#8B95A7;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.btn{padding:8px 16px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid #D0D8E4;display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-family:inherit}
+.btn-primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-primary:hover{background:#1d335f}
+.btn-secondary{background:#fff;color:#54627A}
+.btn-secondary:hover{border-color:#b9c5d6}
+/* ---- body ---- */
+.main{padding:24px 40px 8px}
+.section{background:#fff;border:1px solid var(--line);border-radius:11px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,55,.04)}
+.section-header{padding:13px 18px;background:#fff;border-bottom:1px solid #EEF2F7;display:flex;align-items:center;gap:11px;border-left:4px solid var(--teal)}
+.section-header:before{content:"";width:9px;height:9px;border-radius:2px;background:var(--teal);flex:none}
+.section-title{font-family:'Archivo','Segoe UI',sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--navy)}
+.section-body{padding:16px 18px}
+.section-hint{background:#FBF6E6;border:1px solid #ECE0BC;border-left:3px solid var(--gold);border-radius:7px;padding:9px 13px;margin-bottom:15px;font-size:11px;line-height:1.55;color:#6E5E33}
+.section-hint b{display:block;color:#8B6D1E;text-transform:uppercase;letter-spacing:.08em;font-size:9px;font-weight:700;margin-bottom:2px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:10px;font-weight:700;color:#7A8497;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;border:1px solid #D3DBE6;border-radius:6px;padding:8px 11px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(24,112,127,.1)}
+input:hover,select:hover,textarea:hover{border-color:#b9c5d6}
+textarea{resize:vertical;min-height:64px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.alert{padding:11px 15px;border-radius:8px;font-size:12px;margin-bottom:13px;display:flex;gap:9px;align-items:flex-start;line-height:1.5}
+.alert.warn{background:#F8ECE6;border:1px solid #EAD3C7;border-left:3px solid var(--amber);color:#7A3318}
+.alert.info{background:#E4F0F1;border:1px solid #C8E0E2;border-left:3px solid var(--teal);color:#155059}
+.tbl-wrap{margin-bottom:15px}
+.tbl-label{font-family:'Archivo','Segoe UI',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--navy);background:#EAF0F6;padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0}
+.tbl-scroll{overflow-x:auto;border-radius:0 0 7px 7px;border:1px solid var(--line);border-top:none}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{background:var(--navy);color:#fff;padding:8px 9px;font-family:'Archivo','Segoe UI',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.03em;text-align:left;white-space:nowrap}
+td{border:1px solid #EAEFF5;padding:2px}
+td input[type=text]{border:none;padding:6px 8px;font-size:11.5px;min-width:60px;background:transparent;border-radius:0}
+td input[type=text]:focus{box-shadow:none;background:#F0F7F8}
+td input[type=checkbox]{margin:5px auto;display:block;cursor:pointer;accent-color:var(--teal);width:15px;height:15px}
+tr.alt td{background:var(--rowalt)}
+tr:hover td{background:#EEF6F7}
+/* ---- footer ---- */
+.footer{border-top:3px solid var(--gold);padding:14px 40px 22px;margin-top:8px;background:#fff}
+.footer .f-brand{font-family:'Archivo','Segoe UI',sans-serif;font-size:13px;font-weight:900;color:var(--navy);margin-bottom:3px}
+.footer .f-brand i{color:var(--teal);font-style:normal}
+.footer .f-tag{font-size:10px;color:var(--gold);font-style:italic;margin-bottom:9px}
+.footer .f-meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:9.5px;color:#9AA4B3;letter-spacing:.02em}
+.disclaimer{font-size:9px;color:#AEB7C4;line-height:1.5;margin-top:9px;border-top:1px solid #EEF2F7;padding-top:9px}
+@media print{
+  body{background:#fff}.no-print{display:none!important}.wrap{box-shadow:none;max-width:none}
+  .section{break-inside:avoid;box-shadow:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:A4;margin:12mm}
+}
+
+/* full-content additions */
+.subnote{font-size:10px;color:#94A0B2;margin:-2px 0 10px;letter-spacing:.02em}
+.mand{background:#B4451E;color:#fff;font-size:9px;font-weight:800;letter-spacing:.1em;padding:3px 9px;border-radius:11px;margin-left:auto}
+.section-header.mandatory{border-left-color:#B4451E}
+.section-header.mandatory:before{background:#B4451E}
+.hrcw td{padding:0}
+.hrcw td.c{text-align:center}
+.hrcw input[type=checkbox]{width:16px;height:16px;accent-color:#18707F;cursor:pointer;margin:6px auto;display:block}
+.hrcw .ref{font-family:'Archivo',sans-serif;font-size:10.5px;font-weight:700;color:#18707F;padding:7px 8px;white-space:nowrap}
+.hrcw .desc{font-size:11.5px;color:#2A364B;padding:7px 8px}
+.hrcw select{border:none;background:transparent;font-size:11px;padding:5px 6px;color:#26303F}
+.matrix{display:grid;grid-template-columns:130px repeat(5,1fr);gap:5px}
+.matrix .mh{background:#16294D;color:#fff;font-family:'Archivo',sans-serif;font-size:9.5px;font-weight:700;padding:7px 6px;border-radius:5px;text-align:center;display:flex;align-items:center;justify-content:center;line-height:1.2}
+.matrix .ml{background:#22416E;color:#fff;font-size:9.5px;font-weight:700;padding:7px 8px;border-radius:5px;display:flex;align-items:center;line-height:1.2}
+.matrix .cell{border-radius:5px;color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:13px;text-align:center;padding:11px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.matrix .cell small{font-size:8px;font-weight:700;letter-spacing:.08em;opacity:.9}
+.rl{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:13px}
+.rl-item{display:flex;gap:9px;align-items:flex-start;font-size:10.5px;line-height:1.45;color:#3C4759}
+.rl-chip{font-family:'Archivo',sans-serif;font-weight:800;font-size:9.5px;color:#fff;padding:3px 8px;border-radius:5px;white-space:nowrap;flex:none;min-width:62px;text-align:center}
+.hoc{display:flex;flex-direction:column;gap:6px}
+.hoc-row{display:flex;align-items:stretch;gap:0;border-radius:8px;overflow:hidden;border:1px solid #E6EBF1}
+.hoc-rank{color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:12px;letter-spacing:.03em;padding:12px 16px;display:flex;align-items:center;gap:10px;min-width:210px;flex:none}
+.hoc-eff{font-size:9px;font-weight:700;letter-spacing:.04em;opacity:.85;font-style:italic}
+.hoc-desc{padding:12px 16px;font-size:11.5px;color:#3C4759;display:flex;align-items:center;line-height:1.45}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #E6EBF1;border-radius:9px;overflow:hidden}
+.kv .k{background:#F4F6F9;border-bottom:1px solid #EEF2F7;border-right:1px solid #EEF2F7;padding:9px 13px;font-size:10.5px;font-weight:700;color:#16294D}
+.kv .v{border-bottom:1px solid #EEF2F7;padding:0}
+.kv .v input{border:none;border-radius:0;padding:9px 13px}
+.kv .v input:focus{box-shadow:none;background:#F0F7F8}
+.trigger{font-size:11px;line-height:1.7;color:#3C4759}
+.trigger b{color:#16294D}
+
+.subnote{font-size:10px;color:#94A0B2;margin:-2px 0 10px;letter-spacing:.02em}
+.catblock{border:1px solid #E6EBF1;border-radius:10px;overflow:hidden}
+.cathead{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#F4F6F9;border-bottom:1px solid #E6EBF1}
+.cathead i{color:#18707F;flex:none}
+.catnum{width:22px;height:22px;border-radius:6px;background:#16294D;color:#fff;font-family:'Archivo',sans-serif;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.cattitle{font-family:'Archivo',sans-serif;font-size:12px;font-weight:800;letter-spacing:.04em;color:#16294D;text-transform:uppercase}
+.catrefs{margin-left:auto;font-size:9px;color:#94A0B2;letter-spacing:.02em;text-align:right;max-width:300px;line-height:1.3}
+table.insp td.desc{font-size:11px;color:#2A364B;padding:6px 9px}
+table.insp td.c{text-align:center}
+table.insp td.c input[type=checkbox]{width:15px;height:15px;accent-color:#18707F;margin:5px auto;display:block;cursor:pointer}
+.catnav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.catnav a{font-size:10px;font-weight:600;color:#16294D;background:#EAF0F6;border:1px solid #D6E0EC;border-radius:14px;padding:4px 11px;text-decoration:none}
+.catnav a:hover{background:#16294D;color:#fff}
+@media print{.catblock{break-inside:avoid}}
+</style></head>
+<body data-form="ora"><div class="wrap">
+<div class="topbar"></div>
+<header class="masthead">
+  <div class="mast-row">
+    <label class="logo-slot" title="Click to upload your company logo">
+      <input type="file" accept="image/*" hidden id="logoInput" onchange="setLogo(this)">
+      <span class="logo-ph">＋ Your Logo</span><img id="logoImg" alt="Company logo"><span class="logo-rm" onclick="removeLogo(event)">✕</span>
+    </label>
+    <div class="mast-meta"><span class="code-chip">Form Ref: ORA · REV 1</span><div class="date">June 2026 · Risk Assessment</div></div>
+  </div>
+  <div class="mast-titlewrap">
+    <div class="eyebrow">RISK ASSESSMENT</div>
+    <h1 class="doc-title">Office Risk Assessment</h1>
+    <div class="rule"></div>
+    <div class="legis"><span>WHS Act 2011</span><span>WHS Regulation 2025 (NSW)</span><span>Model Codes of Practice</span><span>ISO 45001:2018</span><span>AS/NZS Standards</span></div>
+  </div>
+  <div class="company-strip">
+    <div class="cfield"><label>Company / PCBU</label><input class="brand-field" id="co_name" placeholder="Your company name"></div>
+    <div class="cfield"><label>ABN</label><input class="brand-field" id="co_abn" placeholder="ABN"></div>
+    <div class="cfield"><label>Address / Contact</label><input class="brand-field" id="co_contact" placeholder="Site address or phone"></div>
+  </div>
+</header>
+<div class="actions no-print">
+  <h2>Risk Assessment › Office Risk Assessment</h2>
+  <button class="btn btn-secondary" onclick="resetForm()">↺ Reset</button>
+  <button class="btn btn-primary" onclick="window.print()">🖨 Print / Save PDF</button>
+</div>
+<div class="main">
+<div class="section">
+  <div class="section-header"><span class="section-title">1. Assessment Details</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>Record the office location, assessor and dates, and name the workers consulted. The assessment must involve the people who use the workplace.</div><div class="kv"><div class="k">Workplace / Office Location:</div><div class="v"><input type="text" id="f0"></div><div class="k">Assessment Number:</div><div class="v"><input type="text" id="f1"></div><div class="k">Assessment Date:</div><div class="v"><input type="text" id="f2"></div><div class="k">Review Date:</div><div class="v"><input type="text" id="f3"></div><div class="k">Assessor (Name &amp; Position):</div><div class="v"><input type="text" id="f4"></div><div class="k">Manager / Supervisor:</div><div class="v"><input type="text" id="f5"></div><div class="k">Workers Consulted:</div><div class="v"><input type="text" id="f6"></div><div class="k">Date of Last Assessment:</div><div class="v"><input type="text" id="f7"></div></div></div>
+</div>
+<div class="section">
+  <div class="section-header"><span class="section-title">2. 5 × 5 Risk Rating Matrix</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>Rate each non-compliant item as Likelihood × Consequence and record the band (VL–E) in its Risk column. Prioritise any item rated High or above; Extreme means stop work and act immediately.</div><div class="matrix"><div class="mh">Likelihood ↓ / Consequence →</div><div class="mh">Insignificant (1)</div><div class="mh">Minor (2)</div><div class="mh">Moderate (3)</div><div class="mh">Major (4)</div><div class="mh">Catastrophic (5)</div><div class="ml">Almost Certain (5)</div><div class="cell" style="background:#C99A3F">5<small>M</small></div><div class="cell" style="background:#C9743F">10<small>H</small></div><div class="cell" style="background:#B4451E">15<small>VH</small></div><div class="cell" style="background:#8E2F16">20<small>E</small></div><div class="cell" style="background:#8E2F16">25<small>E</small></div><div class="ml">Likely (4)</div><div class="cell" style="background:#C99A3F">4<small>M</small></div><div class="cell" style="background:#C9743F">8<small>H</small></div><div class="cell" style="background:#C9743F">12<small>H</small></div><div class="cell" style="background:#B4451E">16<small>VH</small></div><div class="cell" style="background:#8E2F16">20<small>E</small></div><div class="ml">Possible (3)</div><div class="cell" style="background:#2E7D5B">3<small>L</small></div><div class="cell" style="background:#C99A3F">6<small>M</small></div><div class="cell" style="background:#C9743F">9<small>H</small></div><div class="cell" style="background:#C9743F">12<small>H</small></div><div class="cell" style="background:#B4451E">15<small>VH</small></div><div class="ml">Unlikely (2)</div><div class="cell" style="background:#4F9E78">2<small>VL</small></div><div class="cell" style="background:#2E7D5B">4<small>L</small></div><div class="cell" style="background:#C99A3F">6<small>M</small></div><div class="cell" style="background:#C99A3F">8<small>M</small></div><div class="cell" style="background:#C9743F">10<small>H</small></div><div class="ml">Rare (1)</div><div class="cell" style="background:#4F9E78">1<small>VL</small></div><div class="cell" style="background:#4F9E78">2<small>VL</small></div><div class="cell" style="background:#2E7D5B">3<small>L</small></div><div class="cell" style="background:#C99A3F">4<small>M</small></div><div class="cell" style="background:#C99A3F">5<small>M</small></div></div><div class="rl"><div class="rl-item"><span class="rl-chip" style="background:#4F9E78">VL · Very Low</span><span>Acceptable. No further action beyond existing controls.</span></div><div class="rl-item"><span class="rl-chip" style="background:#2E7D5B">L · Low</span><span>Acceptable. Maintain controls and monitor periodically.</span></div><div class="rl-item"><span class="rl-chip" style="background:#C99A3F">M · Medium</span><span>Tolerable. Review controls and improve where practicable.</span></div><div class="rl-item"><span class="rl-chip" style="background:#C9743F">H · High</span><span>Unacceptable. Prompt action; management attention needed.</span></div><div class="rl-item"><span class="rl-chip" style="background:#B4451E">VH · Very High</span><span>Unacceptable. Immediate action; do not proceed until reduced.</span></div><div class="rl-item"><span class="rl-chip" style="background:#8E2F16">E · Extreme</span><span>Critical. Stop work immediately; urgent controls and reassess.</span></div></div></div>
+</div>
+<div class="section">
+  <div class="section-header"><span class="section-title">3. Hierarchy of Controls Reference</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>When an item is non-compliant, choose corrective controls from the top of the hierarchy down — eliminate before relying on PPE. Reduce risk to ALARP.</div><div class="subnote">WHS Act 2011 s.17 · ISO 45001 Clause 8.1.2</div><div class="hoc"><div class="hoc-row"><div class="hoc-rank" style="background:#16294D">1 — ELIMINATION<span class="hoc-eff">Most effective</span></div><div class="hoc-desc">Remove the hazard entirely. Most effective; consider first.</div></div><div class="hoc-row"><div class="hoc-rank" style="background:#1E3C66">2 — SUBSTITUTION</div><div class="hoc-desc">Replace the hazard with a safer alternative.</div></div><div class="hoc-row"><div class="hoc-rank" style="background:#22416E">3 — ISOLATION</div><div class="hoc-desc">Separate people from the hazard — distance, barriers, restricted access.</div></div><div class="hoc-row"><div class="hoc-rank" style="background:#2A6FA0">4 — ENGINEERING</div><div class="hoc-desc">Physical / mechanical measures — guards, ventilation, interlocks.</div></div><div class="hoc-row"><div class="hoc-rank" style="background:#3E6FA0">5 — ADMINISTRATIVE</div><div class="hoc-desc">Procedures, training, supervision, signage. Rely on compliance.</div></div><div class="hoc-row"><div class="hoc-rank" style="background:#5C84AE">6 — PPE<span class="hoc-eff">Least effective</span></div><div class="hoc-desc">Last resort. Never the sole control; support with higher controls.</div></div></div></div>
+</div>
+<div class="section">
+  <div class="section-header mandatory"><span class="section-title">4. Inspection Checklist by Hazard Category</span><span class="mand">MANDATORY</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>For each item, tick Compliant (✓), Non-Compliant (✘) or N/A. Record findings, a risk rating and the corrective action required. Prioritise items rated High or Extreme. All 13 categories must be assessed.</div><div class="subnote">WHS Act 2011 s.19 · ISO 45001 Clause 8.1 · 13 categories · 93 items</div><div class="catnav no-print"><a href="#cat0">A · ERGONOMICS</a><a href="#cat1">B · LIGHTING</a><a href="#cat2">C · EMERGENCY MANAGEMENT</a><a href="#cat3">D · EMERGENCY SIGNAGE</a><a href="#cat4">E · FIRST AID FACILITIES</a><a href="#cat5">F · FIRE EXTINGUISHERS</a><a href="#cat6">G · ELECTRICAL SAFETY (TEST</a><a href="#cat7">H · HOUSEKEEPING</a><a href="#cat8">I · MANUAL HANDLING</a><a href="#cat9">J · NOISE</a><a href="#cat10">K · PSYCHOSOCIAL</a><a href="#cat11">L · SLIPS, TRIPS</a><a href="#cat12">M · AIR QUALITY</a></div><div id="cat0"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">A</span>
+      <i data-lucide="armchair" width="16" height="16"></i>
+      <span class="cattitle">ERGONOMICS &amp; WORKSTATION DESIGN</span>
+      <span class="catrefs">Model CoP: Hazardous Manual Tasks; AS/NZS 3590; ISO 45001 Cl.6.1.2</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Monitors at correct height, distance and angle (top of screen at or slightly below eye level)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Chair adjusted correctly — lumbar support, armrests, seat height allows feet flat on floor</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Keyboard and mouse at elbow height, wrists neutral</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Document holder / reference material positioned to avoid neck rotation</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Desk height suitable for task (sit-stand preferred)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Adequate desk space for tasks; no awkward reaching</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Employees trained in correct workstation setup and posture</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Eye test / vision screening offered for screen-based workers</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">9</td>
+    <td class="desc">Regular screen breaks taken (minimum 5–10 min per hour)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">10</td>
+    <td class="desc">Laptop users provided docking station, external keyboard and monitor</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat1"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">B</span>
+      <i data-lucide="lightbulb" width="16" height="16"></i>
+      <span class="cattitle">LIGHTING</span>
+      <span class="catrefs">AS/NZS 1680 (Interior Lighting); WHS Act 2011 s.19</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">General lighting level adequate for tasks performed (AS/NZS 1680: minimum 320 lux for office tasks)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Task lighting available where required (reading, fine work)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">No direct glare or reflections on screens</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Natural light available and not causing glare</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Emergency lighting installed and functional (AS/NZS 2293)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Light fittings clean, undamaged, and in working order</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Flickering or failed lamps reported and replaced promptly</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Lighting controls functional (switches, sensors)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat2"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">C</span>
+      <i data-lucide="door-open" width="16" height="16"></i>
+      <span class="cattitle">EMERGENCY MANAGEMENT &amp; EVACUATION</span>
+      <span class="catrefs">BCA Pt.E6; AS 3745; WHS Regulation 2025 (NSW) s.43</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Emergency Warden/s appointed and trained</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Emergency Evacuation Procedure documented and current (AS 3745)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Emergency Assembly Point identified, marked, and communicated to all staff</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Emergency contacts list current and posted at reception / first aid</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Emergency drills conducted as required (minimum annually)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Emergency floor plans displayed at required locations</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">After-hours emergency procedures communicated to staff</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Emergency contacts: 000, security, building management, WHS contact</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat3"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">D</span>
+      <i data-lucide="signpost" width="16" height="16"></i>
+      <span class="cattitle">EMERGENCY SIGNAGE</span>
+      <span class="catrefs">AS/NZS 2293; BCA Pt.D3; AS 1319</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Exit signs illuminated and visible from all areas (AS/NZS 2293)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Emergency evacuation diagrams displayed at each required location</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Fire equipment signage correct and visible</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Hazardous substances signage displayed (if applicable)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">WHS notices / posters displayed as required (WHS Act 2011)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">No-smoking signage in place where required</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">First aid signage visible and directing to first aid kit location</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Emergency equipment identification signs visible</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat4"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">E</span>
+      <i data-lucide="cross" width="16" height="16"></i>
+      <span class="cattitle">FIRST AID FACILITIES &amp; EQUIPMENT</span>
+      <span class="catrefs">WHS Regulation 2025 (NSW) s.42; Code of Practice: First Aid</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">First aid kit inspected and stocked to required level (WHS Regulation 2025 (NSW) s.42; Code of Practice)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">First aid kit location clearly marked and accessible</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">First aider(s) appointed and training current</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Number and ratio of first aiders adequate for workplace size and risk</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">AED (defibrillator) installed and maintained (if applicable)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">First aid kit inspection record current</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Workers informed of first aid kit location and first aider names</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Incident reporting procedure communicated to all staff</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat5"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">F</span>
+      <i data-lucide="flame" width="16" height="16"></i>
+      <span class="cattitle">FIRE EXTINGUISHERS &amp; SUPPRESSION</span>
+      <span class="catrefs">AS 1851; AS 2444; BCA Pt.E1; AFSS</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Fire extinguishers installed at correct locations (AS 2444)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Correct type of extinguisher for hazard class present</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Fire extinguisher inspection tag current (AS 1851 — 6-monthly service)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Fire extinguishers accessible and not obstructed</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Fire hose reels / sprinklers / suppression systems maintained and tested</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Annual fire safety statement (AFSS) current (where required)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Staff trained in fire extinguisher use and evacuation</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Fire panel / alarm system tested and maintained</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat6"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">G</span>
+      <i data-lucide="zap" width="16" height="16"></i>
+      <span class="cattitle">ELECTRICAL SAFETY (TEST &amp; TAG)</span>
+      <span class="catrefs">AS/NZS 3760; WHS Act 2011 s.19; WHS Regulation 2025 (NSW) s.211</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">All portable electrical appliances (PAE) tested and tagged as per AS/NZS 3760</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Test and tag register current — items tested within required frequency for environment</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Extension leads / power boards appropriate and within test frequency</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">No double-adapted or piggyback plugs in use</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Electrical switchboards accessible and not obstructed</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Residual current devices (RCDs) installed and tested</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Damaged or frayed leads/plugs removed from service immediately</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">8</td>
+    <td class="desc">Only qualified persons carry out electrical work (WHS Regulation 2025 (NSW) s.338)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat7"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">H</span>
+      <i data-lucide="trash-2" width="16" height="16"></i>
+      <span class="cattitle">HOUSEKEEPING &amp; GENERAL WORKPLACE</span>
+      <span class="catrefs">WHS Act 2011 s.19; Model CoP: Managing Risks (General)</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Walkways, corridors and emergency exits clear of obstructions</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Adequate storage — items not stacked in unstable or unsafe manner</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Waste bins appropriately placed and emptied regularly</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Cleaning products stored safely and labelled (SDS available)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Furniture in good repair — no sharp edges, broken components</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Windows and blinds operational</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">7</td>
+    <td class="desc">Shared areas (kitchen, bathroom) maintained to health standards</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat8"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">I</span>
+      <i data-lucide="package" width="16" height="16"></i>
+      <span class="cattitle">MANUAL HANDLING</span>
+      <span class="catrefs">Model CoP: Hazardous Manual Tasks; WHS Regulation 2025 (NSW) s.60</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Manual handling tasks identified (WHS Regulation 2025 (NSW) s.60)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Risk assessment completed for tasks involving repetitive motion, heavy loads, or awkward postures</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Mechanical aids (trolleys, lift assists) provided where required</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Staff trained in manual handling technique</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">No single lift above 16 kg without assessment or mechanical aid</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Workloads designed to prevent fatigue and musculoskeletal injury</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat9"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">J</span>
+      <i data-lucide="volume-2" width="16" height="16"></i>
+      <span class="cattitle">NOISE</span>
+      <span class="catrefs">WHS Regulation 2025 (NSW) s.57; Model CoP: Managing Noise</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Noise sources identified in office environment</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Noise levels measured where concerned — action level 80 dB(A), exposure standard 85 dB(A) TWA (WHS Regulation 2025 (NSW) s.57)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Acoustic controls applied where practicable (panels, isolation, scheduling)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Hearing protectors available if noise levels approach the standard</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat10"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">K</span>
+      <i data-lucide="brain" width="16" height="16"></i>
+      <span class="cattitle">PSYCHOSOCIAL (OFFICE-SPECIFIC)</span>
+      <span class="catrefs">WHS Regulation 2025 (NSW) s.55A–55L; see also dedicated PRA form</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Workload manageable and workers not regularly working excessive overtime</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Role clarity established — position descriptions current</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Adequate supervision and support available</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Grievance and anti-bullying policy in place and communicated</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Employee Assistance Programme (EAP) accessible and promoted</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">See dedicated Psychosocial Risk Assessment (PRA) form for full assessment</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat11"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">L</span>
+      <i data-lucide="footprints" width="16" height="16"></i>
+      <span class="cattitle">SLIPS, TRIPS &amp; FALLS</span>
+      <span class="catrefs">WHS Act 2011 s.19; Model CoP: Managing Risks</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Floor surfaces free from trip hazards (cables, mats, wet areas)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Cable management in place for all workstations</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Anti-slip matting at entry points and wet areas</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Spills cleaned up immediately — wet floor signage used</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">Adequate footwear worn where required</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">Stairs and step edges marked / non-slip treads fitted</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div><div id="cat12"><div class="catblock" style="margin-bottom:14px">
+    <div class="cathead">
+      <span class="catnum">M</span>
+      <i data-lucide="wind" width="16" height="16"></i>
+      <span class="cattitle">AIR QUALITY &amp; TEMPERATURE</span>
+      <span class="catrefs">AS 1668.2; WHS Act 2011 s.19 (welfare)</span>
+    </div>
+    <div class="tbl-scroll"><table class="hrcw insp">
+      <thead><tr><th style="width:34px;text-align:center">#</th><th>Inspection Item</th><th style="width:34px;text-align:center" title="Compliant">✓</th><th style="width:34px;text-align:center" title="Non-compliant">✘</th><th style="width:34px;text-align:center">N/A</th><th style="width:150px">Findings / Comments</th><th style="width:78px">Risk</th><th style="width:150px">Action Required</th></tr></thead>
+      <tbody><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">1</td>
+    <td class="desc">Thermal comfort maintained: 20–26°C where practicable (as per AS 1668)</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">2</td>
+    <td class="desc">Ventilation adequate — fresh air supply functional</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">3</td>
+    <td class="desc">Air conditioning / heating units maintained</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">4</td>
+    <td class="desc">Printers / copiers in ventilated area or extraction provided</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="">
+    <td style="text-align:center;font-weight:700;color:#69748A">5</td>
+    <td class="desc">No strong odours / fumes in office environment</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr><tr class="alt">
+    <td style="text-align:center;font-weight:700;color:#69748A">6</td>
+    <td class="desc">CO2 monitoring in meeting rooms if required</td>
+    <td class="c"><input type="checkbox" title="Compliant"></td>
+    <td class="c"><input type="checkbox" title="Non-compliant"></td>
+    <td class="c"><input type="checkbox" title="N/A"></td>
+    <td><input type="text"></td>
+    <td><input type="text" style="text-align:center"></td>
+    <td><input type="text"></td></tr></tbody></table></div>
+  </div></div></div>
+</div>
+<div class="section">
+  <div class="section-header"><span class="section-title">5. Corrective Action Plan</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>List every non-compliant item as a corrective action with an owner, due date and risk rating. Track status to completion and verify the control is effective before closing.</div><div class="tbl-wrap"><div class="tbl-label">Actions arising from this inspection</div><div class="tbl-scroll"><table><thead><tr><th style="width:40px">#</th><th>Hazard Area</th><th>Corrective Action Required</th><th>Responsible Person</th><th style="width:90px">Due Date</th><th style="width:90px">Completion Date</th><th style="width:70px">Risk Rating</th><th style="width:100px">Status</th></tr></thead><tbody><tr class=""><td style="text-align:center"><input type="text" value="1" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="2" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td style="text-align:center"><input type="text" value="3" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="4" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td style="text-align:center"><input type="text" value="5" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="6" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td style="text-align:center"><input type="text" value="7" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="8" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td style="text-align:center"><input type="text" value="9" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="10" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td style="text-align:center"><input type="text" value="11" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td style="text-align:center"><input type="text" value="12" style="text-align:center;font-weight:700;color:#69748A"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr></tbody></table></div></div></div>
+</div>
+<div class="section">
+  <div class="section-header"><span class="section-title">6. Assessment Summary</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>Tally the totals — items inspected, compliant, non-compliant and N/A — and count corrective actions by risk band. Use this as the at-a-glance result of the assessment.</div><div class="row2">
+   <div><div class="tbl-wrap"><div class="tbl-label">Inspection totals</div><div class="tbl-scroll"><table><thead><tr><th>Total Items Inspected</th><th>Compliant</th><th>Non-Compliant</th><th>N/A</th></tr></thead><tbody><tr class=""><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr></tbody></table></div></div></div>
+   <div><div class="tbl-wrap"><div class="tbl-label">Actions by risk band</div><div class="tbl-scroll"><table><thead><tr><th>Extreme (E)</th><th>High (H)</th><th>Medium (M)</th><th>Low (L)</th></tr></thead><tbody><tr class=""><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr></tbody></table></div></div></div>
+ </div></div>
+</div>
+<div class="section">
+  <div class="section-header mandatory"><span class="section-title">7. Assessment Sign-Off</span><span class="mand">MANDATORY</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>The assessor and manager sign and date to confirm the assessment is complete and accurate, and to set the next review date.</div><div class="kv"><div class="k">Assessment Completed By:</div><div class="v"><input type="text" id="f8"></div><div class="k">Signature:</div><div class="v"><input type="text" id="f9"></div><div class="k">Manager / Supervisor:</div><div class="v"><input type="text" id="f10"></div><div class="k">Signature:</div><div class="v"><input type="text" id="f11"></div><div class="k">Date Approved:</div><div class="v"><input type="text" id="f12"></div><div class="k">Next Review Date:</div><div class="v"><input type="text" id="f13"></div></div></div>
+</div>
+<div class="section">
+  <div class="section-header"><span class="section-title">8. Document Review History</span></div>
+  <div class="section-body"><div class="section-hint"><b>How to complete</b>Log every revision with its date, reviewer, approver and a summary of changes.</div><div class="tbl-wrap"><div class="tbl-label">Revision history</div><div class="tbl-scroll"><table><thead><tr><th style="width:80px">Version</th><th style="width:100px">Date</th><th>Reviewed By</th><th>Approved By</th><th>Summary of Changes</th></tr></thead><tbody><tr class=""><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class=""><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr><tr class="alt"><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr></tbody></table></div></div></div>
+</div>
+</div>
+<div class="footer">
+  <div class="f-brand">SOLUM<i>.</i> <span style="font-weight:600;font-size:9.5px;letter-spacing:.14em;color:#9FB0C8">SAFETY CONSULTING</span></div>
+  <div class="f-tag">Building Safety From the Ground Up.</div>
+  <div class="f-meta"><span>ORA · Rev 1 · Template © Solum Safety Consulting · solumsafetyconsulting.com.au · ABN 54 932 321 683</span><span>WHS Act 2011 · WHS Regulation 2025 (NSW) · ISO 45001:2018 · AS/NZS Standards</span></div>
+  <div class="disclaimer">This template is provided as a practical work health &amp; safety tool to assist with documentation and process. It is general in nature, does not constitute legal advice, and does not guarantee compliance with the WHS Act 2011, WHS Regulation 2025 (NSW) or any other law. The organisation using this form is responsible for ensuring its content is accurate, complete and suitable for its workplace. Insert your own company logo and details above before use.</div>
+</div>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function(){var KEY='solum_brand_'+(document.body.getAttribute('data-form')||'ora');
+function save(){var d={};document.querySelectorAll('.brand-field').forEach(function(el){d[el.id]=el.value});var img=document.getElementById('logoImg');d._logo=img&&img.src&&img.src.indexOf('data:')===0?img.src:'';localStorage.setItem(KEY,JSON.stringify(d))}
+function load(){try{var d=JSON.parse(localStorage.getItem(KEY)||'{}');document.querySelectorAll('.brand-field').forEach(function(el){if(d[el.id]!=null)el.value=d[el.id]});if(d._logo){var img=document.getElementById('logoImg');img.src=d._logo;img.closest('.logo-slot').classList.add('filled')}}catch(e){}}
+window.setLogo=function(inp){var f=inp.files&&inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){var img=document.getElementById('logoImg');img.src=e.target.result;img.closest('.logo-slot').classList.add('filled');save()};r.readAsDataURL(f)};
+window.removeLogo=function(ev){ev.preventDefault();ev.stopPropagation();var img=document.getElementById('logoImg');img.src='';img.closest('.logo-slot').classList.remove('filled');document.getElementById('logoInput').value='';save()};
+document.addEventListener('input',function(e){if(e.target.classList&&e.target.classList.contains('brand-field'))save()});
+window.addEventListener('DOMContentLoaded',function(){load();if(window.lucide)lucide.createIcons();});load();})();
+function resetForm(){if(!confirm('Clear all entered data? (Your logo and company details are kept.)'))return;document.querySelectorAll('.main input,.main textarea,.main select').forEach(function(el){if(el.type==='checkbox')el.checked=false;else if(el.tagName==='SELECT')el.selectedIndex=0;else if(!/^\d+$/.test(el.value))el.value=''});}
+</script>
+</body></html>

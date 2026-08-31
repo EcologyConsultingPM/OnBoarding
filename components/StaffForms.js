@@ -55,6 +55,19 @@ const BLURBS = {
   first_aid_kit: "Vehicle, field & office kit checks.",
 };
 
+const FORM_REFERENCE_DOCS = {
+  daily_risk_assessment: [{ label: "Daily Toolbox Talk template", href: "/resources/whs/EC-Daily-Toolbox-Talk-Template.pdf" }],
+  pre_mobilisation: [{ label: "Pre-Mobilisation Checklist source", href: "/resources/whs/EC-Pre-Mobilisation-Checklist.pdf" }],
+  site_erp: [{ label: "Site Specific Emergency Response Plan template", href: "/resources/whs/EC-Site-Specific-Emergency-Response-Plan-Template.pdf" }],
+  job_safety_analysis: [{ label: "General Field Surveys JSA", href: "/resources/whs/EC-JSA-General-Field-Surveys.pdf" }],
+  office_risk_assessment: [{ label: "Office Risk Assessment source", href: "/resources/whs/EC-Office-Risk-Assessment.html" }],
+  first_aid_kit: [
+    { label: "Family Soft Pack first-aid checklist", href: "/resources/whs/EC-First-Aid-Kit-Family-Soft-Pack.pdf" },
+    { label: "Snake Bite Kit checklist", href: "/resources/whs/EC-First-Aid-Kit-Snake-Bite.pdf" },
+    { label: "Modulator Kit checklist", href: "/resources/whs/EC-First-Aid-Kit-Modulator.pdf" },
+  ],
+};
+
 const WHS_DEFINITIONS = {
   injury_incident: {
     title: "What counts as a notifiable incident",
@@ -153,7 +166,9 @@ export default function StaffForms() {
       notify(
         activeKey === "injury_incident"
           ? "Submitted - a copy has gone to admin for review."
-          : "Submitted and saved to your history.",
+          : activeKey === "daily_risk_assessment"
+            ? "Daily Risk Assessment submitted, saved to your history and reported to administrators."
+            : "Submitted and saved to your history.",
       );
     } catch (e) {
       setError(e.message);
@@ -306,6 +321,7 @@ export default function StaffForms() {
   // ---------- A FORM ----------
   if (view === "form" && schema) {
     const def = WHS_DEFINITIONS[activeKey];
+    const sourceDocuments = FORM_REFERENCE_DOCS[activeKey] || [];
     return (
       <div className="sf">
         <header className="sf-hero">
@@ -319,6 +335,20 @@ export default function StaffForms() {
         <button className="sf-back" onClick={backToHub}>
           <ChevronLeft size={15} /> Back to forms
         </button>
+        {sourceDocuments.length ? (
+          <div className="sf-legis sf-reference-links">
+            <ListChecks size={16} />
+            <div>
+              <strong>Controlled source document{sourceDocuments.length > 1 ? "s" : ""}</strong>
+              <p>Use the current reference template when completing this form.</p>
+              <span>
+                {sourceDocuments.map((document) => (
+                  <a key={document.href} href={document.href} target="_blank" rel="noreferrer">{document.label}</a>
+                ))}
+              </span>
+            </div>
+          </div>
+        ) : null}
         {def ? (
           <div className="sf-legis">
             <ShieldAlert size={16} />

@@ -1,5 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
-import { requirePortalResource } from "../../../lib/portalVisibility";
+import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +9,7 @@ const COLUMNS = "id, form_type, title, site, form_date, details, status, notifia
 const FORM_TYPES = [
   "daily_risk_assessment", "office_risk_assessment", "injury_incident", "near_miss",
   "site_erp", "journey_plan", "pre_mobilisation", "toolbox_talk", "hazard_report",
+  "job_safety_analysis", "first_aid_kit",
 ];
 
 export async function GET(request) {
@@ -67,6 +68,38 @@ export async function POST(request) {
       status: "submitted",
     }).select(COLUMNS).single();
     if (error) return Response.json({ error: error.message }, { status: 400 });
+
+    // Daily Risk Assessments are stored in the WHS monitor and actively
+    // surfaced to each administrator as a portal report. Notification failure
+    // is non-fatal because the submitted assessment remains authoritative.
+    if (b.form_type === "daily_risk_assessment") {
+      try {
+        const { data: adminRows } = await access.admin.from("admin_emails").select("email");
+        const recipientEmails = new Set([
+          ...PRIMARY_ADMIN_EMAILS,
+          ...(adminRows || []).map((row) => String(row.email || "").trim().toLowerCase()),
+        ]);
+        const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const recipients = (usersData?.users || [])
+          .filter((user) => recipientEmails.has(String(user.email || "").trim().toLowerCase()))
+          .map((user) => user.id)
+          .filter(Boolean);
+        if (recipients.length) {
+          await access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
+            recipient_id: recipientId,
+            event_type: "daily_risk_assessment_submitted",
+            severity: "information",
+            title: "Daily Risk Assessment submitted",
+            body: `${title}${data.site ? ` · ${data.site}` : ""} is ready for WHS review.`,
+            href: "/?mode=whsmonitor",
+            source_table: "whs_forms",
+            source_id: data.id,
+          })));
+        }
+      } catch (notificationError) {
+        console.warn("Daily Risk Assessment notification could not be created:", notificationError?.message);
+      }
+    }
 
     // Mirror a copy into the admin service-requests queue so incidents surface
     // alongside other approvals (compliance visibility). The incident form carries
