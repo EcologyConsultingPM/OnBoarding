@@ -17,6 +17,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import ProjectGantt from "./ProjectGantt";
+import { ACTIVITY_STATUS } from "./ProjectHealth";
 
 const TASK_CATEGORIES = [
   "Desktop/Field plan",
@@ -153,6 +154,7 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
   if (view === "detail" && openId) {
     return (
       <ProjectDetail
+        key={openId}
         projectId={openId}
         staff={staff}
         auth={auth}
