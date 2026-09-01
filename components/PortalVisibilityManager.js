@@ -52,6 +52,10 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
 
   const selected = resources.find((resource) => resource.key === selectedResource);
 
+  const CAPACITY_VIEW = "admin.projects.capacity";
+  const CAPACITY_EDIT = "admin.projects.capacity.edit";
+  const capacityPlannerSelected = selectedResource === CAPACITY_VIEW;
+
   const update = async (person, isVisible) => {
     if (!session?.access_token || !selectedResource) return;
     const actionKey = `${person.id}:${selectedResource}`;
@@ -87,6 +91,35 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
       setTimeout(() => setMessage(""), 2800);
     } catch (err) {
       setError(err.message || "Could not update visibility.");
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const updateCapacityLevel = async (person, level) => {
+    if (!session?.access_token || person.isPrimary) return;
+    const actionKey = `${person.id}:capacity`;
+    setSaving(actionKey);
+    setError("");
+    try {
+      const changes = [
+        { resourceKey: CAPACITY_VIEW, isVisible: level !== "none" },
+        { resourceKey: CAPACITY_EDIT, isVisible: level === "full" },
+      ];
+      for (const change of changes) {
+        const response = await fetch("/api/portal-visibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ userId: person.id, ...change }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not update Capacity Planner access.");
+      }
+      await load();
+      setMessage(`${person.name || person.email} now has ${level === "full" ? "Full" : level === "read" ? "Read-only" : "No"} Capacity Planner access.`);
+      setTimeout(() => setMessage(""), 2800);
+    } catch (err) {
+      setError(err.message || "Could not update Capacity Planner access.");
     } finally {
       setSaving("");
     }
@@ -149,17 +182,32 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
                     <strong>{person.name || person.email}</strong>
                     <span>{person.email}{person.phone ? ` · ${person.phone}` : ""}</span>
                   </div>
-                  <button
-                    type="button"
-                    className={`pvm-eye${visible ? " visible" : " hidden"}`}
-                    disabled={Boolean(saving) || permanentlyVisible}
-                    onClick={() => update(person, !visible)}
-                    aria-label={permanentlyVisible ? "Primary administrator access is always visible" : `${visible ? "Remove" : "Grant"} ${selected?.label || "portal area"} access for ${person.name || person.email}`}
-                    title={permanentlyVisible ? "Primary administrator access is always visible" : visible ? "Visible — click to lock" : "Locked — click to allow"}
-                  >
-                    {isSaving ? <Loader2 className="spin" size={16} /> : visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    <span>{permanentlyVisible ? "Primary admin" : visible ? "Visible" : "Locked"}</span>
-                  </button>
+                  {capacityPlannerSelected ? (
+                    <label className="pvm-access-level">
+                      <span>Planner access</span>
+                      <select
+                        disabled={Boolean(saving) || permanentlyVisible}
+                        value={permanentlyVisible ? "full" : person.visibility?.[CAPACITY_EDIT] === true ? "full" : visible ? "read" : "none"}
+                        onChange={(event) => updateCapacityLevel(person, event.target.value)}
+                      >
+                        <option value="none">No access</option>
+                        <option value="read">Read-only</option>
+                        <option value="full">Full access</option>
+                      </select>
+                    </label>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`pvm-eye${visible ? " visible" : " hidden"}`}
+                      disabled={Boolean(saving) || permanentlyVisible}
+                      onClick={() => update(person, !visible)}
+                      aria-label={permanentlyVisible ? "Primary administrator access is always visible" : `${visible ? "Remove" : "Grant"} ${selected?.label || "portal area"} access for ${person.name || person.email}`}
+                      title={permanentlyVisible ? "Primary administrator access is always visible" : visible ? "Visible — click to lock" : "Locked — click to allow"}
+                    >
+                      {isSaving ? <Loader2 className="spin" size={16} /> : visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                      <span>{permanentlyVisible ? "Primary admin" : visible ? "Visible" : "Locked"}</span>
+                    </button>
+                  )}
                 </div>
               );
             })}

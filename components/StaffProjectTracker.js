@@ -17,7 +17,9 @@ import { useAuth } from "../lib/AuthProvider";
 const STATUS = {
   not_commenced: { label: "Not commenced", tone: "not-commenced" },
   active: { label: "Active", tone: "active" },
+  need_info: { label: "Information required", tone: "need-info" },
   paused_other: { label: "Paused", tone: "paused" },
+  qa_review: { label: "In QA review", tone: "qa-review" },
   completed: { label: "Completed", tone: "completed" },
 };
 function localToday() {
@@ -40,6 +42,7 @@ function blankForm(project) {
   const allocation = source?.allocations?.[0];
   return {
     projectId: project?.id || "",
+    activityId: "",
     sourceId: source?.id || "",
     allocationId: allocation?.id || "",
     workDate: localToday(),
@@ -52,10 +55,11 @@ function blankForm(project) {
   };
 }
 
-export default function StaffProjectTracker({ embedded = false }) {
+export default function StaffProjectTracker({ embedded = false, initialProjectId = "" }) {
   const { session } = useAuth();
   const [projects, setProjects] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [assignedActivities, setAssignedActivities] = useState([]);
   const [form, setForm] = useState(blankForm(null));
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,23 +99,23 @@ export default function StaffProjectTracker({ embedded = false }) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/project-tracker-entries", {
-        headers: headers(),
-        cache: "no-store",
-      });
+      const [response, activitiesResponse] = await Promise.all([
+        fetch("/api/project-tracker-entries", { headers: headers(), cache: "no-store" }),
+        fetch("/api/my-activities", { headers: headers(), cache: "no-store" }),
+      ]);
       const body = await response.json();
-      if (!response.ok)
-        throw new Error(body.error || "Could not load your Project Tracker.");
+      const activityBody = await activitiesResponse.json();
+      if (!response.ok) throw new Error(body.error || "Could not load your Project Tracker.");
       const nextProjects = body.eligibleProjects || [];
       setProjects(nextProjects);
       setEntries(body.entries || []);
+      setAssignedActivities((activityBody.activities || []).filter((activity) => ["accepted", "actioned"].includes(activity.acceptanceStatus)));
       setReady(Boolean(body.ready));
-      setForm((current) =>
-        current.projectId &&
-        nextProjects.some((project) => project.id === current.projectId)
-          ? current
-          : blankForm(nextProjects[0]),
-      );
+      setForm((current) => {
+        const preferredProject = nextProjects.find((project) => project.id === initialProjectId);
+        if (current.projectId && nextProjects.some((project) => project.id === current.projectId)) return current;
+        return blankForm(preferredProject || nextProjects[0]);
+      });
     } catch (loadError) {
       setError(loadError.message || "Could not load your Project Tracker.");
     } finally {
@@ -126,6 +130,10 @@ export default function StaffProjectTracker({ embedded = false }) {
     const project = projects.find((item) => item.id === projectId);
     setForm(blankForm(project));
   };
+  const projectActivities = useMemo(
+    () => assignedActivities.filter((activity) => activity.projectId === form.projectId),
+    [assignedActivities, form.projectId],
+  );
   const setSource = (sourceId) => {
     const source = selected?.sources?.find((item) => item.id === sourceId);
     setForm((current) => ({
@@ -163,6 +171,7 @@ export default function StaffProjectTracker({ embedded = false }) {
           projectId: form.projectId,
           sourceId: form.sourceId,
           allocationId: form.allocationId,
+          activityId: form.activityId || undefined,
           workDate: form.workDate,
           activityCategory: form.category,
           activityInformation: form.information,
@@ -289,6 +298,23 @@ export default function StaffProjectTracker({ embedded = false }) {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="st-wide">
+              Assigned project activity
+              <select value={form.activityId || ""} onChange={(event) => {
+                const activity = projectActivities.find((item) => item.id === event.target.value);
+                setForm((current) => ({
+                  ...current,
+                  activityId: event.target.value,
+                  category: activity?.taskCategory || current.category,
+                  information: activity ? (current.information || activity.title) : current.information,
+                  status: activity?.status || current.status,
+                }));
+              }}>
+                <option value="">General project work (not linked to an activity)</option>
+                {projectActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.dueDate ? ` · Due ${formatDate(activity.dueDate)}` : ""}</option>)}
+              </select>
+              <small className="st-activity-hint">Select an accepted activity to update its delivery status and linked Gantt progress when this tracker entry is saved.</small>
             </label>
             <label>
               Budget source

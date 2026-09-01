@@ -15,6 +15,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import StaffCapacityPlanner from "./StaffCapacityPlanner";
+import ProjectGantt from "./ProjectGantt";
 
 const TASK_CATEGORIES = [
   "Desktop/Field plan",
@@ -39,6 +41,7 @@ const PROJECT_STATUS = [
 export default function AdminProjectSetup({ initialProjectId = null }) {
   const { session } = useAuth();
   const [view, setView] = useState("list"); // list | detail
+  const [setupSubview, setSetupSubview] = useState("projects"); // projects | capacity
   const [projects, setProjects] = useState([]);
   const [staff, setStaff] = useState([]);
   const [openId, setOpenId] = useState(null);
@@ -215,6 +218,12 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
         </p>
       ) : null}
 
+      <div className="aps-workspace-tabs" role="tablist" aria-label="Setup and Allocations areas">
+        <button type="button" role="tab" aria-selected={setupSubview === "projects"} className={setupSubview === "projects" ? "selected" : ""} onClick={() => setSetupSubview("projects")}>Projects, activities &amp; Gantt</button>
+        <button type="button" role="tab" aria-selected={setupSubview === "capacity"} className={setupSubview === "capacity" ? "selected" : ""} onClick={() => setSetupSubview("capacity")}>Staff Capacity Planner</button>
+      </div>
+
+      {setupSubview === "capacity" ? <StaffCapacityPlanner /> : (
       <div className="aps-grid">
         <section className="aps-card">
           <h2>
@@ -385,6 +394,7 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
           )}
         </section>
       </div>
+      )}
     </div>
   );
 }
@@ -416,11 +426,15 @@ function ProjectDetail({
       setProject(pData.project);
       setSchedule(
         (pData.schedule || []).map((s) => ({
+          id: s.id,
           title: s.title,
           detail: s.detail || "",
           startDate: s.start_date || "",
           endDate: s.end_date || "",
           milestone: s.milestone,
+          progressPercent: s.progress_percent ?? 0,
+          status: s.status || "not_commenced",
+          locked: s.locked === true,
         })),
       );
       setAllocations(
@@ -435,11 +449,19 @@ function ProjectDetail({
       if (aRes.ok)
         setActivities(
           (actData.activities || []).map((x) => ({
+            id: x.id,
             staffUserId: x.staff_user_id || "",
             taskCategory: x.task_category || "",
             title: x.title,
+            detail: x.detail || "",
             budgetHours: x.budget_hours ?? "",
             dueDate: x.due_date || "",
+            scheduleItemId: x.schedule_item_id || "",
+            status: x.status || "not_commenced",
+            acceptanceStatus: x.acceptance_status || "accepted",
+            responseNote: x.response_note || "",
+            progressPercent: x.progress_percent ?? 0,
+            locked: x.locked === true,
           })),
         );
     } catch (e) {
@@ -481,7 +503,20 @@ function ProjectDetail({
       const res = await auth("PUT", `/api/projects/${projectId}`, { schedule });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      notify("Schedule saved.");
+      if (Array.isArray(d.schedule)) {
+        setSchedule(d.schedule.map((s) => ({
+          id: s.id,
+          title: s.title,
+          detail: s.detail || "",
+          startDate: s.start_date || "",
+          endDate: s.end_date || "",
+          milestone: s.milestone === true,
+          progressPercent: s.progress_percent ?? 0,
+          status: s.status || "not_commenced",
+          locked: s.locked === true,
+        })));
+      }
+      notify("Schedule saved without breaking linked delivery activities.");
     } catch (e) {
       fail(e);
     }
@@ -524,7 +559,7 @@ function ProjectDetail({
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      notify("Activities assigned and staff notified.");
+      notify(`${d.count || 0} activities saved. ${d.notified || 0} staff response request${d.notified === 1 ? "" : "s"} sent.`);
       await load();
     } catch (e) {
       fail(e);
@@ -752,6 +787,9 @@ function ProjectDetail({
                 startDate: "",
                 endDate: "",
                 milestone: false,
+                progressPercent: 0,
+                status: "not_commenced",
+                locked: false,
               },
             ])
           }
@@ -852,6 +890,8 @@ function ProjectDetail({
         </button>
       </section>
 
+      <ProjectGantt schedule={schedule} />
+
       {/* Activities */}
       <section className="aps-card">
         <div className="aps-card-head">
@@ -916,6 +956,36 @@ function ProjectDetail({
                   </option>
                 ))}
             </select>
+            <select
+              value={row.scheduleItemId || ""}
+              onChange={(e) =>
+                setActivities(
+                  activities.map((r, j) =>
+                    j === i ? { ...r, scheduleItemId: e.target.value } : r,
+                  ),
+                )
+              }
+            >
+              <option value="">Create a linked Gantt activity line</option>
+              {schedule.map((item) => (
+                <option key={item.id || item.title} value={item.id || ""}>
+                  {item.title || "Untitled schedule item"}
+                </option>
+              ))}
+            </select>
+            <textarea
+              className="aps-activity-detail"
+              rows={2}
+              placeholder="Activity detail, deliverable or handover expectation"
+              value={row.detail || ""}
+              onChange={(e) =>
+                setActivities(
+                  activities.map((r, j) =>
+                    j === i ? { ...r, detail: e.target.value } : r,
+                  ),
+                )
+              }
+            />
             <div className="aps-two">
               <input
                 placeholder="Hrs"
@@ -941,6 +1011,16 @@ function ProjectDetail({
                 }
               />
             </div>
+            <div className="aps-activity-state">
+              <span className={`aps-activity-response ${row.acceptanceStatus || "accepted"}`}>
+                Staff: {(row.acceptanceStatus || "accepted").replaceAll("_", " ")}
+              </span>
+              <span className={`aps-activity-delivery ${row.status || "not_commenced"}`}>
+                Delivery: {(row.status || "not_commenced").replaceAll("_", " ")} · {row.progressPercent ?? 0}%
+              </span>
+              {row.responseNote ? <small>Latest response: {row.responseNote}</small> : null}
+              <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
+            </div>
             <button
               className="aps-remove"
               onClick={() =>
@@ -960,8 +1040,15 @@ function ProjectDetail({
                 staffUserId: "",
                 taskCategory: "",
                 title: "",
+                detail: "",
                 budgetHours: "",
                 dueDate: "",
+                scheduleItemId: "",
+                status: "not_commenced",
+                acceptanceStatus: "awaiting_response",
+                responseNote: "",
+                progressPercent: 0,
+                locked: false,
               },
             ])
           }

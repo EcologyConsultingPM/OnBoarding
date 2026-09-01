@@ -20,11 +20,49 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    // RLS already limits staff to their allocated projects; no extra filter needed.
-    const { data, error } = await access.admin
+    let query = access.admin
       .from("projects")
       .select(COLUMNS)
       .order("updated_at", { ascending: false });
+
+    // This route uses the server-side service client, so database RLS does not
+    // apply here. Enforce the allocation boundary explicitly: staff receive
+    // only projects where they are an active allocation or have an active
+    // activity assignment. Administrators retain the portfolio view.
+    if (!access.isAdmin) {
+      const [allocationResult, activityResult] = await Promise.all([
+        access.admin
+          .from("project_allocations")
+          .select("project_id")
+          .eq("staff_user_id", access.user.id)
+          .neq("active", false),
+        access.admin
+          .from("project_activities")
+          .select("project_id")
+          .eq("staff_user_id", access.user.id)
+          .eq("is_active", true)
+          .in("acceptance_status", ["accepted", "actioned"]),
+      ]);
+      if (allocationResult.error) return Response.json({ error: allocationResult.error.message }, { status: 400 });
+      if (activityResult.error) {
+        const missingConnectedFields = activityResult.error?.code === "42703" || /is_active/i.test(String(activityResult.error?.message || ""));
+        if (!missingConnectedFields) return Response.json({ error: activityResult.error.message }, { status: 400 });
+        const fallback = await access.admin
+          .from("project_activities")
+          .select("project_id")
+          .eq("staff_user_id", access.user.id);
+        if (fallback.error) return Response.json({ error: fallback.error.message }, { status: 400 });
+        activityResult.data = fallback.data;
+      }
+      const projectIds = [...new Set([
+        ...(allocationResult.data || []).map((row) => row.project_id),
+        ...(activityResult.data || []).map((row) => row.project_id),
+      ].filter(Boolean))];
+      if (!projectIds.length) return Response.json({ projects: [] });
+      query = query.in("id", projectIds);
+    }
+
+    const { data, error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ projects: data || [] });
   } catch (error) {

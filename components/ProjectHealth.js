@@ -51,7 +51,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
 
   const myUserId = session?.user?.id;
 
-  const updateStatus = async (activity, status) => {
+  const updateStatus = async (activity, status, progressPercent = activity.progress_percent ?? 0) => {
     const reason = status === "paused_other" ? (pauseDraft[activity.id] || "").trim() : "";
     if (status === "paused_other" && !reason) {
       setPauseDraft((d) => ({ ...d, [activity.id]: d[activity.id] || "" }));
@@ -61,7 +61,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
       const response = await fetch(`/api/my-activities?id=${activity.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ status, pauseReason: reason }),
+        body: JSON.stringify({ status, pauseReason: reason, progressPercent }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not update status.");
@@ -76,6 +76,10 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
 
   const { project, schedule, allocations } = data;
   const budgetDollars = money(project.budget_dollars);
+  const myActivities = activities.filter((activity) => activity.staff_user_id === myUserId);
+  const myCompletion = myActivities.length
+    ? Math.round((myActivities.reduce((sum, activity) => sum + Number(activity.progress_percent || 0), 0) / myActivities.length) * 100) / 100
+    : 0;
 
   return (
     <div className="proj-detail">
@@ -105,6 +109,10 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
           <span>Dates</span>
           <strong className="proj-budget-dates">{project.start_date || "—"} → {project.end_date || "—"}</strong>
         </div>
+        <div className="proj-budget-card">
+          <span>My activity completion</span>
+          <strong>{myCompletion}%</strong>
+        </div>
       </div>
       <p className="proj-budget-note">Live budget burn-down from timesheets appears here once timesheets are enabled.</p>
 
@@ -113,7 +121,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
       </a>
 
       {(() => {
-        const mine = activities.filter((a) => a.staff_user_id === myUserId);
+        const mine = myActivities;
         if (!mine.length) return null;
         return (
           <section className="proj-section">
@@ -131,16 +139,30 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
                       <span className="proj-activity-badge" style={{ background: `${current.color}1a`, color: current.color }}>{current.label}</span>
                     </div>
                     <div className="proj-activity-statuses">
-                      {STATUS_ORDER.map((key) => (
-                        <button
-                          key={key}
-                          className={activity.status === key ? "proj-status-btn active" : "proj-status-btn"}
-                          style={activity.status === key ? { background: ACTIVITY_STATUS[key].color, borderColor: ACTIVITY_STATUS[key].color, color: "#fff" } : { borderColor: `${ACTIVITY_STATUS[key].color}66`, color: ACTIVITY_STATUS[key].color }}
-                          onClick={() => updateStatus(activity, key)}
+                      <label>
+                        Status
+                        <select
+                          value={activity.status || "not_commenced"}
+                          disabled={activity.locked === true}
+                          style={{ borderColor: `${current.color}88`, color: current.color }}
+                          onChange={(event) => updateStatus(activity, event.target.value, activity.progress_percent ?? 0)}
                         >
-                          {ACTIVITY_STATUS[key].label}
-                        </button>
-                      ))}
+                          {STATUS_ORDER.map((key) => <option key={key} value={key}>{ACTIVITY_STATUS[key].label}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Activity complete
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="5"
+                          disabled={activity.locked === true}
+                          defaultValue={activity.progress_percent ?? 0}
+                          onBlur={(event) => updateStatus(activity, activity.status || "not_commenced", event.target.value)}
+                        />
+                      </label>
+                      {activity.locked ? <span className="proj-activity-locked">Locked for project-lead review</span> : null}
                     </div>
                     {activity.status === "paused_other" || pauseDraft[activity.id] !== undefined ? (
                       <div className="proj-activity-reason">
