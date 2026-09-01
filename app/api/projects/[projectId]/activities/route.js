@@ -76,8 +76,8 @@ async function loadProject(access, projectId) {
   return data || null;
 }
 
-async function canReadProject(access, projectId) {
-  if (access.isAdmin) return true;
+async function canReadProject(access, projectId, staffWorkspace = false) {
+  if (access.isAdmin && !staffWorkspace) return true;
   const [allocationResult, activityResult] = await Promise.all([
     access.admin.from("project_allocations").select("id").eq("project_id", projectId).eq("staff_user_id", access.user.id).neq("active", false).limit(1),
     access.admin.from("project_activities").select("id").eq("project_id", projectId).eq("staff_user_id", access.user.id).eq("is_active", true).limit(1),
@@ -124,7 +124,8 @@ export async function GET(request, { params }) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    if (!(await canReadProject(access, params.projectId))) return Response.json({ error: "You are not allocated to this project." }, { status: 403 });
+    const staffWorkspace = new URL(request.url).searchParams.get("audience") === "staff";
+    if (!(await canReadProject(access, params.projectId, staffWorkspace))) return Response.json({ error: "You are not allocated to this project." }, { status: 403 });
 
     let connected = true;
     let result = await access.admin.from("project_activities").select(COLUMNS).eq("project_id", params.projectId).eq("is_active", true).order("sort_order", { ascending: true });
@@ -135,7 +136,7 @@ export async function GET(request, { params }) {
     if (result.error) return Response.json({ error: result.error.message }, { status: 400 });
 
     let rows = result.data || [];
-    if (!access.isAdmin) rows = rows.filter((row) => row.staff_user_id === access.user.id && ["accepted", "actioned"].includes(row.acceptance_status || "accepted"));
+    if (!access.isAdmin || staffWorkspace) rows = rows.filter((row) => row.staff_user_id === access.user.id && ["accepted", "actioned"].includes(row.acceptance_status || "accepted"));
     const hydrated = await hydrateStaffEmails(access, rows);
     return Response.json({ activities: hydrated, connectedWorkflowReady: connected });
   } catch (error) {

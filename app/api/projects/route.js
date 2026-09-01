@@ -20,16 +20,17 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const staffWorkspace = new URL(request.url).searchParams.get("audience") === "staff";
     let query = access.admin
       .from("projects")
       .select(COLUMNS)
       .order("updated_at", { ascending: false });
 
     // This route uses the server-side service client, so database RLS does not
-    // apply here. Enforce the allocation boundary explicitly: staff receive
-    // only projects where they are an active allocation or have an active
-    // activity assignment. Administrators retain the portfolio view.
-    if (!access.isAdmin) {
+    // apply here. Enforce the project-team boundary explicitly whenever the
+    // Staff workspace calls this endpoint — including when a protected
+    // administrator is using their own Staff portal view.
+    if (!access.isAdmin || staffWorkspace) {
       const [allocationResult, activityResult] = await Promise.all([
         access.admin
           .from("project_allocations")

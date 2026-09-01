@@ -414,6 +414,7 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -707,95 +708,41 @@ function ProjectDetail({
         </div>
       </section>
 
-      {/* Schedule */}
-      <section className="aps-card">
+      {/* Schedule — compact until a project lead chooses to edit the full delivery plan. */}
+      <section className="aps-card aps-schedule-card">
         <div className="aps-card-head">
-          <h2>
-            <Calendar size={16} /> Schedule
-          </h2>
-          <button className="aps-secondary" onClick={saveSchedule}>
-            <Save size={13} /> Save schedule
+          <button type="button" className="aps-schedule-toggle" onClick={() => setScheduleExpanded((open) => !open)} aria-expanded={scheduleExpanded}>
+            <span><Calendar size={16} /> Project schedule</span>
+            <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View and edit schedule"}</small>
           </button>
+          {scheduleExpanded ? <button className="aps-secondary" onClick={saveSchedule}><Save size={13} /> Save schedule</button> : null}
         </div>
-        {schedule.map((row, i) => (
-          <div key={i} className="aps-row">
-            <input
-              placeholder="Schedule item"
-              value={row.title}
-              onChange={(e) =>
-                setSchedule(
-                  schedule.map((r, j) =>
-                    j === i ? { ...r, title: e.target.value } : r,
-                  ),
-                )
-              }
-            />
-            <div className="aps-two">
-              <input
-                type="date"
-                value={row.startDate}
-                onChange={(e) =>
-                  setSchedule(
-                    schedule.map((r, j) =>
-                      j === i ? { ...r, startDate: e.target.value } : r,
-                    ),
-                  )
-                }
-              />
-              <input
-                type="date"
-                value={row.endDate}
-                onChange={(e) =>
-                  setSchedule(
-                    schedule.map((r, j) =>
-                      j === i ? { ...r, endDate: e.target.value } : r,
-                    ),
-                  )
-                }
-              />
-            </div>
-            <label className="aps-check">
-              <input
-                type="checkbox"
-                checked={row.milestone}
-                onChange={(e) =>
-                  setSchedule(
-                    schedule.map((r, j) =>
-                      j === i ? { ...r, milestone: e.target.checked } : r,
-                    ),
-                  )
-                }
-              />{" "}
-              Milestone
-            </label>
-            <button
-              className="aps-remove"
-              onClick={() => setSchedule(schedule.filter((_, j) => j !== i))}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-        <button
-          className="aps-add"
-          onClick={() =>
-            setSchedule([
-              ...schedule,
-              {
-                title: "",
-                detail: "",
-                startDate: "",
-                endDate: "",
-                milestone: false,
-                progressPercent: 0,
-                status: "not_commenced",
-                locked: false,
-              },
-            ])
-          }
-        >
-          <Plus size={13} /> Add schedule item
-        </button>
+        {!scheduleExpanded ? <p className="aps-schedule-summary">Open the schedule to review key dates, linked staff, delivery status and Gantt progress.</p> : null}
+        {scheduleExpanded ? <div className="aps-schedule-editor">
+          {schedule.map((row, i) => {
+            const linkedStaff = activities
+              .filter((activity) => activity.scheduleItemId === row.id && activity.staffUserId)
+              .map((activity) => staff.find((person) => person.id === activity.staffUserId)?.name || staff.find((person) => person.id === activity.staffUserId)?.email || "Allocated staff");
+            return <div key={row.id || i} className="aps-schedule-row">
+              <div className="aps-schedule-row-head"><strong>Key date {i + 1}</strong><span className={`aps-delivery-state ${row.status || "not_commenced"}`}>{ACTIVITY_STATUS[row.status || "not_commenced"]?.label || "Not yet commenced"}</span></div>
+              <div className="aps-schedule-fields">
+                <label className="aps-field">Schedule item<input placeholder="Schedule item" value={row.title} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, title: e.target.value } : r))} /></label>
+                <label className="aps-field">Delivery detail<input placeholder="Key deliverable or date context" value={row.detail} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, detail: e.target.value } : r))} /></label>
+                <label className="aps-field">Start date<input type="date" value={row.startDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, startDate: e.target.value } : r))} /></label>
+                <label className="aps-field">Key / due date<input type="date" value={row.endDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, endDate: e.target.value } : r))} /></label>
+                <label className="aps-field">Status<select value={row.status || "not_commenced"} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, status: e.target.value } : r))}>{Object.entries(ACTIVITY_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></label>
+                <label className="aps-field">Completion %<input type="number" min="0" max="100" step="5" value={row.progressPercent ?? 0} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, progressPercent: e.target.value } : r))} /></label>
+              </div>
+              <div className="aps-schedule-assignment"><Users size={14} /><span><strong>Assigned staff:</strong> {linkedStaff.length ? linkedStaff.join(", ") : "No linked work activity yet"}</span></div>
+              <div className="aps-schedule-actions">
+                <label className="aps-check"><input type="checkbox" checked={row.milestone} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone</label>
+                <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
+                <button type="button" className="aps-remove" title="Delete schedule item" aria-label={`Delete ${row.title || "schedule item"}`} onClick={() => setSchedule(schedule.filter((_, j) => j !== i))}><Trash2 size={14} /> Delete</button>
+              </div>
+            </div>;
+          })}
+          <button className="aps-add" onClick={() => setSchedule([...schedule, { title: "", detail: "", startDate: "", endDate: "", milestone: false, progressPercent: 0, status: "not_commenced", locked: false }])}><Plus size={13} /> Add key date</button>
+        </div> : null}
       </section>
 
       {/* Allocations */}

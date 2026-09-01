@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Calendar, Flag, Users, AlertCircle, ExternalLink, ClipboardList } from "lucide-react";
+import { ArrowLeft, Calendar, Flag, Users, AlertCircle, ExternalLink, ClipboardList, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 // The controlled activity-status set, colour-coded. Shared shape so the staff
@@ -29,14 +29,15 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
   const [error, setError] = useState("");
   const [activities, setActivities] = useState([]);
   const [pauseDraft, setPauseDraft] = useState({}); // { [activityId]: reasonText }
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   useEffect(() => {
     if (!session?.access_token || !projectId) return;
     (async () => {
       try {
         const [projectRes, activitiesRes] = await Promise.all([
-          fetch(`/api/projects/${projectId}`, { headers: { Authorization: `Bearer ${session.access_token}` } }),
-          fetch(`/api/projects/${projectId}/activities`, { headers: { Authorization: `Bearer ${session.access_token}` } }),
+          fetch(`/api/projects/${projectId}?audience=staff`, { headers: { Authorization: `Bearer ${session.access_token}` } }),
+          fetch(`/api/projects/${projectId}/activities?audience=staff`, { headers: { Authorization: `Bearer ${session.access_token}` } }),
         ]);
         const payload = await projectRes.json();
         if (!projectRes.ok) throw new Error(payload.error || "Could not load this project.");
@@ -182,22 +183,34 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
         );
       })()}
 
-      <section className="proj-section">
-        <h2><Calendar size={17} /> Project schedule</h2>
-        {schedule.length ? (
+      <section className="proj-section proj-schedule-panel">
+        <button type="button" className="proj-schedule-toggle" onClick={() => setScheduleOpen((current) => !current)} aria-expanded={scheduleOpen}>
+          <span><Calendar size={17} /> Project schedule</span>
+          <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {schedule.filter((item) => item.status === "completed").length} completed</small>
+          {scheduleOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+        </button>
+        {scheduleOpen ? (schedule.length ? (
           <ol className="proj-schedule">
-            {schedule.map((item) => (
-              <li key={item.id} className={item.milestone ? "proj-schedule-item milestone" : "proj-schedule-item"}>
+            {schedule.map((item) => {
+              const status = ACTIVITY_STATUS[item.status] || ACTIVITY_STATUS.not_commenced;
+              const assignedStaff = Array.isArray(item.assigned_staff) ? item.assigned_staff : [];
+              return <li key={item.id} className={item.milestone ? "proj-schedule-item milestone" : "proj-schedule-item"}>
                 <div className="proj-schedule-marker">{item.milestone ? <Flag size={13} /> : item.sort_order}</div>
                 <div className="proj-schedule-body">
-                  <div className="proj-schedule-title">{item.title}</div>
+                  <div className="proj-schedule-line-head">
+                    <div className="proj-schedule-title">{item.title}</div>
+                    <span className="proj-schedule-status" style={{ background: `${status.color}1a`, color: status.color }}>{status.label}</span>
+                  </div>
                   {item.detail ? <div className="proj-schedule-detail">{item.detail}</div> : null}
-                  {(item.start_date || item.end_date) ? <div className="proj-schedule-dates">{item.start_date || "—"} → {item.end_date || "—"}</div> : null}
+                  {(item.start_date || item.end_date) ? <div className="proj-schedule-dates">Key dates: {item.start_date || "—"} → {item.end_date || "—"}</div> : null}
+                  <div className="proj-schedule-assignees"><Users size={13} /><strong>Assigned staff:</strong> {assignedStaff.length ? assignedStaff.map((staff) => <span key={staff.activityId || staff.id}>{staff.email} · {staff.progressPercent}%</span>) : <span>Not assigned</span>}</div>
+                  {item.locked ? <small className="proj-schedule-lock"><Lock size={12} /> Schedule line locked by the project lead</small> : null}
+                  {assignedStaff.some((staff) => staff.id === myUserId) ? <small className="proj-schedule-update-hint">Update your assigned delivery status above in My work activities.</small> : null}
                 </div>
-              </li>
-            ))}
+              </li>;
+            })}
           </ol>
-        ) : <p className="proj-muted">No schedule items have been added yet.</p>}
+        ) : <p className="proj-muted">No schedule items have been added yet.</p>) : null}
       </section>
 
       <section className="proj-section">

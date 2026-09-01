@@ -16,9 +16,10 @@ export async function GET(request) {
 
     const { data, error } = await access.admin
       .from("portal_events")
-      .select("id, event_type, severity, title, body, href, created_at, read_at")
+      .select("id, event_type, severity, title, body, href, created_at, read_at, deferred_until, source_table, source_id")
       .eq("recipient_id", access.user.id)
       .is("dismissed_at", null)
+      .or(`deferred_until.is.null,deferred_until.lte.${new Date().toISOString()}`)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -30,28 +31,36 @@ export async function GET(request) {
   }
 }
 
-// PATCH: A staff member may mark only their own event as read. Event content,
-// severity and recipient are never client-editable.
+// PATCH: A staff member may manage only their own notification. Event content,
+// severity, source and recipient remain server-controlled and cannot be edited.
 export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
     const denied = await requirePortalResource(access, "staff.notifications");
     if (denied) return denied;
-    const { id } = await request.json();
+    const { id, action } = await request.json();
     if (!id) return Response.json({ error: "Event id is required." }, { status: 400 });
+    const now = new Date();
+    const requestedAction = String(action || "read");
+    if (!["read", "defer", "delete"].includes(requestedAction)) return Response.json({ error: "Choose read, defer or delete." }, { status: 400 });
+    const values = requestedAction === "delete"
+      ? { dismissed_at: now.toISOString(), read_at: now.toISOString() }
+      : requestedAction === "defer"
+        ? { deferred_until: new Date(now.getTime() + 86400000).toISOString(), read_at: now.toISOString() }
+        : { read_at: now.toISOString(), deferred_until: null };
 
     const { data, error } = await access.admin
       .from("portal_events")
-      .update({ read_at: new Date().toISOString() })
+      .update(values)
       .eq("id", id)
       .eq("recipient_id", access.user.id)
-      .select("id, read_at")
+      .select("id, read_at, deferred_until, dismissed_at")
       .maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400 });
     if (!data) return Response.json({ error: "Event not found." }, { status: 404 });
 
-    return Response.json({ event: data });
+    return Response.json({ event: data, action: requestedAction });
   } catch (error) {
     return serverError(error);
   }

@@ -17335,3 +17335,49 @@ main {
   .spk-location-search { width: 100%; }
   .spk-location-note { font-size: .74rem; }
 }
+
+/* Refined project workspace: compact schedule, staff tracker quick-start and weekly workload calendar. */
+.aps-schedule-card .aps-card-head { align-items: center; gap: 14px; }
+.aps-schedule-toggle { appearance: none; border: 0; background: transparent; color: inherit; padding: 0; min-width: 0; text-align: left; cursor: pointer; display: grid; gap: 3px; }
+.aps-schedule-toggle > span { display: inline-flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; font-size: .88rem; font-weight: 800; letter-spacing: .02em; }
+.aps-schedule-toggle small { color: #aabda5; font-size: .75rem; font-weight: 600; }
+.aps-schedule-summary { margin: 0; color: #d7e3d1; font-size: .86rem; }
+.aps-schedule-editor { display: grid; gap: 12px; margin-top: 14px; }
+.aps-schedule-row { border: 1px solid rgba(215, 186, 78, .26); border-radius: 13px; background: rgba(4, 42, 27, .55); padding: 13px; display: grid; gap: 12px; }
+.aps-schedule-row-head, .aps-schedule-actions, .aps-schedule-assignment { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.aps-schedule-row-head { justify-content: space-between; color: #f0e9c8; }
+.aps-delivery-state { border-radius: 999px; padding: 4px 8px; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; background: rgba(138,146,124,.18); color: #d4dacb; }
+.aps-delivery-state.active { background: rgba(61,122,53,.25); color: #a9d69a; }
+.aps-delivery-state.need_info { background: rgba(176,137,72,.22); color: #efce85; }
+.aps-delivery-state.paused_other { background: rgba(192,57,43,.22); color: #f3a197; }
+.aps-delivery-state.qa_review { background: rgba(65,151,208,.22); color: #9bd0f5; }
+.aps-delivery-state.completed { background: rgba(42,128,145,.24); color: #8bd7e7; }
+.aps-schedule-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.aps-schedule-fields .aps-field { min-width: 0; }
+.aps-schedule-assignment { color: #c9dac2; font-size: .8rem; padding: 9px 10px; border-radius: 8px; background: rgba(74, 135, 88, .12); }
+.aps-schedule-assignment strong { color: #f2e5a6; }
+.aps-schedule-actions { justify-content: flex-end; }
+.aps-remove { display: inline-flex; align-items: center; gap: 6px; }
+.pts-quickstart { margin-top: 18px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid rgba(222, 190, 78, .45); border-radius: 14px; background: linear-gradient(120deg, rgba(202, 164, 56, .14), rgba(19, 79, 45, .23)); }
+.pts-quickstart h3 { margin: 3px 0 6px; color: #f7edbd; font-size: 1rem; }
+.pts-quickstart p { margin: 0; color: #d4e1d0; font-size: .82rem; line-height: 1.45; max-width: 680px; }
+.pts-quickstart .pts-save { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+.scp-week-grid { display: grid; grid-template-columns: repeat(7, minmax(145px, 1fr)); gap: 9px; overflow-x: auto; padding-bottom: 5px; }
+.scp-week-day { min-height: 250px; border: 1px solid rgba(127, 180, 137, .25); border-radius: 11px; background: rgba(3, 42, 27, .64); overflow: hidden; }
+.scp-week-day > header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 11px 10px 9px; color: #f3e8b4; border-bottom: 1px solid rgba(127, 180, 137, .22); background: rgba(7, 67, 39, .75); font-size: .78rem; }
+.scp-week-day > header span { color: #aac0a8; font-size: .68rem; white-space: nowrap; }
+.scp-week-events { display: grid; gap: 7px; padding: 8px; align-content: start; }
+.scp-week-day .scp-event { width: 100%; min-width: 0; text-align: left; padding: 9px; border-radius: 8px; background: rgba(10, 62, 39, .92); }
+.scp-week-day .scp-event strong { font-size: .76rem; line-height: 1.28; }
+.scp-week-day .scp-event span { font-size: .67rem; line-height: 1.32; }
+.scp-week-empty { margin: 16px 3px; color: #8da48b; font-size: .72rem; font-style: italic; }
+@media (max-width: 900px) { .aps-schedule-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pts-quickstart { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 560px) { .aps-schedule-card .aps-card-head { align-items: stretch; flex-direction: column; } .aps-schedule-fields { grid-template-columns: minmax(0, 1fr); } .aps-schedule-actions { justify-content: flex-start; } .pts-quickstart .pts-save { width: 100%; justify-content: center; } .scp-week-grid { grid-template-columns: repeat(7, minmax(205px, 1fr)); } }
+
+/* Quote-tracker baseline import inside the existing Project Tracker setup. */
+.pts-quote-import { margin-top: 12px; padding: 12px; border: 1px dashed rgba(216, 182, 70, .65); border-radius: 10px; background: linear-gradient(135deg, rgba(244, 222, 135, .13), rgba(36, 100, 64, .14)); }
+.pts-quote-import label { display: grid; gap: 5px; color: #e9edda; font-size: .8rem; cursor: pointer; }
+.pts-quote-import label > strong { color: #f3db7f; font-size: .86rem; }
+.pts-quote-import label > span { max-width: 700px; color: #d0decf; font-size: .74rem; line-height: 1.45; }
+.pts-quote-import input[type="file"] { margin-top: 5px; max-width: 100%; color: #e8efdf; font: inherit; font-size: .76rem; }
+.pts-quote-import small { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; color: #b6e2b7; font-size: .73rem; line-height: 1.35; }

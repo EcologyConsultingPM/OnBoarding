@@ -52,7 +52,7 @@ import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 import AdminOnboardingAssignments from "./AdminOnboardingAssignments";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
-import StaffPortalEvents from "./StaffPortalEvents";
+import Noticeboard from "./Noticeboard";
 import SpeciesProfiles from "./SpeciesProfiles";
 import AdminSpeciesProfiles from "./AdminSpeciesProfiles";
 import PortalVisibilityManager from "./PortalVisibilityManager";
@@ -4429,7 +4429,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
                 Open →
               </a>
             </div>
-            <StaffPortalEvents />
+            <Noticeboard compact />
           </div>
 
           <StaffPortalTaskCalendar />

@@ -28,7 +28,7 @@ export default function ProjectsList({ onOpen }) {
     if (!session?.access_token) return;
     (async () => {
       try {
-        const response = await fetch("/api/projects", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const response = await fetch("/api/projects?audience=staff", { headers: { Authorization: `Bearer ${session.access_token}` } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Could not load projects.");
         setProjects(data.projects);
