@@ -17,7 +17,6 @@ import { useAuth } from "../lib/AuthProvider";
 
 const TABS = [
   { id: "activities", label: "Project activities", Icon: ListChecks, resourceKey: "staff.projects.activities" },
-  { id: "tracker", label: "Project tracker", Icon: ClipboardList, resourceKey: "staff.projects.tracker" },
   { id: "requests", label: "Service requests", Icon: LifeBuoy, resourceKey: "staff.projects.service_requests" },
 ];
 
@@ -28,8 +27,9 @@ const TABS = [
  */
 export default function StaffMyProjects({ initialTab = "activities" }) {
   const { session } = useAuth();
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(initialTab === "tracker" ? "activities" : initialTab);
   const [projectId, setProjectId] = useState(null);
+  const [projectSubview, setProjectSubview] = useState("activities");
   const [visibility, setVisibility] = useState({});
   const [visibilityReady, setVisibilityReady] = useState(false);
   const [accessNotice, setAccessNotice] = useState("");
@@ -111,14 +111,17 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
             <div className="my-projects-project-detail">
               <WorkspaceNav
                 audience="staff"
-                onBack={() => setProjectId(null)}
+                onBack={() => {
+                  setProjectId(null);
+                  setProjectSubview("activities");
+                }}
                 backLabel="All my projects"
               />
-              <ProjectHealth
-                projectId={projectId}
-                onBack={() => setProjectId(null)}
-                showBack={false}
-              />
+              <nav className="my-projects-project-tabs" role="tablist" aria-label="Selected project areas">
+                <button type="button" role="tab" aria-selected={projectSubview === "activities"} className={projectSubview === "activities" ? "selected" : ""} onClick={() => setProjectSubview("activities")}><ListChecks size={14} /> Activity details</button>
+                {visibility["staff.projects.tracker"] !== false ? <button type="button" role="tab" aria-selected={projectSubview === "tracker"} className={projectSubview === "tracker" ? "selected" : ""} onClick={() => setProjectSubview("tracker")}><ClipboardList size={14} /> Project Tracker</button> : null}
+              </nav>
+              {projectSubview === "activities" ? <ProjectHealth projectId={projectId} onBack={() => setProjectId(null)} showBack={false} /> : <StaffProjectTracker embedded initialProjectId={projectId} />}
             </div>
           ) : (
             <>
@@ -137,7 +140,7 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
               <div className="my-projects-activity-grid">
                 <section className="my-projects-panel">
                   <h3>My allocated projects</h3>
-                  <ProjectsList onOpen={setProjectId} />
+                  <ProjectsList onOpen={(id) => { setProjectId(id); setProjectSubview("activities"); }} />
                 </section>
                 <section className="my-projects-panel">
                   <h3>Accepted task briefs</h3>
@@ -159,7 +162,6 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
         </section>
       ) : null}
 
-      {tab === "tracker" && visibleTabs.some((candidate) => candidate.id === "tracker") ? <StaffProjectTracker embedded /> : null}
       {tab === "requests" && visibleTabs.some((candidate) => candidate.id === "requests") ? <StaffServiceRequests embedded /> : null}
     </main>
   );

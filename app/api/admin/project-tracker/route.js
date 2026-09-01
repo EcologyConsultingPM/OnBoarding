@@ -14,7 +14,7 @@ function jsonError(error, status = 400) {
 function tableUnavailable(error) {
   const code = String(error?.code || "");
   const message = String(error?.message || "").toLowerCase();
-  return code === "42P01" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
+  return code === "42P01" || code === "42703" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
 }
 
 function number(value) {
@@ -73,11 +73,19 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
   const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
   const completedActivities = relevantActivities.filter((activity) => activity.status === "completed").length;
-  const taskCompletion = relevantActivities.length ? Math.round((completedActivities / relevantActivities.length) * 100) : 0;
+  const taskCompletion = relevantActivities.length ? Math.round((relevantActivities.reduce((sum, activity) => sum + Math.max(0, Math.min(100, number(activity.progress_percent))), 0) / relevantActivities.length) * 100) / 100 : 0;
   const pausedActivities = relevantActivities.filter((activity) => ["need_info", "paused_other"].includes(activity.status)).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueActivities = relevantActivities.filter((activity) => activity.due_date && activity.due_date < today && activity.status !== "completed").length;
+  const completionDurations = relevantActivities
+    .filter((activity) => activity.assigned_at && activity.completed_at)
+    .map((activity) => Math.max(0, (new Date(activity.completed_at).getTime() - new Date(activity.assigned_at).getTime()) / 86400000));
+  const averageDeliveryDays = completionDurations.length ? Math.round((completionDurations.reduce((sum, days) => sum + days, 0) / completionDurations.length) * 10) / 10 : null;
+  const utilisationPercent = budgetHours > 0 ? Math.round((usedHours / budgetHours) * 1000) / 10 : null;
+  const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
   const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
   const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
-  const health = atRiskAllocations || pausedActivities || (overallBudget > 0 && chargeOutSpend > overallBudget) || (budgetHours > 0 && usedHours > budgetHours) ? "At Risk" : watchAllocations ? "Watch" : "On Track";
+  const health = atRiskAllocations || pausedActivities || overdueActivities || (overallBudget > 0 && chargeOutSpend > overallBudget) || (budgetHours > 0 && usedHours > budgetHours) ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
 
   return {
     id: project.id,
@@ -91,9 +99,9 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     trackerVisible: Boolean(settings?.tracker_visible),
     taskCompletion,
     health,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, budgetHours, usedHours, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
-    activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, atRiskAllocations, watchAllocations },
+    activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
     entrySummary: { count: projectEntries.length, submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0), recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8) },
   };
 }
@@ -107,8 +115,8 @@ async function trackerData(access, requestedProjectId = "") {
   const ids = projects.map((project) => project.id);
   if (!ids.length) return { projects: [], financialReady: true };
 
-  const [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
-    access.admin.from("project_activities").select("id, project_id, status").in("project_id", ids),
+  let [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
+    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active").in("project_id", ids).eq("is_active", true),
     access.admin.from("project_allocations").select("project_id, staff_user_id, active").in("project_id", ids),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
@@ -116,6 +124,9 @@ async function trackerData(access, requestedProjectId = "") {
     access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
   ]);
 
+  if (activitiesResult.error && tableUnavailable(activitiesResult.error)) {
+    activitiesResult = await access.admin.from("project_activities").select("id, project_id, status").in("project_id", ids);
+  }
   if (activitiesResult.error) throw new Error(activitiesResult.error.message);
   if (allocationsResult.error && !tableUnavailable(allocationsResult.error)) throw new Error(allocationsResult.error.message);
   if (settingsResult.error && !tableUnavailable(settingsResult.error)) throw new Error(settingsResult.error.message);

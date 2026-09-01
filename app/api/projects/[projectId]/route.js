@@ -24,13 +24,35 @@ async function projectAccess(access, projectId) {
     .maybeSingle();
   if (error || !project) return { response: Response.json({ error: "Project not found." }, { status: 404 }) };
   if (!access.isAdmin) {
-    const { data: alloc } = await access.admin
-      .from("project_allocations")
-      .select("id")
-      .eq("project_id", projectId)
-      .eq("staff_user_id", access.user.id)
-      .maybeSingle();
-    if (!alloc) return { response: Response.json({ error: "You are not allocated to this project." }, { status: 403 }) };
+    const [allocationResult, activityResult] = await Promise.all([
+      access.admin
+        .from("project_allocations")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("staff_user_id", access.user.id)
+        .neq("active", false)
+        .limit(1),
+      access.admin
+        .from("project_activities")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("staff_user_id", access.user.id)
+        .eq("is_active", true)
+        .in("acceptance_status", ["accepted", "actioned"])
+        .limit(1),
+    ]);
+    if (allocationResult.error) return { response: Response.json({ error: allocationResult.error.message }, { status: 400 }) };
+    let activityRows = activityResult.data || [];
+    if (activityResult.error) {
+      const migrationPending = activityResult.error?.code === "42703" || /is_active/i.test(String(activityResult.error?.message || ""));
+      if (!migrationPending) return { response: Response.json({ error: activityResult.error.message }, { status: 400 }) };
+      const fallback = await access.admin.from("project_activities").select("id").eq("project_id", projectId).eq("staff_user_id", access.user.id).limit(1);
+      if (fallback.error) return { response: Response.json({ error: fallback.error.message }, { status: 400 }) };
+      activityRows = fallback.data || [];
+    }
+    if (!(allocationResult.data || []).length && !activityRows.length) {
+      return { response: Response.json({ error: "You are not allocated to this project." }, { status: 403 }) };
+    }
   }
   return { project };
 }
@@ -42,11 +64,24 @@ export async function GET(request, { params }) {
     const authorisation = await projectAccess(access, params.projectId);
     if (authorisation.response) return authorisation.response;
 
-    const [{ data: project }, { data: schedule }, { data: allocations }] = await Promise.all([
-      access.admin.from("projects").select(PROJECT_COLUMNS).eq("id", params.projectId).single(),
-      access.admin.from("project_schedule_items").select("id, sort_order, title, detail, start_date, end_date, milestone").eq("project_id", params.projectId).order("sort_order", { ascending: true }),
-      access.admin.from("project_allocations").select("id, staff_user_id, role_on_project, allocated_hours, hourly_rate").eq("project_id", params.projectId),
-    ]);
+    const projectQuery = access.admin.from("projects").select(PROJECT_COLUMNS).eq("id", params.projectId).single();
+    const allocationQuery = access.admin.from("project_allocations").select("id, staff_user_id, role_on_project, allocated_hours, hourly_rate").eq("project_id", params.projectId);
+    let scheduleQuery = access.admin
+      .from("project_schedule_items")
+      .select("id, sort_order, title, detail, start_date, end_date, milestone, progress_percent, status, locked, is_active")
+      .eq("project_id", params.projectId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+    let [{ data: project }, scheduleResult, { data: allocations }] = await Promise.all([projectQuery, scheduleQuery, allocationQuery]);
+    if (scheduleResult.error && (scheduleResult.error?.code === "42703" || /is_active|progress_percent/i.test(String(scheduleResult.error?.message || "")))) {
+      scheduleResult = await access.admin
+        .from("project_schedule_items")
+        .select("id, sort_order, title, detail, start_date, end_date, milestone")
+        .eq("project_id", params.projectId)
+        .order("sort_order", { ascending: true });
+    }
+    if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
+    const schedule = scheduleResult.data || [];
 
     // Attach staff emails to allocations so the team is legible (admin API only).
     let allocationsWithEmail = allocations || [];
@@ -145,24 +180,76 @@ export async function PUT(request, { params }) {
     if (!Array.isArray(body.schedule) || body.schedule.length > 200) {
       return Response.json({ error: "Provide no more than 200 schedule items." }, { status: 400 });
     }
-    const rows = body.schedule
-      .filter((r) => r && typeof r.title === "string" && r.title.trim())
-      .map((r, i) => ({
-        project_id: params.projectId,
-        sort_order: i + 1,
-        title: r.title.trim(),
-        detail: opt(r.detail),
-        start_date: opt(r.startDate),
-        end_date: opt(r.endDate),
-        milestone: !!r.milestone,
-      }));
+    const incoming = body.schedule
+      .filter((row) => row && typeof row.title === "string" && row.title.trim())
+      .map((row, index) => ({ ...row, title: row.title.trim(), sortOrder: index + 1 }));
+    const now = new Date().toISOString();
 
-    await access.admin.from("project_schedule_items").delete().eq("project_id", params.projectId);
-    if (rows.length) {
-      const { error } = await access.admin.from("project_schedule_items").insert(rows);
+    const existingResult = await access.admin
+      .from("project_schedule_items")
+      .select("id, locked, is_active")
+      .eq("project_id", params.projectId)
+      .eq("is_active", true);
+    if (existingResult.error) {
+      const migrationNeeded = existingResult.error?.code === "42703" || /is_active|locked/i.test(String(existingResult.error?.message || ""));
+      if (migrationNeeded) return Response.json({ error: "The connected Gantt workflow is awaiting its approved database migration." }, { status: 409 });
+      return Response.json({ error: existingResult.error.message }, { status: 400 });
+    }
+    const existingById = new Map((existingResult.data || []).map((row) => [row.id, row]));
+    const validId = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+    const incomingIds = new Set(incoming.map((row) => row.id).filter(validId));
+    const retiring = [...existingById.keys()].filter((id) => !incomingIds.has(id));
+
+    if (retiring.length) {
+      const { data: linkedActivities, error: linkedError } = await access.admin
+        .from("project_activities")
+        .select("id, title")
+        .in("schedule_item_id", retiring)
+        .eq("is_active", true)
+        .limit(20);
+      if (linkedError) return Response.json({ error: linkedError.message }, { status: 400 });
+      if ((linkedActivities || []).length) {
+        return Response.json({ error: `A Gantt row linked to an active work activity cannot be removed. Retire or re-link the activity first: ${linkedActivities.map((activity) => activity.title).join(", ")}.` }, { status: 409 });
+      }
+      const { error } = await access.admin
+        .from("project_schedule_items")
+        .update({ is_active: false, updated_at: now })
+        .in("id", retiring);
       if (error) return Response.json({ error: error.message }, { status: 400 });
     }
-    return Response.json({ success: true, count: rows.length });
+
+    const saved = [];
+    for (const item of incoming) {
+      const existing = validId(item.id) ? existingById.get(item.id) : null;
+      const row = {
+        project_id: params.projectId,
+        sort_order: item.sortOrder,
+        title: item.title,
+        detail: opt(item.detail),
+        start_date: opt(item.startDate),
+        end_date: opt(item.endDate),
+        milestone: !!item.milestone,
+        progress_percent: Number.isFinite(Number(item.progressPercent)) ? Math.max(0, Math.min(100, Number(item.progressPercent))) : Number(existing?.progress_percent || 0),
+        status: ["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"].includes(item.status) ? item.status : (existing?.status || "not_commenced"),
+        locked: item.locked === true,
+        is_active: true,
+        updated_at: now,
+      };
+      if (existing) {
+        if (existing.locked && item.locked !== false) {
+          row.locked = true;
+        }
+        const { data, error } = await access.admin.from("project_schedule_items").update(row).eq("id", existing.id).select("id, sort_order, title, detail, start_date, end_date, milestone, progress_percent, status, locked, is_active").single();
+        if (error) return Response.json({ error: error.message }, { status: 400 });
+        saved.push(data);
+      } else {
+        const { data, error } = await access.admin.from("project_schedule_items").insert(row).select("id, sort_order, title, detail, start_date, end_date, milestone, progress_percent, status, locked, is_active").single();
+        if (error) return Response.json({ error: error.message }, { status: 400 });
+        saved.push(data);
+      }
+    }
+
+    return Response.json({ success: true, count: saved.length, schedule: saved });
   } catch (error) {
     return serverError(error);
   }
