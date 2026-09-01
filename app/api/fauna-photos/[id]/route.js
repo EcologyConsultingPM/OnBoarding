@@ -3,7 +3,7 @@ import { requireSession, serverError } from "../../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TABLE = "flora_photo_submissions";
+const TABLE = "fauna_photo_submissions";
 const COLUMNS = [
   "id", "submitted_by", "taxon_name", "common_name", "photo_data", "note",
   "status", "reviewed_by", "reviewed_at", "review_note", "seen_by_staff",
@@ -18,7 +18,7 @@ export async function PATCH(request, { params }) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    if (!access.isAdmin) return jsonError("Only administrators can review flora photos.", 403);
+    if (!access.isAdmin) return jsonError("Only administrators can review fauna photos.", 403);
 
     const id = String(params?.id || "").trim();
     const body = await request.json().catch(() => ({}));

@@ -54,7 +54,9 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
 
   const CAPACITY_VIEW = "admin.projects.capacity";
   const CAPACITY_EDIT = "admin.projects.capacity.edit";
+  const REQUIRED_STAFF_FORMS = new Set(["staff.forms", "staff.forms.governance"]);
   const capacityPlannerSelected = selectedResource === CAPACITY_VIEW;
+  const requiredStaffFormsSelected = REQUIRED_STAFF_FORMS.has(selectedResource);
 
   const update = async (person, isVisible) => {
     if (!session?.access_token || !selectedResource) return;
@@ -182,7 +184,9 @@ export default function PortalVisibilityManager({ resourceKey, onClose, showAll 
                     <strong>{person.name || person.email}</strong>
                     <span>{person.email}{person.phone ? ` · ${person.phone}` : ""}</span>
                   </div>
-                  {capacityPlannerSelected ? (
+                  {requiredStaffFormsSelected ? (
+                    <span className="pvm-always-visible">Always visible to staff</span>
+                  ) : capacityPlannerSelected ? (
                     <label className="pvm-access-level">
                       <span>Planner access</span>
                       <select

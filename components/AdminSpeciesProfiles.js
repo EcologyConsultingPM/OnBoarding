@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Search, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Search, AlertCircle, CheckCircle2, Expand, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { FLORA_PROFILES } from "../lib/floraData";
 import { FAUNA_PROFILES } from "../lib/faunaData";
@@ -24,6 +24,17 @@ const FAUNA_LC = {
 };
 function faunaListing(p) { return (p.listing || "").split(" | ")[0]; }
 
+async function responseData(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fallback = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return { error: fallback || `Request failed (${response.status}).` };
+  }
+}
+
 export default function AdminSpeciesProfiles({ onToast }) {
   const { session } = useAuth();
   const [kingdom, setKingdom] = useState("flora");
@@ -33,6 +44,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
   const [error, setError] = useState("");
   const [reviewingId, setReviewingId] = useState(null);
   const [rejectNote, setRejectNote] = useState("");
+  const [preview, setPreview] = useState(null);
   const [q, setQ] = useState("");
 
   const authFetch = useCallback((method, url, body) => fetch(url, {
@@ -46,8 +58,8 @@ export default function AdminSpeciesProfiles({ onToast }) {
     setLoading(true);
     try {
       const res = await authFetch("GET", apiBase);
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Couldn't load submissions");
+      const d = await responseData(res);
+      if (!res.ok) throw new Error(d.error || `Couldn't load submissions (${res.status}).`);
       setSubs(d.submissions || []);
     } catch (e) { setError(e.message); }
     setLoading(false);
@@ -55,11 +67,25 @@ export default function AdminSpeciesProfiles({ onToast }) {
 
   useEffect(() => { if (session?.access_token) load(); }, [session, kingdom, load]);
 
+  useEffect(() => {
+    if (!preview) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [preview]);
+
   const decide = async (id, status, review_note) => {
     try {
       const res = await authFetch("PATCH", `${apiBase}/${id}`, { status, review_note: review_note || "" });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Couldn't update");
+      const d = await responseData(res);
+      if (!res.ok) throw new Error(d.error || `Couldn't update (${res.status}).`);
       setReviewingId(null); setRejectNote("");
       await load();
       onToast && onToast(status === "verified" ? "Photo verified." : "Photo rejected.");
@@ -122,7 +148,16 @@ export default function AdminSpeciesProfiles({ onToast }) {
               const c = s.status === "verified" ? "#4fb583" : s.status === "rejected" ? "#d4563f" : "#e7c979";
               return (
                 <div key={s.id} className="afp-row" style={{ borderLeftColor: c }}>
-                  <img src={s.photo_data} alt="Submitted field photo" />
+                  <button
+                    type="button"
+                    className="afp-photo-button"
+                    onClick={() => setPreview(s)}
+                    aria-label={`View full-screen photo of ${s.taxon_name}`}
+                    title="Open full-screen photo"
+                  >
+                    <img src={s.photo_data} alt={`Submitted field photo of ${s.taxon_name}`} />
+                    <span className="afp-photo-expand"><Expand size={14} /></span>
+                  </button>
                   <div className="afp-row-main">
                     <div className="afp-row-top">
                       <span className={"fp-status-pill " + s.status}>{s.status === "verified" ? "✓ Verified" : s.status === "rejected" ? "Rejected" : "Pending review"}</span>
@@ -154,6 +189,36 @@ export default function AdminSpeciesProfiles({ onToast }) {
           </div>
         )}
       </div>
+
+      {preview ? (
+        <div
+          className="afp-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="afp-lightbox-title"
+          onMouseDown={() => setPreview(null)}
+        >
+          <div className="afp-lightbox-panel" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="afp-lightbox-head">
+              <div>
+                <span>Expert review · full-screen evidence</span>
+                <h2 id="afp-lightbox-title">{preview.taxon_name}</h2>
+                <p>{preview.common_name || "No common name recorded"} · {preview.submitted_by_email || "Staff"}</p>
+              </div>
+              <button type="button" className="afp-lightbox-close" onClick={() => setPreview(null)} aria-label="Close full-screen photo">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="afp-lightbox-image-wrap">
+              <img src={preview.photo_data} alt={`Full-screen field photo of ${preview.taxon_name}`} />
+            </div>
+            <div className="afp-lightbox-meta">
+              <span>{preview.note || "No field note supplied"}</span>
+              <small>Press Escape or select outside the image to close.</small>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="afp-browse">
         <div className="fp-section-label" style={{ color: "#1f5a34" }}>Reference library — quick lookup</div>

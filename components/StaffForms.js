@@ -70,6 +70,47 @@ const FORM_REFERENCE_DOCS = {
   ],
 };
 
+const FORM_DRAFT_PREFIX = "ecology-consulting:whs-form:";
+const FORM_DRAFT_TTL = 1000 * 60 * 60 * 24 * 14;
+
+function formDraftKey(formKey) {
+  return `${FORM_DRAFT_PREFIX}${formKey}`;
+}
+
+function readFormDraft(formKey) {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(formDraftKey(formKey));
+    if (!raw) return {};
+    const saved = JSON.parse(raw);
+    if (!saved || Date.now() - Number(saved.savedAt || 0) > FORM_DRAFT_TTL) {
+      window.localStorage.removeItem(formDraftKey(formKey));
+      return {};
+    }
+    return saved.form && typeof saved.form === "object" ? saved.form : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFormDraft(formKey, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(formDraftKey(formKey), JSON.stringify({ savedAt: Date.now(), form: value }));
+  } catch {
+    // Storage can be unavailable in private browsing; the in-memory form still works.
+  }
+}
+
+function clearFormDraft(formKey) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(formDraftKey(formKey));
+  } catch {
+    // Ignore unavailable storage.
+  }
+}
+
 const WHS_DEFINITIONS = {
   injury_incident: {
     title: "What counts as a notifiable incident",
@@ -123,16 +164,26 @@ export default function StaffForms() {
     if (session?.access_token) loadHistory();
   }, [session, loadHistory]);
 
+  useEffect(() => {
+    if (view !== "form" || !activeKey) return;
+    writeFormDraft(activeKey, form);
+  }, [activeKey, form, view]);
+
   const notify = (m) => {
     setMessage(m);
     setError("");
     setTimeout(() => setMessage(""), 2600);
   };
   const openForm = (key) => {
+    const savedDraft = readFormDraft(key);
     setActiveKey(key);
-    setForm({});
+    setForm(savedDraft);
     setError("");
     setView("form");
+    if (Object.keys(savedDraft).length) {
+      setMessage("Restored your saved draft from this device.");
+      setTimeout(() => setMessage(""), 3200);
+    }
   };
   const backToHub = () => {
     setView("hub");
@@ -163,6 +214,7 @@ export default function StaffForms() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
+      clearFormDraft(activeKey);
       backToHub();
       await loadHistory();
       notify(
@@ -443,12 +495,18 @@ export default function StaffForms() {
               <div className="sf-grid">{sec.fields.map(renderField)}</div>
             </div>
           ))}
+          <div className="sf-draft-status" role="status">
+            This form saves automatically on this device. You can switch to another app and return without losing your entries.
+          </div>
           <div className="sf-actions">
             <button className="sf-submit" onClick={submit}>
               <Send size={14} /> Submit
             </button>
+            <button className="sf-clear-draft" type="button" onClick={() => { clearFormDraft(activeKey); setForm({}); setMessage("Saved draft cleared from this device."); }}>
+              Clear saved draft
+            </button>
             <button className="sf-cancel" onClick={backToHub}>
-              Cancel
+              Save &amp; close
             </button>
           </div>
         </div>

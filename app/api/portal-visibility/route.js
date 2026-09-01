@@ -7,6 +7,7 @@ import {
   resourceDefinition,
   visibilityForUser,
   visibilitySchemaMissing,
+  isAlwaysVisibleStaffResource,
 } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
@@ -132,6 +133,12 @@ export async function POST(request) {
       );
     }
     const resource = resourceDefinition(resourceKey);
+    if (isAlwaysVisibleStaffResource(resourceKey)) {
+      return Response.json(
+        { error: "WHS & EC Forms are available to all active staff and cannot be locked." },
+        { status: 400 },
+      );
+    }
     if (resource?.portal === "admin") {
       const { data: adminRows, error: adminError } = await access.admin
         .from("admin_emails")

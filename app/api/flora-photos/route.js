@@ -1,83 +1,85 @@
-import { createClient } from "@supabase/supabase-js";
+import { requireSession, serverError } from "../../../lib/serverAuth";
 
-// NOTE: This route authenticates with the SUPABASE_SERVICE_ROLE_KEY and enforces
-// access rules explicitly in code (own-record vs is_admin()), rather than relying
-// on the flora_photo_submissions RLS policies at request time — the RLS policies
-// still exist as defense-in-depth (see sql/20260825_flora_photo_submissions.sql).
-// If the rest of this app's API routes share a different auth helper
-// (e.g. lib/supabaseServer.js), swap the client setup below to match it.
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-async function getRequestUser(req) {
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!token) return { user: null, isAdmin: false };
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return { user: null, isAdmin: false };
-  const email = (data.user.email || "").toLowerCase();
-  const { data: adminRow } = await supabase
-    .from("admin_emails")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle();
-  return { user: data.user, isAdmin: !!adminRow };
+const TABLE = "flora_photo_submissions";
+const COLUMNS = [
+  "id", "submitted_by", "taxon_name", "common_name", "photo_data", "note",
+  "status", "reviewed_by", "reviewed_at", "review_note", "seen_by_staff",
+  "created_at", "updated_at",
+].join(", ");
+
+function jsonError(error, status = 400) {
+  return Response.json({ error }, { status });
 }
 
-async function enrichEmails(rows) {
-  const ids = Array.from(new Set(rows.flatMap((r) => [r.submitted_by, r.reviewed_by]).filter(Boolean)));
+async function enrichEmails(admin, rows) {
+  const ids = Array.from(new Set(rows.flatMap((row) => [row.submitted_by, row.reviewed_by]).filter(Boolean)));
   const emailById = {};
   await Promise.all(ids.map(async (id) => {
     try {
-      const { data } = await supabase.auth.admin.getUserById(id);
+      const { data } = await admin.auth.admin.getUserById(id);
       if (data?.user?.email) emailById[id] = data.user.email;
-    } catch { /* best-effort */ }
+    } catch {
+      // Best-effort enrichment; the submission remains usable without email metadata.
+    }
   }));
-  return rows.map((r) => ({
-    ...r,
-    submitted_by_email: emailById[r.submitted_by] || null,
-    reviewed_by_email: r.reviewed_by ? (emailById[r.reviewed_by] || null) : null,
+  return rows.map((row) => ({
+    ...row,
+    submitted_by_email: emailById[row.submitted_by] || null,
+    reviewed_by_email: row.reviewed_by ? emailById[row.reviewed_by] || null : null,
   }));
 }
 
-export async function GET(req) {
-  const { user, isAdmin } = await getRequestUser(req);
-  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
 
-  let query = supabase.from("flora_photo_submissions").select("*").order("created_at", { ascending: false });
-  if (!isAdmin) query = query.eq("submitted_by", user.id);
-  const { data, error } = await query;
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+    let query = access.admin
+      .from(TABLE)
+      .select(COLUMNS)
+      .order("created_at", { ascending: false });
+    if (!access.isAdmin) query = query.eq("submitted_by", access.user.id);
+    const { data, error } = await query;
+    if (error) return jsonError(error.message, 500);
 
-  const submissions = isAdmin ? await enrichEmails(data) : data;
-  return Response.json({ submissions });
-}
-
-export async function POST(req) {
-  const { user } = await getRequestUser(req);
-  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
-
-  const body = await req.json().catch(() => ({}));
-  const { taxon_name, common_name, photo_data, note } = body || {};
-  if (!taxon_name || !photo_data) {
-    return Response.json({ error: "Missing taxon_name or photo_data" }, { status: 400 });
+    const submissions = access.isAdmin ? await enrichEmails(access.admin, data || []) : (data || []);
+    return Response.json({ submissions });
+  } catch (error) {
+    return serverError(error);
   }
+}
 
-  const { data, error } = await supabase
-    .from("flora_photo_submissions")
-    .insert({
-      submitted_by: user.id,
-      taxon_name,
-      common_name: common_name || null,
-      photo_data,
-      note: note || null,
-      status: "pending",
-    })
-    .select()
-    .single();
+export async function POST(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ submission: data });
+    const body = await request.json().catch(() => ({}));
+    const taxonName = String(body?.taxon_name || "").trim();
+    const commonName = String(body?.common_name || "").trim();
+    const photoData = String(body?.photo_data || "").trim();
+    const note = String(body?.note || "").trim();
+    if (!taxonName || !photoData) return jsonError("Missing taxon_name or photo_data.");
+    if (photoData.length > 8_000_000) return jsonError("That image is too large. Please choose a smaller photo.");
+
+    const { data, error } = await access.admin
+      .from(TABLE)
+      .insert({
+        submitted_by: access.user.id,
+        taxon_name: taxonName,
+        common_name: commonName || null,
+        photo_data: photoData,
+        note: note || null,
+        status: "pending",
+      })
+      .select(COLUMNS)
+      .single();
+    if (error) return jsonError(error.message, 500);
+    return Response.json({ submission: data });
+  } catch (error) {
+    return serverError(error);
+  }
 }
