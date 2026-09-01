@@ -73,6 +73,26 @@ function stateFor(project) {
     whsChecked: Boolean(project?.settings?.whsChecked),
   };
 }
+const TRACKER_CATEGORY_MAP = {
+  "desktop field plan": "Desktop / field plan",
+  "desktop field plan work": "Desktop / field plan",
+  preparation: "Preparation",
+  "fieldwork travel": "Fieldwork & travel",
+  "fieldwork and travel": "Fieldwork & travel",
+  "data management": "Data management",
+  reporting: "Reporting",
+  "gis mapping": "GIS / mapping",
+  "qa review": "QA review",
+  "client consultation": "Client consultation",
+  "general project management": "General project management",
+  other: "Other",
+};
+
+function normaliseTrackerCategory(value) {
+  const key = String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return TRACKER_CATEGORY_MAP[key] || "";
+}
+
 function blankTemplate() {
   return {
     templateName: "Project Tracker",
@@ -97,6 +117,8 @@ export default function ProjectTrackerSetup({ onToast }) {
   const [error, setError] = useState("");
   const [setupReady, setSetupReady] = useState(false);
   const [templateReady, setTemplateReady] = useState(false);
+  const [quoteImport, setQuoteImport] = useState(null);
+  const [importingQuote, setImportingQuote] = useState(false);
   const [newProject, setNewProject] = useState({
     name: "",
     clientName: "",
@@ -242,6 +264,33 @@ export default function ProjectTrackerSetup({ onToast }) {
       setSaving(false);
     }
   };
+  const activateStaffTimesheets = async () => {
+    if (!selectedProject || !setupReady) return;
+    if (!activeProject || teamCount === 0) {
+      setError(!activeProject ? "Set this project to Active in Setup & Allocations before enabling staff timesheets." : "Allocate at least one active staff member before enabling staff timesheets.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/project-tracker-setup", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ action: "activate_staff_timesheets", projectId: selectedProject.id }),
+      });
+      const data = await jsonFromResponse(response);
+      if (!response.ok) throw new Error(data.error || "Could not enable staff timesheets.");
+      setSettings(data.settings);
+      setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, settings: data.settings } : project));
+      setTemplate((current) => current ? { ...current, locked: true, categories: current.categories?.length ? current.categories : ["Desktop / field plan", "Preparation", "Fieldwork & travel", "Data management", "Reporting", "GIS / mapping", "QA review", "Client consultation", "General project management", "Other"] } : blankTemplate());
+      await load();
+      onToast?.("Staff Project Tracker enabled. Allocated staff can now enter project timesheet records.");
+    } catch (activationError) {
+      setError(activationError.message || "Could not enable staff timesheets.");
+    } finally {
+      setSaving(false);
+    }
+  };
   const createFirstProject = async () => {
     if (!newProject.name.trim()) {
       setError("Enter a project name before creating its tracker.");
@@ -278,6 +327,58 @@ export default function ProjectTrackerSetup({ onToast }) {
       setError(createError.message || "Could not create the project.");
     } finally {
       setSaving(false);
+    }
+  };
+  const importQuoteTracker = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      setError("Choose an Excel quote tracker file (.xlsx or .xls).");
+      return;
+    }
+    setImportingQuote(true);
+    setError("");
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const sheetByName = (name) => workbook.SheetNames.find((sheet) => sheet.toLowerCase() === name.toLowerCase());
+      const dataSheet = workbook.Sheets[sheetByName("Data") || workbook.SheetNames[0]];
+      const dataRows = XLSX.utils.sheet_to_json(dataSheet, { header: 1, defval: "" });
+      const headerIndex = dataRows.findIndex((row) => row.some((cell) => String(cell).trim().toLowerCase() === "task"));
+      const taskColumn = headerIndex >= 0 ? dataRows[headerIndex].findIndex((cell) => String(cell).trim().toLowerCase() === "task") : -1;
+      const categories = [...new Set((headerIndex >= 0 && taskColumn >= 0 ? dataRows.slice(headerIndex + 1).map((row) => normaliseTrackerCategory(row[taskColumn])) : []).filter(Boolean))];
+
+      const ffaSheet = workbook.Sheets[sheetByName("FFA") || workbook.SheetNames.find((sheet) => /tracker|scope|deliver/i.test(sheet))];
+      const ffaRows = ffaSheet ? XLSX.utils.sheet_to_json(ffaSheet, { header: 1, defval: "" }) : [];
+      const deliveryHeader = ffaRows.findIndex((row) => row.some((cell) => /section\s*\/\s*heading/i.test(String(cell))));
+      const guidanceRows = deliveryHeader >= 0 ? ffaRows.slice(deliveryHeader + 1).map((row) => {
+        const section = String(row[0] || "").trim();
+        const subheading = String(row[1] || "").trim();
+        const task = String(row[2] || "").trim();
+        const prompts = String(row[3] || "").trim();
+        const references = String(row[4] || "").trim();
+        const assigned = String(row[5] || "").trim();
+        const hours = String(row[6] || "").trim();
+        const label = task || subheading || section;
+        if (!label) return null;
+        const details = [section && `Section: ${section}`, subheading && `Subheading: ${subheading}`, prompts && `Delivery prompt: ${prompts}`, references && `Reference: ${references}`, assigned && `Quoted allocation: ${assigned}`, hours && `Quoted hours: ${hours}`].filter(Boolean).join(" · ");
+        return { label: label.slice(0, 120), information: details.slice(0, 1000) };
+      }).filter(Boolean).slice(0, 30) : [];
+
+      if (!categories.length && !guidanceRows.length) throw new Error("This workbook does not contain a recognisable Task category list or quoted delivery table.");
+      const current = template || blankTemplate();
+      setTemplate({
+        ...current,
+        categories: categories.length ? categories : current.categories,
+        guidanceRows: guidanceRows.length ? guidanceRows : current.guidanceRows,
+      });
+      setQuoteImport({ fileName: file.name, categories: categories.length, deliveryRows: guidanceRows.length });
+      onToast?.("Quote tracker baseline imported for review. Save the template to apply it to this project.");
+    } catch (importError) {
+      setError(importError.message || "Could not read this quote tracker workbook.");
+    } finally {
+      setImportingQuote(false);
     }
   };
   const updateTemplate = (patch) =>
@@ -638,6 +739,16 @@ export default function ProjectTrackerSetup({ onToast }) {
                   </button>
                 ))}
               </div>
+              <div className="pts-quickstart">
+                <div>
+                  <span className="pts-kicker">Recommended staff entry path</span>
+                  <h3>Enable staff timesheets</h3>
+                  <p>For an active project with an allocated team, this prepares any missing baseline budget record, locks the staff tracker template and makes Project Tracker available immediately to the project team.</p>
+                </div>
+                <button type="button" className="pts-save" onClick={activateStaffTimesheets} disabled={!setupReady || saving || !activeProject || teamCount === 0 || settings.trackerVisible}>
+                  <Users2 size={16} /> {settings.trackerVisible ? "Staff timesheets enabled" : "Enable staff timesheets"}
+                </button>
+              </div>
               <div
                 className={`pts-activation ${settings.trackerVisible ? "active" : ""}`}
               >
@@ -655,8 +766,7 @@ export default function ProjectTrackerSetup({ onToast }) {
                       : "Project Tracker is not visible to staff"}
                   </strong>
                   <small>
-                    Staff visibility is granted only to people with an active
-                    allocation after this setting is saved.
+                    Advanced controls remain available below. Use the recommended action above to prepare a standard locked template and staff-visible timesheet baseline in one step.
                   </small>
                 </span>
                 <button
@@ -708,6 +818,14 @@ export default function ProjectTrackerSetup({ onToast }) {
                       These instructions and fields are shown to allocated
                       staff. Core entry fields cannot be removed.
                     </p>
+                    {!template?.locked ? <div className="pts-quote-import">
+                      <label>
+                        <strong>Import quoted project baseline</strong>
+                        <span>Upload the approved Excel quote tracker. Its task categories are mapped to the same Work Activities categories, and quoted delivery rows are loaded as reviewable tracker guidance.</span>
+                        <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={templateDisabled || importingQuote} onChange={importQuoteTracker} />
+                      </label>
+                      {quoteImport ? <small><CheckCircle2 size={13} /> {quoteImport.fileName}: {quoteImport.categories} shared categories and {quoteImport.deliveryRows} quoted delivery rows loaded. Save this template to apply the baseline.</small> : null}
+                    </div> : null}
                   </div>
                   <span
                     className={`pts-template-state ${template?.locked ? "locked" : "draft"}`}

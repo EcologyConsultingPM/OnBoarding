@@ -36,14 +36,27 @@ function shiftDate(value, count) {
   return localDate(d);
 }
 
-function rangeEnd(start, view) {
-  return shiftDate(start, view === "day" ? 0 : view === "week" ? 6 : 27);
+function weekStart(value) {
+  const date = new Date(`${value}T00:00:00`);
+  const offset = (date.getDay() + 6) % 7; // Monday is the start of the delivery week.
+  date.setDate(date.getDate() - offset);
+  return localDate(date);
+}
+
+function weekdayLabel(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function eventFallsOn(event, date) {
+  const start = String(event.date || event.startDate || "").slice(0, 10);
+  const end = String(event.endDate || start).slice(0, 10);
+  return start && start <= date && end >= date;
 }
 
 export default function StaffCapacityPlanner({ compact = false, onSelectStaff = null }) {
   const { session } = useAuth();
-  const [view, setView] = useState("week");
-  const [start, setStart] = useState(localDate());
+  const [start, setStart] = useState(() => weekStart(localDate()));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,7 +64,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const end = useMemo(() => rangeEnd(start, view), [start, view]);
+  const end = useMemo(() => shiftDate(start, 6), [start]);
   const load = useCallback(async () => {
     if (!session?.access_token) return;
     setLoading(true);
@@ -90,8 +103,12 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     }
   };
 
-  const moveRange = (direction) => setStart(shiftDate(start, (view === "day" ? 1 : view === "week" ? 7 : 28) * direction));
+  const moveRange = (direction) => setStart(shiftDate(start, 7 * direction));
   const selectedEvents = data?.calendarEvents || [];
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = shiftDate(start, index);
+    return { date, label: weekdayLabel(date), events: selectedEvents.filter((event) => eventFallsOn(event, date)) };
+  }), [start, selectedEvents]);
 
   return (
     <section className={`scp${compact ? " scp--compact" : ""}`} aria-label="Staff Capacity Planner">
@@ -101,18 +118,13 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           <h2>Staff Capacity Planner</h2>
           <p>Review allocated activity hours, approved leave, project deadlines and available capacity before creating or reassigning work.</p>
         </div>
-        <div className="scp-controls">
-          <div className="scp-view-tabs" role="tablist" aria-label="Capacity calendar view">
-            {[{ id: "day", label: "Daily" }, { id: "week", label: "Weekly" }, { id: "month", label: "Monthly" }].map((item) => (
-              <button key={item.id} type="button" role="tab" aria-selected={view === item.id} className={view === item.id ? "selected" : ""} onClick={() => setView(item.id)}>{item.label}</button>
-            ))}
+          <div className="scp-controls">
+            <div className="scp-period">
+              <button type="button" aria-label="Previous week" onClick={() => moveRange(-1)}><ChevronLeft size={16} /></button>
+              <strong>Week of {dateText(start)} – {dateText(end)}</strong>
+              <button type="button" aria-label="Next week" onClick={() => moveRange(1)}><ChevronRight size={16} /></button>
+            </div>
           </div>
-          <div className="scp-period">
-            <button type="button" aria-label="Previous period" onClick={() => moveRange(-1)}><ChevronLeft size={16} /></button>
-            <strong>{dateText(start)} – {dateText(end)}</strong>
-            <button type="button" aria-label="Next period" onClick={() => moveRange(1)}><ChevronRight size={16} /></button>
-          </div>
-        </div>
       </header>
 
       {error ? <p className="scp-error"><AlertTriangle size={15} /> {error}</p> : null}
@@ -147,12 +159,18 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           <div className="scp-calendar-section">
             <div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Activities, approved leave and delivery milestones in the selected period.</p></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
-            {selectedEvents.length ? <div className="scp-events">{selectedEvents.map((event) => {
-              const style = EVENT[event.type] || EVENT.schedule;
-              const eventDate = event.date || event.startDate;
-              const person = event.staffUserId ? data.people.find((candidate) => candidate.id === event.staffUserId) : null;
-              return <button type="button" key={event.id} className="scp-event" onClick={() => person && onSelectStaff?.(person)}><i style={{ background: style.color }} /><div><strong>{event.title}</strong><span>{eventDate ? dateText(eventDate) : "Date pending"}{event.endDate && event.endDate !== eventDate ? ` – ${dateText(event.endDate)}` : ""}{event.projectName ? ` · ${event.projectName}` : ""}{person ? ` · ${person.name || person.email}` : ""}</span></div></button>;
-            })}</div> : <p className="scp-empty"><CheckCircle2 size={16} /> No planned workload or approved leave in this period.</p>}
+            {selectedEvents.length ? <div className="scp-week-grid" role="grid" aria-label="Weekly workload calendar">{weekDays.map((day) => (
+              <section className="scp-week-day" key={day.date} role="gridcell">
+                <header><strong>{day.label}</strong><span>{day.events.length} item{day.events.length === 1 ? "" : "s"}</span></header>
+                <div className="scp-week-events">
+                  {day.events.length ? day.events.map((event) => {
+                    const style = EVENT[event.type] || EVENT.schedule;
+                    const person = event.staffUserId ? data.people.find((candidate) => candidate.id === event.staffUserId) : null;
+                    return <button type="button" key={`${event.id}-${day.date}`} className="scp-event" onClick={() => person && onSelectStaff?.(person)}><i style={{ background: style.color }} /><div><strong>{event.title}</strong><span>{event.projectName || "Project scheduling"}{person ? ` · ${person.name || person.email}` : ""}</span></div></button>;
+                  }) : <p className="scp-week-empty">No planned work</p>}
+                </div>
+              </section>
+            ))}</div> : <p className="scp-empty"><CheckCircle2 size={16} /> No planned workload or approved leave this week.</p>}
           </div>
         </>
       ) : null}

@@ -31,6 +31,79 @@ function validProjectId(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
+function numberOrZero(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+// Staff tracker entries require an approved budget source and a staff-visible
+// allocation. The first activation should not require administrators to locate
+// a separate financial screen merely to create a valid timesheet path. This
+// helper creates a clearly labelled baseline only when those records are absent;
+// later detailed budget management remains in Project Tracker.
+async function ensureBaselineTrackerBudget(access, project, now) {
+  let { data: source, error: sourceError } = await access.admin
+    .from("project_budget_sources")
+    .select("id")
+    .eq("project_id", project.id)
+    .eq("source_type", "original")
+    .maybeSingle();
+  if (sourceError) return { error: sourceError.message };
+  if (!source) {
+    const inserted = await access.admin
+      .from("project_budget_sources")
+      .insert({
+        project_id: project.id,
+        source_code: "BASE",
+        source_name: "Project delivery baseline",
+        source_type: "original",
+        approved_value: numberOrZero(project.budget_dollars),
+        approved_hours: numberOrZero(project.budget_hours),
+        approval_status: "approved",
+        effective_date: new Date().toISOString().slice(0, 10),
+        created_by: access.user.id,
+        updated_by: access.user.id,
+        created_at: now,
+        updated_at: now,
+      })
+      .select("id")
+      .single();
+    if (inserted.error) return { error: inserted.error.message };
+    source = inserted.data;
+  }
+  const { data: visibleAllocation, error: allocationError } = await access.admin
+    .from("project_budget_allocations")
+    .select("id")
+    .eq("project_id", project.id)
+    .eq("budget_source_id", source.id)
+    .eq("status", "active")
+    .eq("staff_visible", true)
+    .limit(1);
+  if (allocationError) return { error: allocationError.message };
+  if (!(visibleAllocation || []).length) {
+    const { error } = await access.admin.from("project_budget_allocations").insert({
+      project_id: project.id,
+      budget_source_id: source.id,
+      allocation_code: "DELIVERY",
+      allocation_name: "Allocated project delivery",
+      allocation_value: numberOrZero(project.budget_dollars),
+      allocation_hours: numberOrZero(project.budget_hours),
+      hours_consumed: 0,
+      charge_out_spend: 0,
+      internal_cost: 0,
+      threshold_percent: 80,
+      status: "active",
+      staff_visible: true,
+      created_by: access.user.id,
+      updated_by: access.user.id,
+      created_at: now,
+      updated_at: now,
+    });
+    if (error) return { error: error.message };
+  }
+  return { sourceId: source.id };
+}
+
 function settingColumns() {
   return [
     "project_id", "tracker_visible", "resources_ready", "training_checked", "forms_configured", "whs_checked",
@@ -64,6 +137,8 @@ async function settingsByProject(access) {
   }
   return { ready: true, settings: new Map((data || []).map((row) => [row.project_id, row])) };
 }
+
+const STANDARD_TRACKER_CATEGORIES = ["Desktop / field plan", "Preparation", "Fieldwork & travel", "Data management", "Reporting", "GIS / mapping", "QA review", "Client consultation", "General project management", "Other"];
 
 async function teamCounts(access) {
   const { data, error } = await access.admin
@@ -115,6 +190,120 @@ export async function GET(request) {
   }
 }
 
+// This controlled quick-start supports the normal staff timesheet path without
+// weakening the detailed tracker setup. It preserves a custom template if one
+// already exists, fills standard categories only when none have been provided,
+// and creates baseline budget records only when required for staff entry.
+export async function POST(request) {
+  try {
+    const auth = await requireAdmin(request);
+    if (auth.error) return auth.error;
+    const body = await request.json();
+    if (String(body?.action || "") !== "activate_staff_timesheets") return jsonError("Unknown Project Tracker setup action.");
+    const projectId = String(body?.projectId || "").trim();
+    if (!validProjectId(projectId)) return jsonError("A valid project is required.");
+
+    const { data: project, error: projectError } = await auth.access.admin
+      .from("projects")
+      .select("id, name, status, budget_hours, budget_dollars")
+      .eq("id", projectId)
+      .maybeSingle();
+    if (projectError) return jsonError(projectError.message);
+    if (!project) return jsonError("Project not found.", 404);
+    if (String(project.status || "").toLowerCase() !== "active") return jsonError("Set the project to Active in Setup & Allocations before enabling staff timesheets.", 409);
+
+    const { data: team, error: teamError } = await auth.access.admin
+      .from("project_allocations")
+      .select("staff_user_id")
+      .eq("project_id", projectId)
+      .eq("active", true);
+    if (teamError) return jsonError(teamError.message);
+    const recipients = (team || []).map((row) => row.staff_user_id).filter(Boolean);
+    if (!recipients.length) return jsonError("Allocate at least one active staff member before enabling staff timesheets.", 409);
+
+    const now = new Date().toISOString();
+    const { data: existingTemplate, error: templateError } = await auth.access.admin
+      .from("project_tracker_templates")
+      .select("id, template_name, instructions, category_options, column_definitions, guidance_rows, locked")
+      .eq("project_id", projectId)
+      .maybeSingle();
+    if (templateError) return jsonError(tableUnavailable(templateError) ? "Project Tracker templates are awaiting the approved tracker migration." : templateError.message, tableUnavailable(templateError) ? 409 : 400);
+
+    if (!existingTemplate) {
+      const { error } = await auth.access.admin.from("project_tracker_templates").insert({
+        project_id: projectId,
+        template_name: "Project Tracker",
+        instructions: "Record project activity accurately and identify issues requiring project-lead review.",
+        category_options: STANDARD_TRACKER_CATEGORIES,
+        column_definitions: [],
+        guidance_rows: [],
+        locked: true,
+        locked_by: auth.access.user.id,
+        locked_at: now,
+        created_by: auth.access.user.id,
+        updated_by: auth.access.user.id,
+        created_at: now,
+        updated_at: now,
+      });
+      if (error) return jsonError(error.message);
+    } else if (!existingTemplate.locked) {
+      const categories = Array.isArray(existingTemplate.category_options) && existingTemplate.category_options.length ? existingTemplate.category_options : STANDARD_TRACKER_CATEGORIES;
+      const { error } = await auth.access.admin.from("project_tracker_templates").update({
+        category_options: categories,
+        locked: true,
+        locked_by: auth.access.user.id,
+        locked_at: now,
+        updated_by: auth.access.user.id,
+        updated_at: now,
+      }).eq("id", existingTemplate.id);
+      if (error) return jsonError(error.message);
+    }
+
+    const baseline = await ensureBaselineTrackerBudget(auth.access, project, now);
+    if (baseline.error) return jsonError(`Could not prepare the staff timesheet baseline: ${baseline.error}`);
+    const { data: current, error: currentError } = await auth.access.admin.from("project_tracker_settings").select(settingColumns()).eq("project_id", projectId).maybeSingle();
+    if (currentError) return jsonError(tableUnavailable(currentError) ? "Project Tracker Setup is awaiting the approved configuration migration." : currentError.message, tableUnavailable(currentError) ? 409 : 400);
+    const previous = toSettings(current);
+    const { data: saved, error: settingsError } = await auth.access.admin.from("project_tracker_settings").upsert({
+      project_id: projectId,
+      tracker_visible: true,
+      resources_ready: previous.resourcesReady,
+      training_checked: previous.trainingChecked,
+      forms_configured: previous.formsConfigured,
+      whs_checked: previous.whsChecked,
+      activated_by: current?.activated_by || auth.access.user.id,
+      activated_at: current?.activated_at || now,
+      updated_by: auth.access.user.id,
+      updated_at: now,
+    }, { onConflict: "project_id" }).select(settingColumns()).single();
+    if (settingsError) return jsonError(settingsError.message);
+
+    const { error: auditError } = await auth.access.admin.from("project_tracker_setting_events").insert({
+      project_id: projectId,
+      action: "staff_timesheet_quickstart",
+      actor_id: auth.access.user.id,
+      before_state: previous,
+      after_state: toSettings(saved),
+      summary: `${project.name} staff Project Tracker enabled with a standard locked template and delivery baseline.`,
+    });
+    if (auditError) return jsonError(auditError.message);
+    const { error: eventError } = await auth.access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
+      recipient_id: recipientId,
+      event_type: "project_tracker_enabled",
+      severity: "information",
+      title: "Project Tracker access available",
+      body: `You can now log project activity and timesheet reference entries for ${project.name}.`,
+      href: "/staff/projects",
+      source_table: "project_tracker_settings",
+      source_id: projectId,
+    })));
+    if (eventError) console.warn("Project Tracker activation notification could not be created:", eventError.message);
+    return Response.json({ settings: toSettings(saved), standardTemplateApplied: !existingTemplate || !existingTemplate.locked });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
 export async function PUT(request) {
   try {
     const auth = await requireAdmin(request);
@@ -134,7 +323,7 @@ export async function PUT(request) {
 
     const { data: project, error: projectError } = await auth.access.admin
       .from("projects")
-      .select("id, name, status")
+      .select("id, name, status, budget_hours, budget_dollars")
       .eq("id", projectId)
       .maybeSingle();
     if (projectError) return jsonError(projectError.message);
@@ -179,6 +368,10 @@ export async function PUT(request) {
     const enabling = !previous.trackerVisible && settings.trackerVisible;
     const pausing = previous.trackerVisible && !settings.trackerVisible;
     const now = new Date().toISOString();
+    if (settings.trackerVisible) {
+      const baseline = await ensureBaselineTrackerBudget(auth.access, project, now);
+      if (baseline.error) return jsonError(`Could not prepare the staff timesheet baseline: ${baseline.error}`);
+    }
     const payload = {
       project_id: projectId,
       tracker_visible: settings.trackerVisible,

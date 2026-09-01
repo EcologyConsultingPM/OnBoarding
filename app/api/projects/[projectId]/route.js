@@ -16,14 +16,14 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-async function projectAccess(access, projectId) {
+async function projectAccess(access, projectId, staffWorkspace = false) {
   const { data: project, error } = await access.admin
     .from("projects")
     .select("id, created_by, name, status")
     .eq("id", projectId)
     .maybeSingle();
   if (error || !project) return { response: Response.json({ error: "Project not found." }, { status: 404 }) };
-  if (!access.isAdmin) {
+  if (!access.isAdmin || staffWorkspace) {
     const [allocationResult, activityResult] = await Promise.all([
       access.admin
         .from("project_allocations")
@@ -61,7 +61,8 @@ export async function GET(request, { params }) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const authorisation = await projectAccess(access, params.projectId);
+    const staffWorkspace = new URL(request.url).searchParams.get("audience") === "staff";
+    const authorisation = await projectAccess(access, params.projectId, staffWorkspace);
     if (authorisation.response) return authorisation.response;
 
     const projectQuery = access.admin.from("projects").select(PROJECT_COLUMNS).eq("id", params.projectId).single();
@@ -72,7 +73,16 @@ export async function GET(request, { params }) {
       .eq("project_id", params.projectId)
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
-    let [{ data: project }, scheduleResult, { data: allocations }] = await Promise.all([projectQuery, scheduleQuery, allocationQuery]);
+    let [{ data: project }, scheduleResult, { data: allocations }, activitiesResult] = await Promise.all([
+      projectQuery,
+      scheduleQuery,
+      allocationQuery,
+      access.admin
+        .from("project_activities")
+        .select("id, schedule_item_id, staff_user_id, title, status, progress_percent, acceptance_status, is_active")
+        .eq("project_id", params.projectId)
+        .eq("is_active", true),
+    ]);
     if (scheduleResult.error && (scheduleResult.error?.code === "42703" || /is_active|progress_percent/i.test(String(scheduleResult.error?.message || "")))) {
       scheduleResult = await access.admin
         .from("project_schedule_items")
@@ -83,16 +93,35 @@ export async function GET(request, { params }) {
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
     const schedule = scheduleResult.data || [];
 
-    // Attach staff emails to allocations so the team is legible (admin API only).
+    // Attach staff emails to allocations and linked schedule activities so project
+    // team members can see who owns each delivery line without receiving data for
+    // any project outside their server-checked project team.
     let allocationsWithEmail = allocations || [];
-    if (allocationsWithEmail.length) {
-      const ids = allocationsWithEmail.map((a) => a.staff_user_id);
-      const { data: users } = await access.admin.auth.admin.listUsers();
-      const emailById = new Map((users?.users || []).map((u) => [u.id, u.email]));
-      allocationsWithEmail = allocationsWithEmail.map((a) => ({ ...a, email: emailById.get(a.staff_user_id) || null }));
-    }
+    const activityRows = activitiesResult?.error ? [] : (activitiesResult?.data || []);
+    const staffIds = [...new Set([
+      ...allocationsWithEmail.map((row) => row.staff_user_id),
+      ...activityRows.map((row) => row.staff_user_id),
+    ].filter(Boolean))];
+    const { data: users } = staffIds.length ? await access.admin.auth.admin.listUsers() : { data: { users: [] } };
+    const emailById = new Map((users?.users || []).map((user) => [user.id, user.email]));
+    allocationsWithEmail = allocationsWithEmail.map((allocation) => ({ ...allocation, email: emailById.get(allocation.staff_user_id) || null }));
+    const scheduleWithAssignments = (schedule || []).map((item) => {
+      const linkedActivities = activityRows.filter((activity) => activity.schedule_item_id === item.id);
+      const assignedStaff = linkedActivities.map((activity) => ({
+        id: activity.staff_user_id,
+        email: emailById.get(activity.staff_user_id) || "Allocated team member",
+        activityId: activity.id,
+        title: activity.title,
+        status: activity.status || "not_commenced",
+        progressPercent: Number(activity.progress_percent || 0),
+        acceptanceStatus: activity.acceptance_status || "accepted",
+      }));
+      const liveStatuses = linkedActivities.map((activity) => activity.status).filter(Boolean);
+      const averageProgress = linkedActivities.length ? Math.round(linkedActivities.reduce((sum, activity) => sum + Number(activity.progress_percent || 0), 0) / linkedActivities.length) : Number(item.progress_percent || 0);
+      return { ...item, assigned_staff: assignedStaff, progress_percent: averageProgress, status: liveStatuses.includes("completed") && linkedActivities.every((activity) => activity.status === "completed") ? "completed" : (liveStatuses.find((status) => status !== "not_commenced") || item.status || "not_commenced") };
+    });
 
-    return Response.json({ project, schedule: schedule || [], allocations: allocationsWithEmail });
+    return Response.json({ project, schedule: scheduleWithAssignments, allocations: allocationsWithEmail });
   } catch (error) {
     return serverError(error);
   }
