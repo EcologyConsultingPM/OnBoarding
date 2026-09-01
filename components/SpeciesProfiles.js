@@ -110,6 +110,8 @@ export default function SpeciesProfiles({ onToast, onHome }) {
 
   const [q, setQ] = useState("");
   const dq = useDebounced(q, 150);
+  const [locationContext, setLocationContext] = useState("");
+  const debouncedLocationContext = useDebounced(locationContext, 150);
   const [sort, setSort] = useState("sci");
   const [letter, setLetter] = useState("All");
   const [listing, setListing] = useState("All");
@@ -139,7 +141,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
   }, [authFetch, apiBase]);
 
   useEffect(() => { if (session?.access_token) loadSubs(); }, [session, kingdom, loadSubs]);
-  useEffect(() => { setQ(""); setLetter("All"); setListing("All"); setLegislation("all"); setGroup("All"); setLimit(PAGE); setOpenIdx(-1); }, [kingdom]);
+  useEffect(() => { setQ(""); setLocationContext(""); setLetter("All"); setListing("All"); setLegislation("all"); setGroup("All"); setLimit(PAGE); setOpenIdx(-1); }, [kingdom]);
 
   const PROFILES = kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES;
   const LC = kingdom === "flora" ? FLORA_LC : FAUNA_LC;
@@ -156,6 +158,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
 
   const filtered = useMemo(() => {
     const n = dq.trim().toLowerCase();
+    const location = debouncedLocationContext.trim().toLowerCase();
     let list = PROFILES.filter((p) => {
       const pl = listingValues(p);
       const pg = kingdom === "flora" ? p.family : faunaStream(p);
@@ -166,6 +169,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
         const key = sort === "com" ? (p.common || "") : (p.name || "");
         if ((key.charAt(0) || "").toUpperCase() !== letter) return false;
       }
+      if (location && !(String(p.habitat || "") + " " + String(p.diag || "")).toLowerCase().includes(location)) return false;
       if (!n) return true;
       return (p.name + " " + (p.common || "") + " " + pg).toLowerCase().includes(n);
     });
@@ -177,7 +181,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
       return a.name.localeCompare(b.name);
     });
     return list;
-  }, [PROFILES, dq, listing, legislation, group, letter, sort, kingdom]);
+  }, [PROFILES, dq, debouncedLocationContext, listing, legislation, group, letter, sort, kingdom]);
 
   const shown = filtered.slice(0, limit);
   const availableLetters = useMemo(() => {
@@ -282,6 +286,11 @@ export default function SpeciesProfiles({ onToast, onHome }) {
           <Search size={15} />
           <input value={q} onChange={(e) => { setQ(e.target.value); resetPaging(); }} placeholder={kingdom === "flora" ? "Search scientific name, common name or family" : "Search scientific name, common name or group"} />
         </div>
+        <div className={px + "-search spk-location-search"}>
+          <Search size={15} />
+          <input value={locationContext} onChange={(e) => { setLocationContext(e.target.value); resetPaging(); }} placeholder="Narrow by place, region or bioregion from profile habitat text" aria-label="Location or regional context" />
+        </div>
+        {locationContext.trim() ? <p className="spk-location-note">Showing profiles whose stored habitat or distribution narrative mentions “{locationContext.trim()}”. Confirm current official records and site evidence before determining occurrence.</p> : null}
 
         <div className={px + "-row"}>
           <span className={px + "-row-label"}>Sort by</span>
@@ -339,7 +348,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
         <div className={px + "-empty"}>
           <div className="fp-empty-title">Nothing matches that.</div>
           <p>Try a shorter search term, or clear the filters.</p>
-          <button className="fp-clear" onClick={() => { setQ(""); setListing("All"); setGroup("All"); setLetter("All"); setSort("sci"); resetPaging(); }}>Clear all filters</button>
+          <button className="fp-clear" onClick={() => { setQ(""); setLocationContext(""); setListing("All"); setGroup("All"); setLetter("All"); setSort("sci"); resetPaging(); }}>Clear all filters</button>
         </div>
       ) : (
         <div className={px + "-cards"}>
