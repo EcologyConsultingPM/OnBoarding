@@ -1,125 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Inbox, CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
+import { Archive, CheckCircle2, CircleCheckBig, CircleDashed, Lock, MailWarning, SendBack, ShieldCheck, Unlock, UserRoundCheck, XCircle } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS_STYLE = {
-  submitted: { bg: "#fbf1dd", fg: "#a5772b", label: "Submitted" },
-  approved: { bg: "#e5f1dd", fg: "#2c6a34", label: "Approved" },
-  declined: { bg: "#fbecea", fg: "#a5342a", label: "Declined" },
-  cancelled: { bg: "#eef0e9", fg: "#6b755f", label: "Cancelled" },
-};
+  submitted: { bg: "#fbf1dd", fg: "#95661f", label: "Submitted" }, returned: { bg: "#fff0dc", fg: "#a55a20", label: "Returned" }, assigned: { bg: "#e0edf4", fg: "#1f5871", label: "Assigned" }, in_progress: { bg: "#e6edf5", fg: "#315e87", label: "In progress" }, approved: { bg: "#e5f1dd", fg: "#2c6a34", label: "Approved" }, declined: { bg: "#fbecea", fg: "#a5342a", label: "Declined" }, closed: { bg: "#e7f0e5", fg: "#2d6540", label: "Closed" }, archived: { bg: "#eef0e9", fg: "#66715d", label: "Archived" }, cancelled: { bg: "#eef0e9", fg: "#6b755f", label: "Cancelled" } };
+const labelFor = (key) => String(key || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function AdminServiceRequests() {
-  const { session } = useAuth();
-  const [requests, setRequests] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [error, setError] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("submitted");
-  const [noteFor, setNoteFor] = useState(null);
-  const [note, setNote] = useState("");
-
-  const auth = useCallback((method, url, body) => fetch(url, {
-    method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-    body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await auth("GET", "/api/service-requests");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setRequests(data.requests); setSummary(data.summary);
-    } catch (e) { setError(e.message); }
-  }, [auth]);
-
-  useEffect(() => { if (session?.access_token) load(); }, [session, load]);
-
-  const act = async (id, action) => {
-    try {
-      const res = await auth("PATCH", `/api/service-requests/${id}`, { action, admin_note: note });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error);
-      setNoteFor(null); setNote(""); await load();
-    } catch (e) { setError(e.message); }
-  };
-
-  const visible = requests.filter((r) =>
-    (typeFilter === "all" || r.request_type === typeFilter) &&
-    (statusFilter === "all" || r.status === statusFilter)
-  );
-
-  const detailLine = (r) => Object.entries(r.details || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(" · ");
-
-  return (
-    <div className="sr admin-service-requests">
-      <header className="sr-hero">
-        <span>Ecology Consulting · Service desk</span>
-        <h1>Service requests</h1>
-        <p>Staff submissions awaiting a decision — leave, training and equipment. Approve or decline, with an optional note back to the person.</p>
-      </header>
-
-      {summary ? (
-        <div className="sr-summary">
-          <div className="sr-sum"><div className="sr-sum-v" style={{ color: summary.pending ? "#a5772b" : "#2c6a34" }}>{summary.pending}</div><div className="sr-sum-l">Awaiting decision</div></div>
-          <div className="sr-sum"><div className="sr-sum-v">{summary.total}</div><div className="sr-sum-l">Total requests</div></div>
-        </div>
-      ) : null}
-
-      {error ? <p className="sr-error"><AlertCircle size={15} /> {error}</p> : null}
-
-      <div className="sr-controls">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="submitted">Awaiting decision</option>
-          <option value="approved">Approved</option>
-          <option value="declined">Declined</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="all">All statuses</option>
-        </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-          <option value="all">All types</option>
-          <option value="leave">Leave</option>
-          <option value="training">Training</option>
-          <option value="equipment">Equipment</option>
-          <option value="whs_incident">WHS: Injury/Incident</option>
-          <option value="whs_near_miss">WHS: Near miss</option>
-        </select>
-        <span className="sr-count">{visible.length} shown</span>
-      </div>
-
-      <div className="sr-list">
-        {visible.length ? visible.map((r) => {
-          const st = STATUS_STYLE[r.status] || STATUS_STYLE.submitted;
-          return (
-            <div key={r.id} className="sr-card">
-              <div className="sr-card-top">
-                <div>
-                  <div className="sr-title">{r.title}</div>
-                  <div className="sr-meta">{r.author || "Unknown"} · {new Date(r.created_at).toLocaleDateString("en-AU")} · <span className="sr-type">{r.request_type}</span></div>
-                </div>
-                <span className="sr-status" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
-              </div>
-              {detailLine(r) ? <div className="sr-detail">{detailLine(r)}</div> : null}
-              {r.admin_note ? <div className="sr-note">Note: {r.admin_note}</div> : null}
-
-              {r.status === "submitted" && (
-                noteFor === r.id ? (
-                  <div className="sr-decide">
-                    <input placeholder="Optional note back to the person" value={note} onChange={(e) => setNote(e.target.value)} />
-                    <button className="sr-approve" onClick={() => act(r.id, "approve")}><CheckCircle2 size={14} /> Approve</button>
-                    <button className="sr-decline" onClick={() => act(r.id, "decline")}><XCircle size={14} /> Decline</button>
-                    <button className="sr-cancelbtn" onClick={() => { setNoteFor(null); setNote(""); }}>Back</button>
-                  </div>
-                ) : (
-                  <button className="sr-review" onClick={() => { setNoteFor(r.id); setNote(""); }}>Review</button>
-                )
-              )}
-            </div>
-          );
-        }) : <p className="sr-empty">Nothing here. {statusFilter === "submitted" ? "No requests are awaiting a decision." : "No requests match this filter."}</p>}
-      </div>
-    </div>
-  );
+  const { session } = useAuth(); const [requests, setRequests] = useState([]); const [staff, setStaff] = useState([]); const [summary, setSummary] = useState(null); const [error, setError] = useState(""); const [typeFilter, setTypeFilter] = useState("all"); const [statusFilter, setStatusFilter] = useState("submitted"); const [actionFor, setActionFor] = useState(null); const [note, setNote] = useState(""); const [assignedTo, setAssignedTo] = useState(""); const [busy, setBusy] = useState(false);
+  const auth = useCallback((method, url, body) => fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: body ? JSON.stringify(body) : undefined }), [session?.access_token]);
+  const load = useCallback(async () => { try { const response = await auth("GET", "/api/service-requests"); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Could not load service requests."); setRequests(data.requests || []); setStaff(data.staff || []); setSummary(data.summary || null); } catch (err) { setError(err.message); } }, [auth]);
+  useEffect(() => { if (session?.access_token) load(); }, [session?.access_token, load]);
+  const act = async (request, action) => { if (["return", "decline", "reopen", "unlock"].includes(action) && !note.trim()) { setError("Provide a note for this action."); return; } if (action === "assign" && !assignedTo) { setError("Choose an assignee."); return; } try { setBusy(true); setError(""); const response = await auth("PATCH", `/api/service-requests/${request.id}`, { action, note, assignedTo }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Could not save the request action."); setActionFor(null); setNote(""); setAssignedTo(""); await load(); } catch (err) { setError(err.message); } finally { setBusy(false); } };
+  const visible = requests.filter((item) => (typeFilter === "all" || item.request_type === typeFilter) && (statusFilter === "all" || item.status === statusFilter));
+  const detailLine = (item) => Object.entries(item.details || {}).filter(([, value]) => value != null && String(value).trim()).map(([key, value]) => `${labelFor(key)}: ${value}`).join(" · ");
+  return <div className="sr admin-service-requests"><header className="sr-hero"><span>Ecology Consulting · Service desk</span><h1>Service requests</h1><p>Review, return, approve, assign, close, lock and archive staff requests with an auditable decision path.</p></header>{summary ? <div className="sr-summary"><div className="sr-sum"><div className="sr-sum-v" style={{ color: summary.pending ? "#a5772b" : "#2c6a34" }}>{summary.pending}</div><div className="sr-sum-l">Awaiting response</div></div><div className="sr-sum"><div className="sr-sum-v">{summary.total}</div><div className="sr-sum-l">Total requests</div></div></div> : null}{error ? <p className="sr-error">{error}</p> : null}<div className="sr-controls"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="submitted">Awaiting decision</option><option value="returned">Returned</option><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="approved">Approved</option><option value="closed">Closed</option><option value="declined">Declined</option><option value="archived">Archived</option><option value="cancelled">Cancelled</option><option value="all">All statuses</option></select><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">All types</option><option value="leave">Leave</option><option value="training">Training</option><option value="equipment">Equipment</option><option value="task">Task</option><option value="other">Other</option></select><span className="sr-count">{visible.length} shown</span></div><div className="sr-list">{visible.length ? visible.map((item) => { const style = STATUS_STYLE[item.status] || STATUS_STYLE.submitted; const isOpen = actionFor === item.id; return <div key={item.id} className="sr-card"><div className="sr-card-top"><div><div className="sr-title">{item.title}</div><div className="sr-meta">{item.author || "Unknown"} · {new Date(item.created_at).toLocaleDateString("en-AU")} · <span className="sr-type">{item.request_type}</span>{item.priority ? ` · ${item.priority}` : ""}</div></div><span className="sr-status" style={{ background: style.bg, color: style.fg }}>{style.label}</span></div>{detailLine(item) ? <div className="sr-detail">{detailLine(item)}</div> : null}{item.return_reason ? <div className="sr-note">Return note: {item.return_reason}</div> : null}{item.admin_note ? <div className="sr-note">Administrator note: {item.admin_note}</div> : null}{item.locked ? <p className="sr-locked"><Lock size={13} /> Locked record</p> : null}{isOpen ? <div className="sr-decide"><textarea placeholder="Decision, return, lock or reopen note" value={note} onChange={(event) => setNote(event.target.value)} />{["submitted", "returned"].includes(item.status) ? <><button disabled={busy} className="sr-approve" onClick={() => act(item, "approve")}><CheckCircle2 size={14} /> Approve</button><button disabled={busy} className="sr-return" onClick={() => act(item, "return")}><SendBack size={14} /> Return</button><button disabled={busy} className="sr-decline" onClick={() => act(item, "decline")}><XCircle size={14} /> Decline</button></> : null}{["approved", "assigned", "in_progress"].includes(item.status) ? <><select value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)}><option value="">Assign to staff…</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><button disabled={busy} onClick={() => act(item, "assign")}><UserRoundCheck size={14} /> Assign</button><button disabled={busy} onClick={() => act(item, "start")}><CircleDashed size={14} /> Start</button><button disabled={busy} onClick={() => act(item, "close")}><CircleCheckBig size={14} /> Close & lock</button></> : null}{["closed", "archived"].includes(item.status) ? <button disabled={busy} onClick={() => act(item, "reopen")}><MailWarning size={14} /> Reopen</button> : null}{item.locked ? <button disabled={busy} onClick={() => act(item, "unlock")}><Unlock size={14} /> Unlock</button> : <button disabled={busy} onClick={() => act(item, "lock")}><Lock size={14} /> Lock</button>}<button disabled={busy || item.status === "archived"} onClick={() => act(item, "archive")}><Archive size={14} /> Archive</button><button className="sr-cancelbtn" onClick={() => { setActionFor(null); setNote(""); setAssignedTo(""); }}>Back</button></div> : <button className="sr-review" onClick={() => { setActionFor(item.id); setNote(""); setAssignedTo(item.assigned_to || ""); }}><ShieldCheck size={14} /> Review & action</button>}</div>; }) : <p className="sr-empty">Nothing here. No requests match this filter.</p>}</div></div>;
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2, ListFilter, FilePlus2, Sparkles } from "lucide-react";
+import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2, ListFilter, FilePlus2, Sparkles, ShieldCheck } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import QuoteDraftWorkspace from "./QuoteDraftWorkspace";
 import QuotePipelineImprovements from "./QuotePipelineImprovements";
+import QuoteGovernanceWorkspace from "./QuoteGovernanceWorkspace";
 
 function money(n) {
   if (n == null || n === "") return "—";
@@ -19,7 +20,7 @@ const STATUS = [
 ];
 const SUPERSEDED_FILTER = { value: "superseded", label: "Superseded", color: "#7a6b8d" };
 const EMPTY = { client: "", project: "", projectFolderLink: "", quoteLink: "", hyperlink: "", quoteTotal: "", initialSent: false, sentOn: "", followUpOn: "", status: "pending", comments: "", fullyInvoiced: false, superseded: false, supersededNote: "" };
-const VIEWS = new Set(["pipeline", "drafts", "improvements"]);
+const VIEWS = new Set(["pipeline", "drafts", "improvements", "governance"]);
 
 export default function AdminQuotePipeline() {
   const { session } = useAuth();
@@ -131,10 +132,12 @@ export default function AdminQuotePipeline() {
       <button type="button" className={view === "drafts" ? "active" : ""} onClick={() => selectView("drafts")}><FilePlus2 size={16} /> Quotes to be Drafted</button>
       <button type="button" className={view === "pipeline" ? "active" : ""} onClick={() => selectView("pipeline")}><TrendingUp size={16} /> Issued Quote Pipeline</button>
       <button type="button" className={view === "improvements" ? "active" : ""} onClick={() => selectView("improvements")}><Sparkles size={16} /> Improvements</button>
+      <button type="button" className={view === "governance" ? "active" : ""} onClick={() => selectView("governance")}><ShieldCheck size={16} /> Deliverables & approvals</button>
     </nav>
 
     {view === "drafts" ? <QuoteDraftWorkspace onPipelineChanged={load} /> : null}
     {view === "improvements" ? <QuotePipelineImprovements quotes={quotes} summary={summary} onOpenDrafts={() => selectView("drafts")} /> : null}
+    {view === "governance" ? <QuoteGovernanceWorkspace quotes={quotes} onQuoteChanged={load} /> : null}
     {view === "pipeline" ? <>
       <header className="qp-hero"><span><TrendingUp size={17} /> Delivery & commercial · Admin</span><h1>Issued Quote Pipeline</h1><p>Track issued quotes, outcomes and client follow-up. Dollar values and financial totals are shown only to people with authorised commercial visibility. Mark a quote superseded when a newer quote replaces it.</p></header>
       {summary ? <div className="qp-summary"><div className="qp-sum"><div className="qp-sum-v">{summary.sent}</div><div className="qp-sum-l">Quotes sent</div></div><div className="qp-sum"><div className="qp-sum-v" style={{ color: "#2c6a34" }}>{summary.successful}</div><div className="qp-sum-l">Successful</div></div><div className="qp-sum"><div className="qp-sum-v">{summary.successRate}%</div><div className="qp-sum-l">Success rate</div></div>{financialsVisible ? <><div className="qp-sum"><div className="qp-sum-v">{money(summary.estimatedPipeline)}</div><div className="qp-sum-l">Estimated pipeline</div></div><div className="qp-sum"><div className="qp-sum-v">{money(summary.successfulValue)}</div><div className="qp-sum-l">Successful value</div></div></> : <div className="qp-financials-locked">Financial values are restricted by portal access controls.</div>}</div> : null}

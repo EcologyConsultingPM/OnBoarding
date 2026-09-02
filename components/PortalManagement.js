@@ -26,6 +26,8 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import PortalSystemHealth from "./PortalSystemHealth";
 import AdminExportCentre from "./AdminExportCentre";
+import AdminAuditLog from "./AdminAuditLog";
+import AdminRestrictedWorkflows from "./AdminRestrictedWorkflows";
 import PortalStaffList from "./PortalStaffList";
 import PortalVisibilityManager from "./PortalVisibilityManager";
 
@@ -522,6 +524,20 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           label="Export Centre"
           caption="Operational registers for Excel and CSV"
           onClick={() => setView("exports")}
+        />
+        <TabButton
+          active={view === "audit"}
+          icon={ClipboardList}
+          label="Audit Log"
+          caption="Controlled action and permission history"
+          onClick={() => setView("audit")}
+        />
+        <TabButton
+          active={view === "restricted"}
+          icon={LockKeyhole}
+          label="Restricted Workflows"
+          caption="Primary administrator confidential controls"
+          onClick={() => setView("restricted")}
         />
       </nav>
 
@@ -1088,6 +1104,8 @@ export default function PortalManagement({ onboardingContent, onToast }) {
 
       {view === "system" && <PortalSystemHealth />}
       {view === "exports" && <AdminExportCentre />}
+      {view === "audit" && <AdminAuditLog />}
+      {view === "restricted" && <AdminRestrictedWorkflows />}
 
       <datalist id="pm-staff-directory">
         {staffDirectory.map((person) => (

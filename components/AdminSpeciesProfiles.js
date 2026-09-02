@@ -8,6 +8,7 @@ import { FAUNA_PROFILES } from "../lib/faunaData";
 import { SURVEY_FLORA } from "../lib/surveyFlora";
 import { SURVEY_FAUNA } from "../lib/surveyFauna";
 import SurveyRequirements from "./SurveyRequirements";
+import BioNetWatchlistsPanel from "./BioNetWatchlistsPanel";
 
 const FLORA_LC = {
   "Critically Endangered": { fg: "#a5342a", bg: "rgba(212,86,63,.14)", short: "CE", accent: "#d4563f" },
@@ -112,6 +113,9 @@ export default function AdminSpeciesProfiles({ onToast }) {
   if (subView === "survey") {
     return <SurveyRequirements initialKingdom={kingdom} onBack={() => setSubView("profiles")} />;
   }
+  if (subView === "bionet") {
+    return <BioNetWatchlistsPanel onBack={() => setSubView("profiles")} />;
+  }
 
   return (
     <div className="afp admin-species-profiles">
@@ -129,6 +133,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
       <div className="spk-toggle light">
         <button className={"flora" + (kingdom === "flora" ? " sel" : "")} onClick={() => { setKingdom("flora"); setQ(""); }}>Flora</button>
         <button className={"fauna" + (kingdom === "fauna" ? " sel" : "")} onClick={() => { setKingdom("fauna"); setQ(""); }}>Fauna</button>
+        <button className="bionet" onClick={() => setSubView("bionet")}>BioNet watchlists</button>
       </div>
 
       {error ? <p className="fp-error"><AlertCircle size={15} /> {error}</p> : null}

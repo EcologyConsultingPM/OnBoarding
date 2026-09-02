@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import RegulatorySourceControls from "./RegulatorySourceControls";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -40,6 +41,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
   const [updates, setUpdates] = useState([]);
+  const [healthAlerts, setHealthAlerts] = useState([]);
   const [filters, setFilters] = useState({ view: "open", category: "", severity: "", source: "", search: "", sort: "detected_desc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -66,6 +68,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
       // relationship payload to fail the entire client workspace.
       setSources(safeRecords(body?.sources));
       setUpdates(safeRecords(body?.updates));
+      setHealthAlerts(safeRecords(body?.healthAlerts));
     } catch (err) {
       setError(err.message || "Could not load Regulatory Watch.");
     } finally {
@@ -180,6 +183,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
           <button type="button" onClick={() => setCreating((value) => !value)} className="reg-watch__primary"><Plus size={14} /> Add update</button>
         </div>
       </header>
+
+      <RegulatorySourceControls sources={sources} healthAlerts={healthAlerts} headers={headers} onChanged={load} />
 
       <div className="reg-watch__summary" aria-label="Regulatory Watch summary">
         <div><strong>{openCount}</strong><span>Open reviews</span></div>

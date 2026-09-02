@@ -9,6 +9,7 @@ import {
   LifeBuoy,
   Loader2,
   Package,
+  ListTodo,
   Save,
   Send,
   Trash2,
@@ -88,6 +89,31 @@ const TYPES = {
       },
     ],
   },
+  task: {
+    label: "Task request",
+    Icon: ListTodo,
+    hint: "Describe the task, project connection, priority and delivery date. Task requests are not assigned until approved.",
+    fields: [
+      { id: "project_related", label: "Is this project related?", type: "select", required: true, options: ["Yes", "No"] },
+      { id: "project", label: "Project" },
+      { id: "category", label: "Task category", required: true },
+      { id: "estimated_hours", label: "Estimated hours", type: "number", step: "0.25", required: true },
+      { id: "due_date", label: "Required completion date", type: "date" },
+      { id: "priority", label: "Priority", type: "select", required: true, options: ["Low", "Normal", "High", "Urgent"] },
+      { id: "preferred_assignee", label: "Preferred assignee (optional)" },
+      { id: "task_details", label: "Task details, deliverable and dependencies", type: "textarea", full: true, required: true, placeholder: "Describe the task, expected output, relevant files and any dependencies." },
+    ],
+  },
+  other: {
+    label: "Other request",
+    Icon: LifeBuoy,
+    hint: "Use this for a support request that does not fit the leave, training, equipment or task categories.",
+    fields: [
+      { id: "priority", label: "Priority", type: "select", required: true, options: ["Low", "Normal", "High", "Urgent"] },
+      { id: "required_by", label: "Required by", type: "date" },
+      { id: "request_details", label: "Request details", type: "textarea", full: true, required: true, placeholder: "Explain what support is needed and any relevant context." },
+    ],
+  },
   equipment: {
     label: "Equipment request",
     Icon: Package,
@@ -126,12 +152,17 @@ const TYPES = {
 };
 
 const STATUS = {
+  draft: "draft",
   submitted: "submitted",
+  returned: "returned",
+  assigned: "assigned",
+  in_progress: "in_progress",
   approved: "approved",
   declined: "declined",
   cancelled: "cancelled",
   reviewed: "reviewed",
   actioned: "actioned",
+  closed: "closed",
   archived: "archived",
 };
 
@@ -161,6 +192,7 @@ export default function StaffServiceRequests({ embedded = false }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [draftReady, setDraftReady] = useState(false);
+  const [submissionKey, setSubmissionKey] = useState("");
   const draftKey = session?.user?.id
     ? `ec-service-request-draft:${session.user.id}`
     : "";
@@ -207,6 +239,7 @@ export default function StaffServiceRequests({ embedded = false }) {
         setType(draft.type);
         setTitle(typeof draft.title === "string" ? draft.title : "");
         setDetails(draft.details && typeof draft.details === "object" ? draft.details : {});
+        setSubmissionKey(typeof draft.submissionKey === "string" ? draft.submissionKey : "");
       }
     } catch {
       // A malformed local draft must not block the staff member's form.
@@ -228,18 +261,19 @@ export default function StaffServiceRequests({ embedded = false }) {
       try {
         window.localStorage.setItem(
           draftKey,
-          JSON.stringify({ type, title, details, updatedAt: new Date().toISOString() }),
+            JSON.stringify({ type, title, details, submissionKey, updatedAt: new Date().toISOString() }),
         );
       } catch {
         // Browser storage is a resilience layer only; nothing is submitted automatically.
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [details, draftKey, draftReady, title, type]);
+  }, [details, draftKey, draftReady, submissionKey, title, type]);
 
   const clearDraft = () => {
     setTitle("");
     setDetails({});
+    setSubmissionKey("");
     if (draftKey) window.localStorage.removeItem(draftKey);
     setMessage("Unsubmitted request draft cleared from this browser.");
   };
@@ -247,6 +281,7 @@ export default function StaffServiceRequests({ embedded = false }) {
   const changeType = (nextType) => {
     setType(nextType);
     setDetails({});
+    setSubmissionKey("");
     setError("");
     setMessage("");
   };
@@ -267,6 +302,8 @@ export default function StaffServiceRequests({ embedded = false }) {
     }
     setSaving(true);
     setError("");
+    const requestKey = submissionKey || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    setSubmissionKey(requestKey);
     try {
       const response = await fetch("/api/service-requests", {
         method: "POST",
@@ -279,6 +316,7 @@ export default function StaffServiceRequests({ embedded = false }) {
               String(value || "").trim(),
             ),
           ),
+          submissionKey: requestKey,
         }),
       });
       const body = await response.json();
@@ -286,6 +324,7 @@ export default function StaffServiceRequests({ embedded = false }) {
         throw new Error(body.error || "Could not submit the request.");
       setTitle("");
       setDetails({});
+      setSubmissionKey("");
       if (draftKey) window.localStorage.removeItem(draftKey);
       setMessage("Request submitted for administrator review.");
       window.setTimeout(() => setMessage(""), 3200);
@@ -333,8 +372,8 @@ export default function StaffServiceRequests({ embedded = false }) {
             <LifeBuoy size={18} /> Service requests
           </h2>
           <p>
-            Submit a structured leave, training or equipment request and track
-            the administrator’s decision here.
+              Submit a structured leave, training, equipment, task or other request and track
+              the administrator’s decision here.
           </p>
         </div>
       </div>

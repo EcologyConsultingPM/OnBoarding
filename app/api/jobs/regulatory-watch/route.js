@@ -19,6 +19,34 @@ function fingerprint(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function decodeEntities(value) {
+  return String(value || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+function textFromTag(block, tag) {
+  const match = String(block || "").match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return match ? normaliseHtml(decodeEntities(match[1])) : "";
+}
+function linkFromEntry(block) {
+  const href = String(block || "").match(/<link[^>]+href=["']([^"']+)["']/i);
+  return href?.[1] || textFromTag(block, "link") || "";
+}
+function normaliseStructured(raw, type) {
+  const source = String(raw || "");
+  if (type === "json") {
+    try {
+      const parsed = JSON.parse(source);
+      const items = Array.isArray(parsed) ? parsed : (parsed.items || parsed.entries || parsed.results || [parsed]);
+      return JSON.stringify(items.slice(0, 500).map((item) => ({ id: item.id || item.guid || item.url || item.link || "", title: item.title || item.name || "", published: item.updated || item.published || item.date || "", summary: item.summary || item.description || item.content || "" }))).slice(0, 750000);
+    } catch { return normaliseHtml(source); }
+  }
+  if (type === "rss" || type === "atom") {
+    const entries = [...source.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((match) => match[2]);
+    return entries.slice(0, 500).map((entry) => [textFromTag(entry, "guid") || textFromTag(entry, "id"), textFromTag(entry, "title"), textFromTag(entry, "pubDate") || textFromTag(entry, "updated") || textFromTag(entry, "published"), linkFromEntry(entry), textFromTag(entry, "description") || textFromTag(entry, "summary")].join(" | ")).join("\n").slice(0, 750000);
+  }
+  return normaliseHtml(source);
+}
+function sourceTarget(source) { return source.feed_url || source.source_url; }
+
 function sourceDomains(category) {
   if (category === "whs") return ["WHS & EC Forms", "Internal Governance"];
   if (category === "biodiversity") return ["Species Profiles & Survey Requirements", "Projects & Tracker"];
@@ -80,14 +108,15 @@ export async function GET(request) {
     for (const source of sources || []) {
       const checkedAt = new Date().toISOString();
       try {
-        const response = await fetch(source.source_url, {
+        const response = await fetch(sourceTarget(source), {
           headers: { "User-Agent": "EcologyConsulting-RegulatoryWatch/1.0 (compliance review monitor)" },
           redirect: "follow",
           signal: AbortSignal.timeout(20000),
         });
         const raw = await response.text();
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const digest = fingerprint(normaliseHtml(raw));
+        const digest = fingerprint(normaliseStructured(raw, source.fetch_type || "page"));
+        const versionValue = response.headers.get("etag") || response.headers.get("last-modified") || digest;
         const changed = Boolean(source.last_fingerprint && source.last_fingerprint !== digest);
 
         if (changed) {
@@ -95,7 +124,7 @@ export async function GET(request) {
             source_id: source.id,
             title: `Review required: ${source.title}`,
             summary: defaultSummary(source),
-            source_url: source.source_url,
+            source_url: sourceTarget(source),
             fingerprint: digest,
             affected_domains: sourceDomains(source.category),
             severity: "review",
@@ -136,6 +165,8 @@ export async function GET(request) {
           last_error: null,
           last_successful_check_at: checkedAt,
           failure_count: 0,
+          version_value: versionValue,
+          next_retry_at: null,
           updated_at: checkedAt,
         }).eq("id", source.id);
         if (sourceError) throw new Error(sourceError.message);
@@ -149,6 +180,7 @@ export async function GET(request) {
           last_http_status: null,
           last_error: String(sourceError.message || "Source check failed").slice(0, 1000),
           failure_count: failureCount,
+          next_retry_at: new Date(Date.now() + Math.min(failureCount, 6) * 60 * 60 * 1000).toISOString(),
           updated_at: checkedAt,
         }).eq("id", source.id);
         const { data: openAlert } = await admin.from("regulatory_source_health_alerts").select("id").eq("source_id", source.id).eq("status", "open").maybeSingle();
