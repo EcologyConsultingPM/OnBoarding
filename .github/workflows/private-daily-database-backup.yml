@@ -66,7 +66,7 @@ jobs:
             echo "SUPABASE_DB_URL=$SUPABASE_POOLER_DB_URL" >> "$GITHUB_ENV"
             echo "Using the configured IPv4-capable Supabase pooler connection."
           else
-            pooler_url=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#://postgres:#://postgres.qjsdglkipgncttztksxl:#; s#@db\\.qjsdglkipgncttztksxl\\.supabase\\.co:5432#@aws-0-ap-south-1.pooler.supabase.com:6543#')
+            pooler_url=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#://postgres:#://postgres.qjsdglkipgncttztksxl:#; s#@db\.qjsdglkipgncttztksxl\.supabase\.co:5432#@aws-0-ap-south-1.pooler.supabase.com:6543#')
             if [[ "$pooler_url" == "$SUPABASE_DB_URL" ]]; then
               echo "Unable to derive a pooler URL. Set the SUPABASE_POOLER_DB_URL repository secret." >&2
               exit 1
