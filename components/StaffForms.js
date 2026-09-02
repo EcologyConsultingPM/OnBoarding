@@ -137,6 +137,7 @@ export default function StaffForms() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [theme, setTheme] = useState("dark");
 
   const authFetch = useCallback(
     (method, url, body) =>
@@ -164,6 +165,19 @@ export default function StaffForms() {
   useEffect(() => {
     if (session?.access_token) loadHistory();
   }, [session, loadHistory]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("ec-whs-forms-theme");
+      if (saved === "light" || saved === "dark") setTheme(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("ec-whs-forms-theme", theme);
+    } catch {}
+  }, [theme]);
 
   useEffect(() => {
     if (view !== "form" || !activeKey) return;
@@ -399,13 +413,18 @@ export default function StaffForms() {
       })),
     ].sort((a, b) => new Date(b.when) - new Date(a.when));
     return (
-      <div className="sf">
+      <div className={`sf sf-theme-${theme}`}>
         <header className="sf-hero">
-          <span>Ecology Consulting - Your records</span>
+          <div className="sf-hero-topline">
+            <span>Ecology Consulting - Your records</span>
+            <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+              {theme === "dark" ? "Light theme" : "Dark theme"}
+            </button>
+          </div>
           <h1>Submission history</h1>
           <p>
             Every WHS form you have submitted, with its current status. Leave,
-            training and equipment requests are managed in My Projects.
+            training and equipment requests are managed in Service Requests.
           </p>
         </header>
         <button className="sf-back" onClick={() => setView("hub")}>
@@ -446,12 +465,14 @@ export default function StaffForms() {
     const def = WHS_DEFINITIONS[activeKey];
     const sourceDocuments = FORM_REFERENCE_DOCS[activeKey] || [];
     return (
-      <div className="sf">
+      <div className={`sf sf-theme-${theme}`}>
         <header className="sf-hero">
-          <span>
-            Ecology Consulting -{" "}
-            WHS field form
-          </span>
+          <div className="sf-hero-topline">
+            <span>Ecology Consulting - WHS field form</span>
+            <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+              {theme === "dark" ? "Light theme" : "Dark theme"}
+            </button>
+          </div>
           <h1>{schema.label}</h1>
           <p>{BLURBS[activeKey] || ""}</p>
         </header>
@@ -527,10 +548,15 @@ export default function StaffForms() {
   })).filter((group) => group.forms.length > 0);
 
   return (
-    <div className="sf">
+    <div className={`sf sf-theme-${theme}`}>
       <header className="sf-hero">
         <WorkspaceNav audience="staff" />
-        <span>Ecology Consulting - Staff services</span>
+        <div className="sf-hero-topline">
+          <span>Ecology Consulting - Staff services</span>
+          <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+            {theme === "dark" ? "Light theme" : "Dark theme"}
+          </button>
+        </div>
         <h1>WHS &amp; EC Forms</h1>
         <p>
           Field forms, WHS reports and approved internal governance in one
