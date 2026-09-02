@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   Copy,
+  Download,
   EyeOff,
   FileCheck2,
   Leaf,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import PortalSystemHealth from "./PortalSystemHealth";
+import AdminExportCentre from "./AdminExportCentre";
 import PortalStaffList from "./PortalStaffList";
 import PortalVisibilityManager from "./PortalVisibilityManager";
 
@@ -513,6 +515,13 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           label="Backup & system health"
           caption="Private archive status and operational log"
           onClick={() => setView("system")}
+        />
+        <TabButton
+          active={view === "exports"}
+          icon={Download}
+          label="Export Centre"
+          caption="Operational registers for Excel and CSV"
+          onClick={() => setView("exports")}
         />
       </nav>
 
@@ -1078,6 +1087,7 @@ export default function PortalManagement({ onboardingContent, onToast }) {
       )}
 
       {view === "system" && <PortalSystemHealth />}
+      {view === "exports" && <AdminExportCentre />}
 
       <datalist id="pm-staff-directory">
         {staffDirectory.map((person) => (

@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ function normaliseHtml(html) {
 }
 
 function fingerprint(content) {
-  return crypto.createHash("sha256").update(content).digest("hex");
+  return createHash("sha256").update(content).digest("hex");
 }
 
 function sourceDomains(category) {
@@ -41,6 +41,29 @@ function adminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Regulatory Watch requires Supabase server credentials.");
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+async function notifyApprovedAdmins(admin, title, body, sourceId) {
+  const [{ data: users, error: usersError }, { data: adminEmails, error: adminEmailsError }] = await Promise.all([
+    admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    admin.from("admin_emails").select("email"),
+  ]);
+  if (usersError) throw new Error(usersError.message);
+  if (adminEmailsError) throw new Error(adminEmailsError.message);
+  const approvedEmails = new Set((adminEmails || []).map((row) => String(row.email || "").toLowerCase()));
+  const recipients = (users?.users || []).filter((user) => approvedEmails.has(String(user.email || "").toLowerCase()));
+  if (!recipients.length) return;
+  const { error } = await admin.from("portal_events").insert(recipients.map((user) => ({
+    recipient_id: user.id,
+    event_type: "regulatory_source_health",
+    severity: "warning",
+    title,
+    body,
+    href: "/?portal=admin&area=regulatorywatch",
+    source_table: "regulatory_sources",
+    source_id: sourceId,
+  })));
+  if (error) throw new Error(error.message);
 }
 
 // Vercel Cron (or another authenticated scheduler) calls this endpoint. It only
@@ -110,17 +133,33 @@ export async function GET(request) {
           last_checked_at: checkedAt,
           last_http_status: response.status,
           last_fingerprint: digest,
+          last_error: null,
+          last_successful_check_at: checkedAt,
+          failure_count: 0,
           updated_at: checkedAt,
         }).eq("id", source.id);
         if (sourceError) throw new Error(sourceError.message);
-        outcomes.push({ source: source.source_key, changed, ok: true });
+        await admin.from("regulatory_source_health_alerts").update({ status: "resolved", resolved_at: checkedAt, updated_at: checkedAt }).eq("source_id", source.id).eq("status", "open");
+        outcomes.push({ source: source.source_key, changed, ok: true, failure_count: 0 });
       } catch (sourceError) {
+        const { data: sourceState } = await admin.from("regulatory_sources").select("failure_count").eq("id", source.id).maybeSingle();
+        const failureCount = Number(sourceState?.failure_count || 0) + 1;
         await admin.from("regulatory_sources").update({
           last_checked_at: checkedAt,
           last_http_status: null,
+          last_error: String(sourceError.message || "Source check failed").slice(0, 1000),
+          failure_count: failureCount,
           updated_at: checkedAt,
         }).eq("id", source.id);
-        outcomes.push({ source: source.source_key, changed: false, ok: false, error: sourceError.message });
+        const { data: openAlert } = await admin.from("regulatory_source_health_alerts").select("id").eq("source_id", source.id).eq("status", "open").maybeSingle();
+        if (!openAlert) {
+          const { data: createdAlert, error: alertError } = await admin.from("regulatory_source_health_alerts").insert({ source_id: source.id, status: "open", error_message: String(sourceError.message || "Source check failed").slice(0, 1000), last_notified_at: checkedAt }).select("id").single();
+          if (alertError && alertError.code !== "23505") throw new Error(alertError.message);
+          if (createdAlert) await notifyApprovedAdmins(admin, `Regulatory source unavailable: ${source.title}`, `Regulatory Watch could not check ${source.title}. Error: ${sourceError.message}. The source will be retried on the next scheduled run.`, source.id);
+        } else {
+          await admin.from("regulatory_source_health_alerts").update({ error_message: String(sourceError.message || "Source check failed").slice(0, 1000), last_seen_at: checkedAt, updated_at: checkedAt }).eq("id", openAlert.id);
+        }
+        outcomes.push({ source: source.source_key, changed: false, ok: false, failure_count: failureCount, error: sourceError.message });
       }
     }
     return Response.json({ ok: true, checked_at: new Date().toISOString(), outcomes });

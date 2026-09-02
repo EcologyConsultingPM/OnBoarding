@@ -17,6 +17,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import ProjectGantt from "./ProjectGantt";
+import ProjectCloseOut from "./ProjectCloseOut";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 
 const TASK_CATEGORIES = [
@@ -845,6 +846,8 @@ function ProjectDetail({
       </section>
 
       <ProjectGantt schedule={schedule} />
+
+      <ProjectCloseOut projectId={openId} projectName={project.name} onToast={notify} />
 
       {/* Activities */}
       <section className="aps-card">
