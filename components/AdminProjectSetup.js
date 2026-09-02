@@ -417,6 +417,7 @@ function ProjectDetail({
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
+  const [savingActivities, setSavingActivities] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -556,6 +557,8 @@ function ProjectDetail({
     }
   };
   const saveActivities = async () => {
+    if (savingActivities) return;
+    setSavingActivities(true);
     try {
       const res = await auth("PUT", `/api/projects/${projectId}/activities`, {
         activities: activities.filter((a) => a.title.trim()),
@@ -566,6 +569,8 @@ function ProjectDetail({
       await load();
     } catch (e) {
       fail(e);
+    } finally {
+      setSavingActivities(false);
     }
   };
 
@@ -847,8 +852,8 @@ function ProjectDetail({
           <h2>
             <ClipboardList size={16} /> Work activities
           </h2>
-          <button className="aps-secondary" onClick={saveActivities}>
-            <Save size={13} /> Save activities
+          <button className="aps-secondary" onClick={saveActivities} disabled={savingActivities}>
+            <Save size={13} /> {savingActivities ? "Saving activities…" : "Save activities"}
           </button>
         </div>
         <p className="aps-note">

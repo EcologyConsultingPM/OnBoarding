@@ -13,7 +13,7 @@ alter table public.portal_visibility_overrides
     'staff.notifications',
     'staff.projects.activities',
     'staff.projects.tracker',
-    'staff.projects.service_requests',
+    'staff.service_requests',
     'staff.timesheets',
     'staff.forms',
     'staff.forms.governance',

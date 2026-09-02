@@ -136,6 +136,7 @@ export default function StaffForms() {
   const [whsHistory, setWhsHistory] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const authFetch = useCallback(
     (method, url, body) =>
@@ -195,8 +196,9 @@ export default function StaffForms() {
   const schema = activeKey ? FORM_SCHEMAS[activeKey] : null;
 
   const submit = async () => {
+    if (submitting || !schema) return;
+    setSubmitting(true);
     setError("");
-    if (!schema) return;
     // Title: first text field value, else form label.
     const firstText = schema.sections
       .flatMap((s) => s.fields)
@@ -226,6 +228,8 @@ export default function StaffForms() {
       );
     } catch (e) {
       setError(e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -499,8 +503,8 @@ export default function StaffForms() {
             This form saves automatically on this device. You can switch to another app and return without losing your entries.
           </div>
           <div className="sf-actions">
-            <button className="sf-submit" onClick={submit}>
-              <Send size={14} /> Submit
+            <button className="sf-submit" onClick={submit} disabled={submitting} aria-busy={submitting}>
+              <Send size={14} /> {submitting ? "Submitting…" : "Submit"}
             </button>
             <button className="sf-clear-draft" type="button" onClick={() => { clearFormDraft(activeKey); setForm({}); setMessage("Saved draft cleared from this device."); }}>
               Clear saved draft
@@ -545,7 +549,7 @@ export default function StaffForms() {
         </p>
       ) : null}
       <div className="sf-hub-actions">
-        <a className="sf-service-request-link" href="/staff/projects/service-requests">
+        <a className="sf-service-request-link" href="/staff/service-requests">
           <CalendarDays size={15} /> Leave, training and equipment requests
         </a>
         <button className="sf-history-btn" onClick={() => setView("history")}>

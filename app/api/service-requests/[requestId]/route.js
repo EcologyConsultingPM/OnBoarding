@@ -13,7 +13,7 @@ export async function PATCH(request, { params }) {
     if (access.error) return access.error;
     const denied = await requirePortalResource(
       access,
-      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+      access.isAdmin ? "admin.service_requests" : "staff.service_requests",
     );
     if (denied) return denied;
     const body = await request.json();
@@ -46,7 +46,7 @@ export async function PATCH(request, { params }) {
         body:
           data.admin_note ||
           `Your ${String(data.request_type || "service").replaceAll("_", " ")} request has been ${decision}.`,
-        href: "/staff/projects/service-requests",
+        href: "/staff/service-requests",
         source_table: "service_requests",
         source_id: data.id,
       });
@@ -68,7 +68,7 @@ export async function PATCH(request, { params }) {
               data.admin_note ||
               `Your ${String(data.request_type || "service").replaceAll("_", " ")} request has been ${decision}.`,
             ctaLabel: "View your request",
-            ctaPath: "/staff/projects/service-requests",
+            ctaPath: "/staff/service-requests",
           });
         }
       } catch (emailError) {

@@ -166,9 +166,26 @@ export async function PUT(request, { params }) {
 
     const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
     const availableIds = new Set(directory.map((person) => person.id));
-    const inputRows = body.activities
-      .filter((activity) => activity && typeof activity.title === "string" && activity.title.trim())
-      .map((activity, index) => ({ ...activity, title: activity.title.trim(), sortOrder: index + 1 }));
+    const inputRows = [];
+    const incomingSignatures = new Set();
+    for (const activity of body.activities) {
+      if (!activity || typeof activity.title !== "string" || !activity.title.trim()) continue;
+      const normalised = { ...activity, title: activity.title.trim() };
+      const signature = validId(normalised.id)
+        ? `id:${normalised.id}`
+        : [
+            opt(normalised.staffUserId) || "",
+            normalised.title.toLowerCase(),
+            opt(normalised.detail) || "",
+            dueDate(normalised.dueDate) || "",
+            dueDate(normalised.startDate) || "",
+            num(normalised.budgetHours) ?? "",
+            validId(normalised.scheduleItemId) ? normalised.scheduleItemId : "",
+          ].join("|");
+      if (incomingSignatures.has(signature)) continue;
+      incomingSignatures.add(signature);
+      inputRows.push({ ...normalised, sortOrder: inputRows.length + 1 });
+    }
     if (inputRows.some((row) => row.staffUserId && !availableIds.has(row.staffUserId))) return Response.json({ error: "Project activities must be assigned to an available staff member from the Staff List." }, { status: 400 });
 
     const scheduleResult = await access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).eq("is_active", true);

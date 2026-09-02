@@ -31,6 +31,7 @@ import {
   ArrowUpRight,
   Clock3,
   BellRing,
+  LifeBuoy,
   Eye,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
@@ -3977,9 +3978,23 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       href: "/staff/projects",
     },
     {
+      key: "servicerequests",
+      resourceKey: "staff.service_requests",
+      n: "03",
+      eyebrow: "Staff support",
+      title: "Service Requests",
+      desc: "Submit and track leave, training, equipment and other internal requests.",
+      Icon: LifeBuoy,
+      photo: "bottlebrush",
+      base: "#49634f",
+      g1: "#6f8d6f",
+      g2: "#192a20",
+      href: "/staff/service-requests",
+    },
+    {
       key: "timesheets",
       resourceKey: "staff.timesheets",
-      n: "03",
+      n: "04",
       eyebrow: "Time & delivery",
       title: "Timesheets",
       desc: "Project tracker history, filters, XLSX export and official time entry.",
@@ -3993,7 +4008,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "staffforms",
       resourceKey: "staff.forms",
-      n: "04",
+      n: "05",
       eyebrow: "Safety, requests & governance",
       title: "WHS & EC Forms",
       desc: "Forms, requests, and approved internal policies and procedures.",
@@ -4006,7 +4021,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "ldlibrary",
       resourceKey: "staff.learning",
-      n: "05",
+      n: "06",
       eyebrow: "People & learning",
       title: "Learning & Development",
       desc: "Your approved training modules, resources and quizzes.",
@@ -4019,7 +4034,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "species",
       resourceKey: "staff.species",
-      n: "06",
+      n: "07",
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
       desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.",
@@ -4032,7 +4047,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "mine",
       resourceKey: "staff.onboarding",
-      n: "07",
+      n: "08",
       requiresOnboarding: true,
       eyebrow: "Getting started",
       title: "My Onboarding",
@@ -4046,7 +4061,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "remote",
       resourceKey: "staff.remote_operations",
-      n: "08",
+      n: "09",
       eyebrow: "International delivery",
       title: "Remote Operations",
       desc: "Remote-work profiles, coordination records and delivery handovers.",
@@ -4071,6 +4086,11 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
           ].includes(event.source_table) ||
           String(event.event_type || "").includes("project_") ||
           String(event.event_type || "").includes("remote_task")
+        );
+      if (key === "servicerequests")
+        return (
+          String(event.event_type || "").includes("service_request") ||
+          event.source_table === "service_requests"
         );
       if (key === "timesheets")
         return (

@@ -78,7 +78,7 @@ export async function GET(request) {
     if (access.error) return access.error;
     const denied = await requirePortalResource(
       access,
-      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+      access.isAdmin ? "admin.service_requests" : "staff.service_requests",
     );
     if (denied) return denied;
 
@@ -110,7 +110,7 @@ export async function POST(request) {
     if (access.error) return access.error;
     const denied = await requirePortalResource(
       access,
-      access.isAdmin ? "admin.service_requests" : "staff.projects.service_requests",
+      access.isAdmin ? "admin.service_requests" : "staff.service_requests",
     );
     if (denied) return denied;
     const body = await request.json();
@@ -137,7 +137,7 @@ export async function POST(request) {
       heading: "Your service request has been received",
       body: `Your ${TYPE_LABELS[data.request_type] || "service request"} is awaiting administrator review: ${data.title}`,
       ctaLabel: "View your request",
-      ctaPath: "/staff/projects/service-requests",
+      ctaPath: "/staff/service-requests",
     });
     return Response.json({ request: data }, { status: 201 });
   } catch (error) {

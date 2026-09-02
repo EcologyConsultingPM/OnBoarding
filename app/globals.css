@@ -17502,3 +17502,52 @@ main {
 .scp-profile-fields input { min-width: 10rem; border: 1px solid rgba(231, 196, 94, .55); border-radius: .4rem; padding: .36rem .45rem; color: #163d2b; background: #fcfdf9; }
 .scp-profile-fields button { border: 0; border-radius: .42rem; padding: .45rem .65rem; color: #123a29; background: #e7c45e; font-weight: 850; cursor: pointer; }
 @media (max-width: 560px) { .scp-profile-fields { align-items: stretch; flex-direction: column; } .scp-profile-fields input, .scp-profile-fields button { width: 100%; } }
+
+/* Standalone Service Requests domain and project-list readability */
+.staff-service-requests-page {
+  width: min(100% - 32px, 1240px);
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+.staff-service-requests-page__hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid rgba(169, 190, 152, 0.22);
+  border-radius: 18px;
+  color: #fffaf0;
+  background:
+    linear-gradient(115deg, rgba(4, 37, 23, 0.96), rgba(11, 66, 42, 0.92)),
+    url('/assets/bottlebrush.png') center/cover;
+  box-shadow: 0 24px 55px -38px rgba(0, 20, 12, 0.95);
+}
+.staff-service-requests-page__hero > div { max-width: 780px; }
+.staff-service-requests-page__hero span {
+  color: #e9c771;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.staff-service-requests-page__hero h1 {
+  margin: 8px 0 9px;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(2.15rem, 4vw, 3.8rem);
+  font-weight: 450;
+  letter-spacing: -.035em;
+  line-height: .98;
+}
+.staff-service-requests-page__hero p { margin: 0; color: rgba(243,244,235,.83); line-height: 1.55; }
+.staff-service-requests-page > .staff-service-requests { width: 100%; }
+.aps-list .aps-proj strong { color: #172d20; }
+.aps-list .aps-proj span { color: #425847; }
+.aps-list .aps-proj small { color: #516555; }
+.aps-secondary:disabled, .aps-primary:disabled { cursor: wait; opacity: .65; }
+@media (max-width: 760px) {
+  .staff-service-requests-page { width: min(100% - 22px, 1240px); padding-top: 16px; }
+  .staff-service-requests-page__hero { align-items: stretch; flex-direction: column; }
+}

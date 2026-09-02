@@ -4,20 +4,17 @@ import { useEffect, useState } from "react";
 import {
   ClipboardList,
   FolderKanban,
-  LifeBuoy,
   ListChecks,
 } from "lucide-react";
 import ProjectsList from "./ProjectsList";
 import ProjectHealth from "./ProjectHealth";
 import RemoteTasks from "./RemoteTasks";
 import StaffProjectTracker from "./StaffProjectTracker";
-import StaffServiceRequests from "./StaffServiceRequests";
 import WorkspaceNav from "./WorkspaceNav";
 import { useAuth } from "../lib/AuthProvider";
 
 const TABS = [
   { id: "activities", label: "Project activities", Icon: ListChecks, resourceKey: "staff.projects.activities" },
-  { id: "requests", label: "Service requests", Icon: LifeBuoy, resourceKey: "staff.projects.service_requests" },
 ];
 
 /**
@@ -67,8 +64,8 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
           </span>
           <h1>My Projects</h1>
           <p>
-            Accepted task briefs, allocated project activities, your locked
-            Project Tracker and service requests in one place.
+            Accepted task briefs, allocated project activities and your locked
+            Project Tracker in one place.
           </p>
         </div>
         <WorkspaceNav audience="staff" />
@@ -162,7 +159,6 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
         </section>
       ) : null}
 
-      {tab === "requests" && visibleTabs.some((candidate) => candidate.id === "requests") ? <StaffServiceRequests embedded /> : null}
     </main>
   );
 }
