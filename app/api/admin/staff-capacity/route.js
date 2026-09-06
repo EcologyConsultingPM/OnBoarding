@@ -51,6 +51,31 @@ function workingDaysInRange(start, end, rangeStart, rangeEnd) {
   return days;
 }
 
+// Work activities (especially fieldwork) can legitimately span or land on
+// weekends, unlike leave, so their hours are prorated across every calendar
+// day of their span rather than working days only.
+function calendarDaysInRange(start, end, rangeStart, rangeEnd) {
+  const from = new Date(Math.max(asDate(start)?.getTime() || Infinity, asDate(rangeStart)?.getTime() || -Infinity));
+  const to = new Date(Math.min(asDate(end || start)?.getTime() || -Infinity, asDate(rangeEnd)?.getTime() || Infinity));
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) return 0;
+  return Math.round((to.getTime() - from.getTime()) / DAY) + 1;
+}
+
+// An activity's real working span: start_date if set, else it collapses to
+// a single day on due_date. Activities with neither date can't be placed in
+// any period and are excluded from period-based capacity (previously they
+// wrongly counted their full budget in every single period forever).
+function activitySpan(activity) {
+  const due = dateOnly(activity.due_date);
+  const start = dateOnly(activity.start_date) || due;
+  if (!start && !due) return null;
+  const effectiveStart = start || due;
+  const effectiveEnd = due || start;
+  return effectiveStart <= effectiveEnd
+    ? { start: effectiveStart, end: effectiveEnd }
+    : { start: effectiveEnd, end: effectiveStart };
+}
+
 function number(value) {
   const result = Number(value);
   return Number.isFinite(result) && result >= 0 ? result : 0;
@@ -70,11 +95,11 @@ function unavailable(error) {
   return code === "42P01" || code === "42703" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
 }
 
-async function capacityData(access, rangeStart, rangeEnd) {
+export async function capacityData(access, rangeStart, rangeEnd) {
   const [directory, profilesResult, activitiesResult, leavesResult, scheduleResult, projectsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
-    access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, budget_hours, due_date, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
+    access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, budget_hours, due_date, start_date, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
     access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, is_active").eq("is_active", true),
     access.admin.from("projects").select("id, name, client_name, status").neq("status", "archived"),
@@ -104,8 +129,19 @@ async function capacityData(access, rangeStart, rangeEnd) {
     const profile = profileByUser.get(person.id);
     const weeklyCapacityHours = number(profile?.weekly_capacity_hours) || 38;
     const staffActivities = activities.filter((activity) => activity.staff_user_id === person.id);
-    const relevantActivities = staffActivities.filter((activity) => !activity.due_date || intersects(activity.due_date, activity.due_date, rangeStart, rangeEnd));
-    const allocatedHours = relevantActivities.reduce((sum, activity) => sum + number(activity.budget_hours), 0);
+    // Each activity's budgeted hours are prorated across the calendar days of
+    // its real span (start_date → due_date) and only the portion that falls
+    // inside the period being viewed is counted — a multi-week task no
+    // longer dumps its entire budget onto whichever week contains its due
+    // date, and a task with no dates at all contributes nothing until it is
+    // scheduled.
+    const allocatedHours = staffActivities.reduce((sum, activity) => {
+      const span = activitySpan(activity);
+      if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
+      const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
+      const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
+      return sum + number(activity.budget_hours) * (overlapDays / totalDays);
+    }, 0);
     const personLeaves = leaves.filter((leave) => leave.created_by === person.id);
     const leaveDays = personLeaves.reduce((sum, leave) => sum + workingDaysInRange(leave.startDate, leave.endDate, rangeStart, rangeEnd), 0);
     const leaveHours = leaveDays * (weeklyCapacityHours / 5);
@@ -134,15 +170,22 @@ async function capacityData(access, rangeStart, rangeEnd) {
   });
 
   const calendarEvents = [
-    ...activities.filter((activity) => activity.due_date && intersects(activity.due_date, activity.due_date, rangeStart, rangeEnd)).map((activity) => ({
-      id: `activity-${activity.id}`,
-      type: activity.task_category === "Fieldwork & travel" ? "field_survey" : "activity",
-      date: activity.due_date,
-      title: activity.title,
-      staffUserId: activity.staff_user_id,
-      projectName: projectById.get(activity.project_id)?.name || "Project",
-      status: activity.status,
-    })),
+    ...activities.filter((activity) => {
+      const span = activitySpan(activity);
+      return span && intersects(span.start, span.end, rangeStart, rangeEnd);
+    }).map((activity) => {
+      const span = activitySpan(activity);
+      return {
+        id: `activity-${activity.id}`,
+        type: activity.task_category === "Fieldwork & travel" ? "field_survey" : "activity",
+        startDate: span.start,
+        endDate: span.end,
+        title: activity.title,
+        staffUserId: activity.staff_user_id,
+        projectName: projectById.get(activity.project_id)?.name || "Project",
+        status: activity.status,
+      };
+    }),
     ...leaves.map((leave) => ({ id: `leave-${leave.id}`, type: "leave", startDate: leave.startDate, endDate: leave.endDate, title: leave.title, staffUserId: leave.created_by })),
     ...(scheduleResult.data || []).filter((item) => intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
       id: `schedule-${item.id}`,
@@ -163,7 +206,7 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(access, "admin.projects.capacity");
+    const denied = await requirePortalResource(access, "admin.staff_capacity");
     if (denied) return denied;
     const { searchParams } = new URL(request.url);
     const requestedStart = dateOnly(searchParams.get("start"));
@@ -173,7 +216,7 @@ export async function GET(request) {
     if (!validRange(rangeStart, rangeEnd)) return Response.json({ error: "Choose a valid period of up to 12 months." }, { status: 400 });
     const [data, canEdit] = await Promise.all([
       capacityData(access, rangeStart, rangeEnd),
-      canAccessPortalResource(access, "admin.projects.capacity.edit"),
+      canAccessPortalResource(access, "admin.staff_capacity.edit"),
     ]);
     return Response.json({ ...data, canEdit });
   } catch (error) {
@@ -185,7 +228,7 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(access, "admin.projects.capacity.edit");
+    const denied = await requirePortalResource(access, "admin.staff_capacity.edit");
     if (denied) return denied;
     const body = await request.json();
     const userId = String(body?.userId || "");
