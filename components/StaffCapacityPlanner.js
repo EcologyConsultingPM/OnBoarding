@@ -106,8 +106,9 @@ function periodLabel(mode, start, end) {
   return first === last ? first : `${first} – ${last}`;
 }
 
-export default function StaffCapacityPlanner({ compact = false, onSelectStaff = null }) {
+export default function StaffCapacityPlanner({ compact = false, onSelectStaff = null, mode = "admin" }) {
   const { session } = useAuth();
+  const endpoint = mode === "staff" ? "/api/staff/capacity" : "/api/admin/staff-capacity";
   const today = localDate();
   const [viewMode, setViewMode] = useState("week");
   const [anchorDate, setAnchorDate] = useState(today);
@@ -129,7 +130,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     if (!session?.access_token) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/staff-capacity?start=${period.start}&end=${period.end}`, {
+      const response = await fetch(`${endpoint}?start=${period.start}&end=${period.end}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const payload = await response.json();
@@ -141,15 +142,16 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, period.start, period.end]);
+  }, [session?.access_token, period.start, period.end, endpoint]);
 
   useEffect(() => { load(); }, [load]);
 
   const saveProfile = async (person) => {
+    if (mode === "staff") return;
     const candidate = draft[person.id] || { weeklyCapacityHours: person.weeklyCapacityHours, notes: person.notes || "" };
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/staff-capacity", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ userId: person.id, weeklyCapacityHours: candidate.weeklyCapacityHours, notes: candidate.notes }),
