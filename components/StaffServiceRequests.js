@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  Globe,
   GraduationCap,
   LifeBuoy,
   Loader2,
@@ -113,6 +114,17 @@ const TYPES = {
       { id: "priority", label: "Priority", type: "select", required: true, options: ["Low", "Normal", "High", "Urgent"] },
       { id: "required_by", label: "Required by", type: "date" },
       { id: "request_details", label: "Request details", type: "textarea", full: true, required: true, placeholder: "Explain what support is needed and any relevant context." },
+    ],
+  },
+  remote_issue: {
+    label: "Remote / delivery issue",
+    Icon: Globe,
+    hint: "Raise a remote-work or international-delivery matter — a client coordination question, a handover, or an issue needing admin follow-up.",
+    fields: [
+      { id: "issue_type", label: "Type", type: "select", required: true, options: ["Client coordination", "Handover", "Delivery issue", "Time-zone / availability", "Other"] },
+      { id: "project", label: "Project or client (if applicable)" },
+      { id: "priority", label: "Priority", type: "select", required: true, options: ["Low", "Normal", "High", "Urgent"] },
+      { id: "issue_details", label: "Details", type: "textarea", full: true, required: true, placeholder: "Describe the coordination need, handover or issue and any admin follow-up required." },
     ],
   },
   equipment: {
