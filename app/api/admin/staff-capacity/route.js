@@ -76,6 +76,21 @@ function activitySpan(activity) {
     : { start: effectiveEnd, end: effectiveStart };
 }
 
+// Task Briefs (remote_tasks) have no start_date column — the work is
+// understood to run from the moment the staff member accepted it through to
+// the due date, so that's the span used both for calendar placement and
+// hour-proration, matching the same shape as activitySpan.
+function taskSpan(task) {
+  const due = dateOnly(task.due_date);
+  const start = dateOnly(task.accepted_at) || due;
+  if (!start && !due) return null;
+  const effectiveStart = start || due;
+  const effectiveEnd = due || start;
+  return effectiveStart <= effectiveEnd
+    ? { start: effectiveStart, end: effectiveEnd }
+    : { start: effectiveEnd, end: effectiveStart };
+}
+
 function number(value) {
   const result = Number(value);
   return Number.isFinite(result) && result >= 0 ? result : 0;
@@ -96,13 +111,14 @@ function unavailable(error) {
 }
 
 export async function capacityData(access, rangeStart, rangeEnd) {
-  const [directory, profilesResult, activitiesResult, leavesResult, scheduleResult, projectsResult] = await Promise.all([
+  const [directory, profilesResult, activitiesResult, leavesResult, scheduleResult, projectsResult, tasksResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
     access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, budget_hours, due_date, start_date, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
     access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, is_active").eq("is_active", true),
     access.admin.from("projects").select("id, name, client_name, status").neq("status", "archived"),
+    access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, budget_hours, status, accepted_at, completed_at, declined_at, withdrawn_at").not("accepted_at", "is", null).is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
   ]);
 
   const failures = [profilesResult, activitiesResult, scheduleResult].find((result) => result.error);
@@ -116,6 +132,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const projectById = new Map((projectsResult.data || []).map((project) => [project.id, project]));
   const profileByUser = new Map((profilesResult.data || []).map((profile) => [profile.user_id, profile]));
   const activities = (activitiesResult.data || []).filter((activity) => activity.staff_user_id && activity.acceptance_status !== "declined");
+  const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
   const leaves = (leavesResult.data || []).map((record) => ({
     ...record,
     startDate: dateOnly(record.details?.start_date),
@@ -142,29 +159,43 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
       return sum + number(activity.budget_hours) * (overlapDays / totalDays);
     }, 0);
+    const staffTasks = tasks.filter((task) => task.assigned_to === person.id);
+    // Accepted Task Briefs consume capacity exactly like project activities —
+    // same proration, same span logic — so a staff member's workload total
+    // reflects both delivery routes, not just formally allocated activities.
+    const taskHours = staffTasks.reduce((sum, task) => {
+      const span = taskSpan(task);
+      if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
+      const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
+      const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
+      return sum + number(task.budget_hours) * (overlapDays / totalDays);
+    }, 0);
+    const combinedAllocatedHours = allocatedHours + taskHours;
     const personLeaves = leaves.filter((leave) => leave.created_by === person.id);
     const leaveDays = personLeaves.reduce((sum, leave) => sum + workingDaysInRange(leave.startDate, leave.endDate, rangeStart, rangeEnd), 0);
     const leaveHours = leaveDays * (weeklyCapacityHours / 5);
     const totalCapacityHours = Math.round(weeklyCapacityHours * rangeWeeks * 100) / 100;
-    const capacityPercent = totalCapacityHours ? Math.round(((allocatedHours + leaveHours) / totalCapacityHours) * 100) : 0;
+    const capacityPercent = totalCapacityHours ? Math.round(((combinedAllocatedHours + leaveHours) / totalCapacityHours) * 100) : 0;
     const activeProjectIds = [...new Set(staffActivities.map((activity) => activity.project_id).filter(Boolean))];
     const upcomingActivities = staffActivities.filter((activity) => activity.due_date && activity.due_date >= today && activity.due_date <= rangeEnd && activity.status !== "completed");
+    const upcomingTasks = staffTasks.filter((task) => task.due_date && task.due_date >= today && task.due_date <= rangeEnd);
     const onLeave = personLeaves.some((leave) => intersects(leave.startDate, leave.endDate, today, today));
     return {
       ...person,
       weeklyCapacityHours,
       capacityPercent,
-      allocatedHours: Math.round(allocatedHours * 100) / 100,
+      allocatedHours: Math.round(combinedAllocatedHours * 100) / 100,
       leaveDays,
       leaveHours: Math.round(leaveHours * 100) / 100,
-      availableHours: Math.round(Math.max(0, totalCapacityHours - allocatedHours - leaveHours) * 100) / 100,
+      availableHours: Math.round(Math.max(0, totalCapacityHours - combinedAllocatedHours - leaveHours) * 100) / 100,
       activeProjectCount: activeProjectIds.length,
-      upcomingDueCount: upcomingActivities.length,
+      upcomingDueCount: upcomingActivities.length + upcomingTasks.length,
       status: capacityStatus(capacityPercent, onLeave),
       onLeave,
       notes: profile?.notes || "",
       projects: activeProjectIds.map((id) => projectById.get(id)).filter(Boolean).map((project) => ({ id: project.id, name: project.name, clientName: project.client_name || "" })),
       upcomingActivities: upcomingActivities.map((activity) => ({ id: activity.id, title: activity.title, dueDate: activity.due_date, projectName: projectById.get(activity.project_id)?.name || "Project", taskCategory: activity.task_category || "" })),
+      upcomingTasks: upcomingTasks.map((task) => ({ id: task.id, title: task.task, dueDate: task.due_date, projectName: task.project || "Task Brief" })),
       leave: personLeaves.map((leave) => ({ id: leave.id, title: leave.title, startDate: leave.startDate, endDate: leave.endDate })),
     };
   });
@@ -187,6 +218,22 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       };
     }),
     ...leaves.map((leave) => ({ id: `leave-${leave.id}`, type: "leave", startDate: leave.startDate, endDate: leave.endDate, title: leave.title, staffUserId: leave.created_by })),
+    ...tasks.filter((task) => {
+      const span = taskSpan(task);
+      return span && intersects(span.start, span.end, rangeStart, rangeEnd);
+    }).map((task) => {
+      const span = taskSpan(task);
+      return {
+        id: `task-${task.id}`,
+        type: "task_brief",
+        startDate: span.start,
+        endDate: span.end,
+        title: task.task,
+        staffUserId: task.assigned_to,
+        projectName: task.project || "Task Brief",
+        status: task.status,
+      };
+    }),
     ...(scheduleResult.data || []).filter((item) => intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
       id: `schedule-${item.id}`,
       type: item.milestone ? "milestone" : "schedule",
@@ -246,3 +293,4 @@ export async function POST(request) {
     return serverError(error);
   }
 }
+
