@@ -15,7 +15,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
-import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import ProjectGantt from "./ProjectGantt";
 import ProjectCloseOut from "./ProjectCloseOut";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
@@ -43,7 +42,6 @@ const PROJECT_STATUS = [
 export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null }) {
   const { session } = useAuth();
   const [view, setView] = useState("list"); // list | detail
-  const [setupSubview, setSetupSubview] = useState("projects"); // projects | capacity
   const [projects, setProjects] = useState([]);
   const [staff, setStaff] = useState([]);
   const [openId, setOpenId] = useState(null);
@@ -222,12 +220,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
         </p>
       ) : null}
 
-      <div className="aps-workspace-tabs" role="tablist" aria-label="Setup and Allocations areas">
-        <button type="button" role="tab" aria-selected={setupSubview === "projects"} className={setupSubview === "projects" ? "selected" : ""} onClick={() => setSetupSubview("projects")}>Projects, activities &amp; Gantt</button>
-        <button type="button" role="tab" aria-selected={setupSubview === "capacity"} className={setupSubview === "capacity" ? "selected" : ""} onClick={() => setSetupSubview("capacity")}>Staff Capacity Planner</button>
-      </div>
-
-      {setupSubview === "capacity" ? <StaffCapacityPlanner /> : (
       <div className="aps-grid">
         <section className="aps-card">
           <h2>
@@ -398,7 +390,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           )}
         </section>
       </div>
-      )}
     </div>
   );
 }
@@ -463,6 +454,7 @@ function ProjectDetail({
             detail: x.detail || "",
             budgetHours: x.budget_hours ?? "",
             dueDate: x.due_date || "",
+            startDate: x.start_date || "",
             scheduleItemId: x.schedule_item_id || "",
             status: x.status || "not_commenced",
             acceptanceStatus: x.acceptance_status || "accepted",
@@ -989,7 +981,7 @@ function ProjectDetail({
                 )
               }
             />
-            <div className="aps-two">
+            <div className="aps-three">
               <input
                 placeholder="Hrs"
                 value={row.budgetHours}
@@ -1001,18 +993,36 @@ function ProjectDetail({
                   )
                 }
               />
-              <input
-                type="date"
-                aria-label={`Due date for ${row.title || "activity"}`}
-                value={row.dueDate || ""}
-                onChange={(e) =>
-                  setActivities(
-                    activities.map((r, j) =>
-                      j === i ? { ...r, dueDate: e.target.value } : r,
-                    ),
-                  )
-                }
-              />
+              <label className="aps-field">
+                Start date
+                <input
+                  type="date"
+                  aria-label={`Start date for ${row.title || "activity"}`}
+                  value={row.startDate || ""}
+                  onChange={(e) =>
+                    setActivities(
+                      activities.map((r, j) =>
+                        j === i ? { ...r, startDate: e.target.value } : r,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label className="aps-field">
+                Due date
+                <input
+                  type="date"
+                  aria-label={`Due date for ${row.title || "activity"}`}
+                  value={row.dueDate || ""}
+                  onChange={(e) =>
+                    setActivities(
+                      activities.map((r, j) =>
+                        j === i ? { ...r, dueDate: e.target.value } : r,
+                      ),
+                    )
+                  }
+                />
+              </label>
             </div>
             <div className="aps-activity-state">
               <span className={`aps-activity-response ${row.acceptanceStatus || "accepted"}`}>
@@ -1046,6 +1056,7 @@ function ProjectDetail({
                 detail: "",
                 budgetHours: "",
                 dueDate: "",
+                startDate: "",
                 scheduleItemId: "",
                 status: "not_commenced",
                 acceptanceStatus: "awaiting_response",
