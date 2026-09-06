@@ -847,7 +847,7 @@ function ProjectDetail({
 
       <ProjectGantt schedule={schedule} />
 
-      <ProjectCloseOut projectId={openId} projectName={project.name} onToast={notify} />
+      <ProjectCloseOut projectId={projectId} projectName={project.name} onToast={notify} />
 
       {/* Activities */}
       <section className="aps-card">
