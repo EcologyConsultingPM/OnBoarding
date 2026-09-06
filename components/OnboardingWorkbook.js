@@ -3983,7 +3983,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       n: "03",
       eyebrow: "Staff support",
       title: "Service Requests",
-      desc: "Submit and track leave, training, equipment and other internal requests.",
+      desc: "Submit and track leave, training, equipment, remote/delivery and other internal requests.",
       Icon: LifeBuoy,
       photo: "bottlebrush",
       base: "#49634f",
@@ -4057,20 +4057,6 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       base: "#2f5c2f",
       g1: "#3b7a3d",
       g2: "#123320",
-    },
-    {
-      key: "remote",
-      resourceKey: "staff.remote_operations",
-      n: "09",
-      eyebrow: "International delivery",
-      title: "Remote Operations",
-      desc: "Remote-work profiles, coordination records and delivery handovers.",
-      Icon: Users2,
-      photo: "bottlebrush",
-      base: "#a34a32",
-      g1: "#c05a3e",
-      g2: "#2a1109",
-      href: "/staff/remote-operations",
     },
   ];
   const unreadForDomain = (key) =>
@@ -5053,7 +5039,7 @@ export default function OnboardingWorkbook() {
               },
               {
                 key: "remoteops",
-                label: "Remote Operations",
+                label: "Task Briefs",
                 desc: "Assigned task briefs, updates and delivery handovers",
                 Icon: Users2,
                 staffOnly: true,
