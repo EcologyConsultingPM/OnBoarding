@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import PsychosocialSupportCard from "./PsychosocialSupportCard";
 
 const TYPES = {
   leave: {
@@ -570,6 +571,8 @@ export default function StaffServiceRequests({ embedded = false }) {
           )}
         </section>
       </div>
+
+      <PsychosocialSupportCard />
     </section>
   );
 }
