@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COLUMNS = "id, request_type, title, details, status, admin_note, return_reason, reviewed_by, reviewed_at, created_by, project_id, assigned_to, priority, due_date, estimated_hours, attachments, locked, archived_at, submission_key, seen_by_staff, created_at, updated_at";
-const TYPES = ["leave", "training", "equipment", "task", "other"];
-const TYPE_LABELS = { leave: "leave request", training: "training request", equipment: "equipment request", task: "task request", other: "service request" };
+const TYPES = ["leave", "training", "equipment", "task", "other", "remote_issue"];
+const TYPE_LABELS = { leave: "leave request", training: "training request", equipment: "equipment request", task: "task request", other: "service request", remote_issue: "remote / delivery request" };
 const PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
 const text = (value, maximum = 5000) => { const clean = String(value || "").trim(); return clean ? clean.slice(0, maximum) : null; };
 const date = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : null;
