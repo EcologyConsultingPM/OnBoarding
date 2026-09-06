@@ -15,6 +15,7 @@ const STATUS = {
 const EVENT = {
   activity: { label: "Project activity", color: "#3f7eae" },
   field_survey: { label: "Field survey", color: "#469b69" },
+  task_brief: { label: "Task brief", color: "#2f8f8f" },
   leave: { label: "Approved leave", color: "#c76347" },
   schedule: { label: "Schedule", color: "#d5b243" },
   milestone: { label: "Milestone", color: "#8d62ab" },
