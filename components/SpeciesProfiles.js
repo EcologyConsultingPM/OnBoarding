@@ -9,6 +9,7 @@ import { FLORA_PROFILES } from "../lib/floraData";
 import { FAUNA_PROFILES } from "../lib/faunaData";
 import { SURVEY_FLORA } from "../lib/surveyFlora";
 import { SURVEY_FAUNA } from "../lib/surveyFauna";
+import { mergeOverrides } from "../lib/mergeSpeciesOverrides";
 import SurveyRequirements from "./SurveyRequirements";
 import WorkspaceNav from "./WorkspaceNav";
 
@@ -121,6 +122,7 @@ export default function SpeciesProfiles({ onToast, onHome }) {
   const [openIdx, setOpenIdx] = useState(-1);
 
   const [subs, setSubs] = useState([]);
+  const [overrides, setOverrides] = useState([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -141,9 +143,21 @@ export default function SpeciesProfiles({ onToast, onHome }) {
   }, [authFetch, apiBase]);
 
   useEffect(() => { if (session?.access_token) loadSubs(); }, [session, kingdom, loadSubs]);
+
+  const loadOverrides = useCallback(async () => {
+    try {
+      const res = await authFetch("GET", `/api/species-overrides?kingdom=${kingdom}`);
+      const d = await res.json();
+      if (res.ok) setOverrides(d.overrides || []);
+    } catch { /* non-fatal — falls back to baseline profiles */ }
+  }, [authFetch, kingdom]);
+  useEffect(() => { if (session?.access_token) loadOverrides(); }, [session, kingdom, loadOverrides]);
   useEffect(() => { setQ(""); setLocationContext(""); setLetter("All"); setListing("All"); setLegislation("all"); setGroup("All"); setLimit(PAGE); setOpenIdx(-1); }, [kingdom]);
 
-  const PROFILES = kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES;
+  const PROFILES = useMemo(
+    () => mergeOverrides(kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES, overrides),
+    [kingdom, overrides],
+  );
   const LC = kingdom === "flora" ? FLORA_LC : FAUNA_LC;
   const px = kingdom === "flora" ? "fp" : "fn";
 
