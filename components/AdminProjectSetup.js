@@ -40,7 +40,7 @@ const PROJECT_STATUS = [
   { value: "archived", label: "Archived" },
 ];
 
-export default function AdminProjectSetup({ initialProjectId = null }) {
+export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null }) {
   const { session } = useAuth();
   const [view, setView] = useState("list"); // list | detail
   const [setupSubview, setSetupSubview] = useState("projects"); // projects | capacity
@@ -166,6 +166,7 @@ export default function AdminProjectSetup({ initialProjectId = null }) {
           setOpenId(null);
           loadProjects();
         }}
+        onOpenTracker={onOpenTracker ? () => onOpenTracker(openId) : null}
         error={error}
         message={message}
       />
@@ -410,6 +411,7 @@ function ProjectDetail({
   notify,
   fail,
   onBack,
+  onOpenTracker,
   error,
   message,
 }) {
@@ -617,6 +619,50 @@ function ProjectDetail({
           <Trash2 size={14} /> Delete
         </button>
       </div>
+
+      {/* Guided setup sequence: Details -> Schedule -> Team -> Activities -> Tracker.
+          Each step is marked done from live data; the final step opens the Project
+          Tracker. Staff are notified automatically when activities are assigned. */}
+      {(() => {
+        const hasDetails = Boolean(project?.name);
+        const hasSchedule = schedule.length > 0;
+        const hasTeam = allocations.some((a) => a.staffUserId);
+        const hasActivities = activities.some((a) => (a.title || "").trim());
+        const steps = [
+          { key: "details", label: "1. Project details", done: hasDetails },
+          { key: "schedule", label: "2. Schedule", done: hasSchedule },
+          { key: "team", label: "3. Team", done: hasTeam },
+          { key: "activities", label: "4. Work activities", done: hasActivities },
+          { key: "tracker", label: "5. Project Tracker", done: false, isTracker: true },
+        ];
+        const readyForTracker = hasDetails && hasTeam && hasActivities;
+        return (
+          <div className="aps-stepper" role="list" aria-label="Project setup sequence">
+            <div className="aps-stepper-track">
+              {steps.map((s, i) => (
+                <div key={s.key} className={`aps-step ${s.done ? "done" : ""} ${s.isTracker ? "tracker" : ""}`} role="listitem">
+                  <span className="aps-step-dot">{s.done ? <CheckCircle2 size={14} /> : i + 1}</span>
+                  <span className="aps-step-label">{s.label.replace(/^\d+\.\s/, "")}</span>
+                </div>
+              ))}
+            </div>
+            <div className="aps-stepper-cta">
+              {readyForTracker ? (
+                <>
+                  <span className="aps-stepper-note">Setup complete — assigned staff have been notified. Next, set up the Project Tracker.</span>
+                  {onOpenTracker ? (
+                    <button className="aps-primary" onClick={onOpenTracker}>
+                      <ClipboardList size={14} /> Set up Project Tracker →
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <span className="aps-stepper-note">Work through the steps below. Assigning work activities notifies the allocated staff automatically.</span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <section className="aps-card">
         <h2>Project details</h2>
