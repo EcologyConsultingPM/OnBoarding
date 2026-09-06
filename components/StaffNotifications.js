@@ -99,7 +99,7 @@ export default function StaffNotifications() {
 
           <a className="sn-open-remote" href="/staff/remote-operations">
             <span>
-              <ClipboardList size={16} /> Open Remote Operations
+              <ClipboardList size={16} /> Open Task Briefs
             </span>
             <ExternalLink size={15} />
           </a>
