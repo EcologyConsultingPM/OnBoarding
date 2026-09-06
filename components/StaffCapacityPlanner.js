@@ -217,7 +217,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
         <div>
           <span><Users size={14} /> Delivery planning · live workload view</span>
           <h2>Staff Capacity Planner</h2>
-          <p>Review allocated activity hours, approved leave, project deadlines and available capacity before creating or reassigning work.</p>
+          <p>{mode === "staff" ? "See the team's planned work, approved leave and project deadlines on the calendar below." : "Review allocated activity hours, approved leave, project deadlines and available capacity before creating or reassigning work."}</p>
         </div>
         <div className="scp-controls">
           <label className="scp-view-select">
@@ -253,31 +253,35 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
 
       {!loading && data?.ready ? (
         <>
-          <div className="scp-legend">
-            {Object.entries(STATUS).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}
-          </div>
-          <div className="scp-table-wrap">
-            <table className="scp-table">
-              <thead><tr><th>Staff member</th><th>Capacity</th><th>Contracted hours</th><th>Available hours</th><th>Allocated hours</th><th>Leave</th><th>Projects</th><th>Due</th><th>Status</th><th /></tr></thead>
-              <tbody>
-                {data.people.map((person) => {
-                  const status = STATUS[person.status] || STATUS.available;
-                  const profile = draft[person.id] || { weeklyCapacityHours: person.weeklyCapacityHours, notes: person.notes || "" };
-                  return <Fragment key={person.id}>
-                    <tr className={person.status === "over_capacity" ? "over" : ""}>
-                      <td><strong>{person.name || person.email}</strong><small>{person.email}</small></td>
-                      <td><div className="scp-meter"><i style={{ width: `${Math.min(100, person.capacityPercent)}%`, background: status.color }} /><span>{person.capacityPercent}%</span></div></td>
-                      <td><strong>{person.weeklyCapacityHours} h</strong><small>per week</small></td>
-                      <td>{person.availableHours} h</td><td>{person.allocatedHours} h</td><td>{person.leaveDays ? `${person.leaveDays} day${person.leaveDays === 1 ? "" : "s"}` : "—"}</td><td>{person.activeProjectCount}</td><td>{person.upcomingDueCount}</td>
-                      <td><span className="scp-status" style={{ color: status.color, borderColor: `${status.color}66`, background: `${status.color}14` }}>{status.label}</span></td>
-                      <td>{data.canEdit ? <button type="button" className="scp-edit" onClick={() => { setEditing(editing === person.id ? "" : person.id); setDraft({ ...draft, [person.id]: profile }); }} title="Edit contracted weekly hours"><Edit3 size={14} /></button> : null}</td>
-                    </tr>
-                    {editing === person.id ? <tr><td className="scp-profile" colSpan={10}><div className="scp-profile-fields"><label>Contracted weekly hours <input type="number" min="0" max="168" step="0.5" value={profile.weeklyCapacityHours} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, weeklyCapacityHours: event.target.value } })} /></label><label>Capacity notes <input value={profile.notes} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, notes: event.target.value } })} placeholder="Optional availability note" /></label><button type="button" disabled={saving} onClick={() => saveProfile(person)}>{saving ? "Saving…" : "Save contracted hours"}</button></div></td></tr> : null}
-                  </Fragment>;
-                })}
-              </tbody>
-            </table>
-          </div>
+          {mode !== "staff" && (
+            <>
+              <div className="scp-legend">
+                {Object.entries(STATUS).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}
+              </div>
+              <div className="scp-table-wrap">
+                <table className="scp-table">
+                  <thead><tr><th>Staff member</th><th>Capacity</th><th>Contracted hours</th><th>Available hours</th><th>Allocated hours</th><th>Leave</th><th>Projects</th><th>Due</th><th>Status</th><th /></tr></thead>
+                  <tbody>
+                    {data.people.map((person) => {
+                      const status = STATUS[person.status] || STATUS.available;
+                      const profile = draft[person.id] || { weeklyCapacityHours: person.weeklyCapacityHours, notes: person.notes || "" };
+                      return <Fragment key={person.id}>
+                        <tr className={person.status === "over_capacity" ? "over" : ""}>
+                          <td><strong>{person.name || person.email}</strong><small>{person.email}</small></td>
+                          <td><div className="scp-meter"><i style={{ width: `${Math.min(100, person.capacityPercent)}%`, background: status.color }} /><span>{person.capacityPercent}%</span></div></td>
+                          <td><strong>{person.weeklyCapacityHours} h</strong><small>per week</small></td>
+                          <td>{person.availableHours} h</td><td>{person.allocatedHours} h</td><td>{person.leaveDays ? `${person.leaveDays} day${person.leaveDays === 1 ? "" : "s"}` : "—"}</td><td>{person.activeProjectCount}</td><td>{person.upcomingDueCount}</td>
+                          <td><span className="scp-status" style={{ color: status.color, borderColor: `${status.color}66`, background: `${status.color}14` }}>{status.label}</span></td>
+                          <td>{data.canEdit ? <button type="button" className="scp-edit" onClick={() => { setEditing(editing === person.id ? "" : person.id); setDraft({ ...draft, [person.id]: profile }); }} title="Edit contracted weekly hours"><Edit3 size={14} /></button> : null}</td>
+                        </tr>
+                        {editing === person.id ? <tr><td className="scp-profile" colSpan={10}><div className="scp-profile-fields"><label>Contracted weekly hours <input type="number" min="0" max="168" step="0.5" value={profile.weeklyCapacityHours} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, weeklyCapacityHours: event.target.value } })} /></label><label>Capacity notes <input value={profile.notes} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, notes: event.target.value } })} placeholder="Optional availability note" /></label><button type="button" disabled={saving} onClick={() => saveProfile(person)}>{saving ? "Saving…" : "Save contracted hours"}</button></div></td></tr> : null}
+                      </Fragment>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
           <div className="scp-calendar-section">
             <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Staff names stay frozen on the left while the selected period scrolls horizontally. Use week, month, year or a custom date range to search planned work.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
