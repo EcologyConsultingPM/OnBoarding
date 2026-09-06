@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "../lib/AuthProvider";
-import PsychosocialSupportCard from "./PsychosocialSupportCard";
 
 async function api(session, type, method = "GET", body, id) {
   const url = `/api/remote-ops?type=${type}${id ? `&id=${id}` : ""}`;
@@ -321,8 +320,6 @@ export default function RemoteOperationsWorkspace() {
           </div>
         </section>
       </div>
-
-      <PsychosocialSupportCard />
 
       <section className="ro-followup">
         <div className="ro-card-head">
