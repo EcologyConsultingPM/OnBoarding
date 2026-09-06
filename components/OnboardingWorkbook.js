@@ -5234,7 +5234,13 @@ export default function OnboardingWorkbook() {
                 </button>
               </div>
               {projectsSubview === "setup" && (
-                <AdminProjectSetup initialProjectId={projectSetupTargetId} />
+                <AdminProjectSetup
+                  initialProjectId={projectSetupTargetId}
+                  onOpenTracker={(projectId) => {
+                    setProjectTrackerTargetId(projectId || "");
+                    setProjectsSubview("tracker");
+                  }}
+                />
               )}
               {projectsSubview === "tracker" && (
                 <AdminProjectTracker
