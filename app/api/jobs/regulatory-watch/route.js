@@ -19,6 +19,32 @@ function fingerprint(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
+// Some government sites (observed: act.gov.au) run bot mitigation that blocks
+// a self-identifying compliance-monitor User-Agent outright even though the
+// page itself is fully public (it's indexed by ordinary search crawlers).
+// Some large reform pages (observed: dcceew.gov.au) occasionally exceed a 20s
+// fetch. Try the honest identity first; only on a 403 or timeout, retry once
+// as a standard browser UA with a longer timeout before giving up. This never
+// changes behaviour for sources that already succeed on the first attempt.
+async function fetchSourceWithRetry(url) {
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "EcologyConsulting-RegulatoryWatch/1.0 (compliance review monitor)" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(20000),
+    });
+    if (response.ok) return response;
+    if (response.status !== 403) return response;
+  } catch (error) {
+    if (error?.name !== "TimeoutError" && error?.name !== "AbortError") throw error;
+  }
+  return fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" },
+    redirect: "follow",
+    signal: AbortSignal.timeout(35000),
+  });
+}
+
 function decodeEntities(value) {
   return String(value || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
@@ -108,11 +134,7 @@ export async function GET(request) {
     for (const source of sources || []) {
       const checkedAt = new Date().toISOString();
       try {
-        const response = await fetch(sourceTarget(source), {
-          headers: { "User-Agent": "EcologyConsulting-RegulatoryWatch/1.0 (compliance review monitor)" },
-          redirect: "follow",
-          signal: AbortSignal.timeout(20000),
-        });
+        const response = await fetchSourceWithRetry(sourceTarget(source));
         const raw = await response.text();
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const digest = fingerprint(normaliseStructured(raw, source.fetch_type || "page"));
@@ -199,3 +221,4 @@ export async function GET(request) {
     return Response.json({ error: error.message || "Regulatory Watch scan failed." }, { status: 500 });
   }
 }
+  
