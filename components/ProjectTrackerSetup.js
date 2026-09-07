@@ -650,8 +650,8 @@ export default function ProjectTrackerSetup({ onToast }) {
                   >
                     {project.status || "Draft"}
                   </span>
-                  <strong>{project.name}</strong>
-                  <small>{project.clientName || "Client not recorded"}</small>
+                  <strong style={{ color: "#fffdf8", fontWeight: 700 }}>{project.name}</strong>
+                  <small style={{ color: "rgba(255,253,248,.62)" }}>{project.clientName || "Client not recorded"}</small>
                   <span className="pts-project-foot">
                     <em>{ready}% ready</em>
                     <span>{project.teamCount || 0} team</span>
@@ -665,7 +665,7 @@ export default function ProjectTrackerSetup({ onToast }) {
               <div className="pts-project-heading">
                 <div>
                   <span className="pts-kicker">Selected project</span>
-                  <h2>{selectedProject.name}</h2>
+                  <h2 style={{ color: "#fffdf8", fontWeight: 700 }}>{selectedProject.name}</h2>
                   <p>
                     {selectedProject.clientName || "Client not recorded"} ·{" "}
                     {selectedProject.status || "Draft"} · {teamCount} allocated{" "}
