@@ -4,7 +4,7 @@ import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
+const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
 const LEGACY_COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, status, pause_reason, sort_order, updated_at, created_at";
 const ACTIVITY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 
@@ -223,7 +223,7 @@ export async function PUT(request, { params }) {
             detail: opt(input.detail),
             start_date: dueDate(input.startDate) || dueDate(input.dueDate),
             end_date: dueDate(input.dueDate),
-            milestone: false,
+            milestone: input.milestone === true,
             progress_percent: requestedStatus === "completed" ? 100 : percent(input.progressPercent),
             status: requestedStatus,
             is_active: true,
@@ -245,6 +245,7 @@ export async function PUT(request, { params }) {
         due_date: dueDate(input.dueDate),
         start_date: dueDate(input.startDate) || dueDate(input.dueDate),
         schedule_item_id: scheduleItemId,
+        milestone: input.milestone === true,
         status: changedAssignee ? "not_commenced" : requestedStatus,
         pause_reason: requestedStatus === "paused_other" ? opt(input.pauseReason) : null,
         sort_order: input.sortOrder,
