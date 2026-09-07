@@ -26,6 +26,7 @@ import { useAuth } from "../lib/AuthProvider";
 import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
 import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
+import DailyRiskAssessmentForm from "./DailyRiskAssessmentForm";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -457,6 +458,18 @@ export default function StaffForms() {
           <p className="sf-empty">Nothing submitted yet.</p>
         )}
       </div>
+    );
+  }
+
+  // ---------- Daily Risk Assessment & Toolbox Talk (bespoke form) ----------
+  if (view === "form" && activeKey === "daily_risk_assessment") {
+    return (
+      <DailyRiskAssessmentForm
+        authFetch={authFetch}
+        onBack={backToHub}
+        onSubmitted={loadHistory}
+        onToast={notify}
+      />
     );
   }
 
