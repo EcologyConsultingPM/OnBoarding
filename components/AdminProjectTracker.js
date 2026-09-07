@@ -403,11 +403,11 @@ export default function AdminProjectTracker({
                       {selected.sources.map((source) => (
                         <div className="apt-source-block" key={source.id}>
                           <div className="apt-source-line">
-                            <strong>{source.source_code}</strong>
-                            <span>{source.source_name}</span>
+                            <strong>{source.source_name}</strong>
+                            <span>{source.source_code}</span>
                             <em>
                               {source.source_type === "original"
-                                ? "Original scope"
+                                ? (source.approval_status ? source.approval_status.charAt(0).toUpperCase() + source.approval_status.slice(1) : "Approved")
                                 : `${source.source_type} · ${source.approval_status}`}
                             </em>
                             <button
@@ -548,7 +548,7 @@ export default function AdminProjectTracker({
                             }
                           >
                             <Plus size={13} /> Add allocation to{" "}
-                            {source.source_code}
+                            {source.source_name}
                           </button>
                         </div>
                       ))}
@@ -900,7 +900,7 @@ function AllocationEditor({
             >
               {sources.map((source) => (
                 <option key={source.id} value={source.id}>
-                  {source.source_code} · {source.source_name}
+                  {source.source_name} · {source.source_code}
                 </option>
               ))}
             </select>
