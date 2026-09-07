@@ -195,12 +195,15 @@ export async function PUT(request, { params }) {
 
     const now = new Date().toISOString();
     let nextScheduleSort = (scheduleResult.data || []).length + 1;
-    const incomingIds = new Set(inputRows.map((row) => row.id).filter(validId));
-    const retiredIds = [...existingById.keys()].filter((id) => !incomingIds.has(id));
-    if (retiredIds.length) {
-      const { error } = await access.admin.from("project_activities").update({ is_active: false, updated_at: now }).in("id", retiredIds);
-      if (error) return Response.json({ error: error.message }, { status: 400 });
-    }
+    // NOTE: this save is a pure upsert. It used to also retire (is_active:
+    // false) any existing activity whose id was missing from the payload —
+    // inferring "not sent this time" as "delete this". That silently wiped
+    // out activities whenever a save happened with an incomplete local list
+    // (e.g. adding a row before the initial load had finished), and left
+    // their linked Gantt/schedule entries orphaned, which is what caused
+    // the schedule to visibly "double up" when the same work was re-added.
+    // Deletion is now the DELETE handler below: explicit, immediate,
+    // one activity at a time — never inferred from what's absent here.
 
     const createdOrReassigned = [];
     const persisted = [];
@@ -303,7 +306,63 @@ export async function PUT(request, { params }) {
     }
 
     const eventWarning = await createAssignmentEvents(access.admin, project, createdOrReassigned);
-    return Response.json({ success: true, count: persisted.length, activities: persisted, retired: retiredIds.length, notified: createdOrReassigned.length, event_warning: eventWarning || null });
+    return Response.json({ success: true, count: persisted.length, activities: persisted, notified: createdOrReassigned.length, event_warning: eventWarning || null });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
+// Explicit, immediate, single-activity deletion — replaces the old
+// infer-from-absence retirement that used to run inside PUT. Also retires
+// the activity's auto-created schedule/Gantt line, but only if no other
+// still-active activity is still linked to it (an admin can group several
+// activities under one shared schedule phase via the schedule dropdown, so
+// that shared phase must not disappear just because one of its activities
+// was deleted).
+export async function DELETE(request, { params }) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return Response.json({ error: "Only administrators can manage activities." }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const activityId = searchParams.get("id");
+    if (!validId(activityId)) return Response.json({ error: "A valid activity id is required." }, { status: 400 });
+
+    const { data: activity, error: fetchError } = await access.admin
+      .from("project_activities")
+      .select("id, project_id, schedule_item_id")
+      .eq("id", activityId)
+      .eq("project_id", params.projectId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (fetchError) return Response.json({ error: fetchError.message }, { status: 400 });
+    if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
+
+    const now = new Date().toISOString();
+    const { error: retireError } = await access.admin
+      .from("project_activities")
+      .update({ is_active: false, updated_at: now })
+      .eq("id", activityId);
+    if (retireError) return Response.json({ error: retireError.message }, { status: 400 });
+
+    if (validId(activity.schedule_item_id)) {
+      const { count, error: countError } = await access.admin
+        .from("project_activities")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_item_id", activity.schedule_item_id)
+        .eq("is_active", true);
+      if (countError) return Response.json({ error: countError.message }, { status: 400 });
+      if (!count) {
+        const { error: scheduleRetireError } = await access.admin
+          .from("project_schedule_items")
+          .update({ is_active: false, updated_at: now })
+          .eq("id", activity.schedule_item_id);
+        if (scheduleRetireError) return Response.json({ error: scheduleRetireError.message }, { status: 400 });
+      }
+    }
+
+    return Response.json({ success: true });
   } catch (error) {
     return serverError(error);
   }
