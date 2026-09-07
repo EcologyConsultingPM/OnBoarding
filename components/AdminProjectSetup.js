@@ -14,10 +14,10 @@ import {
   CheckCircle2,
   ExternalLink,
   GripVertical,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
-import ProjectCloseOut from "./ProjectCloseOut";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 
 const TASK_CATEGORIES = [
@@ -40,7 +40,7 @@ const PROJECT_STATUS = [
   { value: "archived", label: "Archived" },
 ];
 
-export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null }) {
+export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null, onOpenCloseOut = null }) {
   const { session } = useAuth();
   const [view, setView] = useState("list"); // list | detail
   const [projects, setProjects] = useState([]);
@@ -77,7 +77,9 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
       const res = await auth("GET", "/api/projects");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setProjects(data.projects);
+      // Archived projects (close-out complete) drop out of the active list —
+      // the record isn't deleted, just no longer shown as current work.
+      setProjects((data.projects || []).filter((p) => p.status !== "archived"));
     } catch (e) {
       fail(e);
     }
@@ -166,6 +168,7 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           loadProjects();
         }}
         onOpenTracker={onOpenTracker ? () => onOpenTracker(openId) : null}
+        onOpenCloseOut={onOpenCloseOut ? (name) => onOpenCloseOut(openId, name) : null}
         error={error}
         message={message}
       />
@@ -404,6 +407,7 @@ function ProjectDetail({
   fail,
   onBack,
   onOpenTracker,
+  onOpenCloseOut,
   error,
   message,
 }) {
@@ -616,6 +620,11 @@ function ProjectDetail({
         <button className="aps-primary" onClick={saveDetails}>
           <Save size={14} /> Save details
         </button>
+        {onOpenCloseOut ? (
+          <button className="aps-secondary" onClick={() => onOpenCloseOut(project.name)} title="Open Project Close-out for this project">
+            <ClipboardCheck size={14} /> Project Close-out →
+          </button>
+        ) : null}
         <button
           className="aps-delete-project"
           onClick={deleteProject}
@@ -768,43 +777,6 @@ function ProjectDetail({
         </div>
       </section>
 
-      {/* Schedule — compact until a project lead chooses to edit the full delivery plan. */}
-      <section className="aps-card aps-schedule-card">
-        <div className="aps-card-head">
-          <button type="button" className="aps-schedule-toggle" onClick={() => setScheduleExpanded((open) => !open)} aria-expanded={scheduleExpanded}>
-            <span><Calendar size={16} /> Schedule &amp; Gantt (auto-generated from Work activities)</span>
-            <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View, edit or add a non-staff milestone (e.g. an invoice date)"}</small>
-          </button>
-          {scheduleExpanded ? <button className="aps-secondary" onClick={saveSchedule}><Save size={13} /> Save schedule</button> : null}
-        </div>
-        {!scheduleExpanded ? <p className="aps-schedule-summary">Open the schedule to review key dates, linked staff, delivery status and Gantt progress.</p> : null}
-        {scheduleExpanded ? <div className="aps-schedule-editor">
-          {schedule.map((row, i) => {
-            const linkedStaff = activities
-              .filter((activity) => activity.scheduleItemId === row.id && activity.staffUserId)
-              .map((activity) => staff.find((person) => person.id === activity.staffUserId)?.name || staff.find((person) => person.id === activity.staffUserId)?.email || "Allocated staff");
-            return <div key={row.id || i} className="aps-schedule-row">
-              <div className="aps-schedule-row-head"><strong>Key date {i + 1}</strong><span className={`aps-delivery-state ${row.status || "not_commenced"}`}>{ACTIVITY_STATUS[row.status || "not_commenced"]?.label || "Not yet commenced"}</span></div>
-              <div className="aps-schedule-fields">
-                <label className="aps-field">Schedule item<input placeholder="Schedule item" value={row.title} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, title: e.target.value } : r))} /></label>
-                <label className="aps-field">Delivery detail<input placeholder="Key deliverable or date context" value={row.detail} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, detail: e.target.value } : r))} /></label>
-                <label className="aps-field">Start date<input type="date" value={row.startDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, startDate: e.target.value } : r))} /></label>
-                <label className="aps-field">Key / due date<input type="date" value={row.endDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, endDate: e.target.value } : r))} /></label>
-                <label className="aps-field">Status<select value={row.status || "not_commenced"} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, status: e.target.value } : r))}>{Object.entries(ACTIVITY_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></label>
-                <label className="aps-field">Completion %<input type="number" min="0" max="100" step="5" value={row.progressPercent ?? 0} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, progressPercent: e.target.value } : r))} /></label>
-              </div>
-              <div className="aps-schedule-assignment"><Users size={14} /><span><strong>Assigned staff:</strong> {linkedStaff.length ? linkedStaff.join(", ") : "No linked work activity yet"}</span></div>
-              <div className="aps-schedule-actions">
-                <label className="aps-check"><input type="checkbox" checked={row.milestone} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone</label>
-                <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
-                <button type="button" className="aps-remove" title="Delete schedule item" aria-label={`Delete ${row.title || "schedule item"}`} onClick={() => setSchedule(schedule.filter((_, j) => j !== i))}><Trash2 size={14} /> Delete</button>
-              </div>
-            </div>;
-          })}
-          <button className="aps-add" onClick={() => setSchedule([...schedule, { title: "", detail: "", startDate: "", endDate: "", milestone: false, progressPercent: 0, status: "not_commenced", locked: false }])}><Plus size={13} /> Add key date</button>
-        </div> : null}
-      </section>
-
       {/* Allocations */}
       <section className="aps-card">
         <div className="aps-card-head">
@@ -896,10 +868,6 @@ function ProjectDetail({
           <Plus size={13} /> Add allocation
         </button>
       </section>
-
-      <ProjectGantt schedule={schedule} />
-
-      <ProjectCloseOut projectId={projectId} projectName={project.name} onToast={notify} />
 
       {/* Activities */}
       <section className="aps-card">
@@ -1099,6 +1067,46 @@ function ProjectDetail({
           <Plus size={13} /> Add activity
         </button>
       </section>
+
+      {/* Schedule — compact until a project lead chooses to edit the full delivery plan. */}
+      <section className="aps-card aps-schedule-card">
+        <div className="aps-card-head">
+          <button type="button" className="aps-schedule-toggle" onClick={() => setScheduleExpanded((open) => !open)} aria-expanded={scheduleExpanded}>
+            <span><Calendar size={16} /> Schedule &amp; Gantt (auto-generated from Work activities)</span>
+            <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View, edit or add a non-staff milestone (e.g. an invoice date)"}</small>
+          </button>
+          {scheduleExpanded ? <button className="aps-secondary" onClick={saveSchedule}><Save size={13} /> Save schedule</button> : null}
+        </div>
+        {!scheduleExpanded ? <p className="aps-schedule-summary">Open the schedule to review key dates, linked staff, delivery status and Gantt progress.</p> : null}
+        {scheduleExpanded ? <div className="aps-schedule-editor">
+          {schedule.map((row, i) => {
+            const linkedStaff = activities
+              .filter((activity) => activity.scheduleItemId === row.id && activity.staffUserId)
+              .map((activity) => staff.find((person) => person.id === activity.staffUserId)?.name || staff.find((person) => person.id === activity.staffUserId)?.email || "Allocated staff");
+            return <div key={row.id || i} className="aps-schedule-row">
+              <div className="aps-schedule-row-head"><strong>Key date {i + 1}</strong><span className={`aps-delivery-state ${row.status || "not_commenced"}`}>{ACTIVITY_STATUS[row.status || "not_commenced"]?.label || "Not yet commenced"}</span></div>
+              <div className="aps-schedule-fields">
+                <label className="aps-field">Schedule item<input placeholder="Schedule item" value={row.title} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, title: e.target.value } : r))} /></label>
+                <label className="aps-field">Delivery detail<input placeholder="Key deliverable or date context" value={row.detail} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, detail: e.target.value } : r))} /></label>
+                <label className="aps-field">Start date<input type="date" value={row.startDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, startDate: e.target.value } : r))} /></label>
+                <label className="aps-field">Key / due date<input type="date" value={row.endDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, endDate: e.target.value } : r))} /></label>
+                <label className="aps-field">Status<select value={row.status || "not_commenced"} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, status: e.target.value } : r))}>{Object.entries(ACTIVITY_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></label>
+                <label className="aps-field">Completion %<input type="number" min="0" max="100" step="5" value={row.progressPercent ?? 0} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, progressPercent: e.target.value } : r))} /></label>
+              </div>
+              <div className="aps-schedule-assignment"><Users size={14} /><span><strong>Assigned staff:</strong> {linkedStaff.length ? linkedStaff.join(", ") : "No linked work activity yet"}</span></div>
+              <div className="aps-schedule-actions">
+                <label className="aps-check"><input type="checkbox" checked={row.milestone} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone</label>
+                <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
+                <button type="button" className="aps-remove" title="Delete schedule item" aria-label={`Delete ${row.title || "schedule item"}`} onClick={() => setSchedule(schedule.filter((_, j) => j !== i))}><Trash2 size={14} /> Delete</button>
+              </div>
+            </div>;
+          })}
+          <button className="aps-add" onClick={() => setSchedule([...schedule, { title: "", detail: "", startDate: "", endDate: "", milestone: false, progressPercent: 0, status: "not_commenced", locked: false }])}><Plus size={13} /> Add key date</button>
+        </div> : null}
+      </section>
+
+      <ProjectGantt schedule={schedule} />
+
     </div>
   );
 }
