@@ -59,7 +59,7 @@ export async function POST(request, { params }) {
       const { data, error } = await access.admin.from("project_budget_sources").insert({
         project_id: projectId,
         source_code: SOURCE_CODE,
-        source_name: `${project.name} — Original scope`,
+        source_name: "Original scope",
         source_type: "original",
         approved_value: num(project.budget_dollars),
         approved_hours: num(project.budget_hours),
