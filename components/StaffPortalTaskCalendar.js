@@ -46,8 +46,11 @@ function formatTaskDate(value) {
 }
 
 // Displays accepted remote-task deadlines and dated staff project activities.
-// Remote tasks remain absent until staff acceptance; project activities appear
-// only when an administrator has allocated a due date.
+// Sourced from the same /api/staff/capacity endpoint the Staff Capacity
+// Planner uses (filtered to this person's own events) so this home-page
+// widget can never show different information to the full team calendar —
+// previously this fetched /api/remote-tasks + /api/my-activities directly,
+// a separate query path that could (and did) drift out of sync.
 export default function StaffPortalTaskCalendar() {
   const { session } = useAuth();
   const [entries, setEntries] = useState([]);
@@ -58,48 +61,31 @@ export default function StaffPortalTaskCalendar() {
 
   const load = useCallback(
     async (showSpinner = false) => {
-      if (!session?.access_token) return;
+      if (!session?.access_token || !session?.user?.id) return;
       if (showSpinner) setRefreshing(true);
       try {
         const headers = { Authorization: `Bearer ${session.access_token}` };
-        const [taskResponse, activityResponse] = await Promise.all([
-          fetch("/api/remote-tasks", { headers }),
-          fetch("/api/my-activities", { headers }),
-        ]);
-        const taskData = await taskResponse.json();
-        const activityData = await activityResponse.json();
-        if (!taskResponse.ok)
-          throw new Error(taskData.error || "Could not load tasks.");
-        if (!activityResponse.ok)
-          throw new Error(activityData.error || "Could not load activities.");
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+        const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+        const response = await fetch(`/api/staff/capacity?start=${start}&end=${end}`, { headers });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load your work calendar.");
 
-        const remoteEntries = (taskData.tasks || [])
-          .filter(
-            (task) => ACTIVE_TASK_STATES.has(task.status) && task.due_date,
-          )
-          .map((task) => ({
-            id: `remote-${task.id}`,
-            type: "remote",
-            dueDate: task.due_date,
-            project: task.project,
-            title: task.task,
-            href: "/staff/remote-operations",
-          }));
-        const activityEntries = (activityData.activities || [])
-          .filter(
-            (activity) =>
-              CALENDAR_ACTIVITY_STATES.has(activity.status) && activity.dueDate,
-          )
-          .map((activity) => ({
-            id: `activity-${activity.id}`,
-            type: "activity",
-            dueDate: activity.dueDate,
-            project: activity.project,
-            title: activity.title,
-            href: "/staff/projects",
-          }));
+        const ownEvents = (data.calendarEvents || []).filter(
+          (event) => event.staffUserId === session.user.id && event.type !== "leave",
+        );
+        const mapped = ownEvents.map((event) => ({
+          id: event.id,
+          type: event.type === "task_brief" ? "remote" : "activity",
+          dueDate: event.endDate || event.startDate,
+          project: event.projectName || "",
+          title: event.title,
+          href: event.type === "task_brief" ? "/staff/remote-operations" : "/staff/projects",
+        }));
 
-        setEntries([...remoteEntries, ...activityEntries]);
+        setEntries(mapped);
         setError(false);
       } catch {
         setError(true);
@@ -108,7 +94,7 @@ export default function StaffPortalTaskCalendar() {
         setRefreshing(false);
       }
     },
-    [session],
+    [session, today],
   );
 
   useEffect(() => {
