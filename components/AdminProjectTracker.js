@@ -313,7 +313,7 @@ export default function AdminProjectTracker({
                   <span className="apt-kicker">
                     {selected.status || "Active"} project
                   </span>
-                  <h2>{selected.name}</h2>
+                  <h2 style={{ color: "#fffdf8", fontWeight: 700 }}>{selected.name}</h2>
                   <p>
                     {selected.clientName}
                     {selected.description ? ` · ${selected.description}` : ""}
@@ -449,8 +449,8 @@ export default function AdminProjectTracker({
                             source.allocations.map((allocation) => (
                               <div className="apt-row" key={allocation.id}>
                                 <span>
-                                  <strong>{allocation.allocation_code}</strong>
-                                  <small>{allocation.allocation_name}</small>
+                                  <strong>{allocation.allocation_name}</strong>
+                                  <small>{allocation.allocation_code}</small>
                                 </span>
                                 <span>
                                   {money(allocation.allocation_value)}
