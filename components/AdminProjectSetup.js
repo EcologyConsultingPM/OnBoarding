@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
+  GripVertical,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
@@ -410,6 +411,16 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [dragIndex, setDragIndex] = useState(null);
+  const reorderActivities = (from, to) => {
+    if (from === to || from == null || to == null) return;
+    setActivities((current) => {
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [savingActivities, setSavingActivities] = useState(false);
 
@@ -455,6 +466,7 @@ function ProjectDetail({
             budgetHours: x.budget_hours ?? "",
             dueDate: x.due_date || "",
             startDate: x.start_date || "",
+            milestone: x.milestone === true,
             scheduleItemId: x.schedule_item_id || "",
             status: x.status || "not_commenced",
             acceptanceStatus: x.acceptance_status || "accepted",
@@ -613,20 +625,21 @@ function ProjectDetail({
         </button>
       </div>
 
-      {/* Guided setup sequence: Details -> Schedule -> Team -> Activities -> Tracker.
-          Each step is marked done from live data; the final step opens the Project
-          Tracker. Staff are notified automatically when activities are assigned. */}
+      {/* Guided setup sequence: Details -> Team -> Work Activities -> Tracker.
+          Work Activities is the schedule — saving it auto-generates the linked
+          Gantt/schedule lines below, so Schedule is no longer a separate step.
+          Each step is marked done from live data; the final step opens the
+          Project Tracker. Staff are notified automatically when activities
+          are assigned. */}
       {(() => {
         const hasDetails = Boolean(project?.name);
-        const hasSchedule = schedule.length > 0;
         const hasTeam = allocations.some((a) => a.staffUserId);
         const hasActivities = activities.some((a) => (a.title || "").trim());
         const steps = [
           { key: "details", label: "1. Project details", done: hasDetails },
-          { key: "schedule", label: "2. Schedule", done: hasSchedule },
-          { key: "team", label: "3. Team", done: hasTeam },
-          { key: "activities", label: "4. Work activities", done: hasActivities },
-          { key: "tracker", label: "5. Project Tracker", done: false, isTracker: true },
+          { key: "team", label: "2. Team", done: hasTeam },
+          { key: "activities", label: "3. Work activities & schedule", done: hasActivities },
+          { key: "tracker", label: "4. Project Tracker", done: false, isTracker: true },
         ];
         const readyForTracker = hasDetails && hasTeam && hasActivities;
         return (
@@ -759,8 +772,8 @@ function ProjectDetail({
       <section className="aps-card aps-schedule-card">
         <div className="aps-card-head">
           <button type="button" className="aps-schedule-toggle" onClick={() => setScheduleExpanded((open) => !open)} aria-expanded={scheduleExpanded}>
-            <span><Calendar size={16} /> Project schedule</span>
-            <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View and edit schedule"}</small>
+            <span><Calendar size={16} /> Schedule &amp; Gantt (auto-generated from Work activities)</span>
+            <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View, edit or add a non-staff milestone (e.g. an invoice date)"}</small>
           </button>
           {scheduleExpanded ? <button className="aps-secondary" onClick={saveSchedule}><Save size={13} /> Save schedule</button> : null}
         </div>
@@ -904,7 +917,19 @@ function ProjectDetail({
           calendar.
         </p>
         {activities.map((row, i) => (
-          <div key={i} className="aps-row">
+          <div
+            key={i}
+            className="aps-row"
+            style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: dragIndex === i ? 0.5 : 1 }}
+            draggable
+            onDragStart={() => setDragIndex(i)}
+            onDragEnd={() => setDragIndex(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); reorderActivities(dragIndex, i); setDragIndex(null); }}
+          >
+            <span style={{ cursor: "grab", color: "#8a927c", paddingTop: 10, flexShrink: 0 }} title="Drag to reorder"><GripVertical size={15} /></span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 700, color: "#6b755f", paddingTop: 11, flexShrink: 0, minWidth: 20 }}>{i + 1}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
             <input
               placeholder="Activity title"
               value={row.title}
@@ -1034,6 +1059,8 @@ function ProjectDetail({
               </span>
               {row.responseNote ? <small>Latest response: {row.responseNote}</small> : null}
               <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
+              <label className="aps-check"><input type="checkbox" checked={row.milestone === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone (shown as a diamond on the Gantt)</label>
+            </div>
             </div>
             <button
               className="aps-remove"
@@ -1058,6 +1085,7 @@ function ProjectDetail({
                 budgetHours: "",
                 dueDate: "",
                 startDate: "",
+                milestone: false,
                 scheduleItemId: "",
                 status: "not_commenced",
                 acceptanceStatus: "awaiting_response",
