@@ -375,8 +375,8 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
                   }}
                 >
                   <div>
-                    <strong>{p.name}</strong>
-                    <span>{p.client_name || "No client"}</span>
+                    <strong style={{ color: "#fffdf8", fontSize: 16, fontWeight: 800, display: "block" }}>{p.name}</strong>
+                    <span style={{ color: "rgba(255,253,248,.62)" }}>{p.client_name || "No client"}</span>
                   </div>
                   <span className="aps-proj-status">
                     {PROJECT_STATUS.find((s) => s.value === p.status)?.label ||
@@ -597,6 +597,7 @@ function ProjectDetail({
       <div className="aps-detail-head">
         <input
           className="aps-title-input"
+          style={{ color: "#12211a", fontWeight: 700, fontSize: 24, fontFamily: "'Newsreader', Georgia, serif" }}
           value={project.name}
           onChange={(e) => setProject({ ...project, name: e.target.value })}
         />
