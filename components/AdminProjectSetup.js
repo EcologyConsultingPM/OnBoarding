@@ -648,7 +648,7 @@ function ProjectDetail({
         const hasActivities = activities.some((a) => (a.title || "").trim());
         const steps = [
           { key: "details", label: "1. Project details", done: hasDetails },
-          { key: "team", label: "2. Team", done: hasTeam },
+          { key: "team", label: "2. Staff allocations", done: hasTeam },
           { key: "activities", label: "3. Work activities & schedule", done: hasActivities },
           { key: "tracker", label: "4. Project Tracker", done: false, isTracker: true },
         ];
@@ -656,12 +656,27 @@ function ProjectDetail({
         return (
           <div className="aps-stepper" role="list" aria-label="Project setup sequence">
             <div className="aps-stepper-track">
-              {steps.map((s, i) => (
-                <div key={s.key} className={`aps-step ${s.done ? "done" : ""} ${s.isTracker ? "tracker" : ""}`} role="listitem">
-                  <span className="aps-step-dot">{s.done ? <CheckCircle2 size={14} /> : i + 1}</span>
-                  <span className="aps-step-label">{s.label.replace(/^\d+\.\s/, "")}</span>
-                </div>
-              ))}
+              {steps.map((s, i) => {
+                const clickable = s.isTracker ? (readyForTracker && onOpenTracker) : true;
+                return (
+                  <button
+                    type="button"
+                    key={s.key}
+                    className={`aps-step ${s.done ? "done" : ""} ${s.isTracker ? "tracker" : ""}`}
+                    role="listitem"
+                    disabled={!clickable}
+                    title={s.isTracker && !readyForTracker ? "Complete project details, staff allocations and work activities first" : ""}
+                    onClick={() => {
+                      if (s.isTracker) { if (readyForTracker && onOpenTracker) onOpenTracker(); return; }
+                      document.getElementById(`aps-section-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    style={{ background: "none", border: "none", cursor: clickable ? "pointer" : "default", padding: 0, font: "inherit", color: "inherit" }}
+                  >
+                    <span className="aps-step-dot">{s.done ? <CheckCircle2 size={14} /> : i + 1}</span>
+                    <span className="aps-step-label">{s.label.replace(/^\d+\.\s/, "")}</span>
+                  </button>
+                );
+              })}
             </div>
             <div className="aps-stepper-cta">
               {readyForTracker ? (
@@ -718,11 +733,6 @@ function ProjectDetail({
                       </>
                     );
                   })()}
-                  {onOpenTracker ? (
-                    <button className="aps-primary" onClick={onOpenTracker}>
-                      <ClipboardList size={14} /> Set up Project Tracker →
-                    </button>
-                  ) : null}
                   <button
                     className="aps-secondary"
                     disabled={autoGenerating}
@@ -752,7 +762,7 @@ function ProjectDetail({
         );
       })()}
 
-      <section className="aps-card">
+      <section className="aps-card" id="aps-section-details">
         <h2>Project details</h2>
         <div className="aps-form">
           <div className="aps-two">
@@ -851,7 +861,7 @@ function ProjectDetail({
       </section>
 
       {/* Allocations */}
-      <section className="aps-card">
+      <section className="aps-card" id="aps-section-team">
         <div className="aps-card-head">
           <h2>
             <Users size={16} /> Staff allocations
@@ -943,7 +953,7 @@ function ProjectDetail({
       </section>
 
       {/* Activities */}
-      <section className="aps-card">
+      <section className="aps-card" id="aps-section-activities">
         <div className="aps-card-head">
           <h2>
             <ClipboardList size={16} /> Work activities
