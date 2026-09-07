@@ -305,8 +305,11 @@ export async function PUT(request, { params }) {
       if (updateScheduleError) return Response.json({ error: updateScheduleError.message }, { status: 400 });
     }
 
-    const eventWarning = await createAssignmentEvents(access.admin, project, createdOrReassigned);
-    return Response.json({ success: true, count: persisted.length, activities: persisted, notified: createdOrReassigned.length, event_warning: eventWarning || null });
+    // Notifications no longer fire here. Saving activities is a draft step —
+    // staff are only notified once an admin explicitly records SE approval
+    // via POST .../activities/approval. See createAssignmentEvents below,
+    // now called from that endpoint instead of from every save.
+    return Response.json({ success: true, count: persisted.length, activities: persisted, notified: 0, event_warning: null });
   } catch (error) {
     return serverError(error);
   }
