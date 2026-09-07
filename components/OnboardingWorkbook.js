@@ -33,18 +33,18 @@ import {
   BellRing,
   LifeBuoy,
   Eye,
-  CalendarDays,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
 import AdminProjectSetup from "./AdminProjectSetup";
-import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
+import ProjectCloseOut from "./ProjectCloseOut";
 import AdminWhsGovernance from "./AdminWhsGovernance";
 import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
@@ -3540,17 +3540,6 @@ function AdminHome({ onNavigate }) {
       photo: "palm-cockatoo.png",
     },
     {
-      eyebrow: "Delivery planning",
-      title: "Staff Capacity Planner",
-      desc: "Live workload view across the team — allocated hours, approved leave, deadlines and available capacity.",
-      accent: "#c9a35f",
-      accent2: "#3a2c0c",
-      Icon: CalendarDays,
-      mode: "staffcapacity",
-      resourceKey: "admin.staff_capacity",
-      photo: "kangaroo.png",
-    },
-    {
       eyebrow: "Commercial control",
       title: "Quote Pipeline",
       desc: "Track enquiry, proposal, review and award stages without leaving the control centre.",
@@ -4058,22 +4047,9 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       g2: "#0b2317",
     },
     {
-      key: "capacity",
-      resourceKey: "staff.capacity",
-      n: "08",
-      eyebrow: "Delivery planning",
-      title: "Staff Capacity Planner",
-      desc: "See the team's live workload — allocated hours, approved leave and available capacity. Read-only.",
-      Icon: CalendarDays,
-      photo: "kangaroo",
-      base: "#8a6d2f",
-      g1: "#c9962a",
-      g2: "#2a1c08",
-    },
-    {
       key: "mine",
       resourceKey: "staff.onboarding",
-      n: "09",
+      n: "08",
       requiresOnboarding: true,
       eyebrow: "Getting started",
       title: "My Onboarding",
@@ -4471,100 +4447,6 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   );
 }
 
-// Staff-portal hub linking the WHS field forms. Each opens its own dedicated
-// page (they are full standalone workspaces, not embeddable panels).
-function WhsFormsHub() {
-  const forms = [
-    {
-      href: "/staff/toolbox-talks",
-      title: "Toolbox Talk Record",
-      desc: "Record a field toolbox talk, attendance and any corrective actions.",
-      color: "#3d7a35",
-    },
-    {
-      href: "/staff/incident-reports",
-      title: "Incident Report",
-      desc: "Report an incident or near miss. Notifiable incidents must be reported to SafeWork NSW immediately.",
-      color: "#c0392b",
-    },
-    {
-      href: "/staff/whs-drafts",
-      title: "WHS Draft Studio",
-      desc: "Draft a numbered SWMS or psychosocial risk assessment. Each draft requires competent review before use.",
-      color: "#4197D0",
-    },
-  ];
-  return (
-    <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <h1
-        style={{
-          margin: "0 0 6px",
-          fontSize: 24,
-          fontWeight: 900,
-          color: C.green800,
-          fontFamily: FONT,
-        }}
-      >
-        WHS Forms
-      </h1>
-      <p
-        style={{
-          margin: "0 0 22px",
-          fontSize: 14,
-          fontWeight: 600,
-          color: C.inkSoft,
-          lineHeight: 1.55,
-        }}
-      >
-        Field WHS records and controlled working drafts. All AI-assisted or
-        drafted WHS content is a draft requiring competent human review before
-        approved use.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {forms.map((form) => (
-          <a
-            key={form.href}
-            href={form.href}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              textDecoration: "none",
-              background: C.cardBg,
-              border: `1px solid ${C.line}`,
-              borderLeft: `4px solid ${form.color}`,
-              borderRadius: 12,
-              padding: "16px 18px",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: C.ink }}>
-                {form.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: C.inkSoft,
-                  marginTop: 3,
-                  lineHeight: 1.45,
-                }}
-              >
-                {form.desc}
-              </div>
-            </div>
-            <ChevronRight
-              size={18}
-              color={C.inkFaint}
-              style={{ flexShrink: 0 }}
-            />
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function OnboardingWorkbook() {
   const {
     user,
@@ -4714,6 +4596,7 @@ export default function OnboardingWorkbook() {
   const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
   const [projectTrackerTargetId, setProjectTrackerTargetId] = useState("");
   const [projectSetupTargetId, setProjectSetupTargetId] = useState(null);
+  const [projectCloseOutTarget, setProjectCloseOutTarget] = useState({ id: "", name: "" });
 
   // Compatibility for the retired standalone Health Report route. Quote
   // Pipeline and Remote Operations remain first-class administrator domains.
@@ -5048,13 +4931,6 @@ export default function OnboardingWorkbook() {
                 staffOnly: true,
               },
               {
-                key: "capacity",
-                label: "Staff Capacity Planner",
-                desc: "Team workload, leave & available capacity (read-only)",
-                Icon: CalendarDays,
-                staffOnly: true,
-              },
-              {
                 key: "projects",
                 label: "Projects & Tracker",
                 desc: "Your allocations, schedules, work status and budget",
@@ -5185,8 +5061,6 @@ export default function OnboardingWorkbook() {
               onToast={showToast}
               initialTopic={libraryTopic}
             />
-          ) : mode === "whs" ? (
-            <WhsFormsHub />
           ) : mode === "mine" && !inAdminPortal && hasAssignedOnboarding ? (
             <MyOnboarding onToast={showToast} />
           ) : mode === "mine" && !inAdminPortal ? (
@@ -5251,6 +5125,19 @@ export default function OnboardingWorkbook() {
                 >
                   <TrendingUp size={13} /> Health report
                 </button>
+                <button
+                  role="tab"
+                  aria-selected={projectsSubview === "closeout"}
+                  className={
+                    "admin-subtab" +
+                    (projectsSubview === "closeout" ? " sel" : "")
+                  }
+                  onClick={() => setProjectsSubview("closeout")}
+                  disabled={!projectCloseOutTarget.id}
+                  title={!projectCloseOutTarget.id ? "Open a project first, from Setup or Tracker" : ""}
+                >
+                  <ClipboardCheck size={13} /> Project Close-out
+                </button>
               </div>
               {projectsSubview === "setup" && (
                 <AdminProjectSetup
@@ -5258,6 +5145,10 @@ export default function OnboardingWorkbook() {
                   onOpenTracker={(projectId) => {
                     setProjectTrackerTargetId(projectId || "");
                     setProjectsSubview("tracker");
+                  }}
+                  onOpenCloseOut={(projectId, projectName) => {
+                    setProjectCloseOutTarget({ id: projectId || "", name: projectName || "" });
+                    setProjectsSubview("closeout");
                   }}
                 />
               )}
@@ -5283,9 +5174,20 @@ export default function OnboardingWorkbook() {
                   }}
                 />
               )}
+              {projectsSubview === "closeout" && (
+                projectCloseOutTarget.id ? (
+                  <ProjectCloseOut
+                    projectId={projectCloseOutTarget.id}
+                    projectName={projectCloseOutTarget.name}
+                    onToast={showToast}
+                  />
+                ) : (
+                  <p style={{ padding: 20, color: "#6b755f", fontSize: 13.5 }}>
+                    Open a project from Setup &amp; allocations first — Close-out needs a project to work with.
+                  </p>
+                )
+              )}
             </div>
-          ) : isAdmin && mode === "staffcapacity" ? (
-            <StaffCapacityPlanner />
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
           ) : isAdmin && mode === "remoteops" ? (
@@ -5307,8 +5209,6 @@ export default function OnboardingWorkbook() {
             <StaffLearningLibrary />
           ) : mode === "species" && !inAdminPortal ? (
             <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
-          ) : mode === "capacity" && !inAdminPortal ? (
-            <StaffCapacityPlanner mode="staff" />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (
