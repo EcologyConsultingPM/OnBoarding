@@ -427,6 +427,7 @@ function ProjectDetail({
   };
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [savingActivities, setSavingActivities] = useState(false);
+  const [autoGenerating, setAutoGenerating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -670,6 +671,26 @@ function ProjectDetail({
                       <ClipboardList size={14} /> Set up Project Tracker →
                     </button>
                   ) : null}
+                  <button
+                    className="aps-secondary"
+                    disabled={autoGenerating}
+                    onClick={async () => {
+                      setAutoGenerating(true);
+                      try {
+                        const res = await auth("POST", `/api/projects/${projectId}/tracker/auto-generate`);
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error);
+                        notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities.`);
+                      } catch (e) {
+                        fail(e);
+                      } finally {
+                        setAutoGenerating(false);
+                      }
+                    }}
+                    title="Creates or updates budget allocations from your Work Activities, grouped by category and priced at each assignee's rate"
+                  >
+                    <ClipboardCheck size={14} /> {autoGenerating ? "Generating…" : "Auto-generate tracker from Work Activities"}
+                  </button>
                 </>
               ) : (
                 <span className="aps-stepper-note">Work through the steps below. Assigning work activities notifies the allocated staff automatically.</span>
