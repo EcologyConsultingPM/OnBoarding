@@ -428,6 +428,7 @@ function ProjectDetail({
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [savingActivities, setSavingActivities] = useState(false);
   const [autoGenerating, setAutoGenerating] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -665,7 +666,58 @@ function ProjectDetail({
             <div className="aps-stepper-cta">
               {readyForTracker ? (
                 <>
-                  <span className="aps-stepper-note">Setup complete — assigned staff have been notified. Next, set up the Project Tracker.</span>
+                  {(() => {
+                    const gateStatus = project.activities_approval_status || "draft";
+                    const runGate = async (action) => {
+                      setGateBusy(true);
+                      try {
+                        const res = await auth("POST", `/api/projects/${projectId}/activities/approval`, { action });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error);
+                        setProject((p) => ({ ...p, activities_approval_status: d.project.activities_approval_status }));
+                        if (action === "request_review") notify("Marked as awaiting Senior Ecologist review. Confirm the schedule and assignments via Teams, then click Approval granted.");
+                        else if (action === "approve") notify(`Approval recorded — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent.`);
+                        else notify("Reset to draft.");
+                      } catch (e) {
+                        fail(e);
+                      } finally {
+                        setGateBusy(false);
+                      }
+                    };
+                    if (gateStatus === "approved") {
+                      return (
+                        <span className="aps-stepper-note" style={{ color: "#1f5a34", fontWeight: 700 }}>
+                          <CheckCircle2 size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                          Approved — assigned staff have been notified.
+                        </span>
+                      );
+                    }
+                    if (gateStatus === "pending_se_review") {
+                      return (
+                        <>
+                          <span className="aps-stepper-note">
+                            Awaiting Senior Ecologist review — confirm the schedule and assignments via a Teams meeting, then record the outcome.
+                          </span>
+                          <button className="aps-primary" disabled={gateBusy} onClick={() => runGate("approve")}>
+                            <CheckCircle2 size={14} /> {gateBusy ? "Recording…" : "Approval granted →"}
+                          </button>
+                          <button className="aps-secondary" disabled={gateBusy} onClick={() => runGate("reset")} title="Return to draft if changes are needed before SE review">
+                            Back to draft
+                          </button>
+                        </>
+                      );
+                    }
+                    return (
+                      <>
+                        <span className="aps-stepper-note">
+                          Setup complete. Staff are not notified yet — confirm the schedule and assignments with the Senior Ecologist first.
+                        </span>
+                        <button className="aps-primary" disabled={gateBusy} onClick={() => runGate("request_review")}>
+                          <ClipboardCheck size={14} /> {gateBusy ? "Saving…" : "Confirm with SE →"}
+                        </button>
+                      </>
+                    );
+                  })()}
                   {onOpenTracker ? (
                     <button className="aps-primary" onClick={onOpenTracker}>
                       <ClipboardList size={14} /> Set up Project Tracker →
