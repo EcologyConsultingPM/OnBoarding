@@ -131,7 +131,11 @@ export async function capacityData(access, rangeStart, rangeEnd) {
 
   const projectById = new Map((projectsResult.data || []).map((project) => [project.id, project]));
   const profileByUser = new Map((profilesResult.data || []).map((profile) => [profile.user_id, profile]));
-  const activities = (activitiesResult.data || []).filter((activity) => activity.staff_user_id && activity.acceptance_status !== "declined");
+  // Only activities the assigned staff member has actually accepted count
+  // toward their workload — an assignment still sitting in
+  // "awaiting_response" (SE-approved and notified, but not yet actioned by
+  // the person) doesn't consume capacity or appear on the calendar yet.
+  const activities = (activitiesResult.data || []).filter((activity) => activity.staff_user_id && ["accepted", "actioned", "completed"].includes(activity.acceptance_status));
   const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
   const leaves = (leavesResult.data || []).map((record) => ({
     ...record,
@@ -293,4 +297,3 @@ export async function POST(request) {
     return serverError(error);
   }
 }
-
