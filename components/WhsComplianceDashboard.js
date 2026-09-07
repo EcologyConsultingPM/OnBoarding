@@ -36,6 +36,121 @@ function Gauge({ pct }) {
   );
 }
 
+/* ---------------------------------------------------------------
+   Submitted-form viewer for the audit modal. `details` is an
+   arbitrary jsonb blob whose shape differs per form_type (some
+   forms are flat key/value, others — like the Daily Risk Assessment
+   — nest checklist rows and dynamic tables), so this renders
+   generically off the runtime shape of each value rather than
+   assuming a specific form's schema.
+----------------------------------------------------------------- */
+function humanizeKey(key) {
+  return String(key)
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (c) => c.toUpperCase());
+}
+function isSignatureValue(value) {
+  return typeof value === "string" && value.startsWith("data:image");
+}
+function isBlank(value) {
+  if (value == null || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function DetailValue({ value }) {
+  if (isBlank(value)) return <span className="wcd-detail-empty">—</span>;
+  if (isSignatureValue(value)) return <img src={value} alt="Signature" className="wcd-detail-sig" />;
+  if (typeof value === "boolean") return <span>{value ? "Yes" : "No"}</span>;
+
+  if (Array.isArray(value)) {
+    const first = value[0];
+    // Checklist rows (e.g. hazard walk-through, toolbox talk lines): { check, answer, comment }
+    if (first && typeof first === "object" && "check" in first) {
+      const answered = value.filter((row) => row.answer || row.comment);
+      if (!answered.length) return <span className="wcd-detail-empty">Nothing ticked</span>;
+      return (
+        <div className="wcd-detail-checklist">
+          {answered.map((row, i) => (
+            <div key={i} className={`wcd-detail-check-row ${row.answer || ""}`}>
+              <span className="wcd-detail-check-text">{row.ref ? `${row.ref} — ` : ""}{row.check}</span>
+              <span className={`wcd-detail-check-badge ${row.answer || ""}`}>{row.answer ? row.answer.toUpperCase() : "—"}</span>
+              {row.comment ? <span className="wcd-detail-check-comment">{row.comment}</span> : null}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    // Dynamic table rows (crew sign-on, task steps, residual risk, etc.)
+    if (first && typeof first === "object") {
+      const cols = Object.keys(first);
+      const rows = value.filter((row) => Object.values(row).some((v) => !isBlank(v)));
+      if (!rows.length) return <span className="wcd-detail-empty">—</span>;
+      return (
+        <div className="wcd-detail-tbl-wrap">
+          <table className="wcd-detail-tbl">
+            <thead><tr>{cols.map((c) => <th key={c}>{humanizeKey(c)}</th>)}</tr></thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i}>
+                  {cols.map((c) => (
+                    <td key={c}>
+                      {isSignatureValue(row[c])
+                        ? <img src={row[c]} alt="Signature" className="wcd-detail-sig-sm" />
+                        : (isBlank(row[c]) ? "—" : String(row[c]))}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    // Array of plain values
+    return <span>{value.join(", ")}</span>;
+  }
+
+  if (typeof value === "object") {
+    // Boolean-map objects (e.g. PPE selections): show only what's checked
+    const checked = Object.entries(value).filter(([, v]) => v);
+    if (!checked.length) return <span className="wcd-detail-empty">None selected</span>;
+    return <span>{checked.map(([k]) => humanizeKey(k)).join(", ")}</span>;
+  }
+
+  return <span>{String(value)}</span>;
+}
+
+function SubmittedFormViewer({ details }) {
+  const [open, setOpen] = useState(false);
+  if (!details || typeof details !== "object") {
+    return <p className="wcd-detail-empty">No submitted details recorded for this entry.</p>;
+  }
+  const entries = Object.entries(details).filter(([, value]) => !isBlank(value));
+  return (
+    <div className="wcd-detail-section">
+      <button type="button" className="wcd-detail-toggle" onClick={() => setOpen((o) => !o)}>
+        <FileText size={14} /> {open ? "Hide" : "View"} submitted form ({entries.length} field{entries.length === 1 ? "" : "s"} recorded)
+      </button>
+      {open ? (
+        entries.length ? (
+          <div className="wcd-detail-grid">
+            {entries.map(([key, value]) => (
+              <div key={key} className="wcd-detail-row">
+                <span className="wcd-detail-label">{humanizeKey(key)}</span>
+                <div className="wcd-detail-value"><DetailValue value={value} /></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="wcd-detail-empty">No details were recorded on this submission.</p>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 export default function WhsComplianceDashboard() {
   const { session } = useAuth();
   const [data, setData] = useState(null);
@@ -88,6 +203,7 @@ export default function WhsComplianceDashboard() {
 
   return (
     <div className="wcd">
+      <style>{WCD_DETAIL_CSS}</style>
       {/* Top metric row */}
       <div className="wcd-top">
         <div className="wcd-gauge-card">
@@ -176,6 +292,8 @@ export default function WhsComplianceDashboard() {
               <button onClick={() => setAuditing(null)}><X size={18} /></button>
             </div>
 
+            <SubmittedFormViewer details={auditing.details} />
+
             <label className="wcd-f"><span>Audit outcome</span>
               <select value={audit.outcome} onChange={(e) => setAudit({ ...audit, outcome: e.target.value })}>
                 <option value="pass">Pass</option>
@@ -216,3 +334,32 @@ export default function WhsComplianceDashboard() {
     </div>
   );
 }
+
+/* Scoped styles for the submitted-form viewer only — kept local rather than
+   added to app/globals.css, which multiple sessions have been editing this
+   week; the rest of this component's .wcd-* classes already exist there. */
+const WCD_DETAIL_CSS = `
+.wcd-detail-section { margin: -4px 0 16px; }
+.wcd-detail-toggle { display: inline-flex; align-items: center; gap: 7px; background: #eef6ea; border: 1px solid #b9d5a6; color: #2c6a34; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; margin-bottom: 12px; }
+.wcd-detail-toggle:hover { background: #e3edd6; }
+.wcd-detail-grid { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; border: 1px solid #eef0e9; border-radius: 10px; padding: 12px 14px; background: #fafaf5; margin-bottom: 4px; }
+.wcd-detail-row { display: flex; flex-direction: column; gap: 3px; padding-bottom: 9px; border-bottom: 1px solid #f0ece2; }
+.wcd-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+.wcd-detail-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #8a927c; }
+.wcd-detail-value { font-size: 13px; color: #23301f; line-height: 1.5; }
+.wcd-detail-empty { color: #b0b8a8; font-style: italic; font-size: 12.5px; }
+.wcd-detail-sig { max-width: 220px; max-height: 90px; border: 1px solid #e3e6d8; border-radius: 6px; background: #fff; }
+.wcd-detail-sig-sm { max-width: 90px; max-height: 40px; border: 1px solid #e3e6d8; border-radius: 4px; background: #fff; }
+.wcd-detail-checklist { display: flex; flex-direction: column; gap: 6px; }
+.wcd-detail-check-row { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; }
+.wcd-detail-check-text { flex: 1; color: #3a4740; }
+.wcd-detail-check-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 5px; background: #eef0e9; color: #6b755f; flex-shrink: 0; }
+.wcd-detail-check-badge.yes { background: #e5f1dd; color: #2c6a34; }
+.wcd-detail-check-badge.no { background: #fbecea; color: #a5342a; }
+.wcd-detail-check-badge.na { background: #eef0e9; color: #8a927c; }
+.wcd-detail-check-comment { flex-basis: 100%; font-size: 11.5px; color: #7a877d; font-style: italic; padding-left: 4px; }
+.wcd-detail-tbl-wrap { overflow-x: auto; }
+.wcd-detail-tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.wcd-detail-tbl th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: #8a927c; padding: 5px 7px; border-bottom: 1px solid #e3e6d8; white-space: nowrap; }
+.wcd-detail-tbl td { padding: 5px 7px; border-bottom: 1px solid #f0ece2; color: #3a4740; }
+`;
