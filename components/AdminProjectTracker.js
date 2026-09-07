@@ -742,7 +742,7 @@ function TrackerTabs({ section, setSection }) {
         className={section === "setup" ? "selected" : ""}
         onClick={() => setSection("setup")}
       >
-        <FolderCog size={14} /> Set up a project tracker
+        <FolderCog size={14} /> Enable staff timesheets
       </button>
     </nav>
   );
