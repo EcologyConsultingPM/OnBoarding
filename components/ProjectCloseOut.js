@@ -78,7 +78,30 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
       const data = await api("POST", form);
       setCloseout(data.closeout);
       setForm(fromRow(data.closeout));
-      onToast?.(form.status === "closed" ? "Project close-out approved and locked." : "Project close-out saved.");
+      // Archiving the close-out record is the terminal step of the project
+      // lifecycle — cascade it to the project's own status so it drops out
+      // of the active "All projects" list. This is a separate, deliberate
+      // step from "closed" (locked, but still an active/reviewable record).
+      if (form.status === "archived") {
+        try {
+          await fetch(`/api/projects/${projectId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+            body: JSON.stringify({ status: "archived" }),
+          });
+        } catch {
+          // Close-out itself saved fine; surface this separately so the
+          // person knows the project list may not have updated yet.
+          onToast?.("Close-out saved, but the project record couldn't be archived — check Project details.");
+        }
+      }
+      onToast?.(
+        form.status === "archived"
+          ? "Project close-out archived — removed from the active project list."
+          : form.status === "closed"
+            ? "Project close-out approved and locked."
+            : "Project close-out saved.",
+      );
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
@@ -111,7 +134,7 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
     {error ? <p className="pco-error">{error}</p> : null}
     <div className="pco-project"><strong>{projectName || "Selected project"}</strong><span>Close-out remains scoped to this project and cannot link actions to another project.</span></div>
     <div className="pco-grid">
-      <label>Status<select value={form.status} disabled={locked && form.status !== "archived"} onChange={(event) => set("status", event.target.value)}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Status<select value={form.status} onChange={(event) => set("status", event.target.value)}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>Success score<select value={form.successScore} disabled={locked && form.status !== "archived"} onChange={(event) => set("successScore", event.target.value)}><option value="">Not scored</option>{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value} / 5</option>)}</select></label>
       <label className="pco-wide">Client outcome<textarea rows={3} disabled={locked && form.status !== "archived"} value={form.clientOutcome} onChange={(event) => set("clientOutcome", event.target.value)} placeholder="What outcome was delivered for the client?" /></label>
       <label className="pco-wide">Delivery summary<textarea rows={3} disabled={locked && form.status !== "archived"} value={form.deliverySummary} onChange={(event) => set("deliverySummary", event.target.value)} placeholder="Summarise scope, dates, key deliverables and exceptions." /></label>
