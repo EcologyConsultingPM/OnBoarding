@@ -103,6 +103,14 @@ const PPE_ITEMS = [
   "Buoyancy aid", "Snake gaiters", "Hearing protection", "Sunscreen",
 ];
 
+const SOP_LIST = [
+  "Clearing activities",
+  "Terrestrial Fauna Survey",
+  "Dewatering Activities",
+  "Fieldwork Biosecurity",
+  "Project Travel",
+];
+
 function emptyChecklist(items) {
   return items.map((item) => ({ check: Array.isArray(item) ? item[1] : item, ref: Array.isArray(item) ? item[0] : null, answer: "", comment: "" }));
 }
@@ -120,7 +128,7 @@ function initialForm() {
     healthConditions: [emptyHealthRow(), emptyHealthRow()],
     ppe: {}, ppeNotes: "",
     hrcw: emptyChecklist(HRCW_CHECKLIST),
-    jsaApplicable: "", swmsRef: "", additionalRefs: "",
+    jsaApplicable: "", swmsRef: {}, additionalRefs: "",
     hazardWalkthrough: emptyChecklist(HAZARD_WALKTHROUGH),
     otherHazards: "",
     taskSteps: [emptyTaskRow(), emptyTaskRow()],
@@ -266,6 +274,7 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const setChecklistRow = (key) => (index, next) => setForm((f) => ({ ...f, [key]: f[key].map((r, i) => (i === index ? next : r)) }));
   const setPpe = (item, value) => setForm((f) => ({ ...f, ppe: { ...f.ppe, [item]: value } }));
+  const setSwmsRef = (item, value) => setForm((f) => ({ ...f, swmsRef: { ...f.swmsRef, [item]: value } }));
 
   const dynamicTable = (key, empty, minRows = 1) => ({
     rows: form[key],
@@ -539,8 +548,16 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
                 <option>General Field Surveys</option><option>Pre-Clearing Assessments</option><option>Clearing Supervision</option><option>Remote and Isolated Work</option><option>More than one — list below</option><option>N/A</option>
               </select>
             </Field>
-            <Field label="SWMS reference(s) in force"><input type="text" placeholder="Document number(s) or N/A" value={form.swmsRef} onChange={(e) => set("swmsRef", e.target.value)} /></Field>
           </div>
+          <Field label="Applicable SOPs in force today — select all that apply" full>
+            <div className="dra-ppe-grid" style={{ marginTop: 6 }}>
+              {SOP_LIST.map((item) => (
+                <label key={item} className="dra-tick" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "'Archivo', sans-serif", color: "#3a4740" }}>
+                  <input type="checkbox" checked={!!form.swmsRef[item]} onChange={(e) => setSwmsRef(item, e.target.checked)} /> {item}
+                </label>
+              ))}
+            </div>
+          </Field>
           <Field label="Additional JSA, SWMS or SOP references applied today" full>
             <textarea placeholder="List every controlling document the crew has read and signed." value={form.additionalRefs} onChange={(e) => set("additionalRefs", e.target.value)} />
           </Field>
