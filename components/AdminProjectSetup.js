@@ -1053,9 +1053,20 @@ function ProjectDetail({
             </div>
             <button
               className="aps-remove"
-              onClick={() =>
-                setActivities(activities.filter((_, j) => j !== i))
-              }
+              onClick={async () => {
+                if (row.id) {
+                  if (!window.confirm(`Delete "${row.title || "this activity"}"? This can't be undone.`)) return;
+                  try {
+                    const res = await auth("DELETE", `/api/projects/${projectId}/activities?id=${row.id}`);
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error);
+                  } catch (e) {
+                    fail(e);
+                    return;
+                  }
+                }
+                setActivities(activities.filter((_, j) => j !== i));
+              }}
             >
               <Trash2 size={14} />
             </button>
