@@ -324,7 +324,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
               >
                 {selected?.sources?.map((source) => (
                   <option key={source.id} value={source.id}>
-                    {source.source_code} · {source.source_name}
+                    {source.source_name} · {source.source_code}
                   </option>
                 ))}
               </select>
@@ -339,7 +339,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
               >
                 {selectedSource?.allocations?.map((allocation) => (
                   <option key={allocation.id} value={allocation.id}>
-                    {allocation.allocation_code} · {allocation.allocation_name}
+                    {allocation.allocation_name} · {allocation.allocation_code}
                   </option>
                 ))}
               </select>
