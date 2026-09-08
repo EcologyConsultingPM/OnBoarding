@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, CheckCircle2, ChevronDown, CircleDollarSign, Clock3, ContactRound,
+  AlertCircle, CheckCircle2, ChevronDown, Clock3, ContactRound,
   ExternalLink, FilePlus2, FileText, Loader2, Mail, MapPin, Paperclip, Plus,
   Send, ShieldCheck, Trash2, Upload, UserRoundCheck,
 } from "lucide-react";
@@ -23,7 +23,7 @@ const EMPTY = {
   projectName: "", projectLocation: "", localGovernmentArea: "", state: "NSW",
   enquiryDescription: "", requiredServices: "", additionalAgencyRequirements: "", enquiryReceivedOn: new Date().toISOString().slice(0, 10),
   clientRequiredBy: "", approvalTimeframes: "", urgency: "medium", assignedTo: "", clientContacted: false,
-  contactDate: "", contactNotes: "", scopeConfirmed: "", quoteDraftLink: "", quoteSent: false,
+  quoteDraftLink: "", quoteSent: false, projectNumber: "", quoteNumber: "", deliverables: "", quoteSentBy: "",
   quoteSentOn: "", quoteRecipientEmail: "", status: "awaiting_review",
 };
 
@@ -38,8 +38,9 @@ function fromDraft(draft) {
     additionalAgencyRequirements: draft.additional_agency_requirements || "", enquiryReceivedOn: draft.enquiry_received_on || "",
     clientRequiredBy: draft.client_required_by || "", approvalTimeframes: draft.approval_timeframes || "",
     urgency: draft.urgency || "medium", assignedTo: draft.assigned_to || "", clientContacted: draft.client_contacted === true,
-    contactDate: draft.contact_date || "", contactNotes: draft.contact_notes || "", scopeConfirmed: draft.scope_confirmed || "",
     quoteDraftLink: draft.quote_draft_link || "", quoteSent: draft.quote_sent === true,
+    projectNumber: draft.project_number || "", quoteNumber: draft.quote_number || "",
+    deliverables: draft.deliverables || "", quoteSentBy: draft.quote_sent_by || "",
     quoteSentOn: draft.quote_sent_on || "", quoteRecipientEmail: draft.quote_recipient_email || "", status: draft.status || "awaiting_review",
   };
 }
@@ -59,12 +60,11 @@ function FormInput({ label, children, wide = false }) {
   return <label className={`qdw-field${wide ? " qdw-field--wide" : ""}`}><span>{label}</span>{children}</label>;
 }
 
-function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, onGenerate, onTransfer, onUpload, onOpenAttachment }) {
+function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, onTransfer, onUpload, onOpenAttachment }) {
   const supportInput = useRef(null);
   const quotePdfInput = useRef(null);
   const status = draft?.status || (value.assignedTo ? "awaiting_contact" : "awaiting_review");
-  const canGenerate = value.clientContacted && value.contactDate && value.contactNotes.trim() && value.scopeConfirmed.trim();
-  const canTransfer = status === "quote_drafting" && value.quoteSent && value.quoteSentOn && value.quoteRecipientEmail && draft?.quote_pdf_path;
+  const canTransfer = value.clientContacted && value.projectNumber.trim() && value.quoteNumber.trim() && value.quoteSent && value.quoteSentOn && value.quoteRecipientEmail && draft?.quote_pdf_path;
   const set = (key, next) => setValue({ ...value, [key]: next });
   const uploadFiles = async (event, quotePdf) => {
     const files = [...(event.target.files || [])];
@@ -100,15 +100,8 @@ function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, on
 
       {draft ? <>
         <section className="qdw-gate">
-          <div className="qdw-gate__heading"><ContactRound size={18} /><div><strong>Client-contact gate</strong><small>A direct client conversation must be recorded before quote-number generation is enabled.</small></div></div>
+          <div className="qdw-gate__heading"><ContactRound size={18} /><div><strong>Client-contact gate</strong><small>Confirm a direct client conversation has taken place before preparing the quote.</small></div></div>
           <label className="qdw-check"><input type="checkbox" checked={value.clientContacted} onChange={(event) => set("clientContacted", event.target.checked)} /> Client contacted prior to quote preparation</label>
-          <div className="qdw-form-grid">
-            <FormInput label="Contact date"><input type="date" value={value.contactDate} onChange={(event) => set("contactDate", event.target.value)} /></FormInput>
-            <FormInput label="Scope confirmed"><input value={value.scopeConfirmed} onChange={(event) => set("scopeConfirmed", event.target.value)} placeholder="Confirmed scope, assumptions and timing" /></FormInput>
-            <FormInput label="Contact notes" wide><textarea value={value.contactNotes} onChange={(event) => set("contactNotes", event.target.value)} /></FormInput>
-          </div>
-          <button type="button" className="qdw-action qdw-action--gold" disabled={busy || !canGenerate || status === "quote_drafting" || status === "transferred" || status === "withdrawn"} onClick={onGenerate}><CircleDollarSign size={16} /> Generate project and quote numbers</button>
-          {!canGenerate && status !== "quote_drafting" ? <small className="qdw-hint">Record client contact, a contact date, contact notes and the confirmed scope to enable this action.</small> : null}
         </section>
 
         <section className="qdw-files">
@@ -122,14 +115,16 @@ function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, on
           <div className="qdw-attachments">{(draft.attachments || []).length ? draft.attachments.map((attachment) => <button type="button" onClick={() => onOpenAttachment(attachment.path)} key={attachment.path}><FileText size={14} />{attachment.name}</button>) : <span>No supporting files uploaded yet.</span>}</div>
           <div className="qdw-form-grid qdw-issue-grid">
             <FormInput label="Quote-draft workspace link" wide><input type="url" value={value.quoteDraftLink} onChange={(event) => set("quoteDraftLink", event.target.value)} placeholder="https://…" /></FormInput>
-            <FormInput label="Project number"><input value={draft.project_number || "Not generated"} readOnly /></FormInput>
-            <FormInput label="Quote number"><input value={draft.quote_number || "Not generated"} readOnly /></FormInput>
-            <FormInput label="Quote sent date"><input type="date" value={value.quoteSentOn} onChange={(event) => set("quoteSentOn", event.target.value)} disabled={status !== "quote_drafting"} /></FormInput>
-            <FormInput label="Quote recipient email"><input type="email" value={value.quoteRecipientEmail} onChange={(event) => set("quoteRecipientEmail", event.target.value)} disabled={status !== "quote_drafting"} /></FormInput>
+            <FormInput label="Project number"><input value={value.projectNumber} onChange={(event) => set("projectNumber", event.target.value)} placeholder="e.g. 2026-1001" /></FormInput>
+            <FormInput label="Quote number"><input value={value.quoteNumber} onChange={(event) => set("quoteNumber", event.target.value)} placeholder="e.g. Q-2026-401" /></FormInput>
+            <FormInput label="Deliverable(s)"><input value={value.deliverables} onChange={(event) => set("deliverables", event.target.value)} placeholder="e.g. 1, 2, 3 or a short description" /></FormInput>
+            <FormInput label="Quote sent by"><select value={value.quoteSentBy} onChange={(event) => set("quoteSentBy", event.target.value)}><option value="">Select staff member</option>{staff.map((person) => <option value={person.id} key={person.id}>{person.name}</option>)}</select></FormInput>
+            <FormInput label="Quote sent date"><input type="date" value={value.quoteSentOn} onChange={(event) => set("quoteSentOn", event.target.value)} /></FormInput>
+            <FormInput label="Quote recipient email"><input type="email" value={value.quoteRecipientEmail} onChange={(event) => set("quoteRecipientEmail", event.target.value)} /></FormInput>
           </div>
-          <label className="qdw-check"><input type="checkbox" checked={value.quoteSent} onChange={(event) => set("quoteSent", event.target.checked)} disabled={status !== "quote_drafting"} /> Quote sent to client</label>
+          <label className="qdw-check"><input type="checkbox" checked={value.quoteSent} onChange={(event) => set("quoteSent", event.target.checked)} /> Quote sent to client</label>
           <button type="button" className="qdw-action qdw-action--forest" disabled={busy || !canTransfer} onClick={onTransfer}><Send size={16} /> Transfer issued quote to Pipeline</button>
-          {status === "quote_drafting" && !canTransfer ? <small className="qdw-hint">Attach the quote PDF, record the sent date and recipient email, then tick Quote sent to transfer it into the issued Quote Pipeline as Pending.</small> : null}
+          {!canTransfer ? <small className="qdw-hint">Record the client-contact tick, project number, quote number, attached quote PDF, sent date and recipient email, then tick Quote sent to transfer it into the issued Quote Pipeline as Pending.</small> : null}
         </section>
       </> : null}
 
@@ -189,12 +184,6 @@ export default function QuoteDraftWorkspace({ onPipelineChanged }) {
     try { const data = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm }); setEditing(data.draft); setEditForm(fromDraft(data.draft)); await load(); notify("Draft enquiry saved."); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const generate = async () => {
-    if (!editing) return;
-    setBusy(true);
-    try { const data = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm }); const generated = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "generate_numbers" }); setEditing(generated.draft || data.draft); setEditForm(fromDraft(generated.draft || data.draft)); await load(); notify("Project and quote numbers generated. The enquiry is now in Quote Drafting."); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  };
   const transfer = async () => {
     if (!editing || !window.confirm("Transfer this issued quote to the formal Quote Pipeline as Pending? The enquiry will remain as a read-only audit record.")) return;
     setBusy(true);
@@ -237,7 +226,7 @@ export default function QuoteDraftWorkspace({ onPipelineChanged }) {
     {error ? <p className="qdw-message qdw-message--error"><AlertCircle size={16} />{error}</p> : null}
     {message ? <p className="qdw-message qdw-message--success"><CheckCircle2 size={16} />{message}</p> : null}
     {adding ? <DraftEditor value={form} setValue={setForm} staff={staff} onSave={saveNew} onCancel={() => { setAdding(false); setForm(EMPTY); }} busy={busy} /> : null}
-    {editing ? <DraftEditor value={editForm} setValue={setEditForm} staff={staff} draft={editing} onSave={saveEdit} onCancel={() => setEditing(null)} busy={busy} onGenerate={generate} onTransfer={transfer} onUpload={upload} onOpenAttachment={openAttachment} /> : null}
+    {editing ? <DraftEditor value={editForm} setValue={setEditForm} staff={staff} draft={editing} onSave={saveEdit} onCancel={() => setEditing(null)} busy={busy} onTransfer={transfer} onUpload={upload} onOpenAttachment={openAttachment} /> : null}
     {!adding && !editing ? <button className="qdw-new" type="button" onClick={() => setAdding(true)}><Plus size={16} /> New enquiry</button> : null}
 
     <section className="qdw-controls"><div><ListIcon /><strong>Draft enquiry register</strong><small>{visible.length} of {drafts.length} records</small></div><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="active">Active work</option>{Object.entries(STATUS).map(([value, item]) => <option value={value} key={value}>{item.label}</option>)}</select></label><label>Urgency<select value={filters.urgency} onChange={(event) => setFilters({ ...filters, urgency: event.target.value })}><option value="">All urgency</option>{URGENCY.map((value) => <option value={value} key={value}>{value[0].toUpperCase()}{value.slice(1)}</option>)}</select></label><label>Assignee<select value={filters.assigned} onChange={(event) => setFilters({ ...filters, assigned: event.target.value })}><option value="">All staff</option>{staff.map((person) => <option value={person.id} key={person.id}>{person.name}</option>)}</select></label><label>Sort<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated">Recently updated</option><option value="urgency">Urgency</option><option value="due">Client due date</option><option value="client">Client A–Z</option></select></label></section>
