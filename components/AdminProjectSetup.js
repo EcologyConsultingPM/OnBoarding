@@ -42,16 +42,10 @@ const PROJECT_STATUS = [
 
 export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null, onOpenCloseOut = null }) {
   const { session } = useAuth();
-  const [view, setView] = useState(() => {
-    if (typeof window === "undefined") return "list";
-    try { return window.localStorage.getItem("ec-admin-project-open-id") ? "detail" : "list"; } catch { return "list"; }
-  }); // list | detail
+  const [view, setView] = useState("list"); // list | detail
   const [projects, setProjects] = useState([]);
   const [staff, setStaff] = useState([]);
-  const [openId, setOpenId] = useState(() => {
-    if (typeof window === "undefined") return null;
-    try { return window.localStorage.getItem("ec-admin-project-open-id") || null; } catch { return null; }
-  });
+  const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -101,14 +95,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
       )
       .catch(() => {});
   }, [session, loadProjects, auth]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (openId) window.localStorage.setItem("ec-admin-project-open-id", openId);
-      else window.localStorage.removeItem("ec-admin-project-open-id");
-    } catch {}
-  }, [openId]);
 
   useEffect(() => {
     if (!initialProjectId) return;
@@ -1042,26 +1028,9 @@ function ProjectDetail({
                   </option>
                 ))}
             </select>
-            <select
-              value={row.scheduleItemId || ""}
-              onChange={(e) =>
-                setActivities(
-                  activities.map((r, j) =>
-                    j === i ? { ...r, scheduleItemId: e.target.value } : r,
-                  ),
-                )
-              }
-            >
-              <option value="">Create a linked Gantt activity line</option>
-              {schedule.map((item) => (
-                <option key={item.id || item.title} value={item.id || ""}>
-                  {item.title || "Untitled schedule item"}
-                </option>
-              ))}
-            </select>
             <textarea
               className="aps-activity-detail"
-              rows={2}
+              rows={5}
               placeholder="Activity detail, deliverable or handover expectation"
               value={row.detail || ""}
               onChange={(e) =>
