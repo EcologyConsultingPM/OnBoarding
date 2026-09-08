@@ -112,7 +112,14 @@ export async function POST(request, { params }) {
     // tracker template if one isn't already locked, and makes the tracker
     // visible — never overwriting an admin's own customised template.
     let trackerWarning = null;
-    const STANDARD_TRACKER_CATEGORIES = ["Desktop / field plan", "Preparation", "Fieldwork & travel", "Data management", "Reporting", "GIS / mapping", "QA review", "Client consultation", "General project management", "Other"];
+    // Must exactly match TASK_CATEGORIES in components/AdminProjectSetup.js —
+    // this was previously typed independently and drifted (different casing/
+    // spacing, "Preparation" missing its parenthetical), which meant a
+    // staff member's category choice from this template's dropdown wouldn't
+    // string-match the category already recorded on the activity, silently
+    // misallocating hours_consumed to the wrong budget bucket on any
+    // subsequent tracker regeneration.
+    const STANDARD_TRACKER_CATEGORIES = ["Desktop/Field plan", "Preparation (pre-fieldwork, pre-report set up)", "Fieldwork & travel", "Data Management", "Reporting", "GIS/Mapping", "QA Review", "Client Consultation", "General Project Management", "Other"];
     try {
       const generated = await generateTrackerFromActivities(access, projectId);
       if (generated.error && !generated.skipped) trackerWarning = generated.error;
