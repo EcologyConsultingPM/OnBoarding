@@ -10,6 +10,8 @@ const SEVERITY = {
   critical: { label: "Immediate action", Icon: ShieldAlert },
 };
 
+const NO_EXCLUSIONS = [];
+
 function relativeDate(value) {
   const then = new Date(value).getTime();
   const diffMinutes = Math.max(0, Math.round((Date.now() - then) / 60000));
@@ -21,7 +23,7 @@ function relativeDate(value) {
 
 // Operational notifications are rendered only in the dedicated Notifications
 // workspace. Published communications remain in the separate Staff Noticeboard.
-export default function StaffPortalEvents({ limit = 5 }) {
+export default function StaffPortalEvents({ limit = 5, excludeTypes = NO_EXCLUSIONS }) {
   const { session } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,11 +36,11 @@ export default function StaffPortalEvents({ limit = 5 }) {
     try {
       const response = await fetch(`/api/portal-events?limit=${limit}`, { headers: headers() });
       const data = await response.json();
-      if (response.ok) setEvents(data.events || []);
+      if (response.ok) setEvents((data.events || []).filter((event) => !excludeTypes.includes(event.event_type)));
     } finally {
       setLoading(false);
     }
-  }, [headers, limit, session?.access_token]);
+  }, [headers, limit, session?.access_token, excludeTypes]);
 
   useEffect(() => { load(); }, [load]);
 
