@@ -10,6 +10,7 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
+  TrendingUp,
   UserRound,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
@@ -36,6 +37,10 @@ function formatDate(value) {
         month: "short",
         year: "numeric",
       });
+}
+function money(n) {
+  if (n == null || n === "") return "—";
+  return Number(n).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 }
 function blankForm(project) {
   const source = project?.sources?.[0];
@@ -258,6 +263,46 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
           </span>
         </div>
       ) : (
+        <>
+        {selected ? (
+          <section className="st-entry-card" aria-label="Project budget and hours — visible to the whole assigned team">
+            <div className="st-card-head">
+              <div>
+                <span className="st-kicker"><TrendingUp size={13} /> Whole-team visibility</span>
+                <h2>Budget & hours — {selected.name}</h2>
+                <p>Shared across everyone allocated to this project — hours consumed reflect entries from the whole team, not just your own.</p>
+              </div>
+            </div>
+            <div className="st-table-wrap">
+              <table>
+                <thead><tr><th>Allocation</th><th>Budget hours</th><th>Consumed</th><th>Remaining</th><th>Budget $</th></tr></thead>
+                <tbody>
+                  {(selected.sources || []).flatMap((source) => source.allocations || []).map((allocation) => {
+                    const budgetHours = Number(allocation.allocation_hours || 0);
+                    const consumed = Number(allocation.hours_consumed || 0);
+                    const remaining = budgetHours - consumed;
+                    const pct = budgetHours ? Math.min(100, Math.round((consumed / budgetHours) * 100)) : 0;
+                    return (
+                      <tr key={allocation.id}>
+                        <td><strong>{allocation.allocation_name}</strong><small>{allocation.allocation_code}</small></td>
+                        <td>{budgetHours || "—"} h</td>
+                        <td>
+                          <div className="st-budget-bar"><i style={{ width: `${pct}%`, background: pct >= 100 ? "#c0392b" : pct >= 80 ? "#c9962a" : "#2c6a34" }} /></div>
+                          {consumed} h ({pct}%)
+                        </td>
+                        <td style={{ color: remaining < 0 ? "#c0392b" : undefined }}>{remaining.toFixed(1)} h</td>
+                        <td>{money(allocation.allocation_value)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!(selected.sources || []).flatMap((s) => s.allocations || []).length ? (
+                    <tr><td colSpan={5} style={{ textAlign: "center", color: "#8a927c" }}>No budget allocations configured for this project yet.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
         <section className="st-entry-card">
           <div className="st-card-head">
             <div>
@@ -459,6 +504,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
             </button>
           </div>
         </section>
+        </>
       )}
       <section className="st-history">
         <div className="st-card-head">
