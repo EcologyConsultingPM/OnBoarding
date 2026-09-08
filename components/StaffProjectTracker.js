@@ -46,7 +46,7 @@ function blankForm(project) {
     sourceId: source?.id || "",
     allocationId: allocation?.id || "",
     workDate: localToday(),
-    category: project?.template?.categories?.[0] || "",
+    category: project?.template?.category_options?.[0] || "",
     information: "",
     hours: "",
     status: "not_commenced",
@@ -350,7 +350,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 value={form.category}
                 onChange={(event) => setField("category", event.target.value)}
               >
-                {selected?.template?.categories?.map((category) => (
+                {selected?.template?.category_options?.map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
