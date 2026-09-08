@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
 const STATUS = {
@@ -121,6 +121,12 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [editing, setEditing] = useState("");
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
+  const [unassignedModal, setUnassignedModal] = useState(null); // admin: { activityId, projectId, title, taskCategory, budgetHours, startDate, dueDate, staffUserId }
+  const [modalBusy, setModalBusy] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [claimRequest, setClaimRequest] = useState(null); // staff: the event being confirmed for a service request
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimMessage, setClaimMessage] = useState("");
 
   const period = useMemo(
     () => periodFor(viewMode, anchorDate, customStart, customEnd),
@@ -165,6 +171,104 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       setError(requestError.message || "Could not save contracted hours.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // --- Admin: manage an unassigned activity from the calendar ---
+  const openUnassignedModal = (event) => {
+    if (mode === "staff" || !data?.canEdit) return;
+    if (!["activity", "field_survey"].includes(event.type) || !event.projectId) return;
+    const activityId = event.id.replace(/^activity-/, "");
+    setModalError("");
+    setUnassignedModal({
+      activityId,
+      projectId: event.projectId,
+      projectName: event.projectName,
+      title: event.title,
+      startDate: event.startDate || "",
+      dueDate: event.endDate || "",
+      staffUserId: "",
+    });
+  };
+  const saveUnassignedAssignment = async () => {
+    if (!unassignedModal) return;
+    if (!unassignedModal.staffUserId) { setModalError("Choose a staff member, or use Delete if this activity is no longer needed."); return; }
+    setModalBusy(true);
+    setModalError("");
+    try {
+      const response = await fetch(`/api/projects/${unassignedModal.projectId}/activities/${unassignedModal.activityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          staffUserId: unassignedModal.staffUserId,
+          title: unassignedModal.title,
+          startDate: unassignedModal.startDate || undefined,
+          dueDate: unassignedModal.dueDate || undefined,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not assign this activity.");
+      setUnassignedModal(null);
+      await load();
+    } catch (assignError) {
+      setModalError(assignError.message || "Could not assign this activity.");
+    } finally {
+      setModalBusy(false);
+    }
+  };
+  const deleteUnassignedActivity = async () => {
+    if (!unassignedModal) return;
+    if (!window.confirm(`Delete "${unassignedModal.title}"? This can't be undone.`)) return;
+    setModalBusy(true);
+    setModalError("");
+    try {
+      const response = await fetch(`/api/projects/${unassignedModal.projectId}/activities?id=${unassignedModal.activityId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not delete this activity.");
+      setUnassignedModal(null);
+      await load();
+    } catch (deleteError) {
+      setModalError(deleteError.message || "Could not delete this activity.");
+    } finally {
+      setModalBusy(false);
+    }
+  };
+
+  // --- Staff: request unassigned work via a service request ---
+  const openClaimRequest = (event) => {
+    if (mode !== "staff") return;
+    if (!["activity", "field_survey"].includes(event.type) || !event.projectId) return;
+    setClaimMessage("");
+    setClaimRequest(event);
+  };
+  const submitClaimRequest = async () => {
+    if (!claimRequest) return;
+    setClaimBusy(true);
+    try {
+      const response = await fetch("/api/service-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          request_type: "task",
+          title: `Take on: ${claimRequest.title}`,
+          projectId: claimRequest.projectId,
+          details: {
+            source: "capacity_calendar_unassigned",
+            note: `Unassigned work seen on the workload calendar for ${claimRequest.projectName}: "${claimRequest.title}". Requesting this be assigned to me.`,
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not submit the service request.");
+      setClaimMessage(`Submitted — a service request has been raised to take on "${claimRequest.title}".`);
+      setTimeout(() => { setClaimRequest(null); setClaimMessage(""); }, 2500);
+    } catch (claimError) {
+      setClaimMessage(claimError.message || "Could not submit the service request.");
+    } finally {
+      setClaimBusy(false);
     }
   };
 
@@ -213,6 +317,23 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
 
   return (
     <section className={`scp${compact ? " scp--compact" : ""}`} aria-label="Staff Capacity Planner">
+      <style>{`
+        .scp-modal-backdrop { position: fixed; inset: 0; background: rgba(8,17,13,.55); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+        .scp-modal { background: #fdfbf6; border-radius: 14px; padding: 22px; width: 100%; max-width: 420px; box-shadow: 0 30px 60px -20px rgba(6,18,12,.5); }
+        .scp-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .scp-modal-head span { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #6b755f; }
+        .scp-modal-head h3 { margin: 4px 0 0; font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 19px; color: #12211a; }
+        .scp-modal-head button { background: none; border: none; color: #8a927c; cursor: pointer; padding: 4px; }
+        .scp-modal p { font-size: 13px; line-height: 1.55; color: #3a4740; margin: 0 0 14px; }
+        .scp-modal-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: #3a4740; margin-bottom: 12px; }
+        .scp-modal-field input, .scp-modal-field select { font-family: inherit; font-weight: 400; font-size: 13.5px; border: 1px solid #cdd8c6; border-radius: 8px; padding: 9px 11px; }
+        .scp-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .scp-modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; }
+        .scp-modal-delete { display: inline-flex; align-items: center; gap: 6px; background: #fef4f2; color: #a5342a; border: 1px solid rgba(196,69,58,.3); border-radius: 8px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .scp-modal-save { display: inline-flex; align-items: center; gap: 6px; background: #1f5a34; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; margin-left: auto; }
+        .scp-modal-save:disabled { opacity: .6; cursor: not-allowed; }
+        .scp-success { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #2c6a34; background: #eef6ea; border: 1px solid rgba(44,106,52,.25); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
+      `}</style>
       <header className="scp-head">
         <div>
           <span><Users size={14} /> Delivery planning · live workload view</span>
@@ -287,6 +408,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
             <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Staff names stay frozen on the left while the selected period scrolls horizontally. Use week, month, year or a custom date range to search planned work.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
+              <>
               <div className="scp-calendar-scroll" role="region" aria-label="Workload calendar scroll area" tabIndex="0">
                 <div className="scp-calendar-grid" role="grid" aria-label={`${rangeLabel} staff workload calendar`} style={{ "--scp-day-count": calendarDays.length }}>
                   <div className="scp-calendar-corner" role="columnheader">Staff member</div>
@@ -302,10 +424,84 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                   </div>)}
                   {calendarDays.some((day) => day.events.some((event) => !event.staffUserId)) ? <div className="scp-calendar-person-row" role="row" key="calendar-shared">
                     <div className="scp-calendar-staff scp-calendar-staff--shared" role="rowheader"><strong>Shared / unassigned</strong><small>Project-wide items</small></div>
-                    {calendarDays.map((day) => <div className="scp-calendar-cell" role="gridcell" key={`shared-${day.date}`}>{day.events.filter((event) => !event.staffUserId).map((event) => { const style = EVENT[event.type] || EVENT.schedule; return <button type="button" className="scp-calendar-event" key={event.id} title={event.title}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}</div>)}
+                    {calendarDays.map((day) => <div className="scp-calendar-cell" role="gridcell" key={`shared-${day.date}`}>{day.events.filter((event) => !event.staffUserId).map((event) => {
+                      const style = EVENT[event.type] || EVENT.schedule;
+                      const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId;
+                      return (
+                        <button
+                          type="button"
+                          className="scp-calendar-event"
+                          key={event.id}
+                          title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — double-click to assign, edit or delete`) : event.title}
+                          onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); }}
+                          onDoubleClick={() => { if (manageable && mode !== "staff") openUnassignedModal(event); }}
+                          style={{ cursor: manageable ? "pointer" : "default" }}
+                        >
+                          <i style={{ background: style.color }} /><span>{event.title}</span>
+                        </button>
+                      );
+                    })}</div>)}
                   </div> : null}
                 </div>
               </div>
+
+              {unassignedModal ? (
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Manage unassigned activity" onClick={() => !modalBusy && setUnassignedModal(null)}>
+                  <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
+                    <div className="scp-modal-head">
+                      <div>
+                        <span>{unassignedModal.projectName}</span>
+                        <h3>{unassignedModal.title}</h3>
+                      </div>
+                      <button type="button" onClick={() => !modalBusy && setUnassignedModal(null)}><X size={16} /></button>
+                    </div>
+                    {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
+                    <label className="scp-modal-field">
+                      Title
+                      <input value={unassignedModal.title} onChange={(event) => setUnassignedModal({ ...unassignedModal, title: event.target.value })} />
+                    </label>
+                    <div className="scp-modal-row">
+                      <label className="scp-modal-field">Start date<input type="date" value={unassignedModal.startDate} onChange={(event) => setUnassignedModal({ ...unassignedModal, startDate: event.target.value })} /></label>
+                      <label className="scp-modal-field">Due date<input type="date" value={unassignedModal.dueDate} onChange={(event) => setUnassignedModal({ ...unassignedModal, dueDate: event.target.value })} /></label>
+                    </div>
+                    <label className="scp-modal-field">
+                      Assign to
+                      <select value={unassignedModal.staffUserId} onChange={(event) => setUnassignedModal({ ...unassignedModal, staffUserId: event.target.value })}>
+                        <option value="">Select a staff member…</option>
+                        {(data.people || []).map((person) => <option key={person.id} value={person.id}>{person.name || person.email}</option>)}
+                      </select>
+                    </label>
+                    <div className="scp-modal-actions">
+                      <button type="button" className="scp-modal-delete" disabled={modalBusy} onClick={deleteUnassignedActivity}><Trash2 size={14} /> Delete</button>
+                      <button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveUnassignedAssignment}>
+                        {modalBusy ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {modalBusy ? "Saving…" : "Assign & notify"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {claimRequest ? (
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Request unassigned work" onClick={() => !claimBusy && setClaimRequest(null)}>
+                  <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
+                    <div className="scp-modal-head">
+                      <div>
+                        <span>{claimRequest.projectName}</span>
+                        <h3>{claimRequest.title}</h3>
+                      </div>
+                      <button type="button" onClick={() => !claimBusy && setClaimRequest(null)}><X size={16} /></button>
+                    </div>
+                    <p>This work isn't assigned to anyone yet. Submit a service request asking to take it on — an administrator will review it.</p>
+                    {claimMessage ? <p className={claimMessage.startsWith("Submitted") ? "scp-success" : "scp-error"}>{claimMessage.startsWith("Submitted") ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />} {claimMessage}</p> : null}
+                    <div className="scp-modal-actions">
+                      <button type="button" className="scp-modal-save" disabled={claimBusy || claimMessage.startsWith("Submitted")} onClick={submitClaimRequest}>
+                        {claimBusy ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {claimBusy ? "Submitting…" : "Submit service request"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              </>
             ) : <p className="scp-empty"><CheckCircle2 size={16} /> No planned workload or approved leave in this period.</p>}
           </div>
         </>
