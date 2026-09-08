@@ -77,7 +77,10 @@ export default function AdminProjectTracker({
   const [section, setSection] = useState("trackers");
   const [projects, setProjects] = useState([]);
   const [financialReady, setFinancialReady] = useState(false);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try { return window.localStorage.getItem("ec-admin-tracker-selected-id") || ""; } catch { return ""; }
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -111,7 +114,7 @@ export default function AdminProjectTracker({
       const nextProjects = body.projects || [];
       setProjects(nextProjects);
       setFinancialReady(Boolean(body.financialReady));
-      setSelectedId((current) => current || nextProjects[0]?.id || "");
+      setSelectedId((current) => (current && nextProjects.some((project) => project.id === current) ? current : nextProjects[0]?.id || ""));
     } catch (loadError) {
       setError(loadError.message || "Could not load the Project Tracker.");
     } finally {
@@ -129,6 +132,13 @@ export default function AdminProjectTracker({
     )
       setSelectedId(initialProjectId);
   }, [initialProjectId, projects]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (selectedId) window.localStorage.setItem("ec-admin-tracker-selected-id", selectedId);
+      else window.localStorage.removeItem("ec-admin-tracker-selected-id");
+    } catch {}
+  }, [selectedId]);
 
   const saveSource = async () => {
     if (!selected || !sourceEditor) return;
