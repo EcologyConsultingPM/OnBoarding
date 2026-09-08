@@ -87,7 +87,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
       {showBack ? <button className="proj-back" onClick={onBack}><ArrowLeft size={15} /> All projects</button> : null}
 
       <div className="proj-detail-head">
-        <h1>{project.name}</h1>
+        <h1 style={{ color: "#fffdf8", fontWeight: 700 }}>{project.name}</h1>
         {project.client_name ? <p>{project.client_name}{project.client_contact ? ` · ${project.client_contact}` : ""}</p> : null}
         {project.description ? <p className="proj-desc">{project.description}</p> : null}
         {project.sharepoint_link ? (
