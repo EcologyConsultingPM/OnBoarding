@@ -35,6 +35,38 @@ function formatDate(value) {
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
+// Persists whatever's currently being typed into the add-entry form — not
+// the pending sheet rows themselves (those are already saved server-side the
+// moment "Add to today's sheet" is clicked). This covers the gap where a
+// backgrounded tab gets discarded by the OS and reloaded from scratch,
+// which would otherwise silently lose whatever was half-typed.
+const DRAFT_KEY = "ecology-consulting:daily-timesheet-form-draft";
+function readFormDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw);
+    if (!saved || Date.now() - Number(saved.savedAt || 0) > 1000 * 60 * 60 * 24) {
+      window.localStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+    return saved.form && typeof saved.form === "object" ? saved.form : null;
+  } catch {
+    return null;
+  }
+}
+function writeFormDraft(form) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), form }));
+  } catch {}
+}
+function clearFormDraft() {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(DRAFT_KEY); } catch {}
+}
+
 function blankForm(project) {
   const source = project?.sources?.[0];
   const allocation = source?.allocations?.[0];
@@ -60,7 +92,8 @@ export default function StaffDailyTimesheet({ embedded = false }) {
   const [pending, setPending] = useState([]);
   const [history, setHistory] = useState([]);
   const [assignedActivities, setAssignedActivities] = useState([]);
-  const [form, setForm] = useState(blankForm(null));
+  const [form, setForm] = useState(() => readFormDraft() || blankForm(null));
+  const [restoredDraft] = useState(() => Boolean(readFormDraft()));
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -110,6 +143,18 @@ export default function StaffDailyTimesheet({ embedded = false }) {
     }
   }, [headers, session?.access_token]);
   useEffect(() => { load(); }, [load]);
+
+  // Autosave the in-progress "new entry" form so a backgrounded tab getting
+  // discarded and reloaded by the OS doesn't silently lose it. Deliberately
+  // skipped while editing an existing pending row (form.id set) — that data
+  // already lives server-side, and re-surfacing a stale edit-draft after a
+  // reload would be more confusing than just re-opening it fresh.
+  useEffect(() => {
+    if (form.id) return;
+    const hasContent = form.information.trim() || form.hours || form.notableIssues.trim();
+    if (!hasContent) { clearFormDraft(); return; }
+    writeFormDraft(form);
+  }, [form]);
 
   const setProject = (projectId) => {
     const project = projects.find((item) => item.id === projectId);
@@ -193,6 +238,7 @@ export default function StaffDailyTimesheet({ embedded = false }) {
         setMessage("Added to today's sheet.");
       }
       resetForm();
+      clearFormDraft();
       setProcessResult(null);
       setTimeout(() => setMessage(""), 3000);
     } catch (saveError) {
@@ -238,6 +284,7 @@ export default function StaffDailyTimesheet({ embedded = false }) {
       {!ready ? (
         <div className="st-notice"><AlertCircle size={17} /><span>Project Tracker entries will become available once an administrator has enabled your project, configured its template and locked it for staff use.</span></div>
       ) : null}
+      {restoredDraft ? <div className="st-success"><CheckCircle2 size={16} /> Restored your in-progress entry from this device.</div> : null}
       {error ? <div className="st-error"><AlertCircle size={16} /> {error}</div> : null}
       {message ? <div className="st-success"><CheckCircle2 size={16} /> {message}</div> : null}
 
