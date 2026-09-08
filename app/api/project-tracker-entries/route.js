@@ -23,7 +23,7 @@ export async function eligibleProjects(access) {
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", ids),
     access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status").in("project_id", ids).eq("approval_status", "approved"),
-    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible").in("project_id", ids).eq("status", "active").eq("staff_visible", true),
+    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_value, allocation_hours, hours_consumed, charge_out_spend").in("project_id", ids).eq("status", "active").eq("staff_visible", true),
   ]);
   if ([settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].some((result) => result.error && unavailable(result.error))) return { available: false, projects: [] };
   const failed = [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].find((result) => result.error);
