@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../../../lib/serverAuth";
+import { generateTrackerFromActivities } from "../../tracker/auto-generate/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,7 +103,90 @@ export async function POST(request, { params }) {
       .single();
     if (approveError) return Response.json({ error: approveError.message }, { status: 400 });
 
-    return Response.json({ success: true, project: updatedProject, notified: events.length, event_warning: eventWarning });
+    // Approval used to be the end of the road — an admin then had to
+    // separately click "Auto-generate tracker from Work Activities" and
+    // separately click "Enable staff timesheets" (which locks a template
+    // and flips a visibility flag) before the project's tracker actually
+    // did anything useful for staff. All three are now one action: approval
+    // itself generates the accurate per-category budget, locks a standard
+    // tracker template if one isn't already locked, and makes the tracker
+    // visible — never overwriting an admin's own customised template.
+    let trackerWarning = null;
+    const STANDARD_TRACKER_CATEGORIES = ["Desktop / field plan", "Preparation", "Fieldwork & travel", "Data management", "Reporting", "GIS / mapping", "QA review", "Client consultation", "General project management", "Other"];
+    try {
+      const generated = await generateTrackerFromActivities(access, projectId);
+      if (generated.error && !generated.skipped) trackerWarning = generated.error;
+
+      const { data: existingTemplate, error: templateError } = await access.admin
+        .from("project_tracker_templates")
+        .select("id, category_options, locked")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (templateError) throw new Error(templateError.message);
+      if (!existingTemplate) {
+        const { error } = await access.admin.from("project_tracker_templates").insert({
+          project_id: projectId,
+          template_name: "Project Tracker",
+          instructions: "Record project activity accurately and identify issues requiring project-lead review.",
+          category_options: STANDARD_TRACKER_CATEGORIES,
+          column_definitions: [],
+          guidance_rows: [],
+          locked: true,
+          locked_by: access.user.id,
+          locked_at: now,
+          created_by: access.user.id,
+          updated_by: access.user.id,
+        });
+        if (error) throw new Error(error.message);
+      } else if (!existingTemplate.locked) {
+        const categories = Array.isArray(existingTemplate.category_options) && existingTemplate.category_options.length ? existingTemplate.category_options : STANDARD_TRACKER_CATEGORIES;
+        const { error } = await access.admin.from("project_tracker_templates").update({
+          category_options: categories, locked: true, locked_by: access.user.id, locked_at: now, updated_by: access.user.id, updated_at: now,
+        }).eq("id", existingTemplate.id);
+        if (error) throw new Error(error.message);
+      }
+
+      const { data: currentSettings } = await access.admin.from("project_tracker_settings").select("*").eq("project_id", projectId).maybeSingle();
+      const { error: settingsError } = await access.admin.from("project_tracker_settings").upsert({
+        project_id: projectId,
+        tracker_visible: true,
+        resources_ready: currentSettings?.resources_ready ?? false,
+        training_checked: currentSettings?.training_checked ?? false,
+        forms_configured: currentSettings?.forms_configured ?? false,
+        whs_checked: currentSettings?.whs_checked ?? false,
+        activated_by: currentSettings?.activated_by || access.user.id,
+        activated_at: currentSettings?.activated_at || now,
+        updated_by: access.user.id,
+        updated_at: now,
+      }, { onConflict: "project_id" });
+      if (settingsError) throw new Error(settingsError.message);
+
+      let team = [];
+      const teamResult = await access.admin.from("project_allocations").select("staff_user_id").eq("project_id", projectId).eq("active", true);
+      if (teamResult.error) {
+        const fallback = await access.admin.from("project_allocations").select("staff_user_id").eq("project_id", projectId);
+        team = fallback.data || [];
+      } else {
+        team = teamResult.data || [];
+      }
+      const recipients = [...new Set(team.map((row) => row.staff_user_id).filter(Boolean))];
+      if (recipients.length) {
+        await access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
+          recipient_id: recipientId,
+          event_type: "project_tracker_enabled",
+          severity: "information",
+          title: "Project Tracker access available",
+          body: `You can now log project activity and timesheet reference entries for ${project.name}.`,
+          href: "/staff/projects",
+          source_table: "project_tracker_settings",
+          source_id: projectId,
+        })));
+      }
+    } catch (trackerError) {
+      trackerWarning = trackerWarning || trackerError.message;
+    }
+
+    return Response.json({ success: true, project: updatedProject, notified: events.length, event_warning: eventWarning, tracker_warning: trackerWarning });
   } catch (error) {
     return serverError(error);
   }
