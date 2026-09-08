@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../lib/AuthProvider";
-import StaffTimesheetsWorkspace from "../../../components/StaffTimesheetsWorkspace";
+import StaffTimesheetsHub from "../../../components/StaffTimesheetsHub";
 
 export default function StaffTimesheetsPage() {
   const { session, loading, mustChangePassword } = useAuth();
@@ -16,5 +16,5 @@ export default function StaffTimesheetsPage() {
   }, [loading, mustChangePassword, router, session]);
 
   if (loading || !session || mustChangePassword) return null;
-  return <StaffTimesheetsWorkspace />;
+  return <StaffTimesheetsHub />;
 }
