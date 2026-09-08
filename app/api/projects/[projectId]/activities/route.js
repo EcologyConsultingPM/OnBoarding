@@ -64,6 +64,24 @@ function assignmentSignature(activity) {
   return [activity.staff_user_id || "", String(activity.title || "").trim().toLowerCase(), activity.due_date || ""].join("|");
 }
 
+// Content signature used to recognise "this is actually the same activity
+// I already saved" across SEPARATE save requests, not just within one. The
+// previous version of this route only deduped rows within a single PUT
+// payload (a Set scoped to that one request) — it had no defence at all
+// against a "new" row (no real id) being re-submitted in a later, separate
+// save, which silently created a fresh duplicate activity AND a fresh
+// duplicate Gantt/schedule line every single time. This is what was
+// producing the same activity title appearing dozens of times.
+function contentSignature(row) {
+  return [
+    (row.staff_user_id ?? row.staffUserId) || "",
+    String(row.title || "").trim().toLowerCase(),
+    (row.detail ?? opt(row.detail)) || "",
+    (row.due_date ?? dueDate(row.dueDate)) || "",
+    (row.start_date ?? dueDate(row.startDate)) || "",
+  ].join("|");
+}
+
 function formatDueDate(value) {
   if (!value) return "";
   const date = new Date(`${value}T00:00:00`);
@@ -163,6 +181,11 @@ export async function PUT(request, { params }) {
       return Response.json({ error: existingResult.error.message }, { status: 400 });
     }
     const existingById = new Map((existingResult.data || []).map((activity) => [activity.id, activity]));
+    const existingBySignature = new Map();
+    for (const activity of existingResult.data || []) {
+      const sig = contentSignature(activity);
+      if (!existingBySignature.has(sig)) existingBySignature.set(sig, activity);
+    }
 
     const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
     const availableIds = new Set(directory.map((person) => person.id));
@@ -208,7 +231,8 @@ export async function PUT(request, { params }) {
     const createdOrReassigned = [];
     const persisted = [];
     for (const input of inputRows) {
-      const previous = validId(input.id) ? existingById.get(input.id) : null;
+      const matchedBySignature = !validId(input.id) ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
+      const previous = validId(input.id) ? existingById.get(input.id) : matchedBySignature;
       const assignedTo = opt(input.staffUserId);
       const changedAssignee = Boolean(previous && previous.staff_user_id !== assignedTo);
       const requestedStatus = ACTIVITY_STATUSES.has(input.status) ? input.status : (previous?.status || "not_commenced");
