@@ -12,6 +12,14 @@ import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
 
+// Newly-assigned task briefs create a portal_events row (event_type
+// remote_task_assigned) as well as the remote_tasks row shown directly below
+// in "Pending task briefs" — without this exclusion the same new brief would
+// appear twice on this page in two different visual formats. A stable
+// module-level constant (not an inline array literal at the JSX call site)
+// keeps the prop reference stable across renders.
+const EXCLUDED_EVENT_TYPES = ["remote_task_assigned"];
+
 export default function StaffNotifications() {
   return (
     <main className="sn-page">
@@ -67,7 +75,7 @@ export default function StaffNotifications() {
               <i /> Live
             </span>
           </div>
-          <StaffPortalEvents limit={30} />
+          <StaffPortalEvents limit={30} excludeTypes={EXCLUDED_EVENT_TYPES} />
         </section>
 
         <aside className="sn-side">
@@ -99,7 +107,7 @@ export default function StaffNotifications() {
 
           <a className="sn-open-remote" href="/staff/remote-operations">
             <span>
-              <ClipboardList size={16} /> Open Task Briefs
+              <ClipboardList size={16} /> View all Task Briefs (including in-progress)
             </span>
             <ExternalLink size={15} />
           </a>
