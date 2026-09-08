@@ -34,12 +34,14 @@ import {
   LifeBuoy,
   Eye,
   ClipboardCheck,
+  CalendarDays,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
 import AdminProjectSetup from "./AdminProjectSetup";
+import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
@@ -3540,6 +3542,17 @@ function AdminHome({ onNavigate }) {
       photo: "palm-cockatoo.png",
     },
     {
+      eyebrow: "Delivery planning",
+      title: "Staff Capacity Planner",
+      desc: "Live workload view across the team — allocated hours, approved leave, deadlines and available capacity.",
+      accent: "#c9a35f",
+      accent2: "#3a2c0c",
+      Icon: CalendarDays,
+      mode: "staffcapacity",
+      resourceKey: "admin.staff_capacity",
+      photo: "kangaroo.png",
+    },
+    {
       eyebrow: "Commercial control",
       title: "Quote Pipeline",
       desc: "Track enquiry, proposal, review and award stages without leaving the control centre.",
@@ -4047,9 +4060,22 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       g2: "#0b2317",
     },
     {
+      key: "capacity",
+      resourceKey: "staff.capacity",
+      n: "08",
+      eyebrow: "Delivery planning",
+      title: "Staff Capacity Planner",
+      desc: "See the team's live workload — allocated hours, approved leave and available capacity. Read-only.",
+      Icon: CalendarDays,
+      photo: "kangaroo",
+      base: "#8a6d2f",
+      g1: "#c9962a",
+      g2: "#2a1c08",
+    },
+    {
       key: "mine",
       resourceKey: "staff.onboarding",
-      n: "08",
+      n: "09",
       requiresOnboarding: true,
       eyebrow: "Getting started",
       title: "My Onboarding",
@@ -4931,6 +4957,13 @@ export default function OnboardingWorkbook() {
                 staffOnly: true,
               },
               {
+                key: "capacity",
+                label: "Staff Capacity Planner",
+                desc: "Team workload, leave & available capacity (read-only)",
+                Icon: CalendarDays,
+                staffOnly: true,
+              },
+              {
                 key: "projects",
                 label: "Projects & Tracker",
                 desc: "Your allocations, schedules, work status and budget",
@@ -5190,6 +5223,8 @@ export default function OnboardingWorkbook() {
             </div>
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
+          ) : isAdmin && mode === "staffcapacity" ? (
+            <StaffCapacityPlanner />
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
           ) : isAdmin && mode === "whsmonitor" ? (
@@ -5209,6 +5244,8 @@ export default function OnboardingWorkbook() {
             <StaffLearningLibrary />
           ) : mode === "species" && !inAdminPortal ? (
             <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
+          ) : mode === "capacity" && !inAdminPortal ? (
+            <StaffCapacityPlanner mode="staff" />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (
