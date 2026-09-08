@@ -65,7 +65,16 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const [projects, setProjects] = useState([]);
   const [entries, setEntries] = useState([]);
   const [assignedActivities, setAssignedActivities] = useState([]);
-  const [form, setForm] = useState(blankForm(null));
+  const [form, setForm] = useState(() => {
+    const restored = blankForm(null);
+    if (typeof window === "undefined") return restored;
+    try {
+      const lastProjectId = window.localStorage.getItem("ec-staff-tracker-selected-id");
+      return lastProjectId ? { ...restored, projectId: lastProjectId } : restored;
+    } catch {
+      return restored;
+    }
+  });
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -118,8 +127,9 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       setReady(Boolean(body.ready));
       setForm((current) => {
         const preferredProject = nextProjects.find((project) => project.id === initialProjectId);
-        if (current.projectId && nextProjects.some((project) => project.id === current.projectId)) return current;
-        return blankForm(preferredProject || nextProjects[0]);
+        if (current.projectId && current.sourceId && nextProjects.some((project) => project.id === current.projectId)) return current;
+        const restoredProject = current.projectId ? nextProjects.find((project) => project.id === current.projectId) : null;
+        return blankForm(restoredProject || preferredProject || nextProjects[0]);
       });
     } catch (loadError) {
       setError(loadError.message || "Could not load your Project Tracker.");
@@ -134,6 +144,9 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const setProject = (projectId) => {
     const project = projects.find((item) => item.id === projectId);
     setForm(blankForm(project));
+    if (typeof window !== "undefined") {
+      try { window.localStorage.setItem("ec-staff-tracker-selected-id", projectId); } catch {}
+    }
   };
   const projectActivities = useMemo(
     () => assignedActivities.filter((activity) => activity.projectId === form.projectId),
