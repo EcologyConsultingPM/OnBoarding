@@ -6,7 +6,7 @@ import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
 
 const STATUS_META = {
-  draft: { label: "Draft", color: "#8a927c" },
+  draft: { label: "Draft", color: "#5c6b52" },
   submitted: { label: "Awaiting approval", color: "#b08948" },
   approved: { label: "Approved — ready to publish", color: "#4197D0" },
   published: { label: "Published", color: "#2c6a34" },
