@@ -4011,7 +4011,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       resourceKey: "staff.timesheets",
       n: "04",
       eyebrow: "Time & delivery",
-      title: "Timesheets",
+      title: "Work History",
       desc: "Project tracker history, filters, XLSX export and official time entry.",
       Icon: Clock3,
       photo: "koala",
@@ -4973,7 +4973,7 @@ export default function OnboardingWorkbook() {
               },
               {
                 key: "timesheets",
-                label: "Timesheets",
+                label: "Work History",
                 desc: "Project tracker history and official time entry",
                 Icon: Clock3,
                 staffOnly: true,
