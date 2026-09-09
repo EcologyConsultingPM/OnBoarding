@@ -1,0 +1,4 @@
+-- whs_audits: compliance audits against whs_forms submissions (outcome, checks
+-- jsonb, findings, corrective action + due + status, auditor). Admin-only RLS.
+-- Powers the WHS compliance dashboard (overall %, failed checks, corrective
+-- actions, median review time). Applied live.

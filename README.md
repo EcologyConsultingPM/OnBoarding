@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/31125666/README.md)
 # Ecology Consulting — Onboarding Workbook
 
 New employee onboarding workbook for Ecology Consulting, with Learning &
@@ -64,9 +63,9 @@ ecology-onboarding/
 
 ## Supabase project
 
-Dedicated project: **Ecology Consulting On Boarding** (`mqgumjgotjiphfgqdyyl`),
-under its own Supabase org for Ecology Consulting. Schema, RLS, and the
-admin allowlist are already applied. Tables in the `public` schema:
+Dedicated project: **aaron.dooley@ecologyconsulting.au's Project** (`qjsdglkipgncttztksxl`),
+under its own Supabase org, separate from Solum Safety's. Schema, RLS, and
+the admin allowlist are already applied. Tables in the `public` schema:
 `phases`, `sections`, `checklist_items`, `item_progress`, `item_links`,
 `ld_months`, `ld_modules`, `signoffs`, `admin_emails`, `staff_progress`.
 
@@ -89,7 +88,7 @@ Set in Vercel (Project Settings → Environment Variables) and in a local
 `.env.local` for `npm run dev`:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://mqgumjgotjiphfgqdyyl.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://qjsdglkipgncttztksxl.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon/publishable key — Supabase → Project Settings → API>
 SUPABASE_SERVICE_ROLE_KEY=<service role key — same page, keep this one secret, server-only>
 ```
@@ -115,6 +114,6 @@ environment variables above, deploy.
 ## Pushing this to GitHub
 
 ```bash
-git remote add origin https://github.com/EcologyConsultingPM/OnBoarding.git
+git remote add origin https://github.com/SolumSafety/onboarding-workbook.git
 git push origin main
 ```

@@ -1,0 +1,3 @@
+-- Feedback/close-out loop: seen_by_staff on service_requests + whs_forms, with a
+-- reset_seen_on_review() trigger that re-flags an outcome as unseen whenever an
+-- admin changes the decision/review status. Applied live.

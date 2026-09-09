@@ -1,97 +1,208 @@
-import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
+import { randomBytes } from "crypto";
+import { requireSession, serverError } from "../../../../lib/serverAuth";
+import {
+  PORTAL_RESOURCES,
+  PRIMARY_ADMIN_EMAILS,
+  visibilitySchemaMissing,
+} from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_DOMAIN = "@ecologyconsulting.au";
+const PRIMARY_ENV = "PRIMARY_ADMIN_EMAIL";
+const PRIMARY_EMAILS_ENV = "PRIMARY_ADMIN_EMAILS";
+const PROTECTED_ADMIN_LABEL = "Aaron Dooley or Tony Webster";
 
-// Unambiguous character set (no 0/O, 1/l/I) — read out over the phone or
-// typed from a sticky note without confusion.
-const CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-function generateTempPassword(length = 14) {
-  const bytes = crypto.randomBytes(length);
-  let out = "";
-  for (let i = 0; i < length; i++) out += CHARS[bytes[i] % CHARS.length];
-  return out;
+function jsonError(error, status = 400) {
+  return Response.json({ error }, { status });
 }
 
-async function requireAdmin(request, admin) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!token) return { error: "Not authenticated.", status: 401 };
+function normaliseEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: userData, error: userErr } = await anon.auth.getUser(token);
-  const caller = userData?.user;
-  if (userErr || !caller?.email) return { error: "Invalid session.", status: 401 };
+function primaryEmails() {
+  const configured = `${process.env[PRIMARY_EMAILS_ENV] || ""},${process.env[PRIMARY_ENV] || ""}`
+    .split(/[,;\s]+/)
+    .map(normaliseEmail)
+    .filter(validStaffEmail);
+  return [...new Set([...PRIMARY_ADMIN_EMAILS, ...configured])];
+}
 
-  const { data: adminRow } = await admin.from("admin_emails").select("email").ilike("email", caller.email).maybeSingle();
-  if (!adminRow) return { error: "Admin access required.", status: 403 };
+function primaryAccess(access) {
+  return primaryEmails().includes(normaliseEmail(access?.user?.email));
+}
 
-  return { caller };
+function validStaffEmail(email) {
+  return /^[^\s@]+@ecologyconsulting\.au$/i.test(email);
+}
+
+function safeName(value, maximum = 100) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, maximum);
+}
+
+function safePhone(value) {
+  return String(value || "").trim().replace(/[^0-9+()\-\s]/g, "").slice(0, 32);
+}
+
+function createTemporaryPassword() {
+  // A URL-safe random password with enough entropy for a single-use credential.
+  return `${randomBytes(12).toString("base64url")}Ec!`;
+}
+
+const STAFF_RESOURCE_KEYS = PORTAL_RESOURCES.filter(
+  (resource) => resource.portal === "staff",
+).map((resource) => resource.key);
+const ADMIN_RESOURCE_KEYS = PORTAL_RESOURCES.filter(
+  (resource) => resource.portal === "admin",
+).map((resource) => resource.key);
+
+function selectedResourceKeys(value, validKeys) {
+  if (!Array.isArray(value)) return null;
+  return [...new Set(value.map((key) => String(key || "").trim()))].filter(
+    (key) => validKeys.includes(key),
+  );
+}
+
+function resourceIsSelected(resourceKey, selectedKeys) {
+  const resource = PORTAL_RESOURCES.find((item) => item.key === resourceKey);
+  return Boolean(
+    selectedKeys.includes(resourceKey) ||
+      (resource?.parent && selectedKeys.includes(resource.parent)),
+  );
+}
+
+async function matchingUser(access, email) {
+  const { data, error } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw new Error(error.message);
+  return (data?.users || []).find((candidate) => normaliseEmail(candidate.email) === email) || null;
 }
 
 export async function POST(request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    return Response.json({ error: "Not configured on the server." }, { status: 503 });
-  }
-  const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-
-  const { error: authError, status } = await requireAdmin(request, admin);
-  if (authError) return Response.json({ error: authError }, { status });
-
-  let email, customPassword, forceChange;
   try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Administrator access is required.", 403);
+
     const body = await request.json();
-    email = String(body?.email || "").trim().toLowerCase();
-    customPassword = typeof body?.password === "string" ? body.password : null;
-    forceChange = body?.forceChange !== false; // default true unless explicitly turned off
-  } catch {
-    return Response.json({ error: "Invalid request." }, { status: 400 });
-  }
-  if (!email || !email.endsWith(ALLOWED_DOMAIN)) {
-    return Response.json({ error: `Only ${ALLOWED_DOMAIN} email addresses can be invited.` }, { status: 400 });
-  }
-  if (customPassword && customPassword.length < 8) {
-    return Response.json({ error: "Custom password must be at least 8 characters." }, { status: 400 });
-  }
+    const email = normaliseEmail(body?.email);
+    const firstName = safeName(body?.firstName);
+    const lastName = safeName(body?.lastName);
+    const phone = safePhone(body?.phone);
+    const accessLevel = String(body?.accessLevel || "staff").trim();
+    const forceChange = body?.forceChange !== false;
+    const requestedStaffResources = selectedResourceKeys(body?.visibleStaffResources, STAFF_RESOURCE_KEYS);
+    const requestedAdminResources = selectedResourceKeys(body?.visibleAdminResources, ADMIN_RESOURCE_KEYS);
 
-  const tempPassword = customPassword || generateTempPassword();
+    if (!validStaffEmail(email)) return jsonError("Email must be an @ecologyconsulting.au address.");
+    if (!firstName) return jsonError("First name is required.");
+    if (!["staff", "admin", "both"].includes(accessLevel)) return jsonError("Choose a valid portal access level.");
 
-  // Does this person already have an account? Page through (small roster).
-  let existing = null;
-  let page = 1;
-  while (page <= 20 && !existing) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) return Response.json({ error: "Could not check existing accounts." }, { status: 500 });
-    existing = data.users.find((u) => (u.email || "").toLowerCase() === email) || null;
-    if (data.users.length < 200) break;
-    page++;
-  }
+    const needsAdminAccess = accessLevel === "admin" || accessLevel === "both";
+    if (needsAdminAccess && !primaryAccess(access)) {
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can grant administrator access.`, 403);
+    }
+    if (requestedStaffResources && !primaryAccess(access)) {
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can set Staff-domain visibility during account setup.`, 403);
+    }
+    if (requestedAdminResources && !primaryAccess(access)) {
+      return jsonError(`Only ${PROTECTED_ADMIN_LABEL} can set Admin-domain visibility during account setup.`, 403);
+    }
+    if (requestedAdminResources && !needsAdminAccess) {
+      return jsonError("Admin-domain visibility can only be selected for an administrator account.", 400);
+    }
 
-  if (existing) {
-    const { error } = await admin.auth.admin.updateUserById(existing.id, {
-      password: tempPassword,
-      app_metadata: { ...existing.app_metadata, must_change_password: forceChange },
-    });
-    if (error) return Response.json({ error: "Could not reset this account." }, { status: 500 });
-  } else {
-    const { error } = await admin.auth.admin.createUser({
+    const temporaryPassword = createTemporaryPassword();
+    const existing = await matchingUser(access, email);
+    const profile = {
+      ...(existing?.user_metadata || {}),
+      first_name: firstName,
+      last_name: lastName,
+      full_name: [firstName, lastName].filter(Boolean).join(" "),
+      phone,
+      staff_directory_active: existing?.user_metadata?.staff_directory_active !== false,
+    };
+    const application = {
+      ...(existing?.app_metadata || {}),
+      must_change_password: forceChange,
+      portal_access: accessLevel,
+    };
+
+    let userId;
+    if (existing) {
+      const { data, error } = await access.admin.auth.admin.updateUserById(existing.id, {
+        password: temporaryPassword,
+        user_metadata: profile,
+        app_metadata: application,
+        email_confirm: true,
+      });
+      if (error) return jsonError(error.message);
+      userId = data?.user?.id || existing.id;
+    } else {
+      const { data, error } = await access.admin.auth.admin.createUser({
+        email,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: profile,
+        app_metadata: application,
+      });
+      if (error) return jsonError(error.message);
+      userId = data?.user?.id;
+    }
+
+    if (!userId) return jsonError("Could not create the staff account.", 500);
+
+    // Promotion is a distinct primary-administrator operation. Creating staff access
+    // never removes existing admin access; removal is only handled by Portal Management.
+    if (needsAdminAccess) {
+      const { error } = await access.admin.from("admin_emails").upsert({
+        email,
+        added_by: normaliseEmail(access.user.email),
+      }, { onConflict: "email" });
+      if (error) return jsonError(error.message);
+    }
+
+    const visibilityRows = [
+      ...(requestedStaffResources
+        ? STAFF_RESOURCE_KEYS.map((resourceKey) => ({
+            user_id: userId,
+            resource_key: resourceKey,
+            is_visible: resourceIsSelected(resourceKey, requestedStaffResources),
+            updated_by: access.user.id,
+            updated_at: new Date().toISOString(),
+          }))
+        : []),
+      ...(requestedAdminResources
+        ? ADMIN_RESOURCE_KEYS.map((resourceKey) => ({
+            user_id: userId,
+            resource_key: resourceKey,
+            is_visible: resourceIsSelected(resourceKey, requestedAdminResources),
+            updated_by: access.user.id,
+            updated_at: new Date().toISOString(),
+          }))
+        : []),
+    ];
+    if (visibilityRows.length) {
+      const { error } = await access.admin.from("portal_visibility_overrides").upsert(
+        visibilityRows,
+        { onConflict: "user_id,resource_key" },
+      );
+      if (error) {
+        if (visibilitySchemaMissing(error)) {
+          return jsonError("The selected portal visibility controls are not active in the database yet.", 503);
+        }
+        return jsonError(error.message);
+      }
+    }
+
+    return Response.json({
       email,
-      password: tempPassword,
-      email_confirm: true,
-      app_metadata: { must_change_password: forceChange },
-    });
-    if (error) return Response.json({ error: "Could not create this account." }, { status: 500 });
+      name: profile.full_name,
+      accessLevel,
+      tempPassword: temporaryPassword,
+      reset: Boolean(existing),
+    }, { status: existing ? 200 : 201 });
+  } catch (error) {
+    return serverError(error);
   }
-
-  // Returned once, to the verified admin who made this request. Relay it to
-  // the staff member out of band (Slack, in person, phone) — it's never
-  // emailed automatically and never stored anywhere after this response.
-  return Response.json({ ok: true, email, tempPassword });
 }

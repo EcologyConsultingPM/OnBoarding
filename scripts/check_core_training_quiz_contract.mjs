@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const root = new URL("..", import.meta.url);
+const read = (path) => readFile(new URL(path, root), "utf8");
+const catalogue = JSON.parse(await read("data/core-training/quizzes.public.json"));
+const keys = JSON.parse(await read("lib/server/coreTrainingQuizKeys.json"));
+const endpoint = await read("app/api/core-training-quizzes/route.js");
+const runner = await read("components/CoreTrainingQuizzes.js");
+const learning = await read("components/StaffLearningLibrary.js");
+const requests = await read("components/StaffServiceRequests.js");
+const staffList = await read("components/PortalStaffList.js");
+const management = await read("components/PortalManagement.js");
+
+assert.equal(catalogue.length, 41, "Expected 41 fully marked Core Training quizzes.");
+assert.ok(catalogue.every((quiz) => quiz.questions.length === quiz.questionCount), "Every published quiz must have a complete question set.");
+const m09 = catalogue.find((quiz) => quiz.quizId === "core-m09");
+assert.deepEqual(m09 && { questionCount: m09.questionCount, passMark: m09.threshold.passMark, outOf: m09.threshold.outOf }, { questionCount: 50, passMark: 32, outOf: 50 }, "M09 must use its supplied 50-question marker key and 32/50 threshold.");
+assert.ok(catalogue.every((quiz) => quiz.questions.every((question) => question.prompt && question.options.length === 4 && question.options.every((option) => option.text))), "Every question must have four populated choices.");
+assert.ok(catalogue.every((quiz) => !Object.hasOwn(quiz, "answers")), "The public question catalogue must not include answer keys.");
+assert.ok(catalogue.every((quiz) => Object.keys(keys[quiz.quizId]?.answers || {}).length === quiz.questionCount), "Every published quiz must have a complete server-only answer key.");
+assert.match(endpoint, /requirePortalResource\(access, "staff\.learning"\)/, "Learning visibility must be enforced server-side.");
+assert.match(endpoint, /export async function PATCH/, "The quiz endpoint must expose draft autosave.");
+assert.match(endpoint, /export async function POST/, "The quiz endpoint must expose explicit server-side marking.");
+assert.match(endpoint, /core_training_quiz_drafts/, "Quiz autosave must use the protected draft store.");
+assert.match(runner, /Submit and receive feedback/, "The runner must make marking an explicit action.");
+assert.match(runner, /window\.localStorage\.setItem\(draftKey/, "The runner must retain answers locally when the network is unavailable.");
+assert.match(learning, /CoreTrainingQuizzes/, "The Core Training learning folder must open the quiz workspace.");
+assert.match(requests, /ec-service-request-draft/, "Unsubmitted Service Requests must autosave locally per staff account.");
+assert.match(staffList, /Add staff member/, "Staff List must expose the requested creation action.");
+assert.match(management, /onAddStaff/, "The Staff List action must open controlled account creation.");
+console.log(`Core Training contract passed: ${catalogue.length} interactive quizzes and all autosave/access safeguards verified.`);

@@ -12,7 +12,9 @@ export default function Home() {
   useEffect(() => {
     if (loading) return;
     if (!session) { router.replace("/login"); return; }
-    if (mustChangePassword) router.replace("/change-password");
+    if (mustChangePassword) { router.replace("/change-password"); return; }
+    // Signed in: render the app. The portal (admin vs staff) is resolved inside
+    // the app — admins default to the admin portal and can switch to staff.
   }, [loading, session, mustChangePassword, router]);
 
   if (loading || !session || mustChangePassword) {
