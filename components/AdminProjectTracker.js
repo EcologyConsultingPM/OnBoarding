@@ -307,6 +307,7 @@ export default function AdminProjectTracker({
                 >
                   <span
                     className={`apt-health ${project.health.toLowerCase().replace(/\s/g, "-")}`}
+                    title={project.healthReasons?.length ? project.healthReasons.join(" · ") : "No risk factors currently flagged"}
                   >
                     {project.health}
                   </span>
