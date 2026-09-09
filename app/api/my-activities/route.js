@@ -155,7 +155,7 @@ export async function PATCH(request) {
       if (status === "active" && !existing.started_at) values.started_at = now;
       if (status === "completed") values.completed_at = now;
       recordHistory = existing.status !== status || (existing.pause_reason || null) !== values.pause_reason;
-      if (recordHistory || status === "completed" || status === "paused_other") {
+      if (recordHistory) {
         event = { type: "project_activity_status", severity: status === "paused_other" || status === "need_info" ? "action_required" : "information", title: `Project activity ${status.replaceAll("_", " ")}`, body: `${existing.title} · ${values.progress_percent}%${responseNote ? ` · ${responseNote}` : ""}` };
       }
     }
