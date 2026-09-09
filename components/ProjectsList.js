@@ -16,7 +16,7 @@ const STATUS_COLORS = {
   active: "#3d7a35",
   on_hold: "#b08948",
   complete: "#2a8091",
-  archived: "#8a927c",
+  archived: "#5c6b52",
 };
 
 export default function ProjectsList({ onOpen }) {
