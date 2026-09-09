@@ -5,12 +5,14 @@ import {
   CalendarDays,
   ClipboardList,
   ExternalLink,
+  Scale,
   ShieldCheck,
 } from "lucide-react";
 import WorkspaceNav from "./WorkspaceNav";
 import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
+import Legis from "./Legis";
 
 // Newly-assigned task briefs already appear in "Pending task briefs" above
 // (their own portal_events row would otherwise duplicate that). Routine
@@ -37,6 +39,22 @@ export default function StaffNotifications() {
           </p>
         </div>
         <WorkspaceNav audience="staff" />
+      </section>
+
+      <section className="sn-pending-card" aria-labelledby="sn-legis-title">
+        <div className="sn-section-head compact">
+          <div>
+            <span className="sn-kicker">Weekly regulatory briefing</span>
+            <h2 id="sn-legis-title">
+              <Scale size={18} /> Legis
+            </h2>
+            <p>
+              NSW/ACT ecology regulatory developments affecting biodiversity
+              assessment and approvals, researched and compiled every Monday.
+            </p>
+          </div>
+        </div>
+        <Legis />
       </section>
 
       <section className="sn-pending-card" aria-labelledby="sn-pending-title">
@@ -109,7 +127,7 @@ export default function StaffNotifications() {
 
           <a className="sn-open-remote" href="/staff/remote-operations">
             <span>
-              <ClipboardList size={16} /> Open Task Briefs
+              <ClipboardList size={16} /> View all Task Briefs (including in-progress)
             </span>
             <ExternalLink size={15} />
           </a>
