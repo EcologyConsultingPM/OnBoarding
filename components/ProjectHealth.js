@@ -7,7 +7,7 @@ import { useAuth } from "../lib/AuthProvider";
 // The controlled activity-status set, colour-coded. Shared shape so the staff
 // selector and any admin rollup read identically.
 export const ACTIVITY_STATUS = {
-  not_commenced: { label: "Not yet commenced", color: "#8a927c" },
+  not_commenced: { label: "Not yet commenced", color: "#5c6b52" },
   active: { label: "Active", color: "#3d7a35" },
   need_info: { label: "Need for information", color: "#b08948" },
   paused_other: { label: "Paused / other", color: "#c0392b" },
@@ -87,7 +87,7 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
       {showBack ? <button className="proj-back" onClick={onBack}><ArrowLeft size={15} /> All projects</button> : null}
 
       <div className="proj-detail-head">
-        <h1 style={{ color: "#fffdf8", fontWeight: 700 }}>{project.name}</h1>
+        <h1>{project.name}</h1>
         {project.client_name ? <p>{project.client_name}{project.client_contact ? ` · ${project.client_contact}` : ""}</p> : null}
         {project.description ? <p className="proj-desc">{project.description}</p> : null}
         {project.sharepoint_link ? (
@@ -201,9 +201,9 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
                     <div className="proj-schedule-title">{item.title}</div>
                     <span className="proj-schedule-status" style={{ background: `${status.color}1a`, color: status.color }}>{status.label}</span>
                   </div>
-                  {item.detail ? <div className="proj-schedule-detail">{item.detail}</div> : null}
-                  {(item.start_date || item.end_date) ? <div className="proj-schedule-dates">Key dates: {item.start_date || "—"} → {item.end_date || "—"}</div> : null}
-                  <div className="proj-schedule-assignees"><Users size={13} /><strong>Assigned staff:</strong> {assignedStaff.length ? assignedStaff.map((staff) => <span key={staff.activityId || staff.id}>{staff.email} · {staff.progressPercent}%</span>) : <span>Not assigned</span>}</div>
+                  {item.detail ? <div className="proj-schedule-detail" style={{ color: "#3a4740" }}>{item.detail}</div> : null}
+                  {(item.start_date || item.end_date) ? <div className="proj-schedule-dates" style={{ color: "#5c6b52" }}>Key dates: {item.start_date || "—"} → {item.end_date || "—"}</div> : null}
+                  <div className="proj-schedule-assignees" style={{ color: "#3a4740" }}><Users size={13} /><strong>Assigned staff:</strong> {assignedStaff.length ? assignedStaff.map((staff) => <span key={staff.activityId || staff.id}>{staff.email} · {staff.progressPercent}%</span>) : <span>Not assigned</span>}</div>
                   {item.locked ? <small className="proj-schedule-lock"><Lock size={12} /> Schedule line locked by the project lead</small> : null}
                   {assignedStaff.some((staff) => staff.id === myUserId) ? <small className="proj-schedule-update-hint">Update your assigned delivery status above in My work activities.</small> : null}
                 </div>
