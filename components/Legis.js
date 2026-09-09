@@ -141,7 +141,7 @@ export default function Legis({ compact = false }) {
   return (
     <div className={`lg${compact ? " lg-compact" : ""}`}>
       <style>{`
-        .lg-development { border: 1px solid #CBD5E1; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; background: #F8FAFC; }
+        .lg-development { border: 1px solid #CBD5E1; border-radius: 12px; padding: 20px 16px; margin-bottom: 12px; background: ##FFFFFF; }
         .lg-development-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
         .lg-severity, .lg-development-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; border: 1px solid; }
         .lg-development-cat, .lg-development-juris { font-size: 11px; color: #475569; }
