@@ -5,22 +5,22 @@ import {
   CalendarDays,
   ClipboardList,
   ExternalLink,
-  Newspaper,
   ShieldCheck,
 } from "lucide-react";
 import WorkspaceNav from "./WorkspaceNav";
 import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
-import MondayBrief from "./MondayBrief";
 
-// Newly-assigned task briefs create a portal_events row (event_type
-// remote_task_assigned) as well as the remote_tasks row shown directly below
-// in "Pending task briefs" — without this exclusion the same new brief would
-// appear twice on this page in two different visual formats. A stable
-// module-level constant (not an inline array literal at the JSX call site)
-// keeps the prop reference stable across renders.
-const EXCLUDED_EVENT_TYPES = ["remote_task_assigned"];
+// Newly-assigned task briefs already appear in "Pending task briefs" above
+// (their own portal_events row would otherwise duplicate that). Routine
+// tracker-entry logging from other staff is informational noise for the
+// person viewing this feed, not something assigned to them or requiring
+// their attention — excluded per explicit request to keep this stream to
+// assigned items, regulatory updates and task briefs only. A stable
+// module-level constant (not an inline array literal) keeps the prop
+// reference stable across renders.
+const EXCLUDED_EVENT_TYPES = ["remote_task_assigned", "project_tracker_entry"];
 
 export default function StaffNotifications() {
   return (
@@ -37,22 +37,6 @@ export default function StaffNotifications() {
           </p>
         </div>
         <WorkspaceNav audience="staff" />
-      </section>
-
-      <section className="sn-pending-card" aria-labelledby="sn-brief-title">
-        <div className="sn-section-head compact">
-          <div>
-            <span className="sn-kicker">Weekly regulatory briefing</span>
-            <h2 id="sn-brief-title">
-              <Newspaper size={18} /> Monday Brief
-            </h2>
-            <p>
-              NSW/ACT ecology regulatory developments affecting biodiversity
-              assessment and approvals, researched and compiled every Monday.
-            </p>
-          </div>
-        </div>
-        <MondayBrief />
       </section>
 
       <section className="sn-pending-card" aria-labelledby="sn-pending-title">
@@ -125,7 +109,7 @@ export default function StaffNotifications() {
 
           <a className="sn-open-remote" href="/staff/remote-operations">
             <span>
-              <ClipboardList size={16} /> View all Task Briefs (including in-progress)
+              <ClipboardList size={16} /> Open Task Briefs
             </span>
             <ExternalLink size={15} />
           </a>
