@@ -181,7 +181,28 @@ export default function QuoteDraftWorkspace({ onPipelineChanged }) {
   const saveEdit = async () => {
     if (!editing) return;
     setBusy(true);
-    try { const data = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm }); setEditing(data.draft); setEditForm(fromDraft(data.draft)); await load(); notify("Draft enquiry saved."); }
+    try {
+      const data = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm });
+      setEditing(data.draft);
+      setEditForm(fromDraft(data.draft));
+      await load();
+      // Auto-offer transfer the moment saving leaves this quote fully ready
+      // (client contacted, both numbers, PDF attached, sent date, recipient,
+      // and the Quote sent tick) — no separate button click needed to
+      // complete what's really one action: finish the worksheet, send it,
+      // save. Still asks first, since transfer is a one-way, locking move.
+      const readyToTransfer = data.draft.client_contacted && data.draft.project_number?.trim() && data.draft.quote_number?.trim() && data.draft.quote_sent && data.draft.quote_sent_on && data.draft.quote_recipient_email && data.draft.quote_pdf_path && data.draft.status !== "transferred";
+      if (readyToTransfer && window.confirm("This quote is ready — move it to the issued Quote Pipeline now? The enquiry will remain as a read-only audit record.")) {
+        const transferred = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "transfer" });
+        setEditing(transferred.draft);
+        setEditForm(fromDraft(transferred.draft));
+        await load();
+        onPipelineChanged?.();
+        notify("Issued quote transferred to the formal Quote Pipeline as Pending.");
+      } else {
+        notify("Draft enquiry saved.");
+      }
+    }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const transfer = async () => {
