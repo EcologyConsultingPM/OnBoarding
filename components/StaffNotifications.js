@@ -5,12 +5,14 @@ import {
   CalendarDays,
   ClipboardList,
   ExternalLink,
+  Newspaper,
   ShieldCheck,
 } from "lucide-react";
 import WorkspaceNav from "./WorkspaceNav";
 import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
+import MondayBrief from "./MondayBrief";
 
 // Newly-assigned task briefs create a portal_events row (event_type
 // remote_task_assigned) as well as the remote_tasks row shown directly below
@@ -35,6 +37,22 @@ export default function StaffNotifications() {
           </p>
         </div>
         <WorkspaceNav audience="staff" />
+      </section>
+
+      <section className="sn-pending-card" aria-labelledby="sn-brief-title">
+        <div className="sn-section-head compact">
+          <div>
+            <span className="sn-kicker">Weekly regulatory briefing</span>
+            <h2 id="sn-brief-title">
+              <Newspaper size={18} /> Monday Brief
+            </h2>
+            <p>
+              NSW/ACT ecology regulatory developments affecting biodiversity
+              assessment and approvals, researched and compiled every Monday.
+            </p>
+          </div>
+        </div>
+        <MondayBrief />
       </section>
 
       <section className="sn-pending-card" aria-labelledby="sn-pending-title">
