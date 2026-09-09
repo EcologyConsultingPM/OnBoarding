@@ -345,7 +345,7 @@ const WCD_DETAIL_CSS = `
 .wcd-detail-grid { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; border: 1px solid #eef0e9; border-radius: 10px; padding: 12px 14px; background: #fafaf5; margin-bottom: 4px; }
 .wcd-detail-row { display: flex; flex-direction: column; gap: 3px; padding-bottom: 9px; border-bottom: 1px solid #f0ece2; }
 .wcd-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
-.wcd-detail-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #8a927c; }
+.wcd-detail-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c6b52; }
 .wcd-detail-value { font-size: 13px; color: #23301f; line-height: 1.5; }
 .wcd-detail-empty { color: #b0b8a8; font-style: italic; font-size: 12.5px; }
 .wcd-detail-sig { max-width: 220px; max-height: 90px; border: 1px solid #e3e6d8; border-radius: 6px; background: #fff; }
@@ -356,10 +356,10 @@ const WCD_DETAIL_CSS = `
 .wcd-detail-check-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 5px; background: #eef0e9; color: #6b755f; flex-shrink: 0; }
 .wcd-detail-check-badge.yes { background: #e5f1dd; color: #2c6a34; }
 .wcd-detail-check-badge.no { background: #fbecea; color: #a5342a; }
-.wcd-detail-check-badge.na { background: #eef0e9; color: #8a927c; }
+.wcd-detail-check-badge.na { background: #eef0e9; color: #5c6b52; }
 .wcd-detail-check-comment { flex-basis: 100%; font-size: 11.5px; color: #7a877d; font-style: italic; padding-left: 4px; }
 .wcd-detail-tbl-wrap { overflow-x: auto; }
 .wcd-detail-tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.wcd-detail-tbl th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: #8a927c; padding: 5px 7px; border-bottom: 1px solid #e3e6d8; white-space: nowrap; }
+.wcd-detail-tbl th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: #5c6b52; padding: 5px 7px; border-bottom: 1px solid #e3e6d8; white-space: nowrap; }
 .wcd-detail-tbl td { padding: 5px 7px; border-bottom: 1px solid #f0ece2; color: #3a4740; }
 `;
