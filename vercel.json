@@ -13,7 +13,7 @@
       "schedule": "20 18 * * *"
     },
     {
-      "path": "/api/jobs/monday-brief",
+      "path": "/api/jobs/legis-brief",
       "schedule": "0 18 * * 0"
     }
   ]
