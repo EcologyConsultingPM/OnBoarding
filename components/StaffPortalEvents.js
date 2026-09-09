@@ -10,8 +10,6 @@ const SEVERITY = {
   critical: { label: "Immediate action", Icon: ShieldAlert },
 };
 
-const NO_EXCLUSIONS = [];
-
 function relativeDate(value) {
   const then = new Date(value).getTime();
   const diffMinutes = Math.max(0, Math.round((Date.now() - then) / 60000));
@@ -23,6 +21,8 @@ function relativeDate(value) {
 
 // Operational notifications are rendered only in the dedicated Notifications
 // workspace. Published communications remain in the separate Staff Noticeboard.
+const NO_EXCLUSIONS = [];
+
 export default function StaffPortalEvents({ limit = 5, excludeTypes = NO_EXCLUSIONS }) {
   const { session } = useAuth();
   const [events, setEvents] = useState([]);
