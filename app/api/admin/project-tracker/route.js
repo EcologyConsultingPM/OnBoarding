@@ -52,7 +52,11 @@ function healthForAllocation(allocation) {
   const valueRatio = budget > 0 ? (spent / budget) * 100 : 0;
   const hourRatio = hours > 0 ? (consumed / hours) * 100 : 0;
   const ratio = Math.max(valueRatio, hourRatio);
-  if (ratio >= 100) return "at_risk";
+  // "At risk" means 10% or less of budget/hours remaining (90%+ consumed) —
+  // previously this only triggered once the budget was already fully or
+  // over-consumed (100%+), which is a warning that arrives too late to act
+  // on. "Watch" keeps the existing configurable threshold (defaulting 80%).
+  if (ratio >= 90) return "at_risk";
   if (ratio >= threshold) return "watch";
   return "on_track";
 }
@@ -85,7 +89,19 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
   const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
   const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
-  const health = atRiskAllocations || pausedActivities || overdueActivities || (overallBudget > 0 && chargeOutSpend > overallBudget) || (budgetHours > 0 && usedHours > budgetHours) ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  // 90% consumed = "10% remaining", matching atRiskAllocations' own threshold
+  // above — previously this only fired once fully over-budget (100%+).
+  const budgetNearlyGone = overallBudget > 0 && chargeOutSpend >= overallBudget * 0.9;
+  const hoursNearlyGone = budgetHours > 0 && usedHours >= budgetHours * 0.9;
+  const healthReasons = [];
+  if (atRiskAllocations) healthReasons.push(`${atRiskAllocations} budget allocation${atRiskAllocations === 1 ? "" : "s"} at 90%+ of its limit`);
+  if (pausedActivities) healthReasons.push(`${pausedActivities} activit${pausedActivities === 1 ? "y" : "ies"} paused or needing information`);
+  if (overdueActivities) healthReasons.push(`${overdueActivities} activit${overdueActivities === 1 ? "y" : "ies"} overdue`);
+  if (budgetNearlyGone) healthReasons.push(`Charge-out spend at ${Math.round((chargeOutSpend / overallBudget) * 100)}% of the overall budget`);
+  if (hoursNearlyGone) healthReasons.push(`Hours consumed at ${Math.round((usedHours / budgetHours) * 100)}% of budgeted hours`);
+  if (!healthReasons.length && watchAllocations) healthReasons.push(`${watchAllocations} allocation${watchAllocations === 1 ? "" : "s"} approaching its threshold`);
+  if (!healthReasons.length && utilisationPercent !== null && utilisationPercent >= 80) healthReasons.push(`Overall hours utilisation at ${utilisationPercent}%`);
+  const health = atRiskAllocations || pausedActivities || overdueActivities || budgetNearlyGone || hoursNearlyGone ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
 
   return {
     id: project.id,
@@ -99,6 +115,7 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     trackerVisible: Boolean(settings?.tracker_visible),
     taskCompletion,
     health,
+    healthReasons,
     financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
