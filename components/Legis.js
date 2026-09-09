@@ -147,13 +147,13 @@ export default function Legis({ compact = false }) {
         .lg-development-cat, .lg-development-juris { font-size: 11px; color: #475569; }
         .lg-development h4 { margin: 0 0 6px; font-size: 14.5px; color: #003366; }
         .lg-development p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: #1E293B; }
-        .lg-development-dates { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #5c6b52; margin-bottom: 8px; }
+        .lg-development-dates { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #64748B; margin-bottom: 8px; }
         .lg-development-block { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
         .lg-development-block.action { background: #eef6ea; }
         .lg-development-block.conflict { background: #fdf3e8; }
         .lg-development-block strong { display: flex; align-items: center; gap: 5px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #2c6a34; margin-bottom: 3px; }
         .lg-development-block.conflict strong { color: #a5670f; }
-        .lg-triggers { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8a927c; margin-bottom: 6px; }
+        .lg-triggers { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #64748B; margin-bottom: 6px; }
         .lg-development-sources { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
         .lg-development-sources a { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #1d7d8c; text-decoration: none; }
         .lg-loading, .lg-error { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6b755f; padding: 16px; }
