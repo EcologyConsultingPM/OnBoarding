@@ -100,10 +100,25 @@ export async function createTrackerEntry(access, input) {
   const { data: entry, error: entryError } = await access.admin.from("project_tracker_entries").insert({ project_id: projectId, budget_source_id: sourceId, budget_allocation_id: allocationId, activity_id: linkedActivity?.id || null, staff_user_id: access.user.id, work_date: workDate, activity_category: activityCategory, activity_information: activityInformation, hours: amount, status, notable_issues: notableIssues || null, custom_data: customData, created_at: now, updated_at: now }).select("id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at").single();
   if (entryError) return { error: entryError.message, status: 400 };
 
-    const { data: entryRows, error: sumError } = await access.admin.from("project_tracker_entries").select("hours").eq("budget_allocation_id", allocationId).limit(10000);
+    const { data: entryRows, error: sumError } = await access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000);
     if (sumError) return { error: `Entry was saved, but allocation consumption could not be calculated: ${sumError.message}`, status: 500 };
     const consumed = (entryRows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
-    const { error: allocationError } = await access.admin.from("project_budget_allocations").update({ hours_consumed: consumed, updated_by: access.user.id, updated_at: now }).eq("id", allocationId).eq("project_id", projectId);
+
+    // charge_out_spend used to be a purely manual admin figure, never touched
+    // by actual logged time — this is what caused it to sit static while
+    // hours_consumed correctly updated on every entry. Now computed the same
+    // way: each entry's hours priced at that staff member's rate on this
+    // project, summed, so it's a genuine live feed from timesheet activity.
+    const { data: projectRates } = await access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId);
+    const { data: projectDefault } = await access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle();
+    const rateByStaff = new Map((projectRates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
+    const defaultRate = Number(projectDefault?.default_hourly_rate) || 0;
+    const chargeOutSpend = (entryRows || []).reduce((sum, row) => {
+      const rate = rateByStaff.has(row.staff_user_id) ? rateByStaff.get(row.staff_user_id) : defaultRate;
+      return sum + Number(row.hours || 0) * rate;
+    }, 0);
+
+    const { error: allocationError } = await access.admin.from("project_budget_allocations").update({ hours_consumed: consumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, updated_by: access.user.id, updated_at: now }).eq("id", allocationId).eq("project_id", projectId);
     if (allocationError) return { error: `Entry was saved, but allocation consumption could not be updated: ${allocationError.message}`, status: 500 };
 
     if (linkedActivity) {
