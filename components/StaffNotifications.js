@@ -44,9 +44,9 @@ export default function StaffNotifications() {
       <section className="sn-pending-card" aria-labelledby="sn-legis-title">
         <div className="sn-section-head compact">
           <div>
-            <span className="sn-kicker">Weekly regulatory briefing</span>
+            <span className="sn-kicker">Legis</span>
             <h2 id="sn-legis-title">
-              <Scale size={18} /> Legis
+              <Scale size={18} /> Weekly Update
             </h2>
             <p>
               NSW/ACT ecology regulatory developments affecting biodiversity
