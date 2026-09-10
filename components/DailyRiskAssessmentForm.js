@@ -84,7 +84,7 @@ const HAZARD_WALKTHROUGH = [
   ["H3", "Ticks, leeches, biting insects, bee or ant nests"],
   ["H4", "Uneven ground, holes, logs, slip and trip hazards"],
   ["H5", "Steep terrain, cliff edges, unstable batters"],
-  ["H6", "Water hazards — creeks, dams, tidal, crocodile risk"],
+  ["H6", "Water hazards — creeks, dams, other water bodies"],
   ["H7", "Falling limbs / dead standing trees in work area"],
   ["H8", "Plant and machinery operating on site"],
   ["H9", "Traffic — road verge, haul road, public interface"],
@@ -92,7 +92,7 @@ const HAZARD_WALKTHROUGH = [
   ["H11", "Nocturnal work — lighting, fatigue, night driving"],
   ["H12", "Contaminated land, dust, chemicals, asbestos"],
   ["H13", "Livestock, dogs, landholder or third-party conflict"],
-  ["H14", "Manual handling — traps, gear, water, batteries"],
+  ["H14", "Manual handling — carrying equipment / gear"],
   ["H15", "Fatigue — travel time, consecutive field days"],
 ];
 
@@ -123,7 +123,7 @@ function initialForm() {
   return {
     date: "", startTime: "", fieldLead: "", projectNumber: "", site: "", nearestTown: "",
     worksiteManagedBy: "", crewSize: "", expectedFinish: "", vehicleLog: "",
-    weather: "", fireDanger: "", groundConditions: "", mobileCoverage: "", access: "", distanceToHospital: "",
+    weather: "", fireDanger: "", groundConditions: "", currentTemp: "", maxWindGusts: "", avgWindGusts: "", mobileCoverage: "", access: "", distanceToHospital: "",
     toolboxChecklist: emptyChecklist(TOOLBOX_CHECKLIST),
     healthConditions: [emptyHealthRow(), emptyHealthRow()],
     ppe: {}, ppeNotes: "",
@@ -135,7 +135,7 @@ function initialForm() {
     stopWorkTriggers: "",
     residualRisk: [emptyResidualRow()],
     emergencyMeetingPoint: "", firstAidOfficer: "", firstAidKitLocation: "", nearestHospital: "",
-    commsDevice: "", checkInPerson: "", plbId: "", checkInInterval: "", overdueEscalationTime: "",
+    commsDevice: "", checkInPerson: "", plbId: "", checkInInterval: "", overdueEscalationTime: "", emergencyDecisions: "",
     crew: [emptyCrewRow(), emptyCrewRow()],
     fieldLeadSignOffName: "", fieldLeadSignOffDate: "", fieldLeadSignature: "",
   };
@@ -447,7 +447,7 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
             <Field label="Weather" error={errors.weather}>
               <select ref={(el) => (fieldRefs.current.weather = el)} value={form.weather} onChange={(e) => set("weather", e.target.value)}>
                 <option value="">Select…</option>
-                <option>Clear / mild</option><option>Hot (30–35 °C)</option><option>Extreme heat (35 °C+)</option><option>Cold / wet</option><option>Wind 25 km/h+</option><option>Storms forecast</option>
+                <option>Sunny / Clear</option><option>Partly Cloudy</option><option>Cloudy</option><option>Overcast</option><option>Rain</option><option>Drizzle</option><option>Snow</option><option>Stormy</option>
               </select>
             </Field>
             <Field label="Fire danger rating" error={errors.fireDanger}>
@@ -462,6 +462,11 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
                 <option>Dry / firm</option><option>Soft / boggy</option><option>Steep / loose</option><option>Flooded</option><option>Recently burnt</option>
               </select>
             </Field>
+          </div>
+          <div className="dra-row3">
+            <Field label="Current temperature"><input type="text" placeholder="°C" value={form.currentTemp} onChange={(e) => set("currentTemp", e.target.value)} /></Field>
+            <Field label="Max wind gusts"><input type="text" placeholder="km per hour" value={form.maxWindGusts} onChange={(e) => set("maxWindGusts", e.target.value)} /></Field>
+            <Field label="Average wind gusts"><input type="text" placeholder="km per hour" value={form.avgWindGusts} onChange={(e) => set("avgWindGusts", e.target.value)} /></Field>
           </div>
           <div className="dra-row3">
             <Field label="Mobile coverage">
@@ -676,6 +681,9 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
             </Field>
             <Field label="Overdue escalation time"><input type="time" value={form.overdueEscalationTime} onChange={(e) => set("overdueEscalationTime", e.target.value)} /></Field>
           </div>
+          <Field label="Decisions made — work stopped, deferred or method changed today" full>
+            <textarea rows={3} placeholder="Record any stop-work, deferral or change of method, who authorised it and when." value={form.emergencyDecisions} onChange={(e) => set("emergencyDecisions", e.target.value)} />
+          </Field>
         </div>
       </section>
 
