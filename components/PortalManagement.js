@@ -9,6 +9,7 @@ import {
   Check,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   Copy,
   Download,
   EyeOff,
