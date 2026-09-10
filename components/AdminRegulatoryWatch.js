@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Send, ShieldAlert, Trash2 } from "lucide-react";
+import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Scale, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
-import RegulatorySourceControls from "./RegulatorySourceControls";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -40,6 +39,9 @@ function safeRecords(value) {
 export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
+  const [legisWatchlist, setLegisWatchlist] = useState([]);
+  const [legisWeek, setLegisWeek] = useState(null);
+  const [legisLoading, setLegisLoading] = useState(true);
   const [updates, setUpdates] = useState([]);
   const [healthAlerts, setHealthAlerts] = useState([]);
   const [filters, setFilters] = useState({ view: "open", category: "", severity: "", source: "", search: "", sort: "detected_desc" });
@@ -77,6 +79,20 @@ export default function AdminRegulatoryWatch({ onToast }) {
   }, [headers, session?.access_token]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/legis", { headers: headers() })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.brief?.status === "ready") {
+          setLegisWatchlist(data.brief.watchlist || []);
+          setLegisWeek(data.brief.week_of || null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLegisLoading(false));
+  }, [session?.access_token, headers]);
 
   const visibleUpdates = useMemo(() => {
     const filtered = safeRecords(updates).filter((update) => {
@@ -172,6 +188,21 @@ export default function AdminRegulatoryWatch({ onToast }) {
 
   return (
     <section className="reg-watch" aria-label="Regulatory Watch">
+      <style>{`
+        .reg-watch__legis { background: #F1F2F4; border-radius: 10px; padding: 14px 18px; margin: 16px 0; }
+        .reg-watch__legis-head span { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #001F54; }
+        .reg-watch__legis-head h3 { margin: 4px 0 4px; color: #001F54; font-size: 16px; }
+        .reg-watch__legis-head p { margin: 0 0 10px; font-size: 12.5px; color: #374151; line-height: 1.5; }
+        .reg-watch__legis-table-wrap { overflow-x: auto; }
+        .reg-watch__legis-table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: #fff; border-radius: 8px; overflow: hidden; }
+        .reg-watch__legis-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #6b7280; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+        .reg-watch__legis-table td { padding: 8px 10px; border-bottom: 1px solid #f1f2f4; color: #0F172A; vertical-align: top; }
+        .reg-watch__legis-table td small { display: block; color: #92400e; font-style: italic; margin-top: 2px; }
+        .reg-watch__likelihood { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+        .reg-watch__likelihood--high { background: #fde2e1; color: #a5342a; }
+        .reg-watch__likelihood--medium { background: #fdecc8; color: #92400e; }
+        .reg-watch__likelihood--low { background: #e5e7eb; color: #4b5563; }
+      `}</style>
       <header className="reg-watch__hero">
         <div>
           <span><ShieldAlert size={14} /> Official regulatory intelligence</span>
@@ -184,7 +215,36 @@ export default function AdminRegulatoryWatch({ onToast }) {
         </div>
       </header>
 
-      <RegulatorySourceControls sources={sources} healthAlerts={healthAlerts} headers={headers} onChanged={load} />
+      <section className="reg-watch__legis" aria-label="Legis regulatory watchlist">
+        <div className="reg-watch__legis-head">
+          <span><Scale size={14} /> Legis</span>
+          <h3>Regulatory Watchlist</h3>
+          <p>Reforms, consultations, draft legislation and anticipated changes Legis is tracking but has not yet escalated to a review item below. Updated every Monday.{legisWeek ? ` Last updated: week of ${legisWeek}.` : ""}</p>
+        </div>
+        {legisLoading ? (
+          <p className="reg-watch__empty">Loading Legis watchlist…</p>
+        ) : legisWatchlist.length ? (
+          <div className="reg-watch__legis-table-wrap">
+            <table className="reg-watch__legis-table">
+              <thead><tr><th>Issue</th><th>Jurisdiction</th><th>Potential impact</th><th>Current status</th><th>Next milestone</th><th>Likelihood</th></tr></thead>
+              <tbody>
+                {legisWatchlist.map((item, index) => (
+                  <tr key={index}>
+                    <td><strong>{item.issue}</strong>{item.carried_forward_note ? <small>Since last week: {item.carried_forward_note}</small> : null}</td>
+                    <td>{item.jurisdiction || "—"}</td>
+                    <td>{item.potential_impact || "—"}</td>
+                    <td>{item.current_status ? item.current_status.replaceAll("_", " ") : "—"}</td>
+                    <td>{item.next_milestone_date || "—"}</td>
+                    <td><span className={`reg-watch__likelihood reg-watch__likelihood--${String(item.likelihood || "").toLowerCase()}`}>{item.likelihood || "—"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="reg-watch__empty">Nothing on the Legis watchlist right now.</p>
+        )}
+      </section>
 
       <div className="reg-watch__summary" aria-label="Regulatory Watch summary">
         <div><strong>{openCount}</strong><span>Open reviews</span></div>
