@@ -212,7 +212,7 @@ export default function Legis({ compact = false }) {
   return (
     <div className={`lg${compact ? " lg-compact" : ""}`}>
       <style>{`
-        .lg { background: #E5E7EB; color: #0F172A; padding: 16px; border-radius: 10px; }
+        .lg { background: #F1F2F4; color: #0F172A; padding: 16px; border-radius: 10px; }
         .lg h3 { color: #001F54; font-weight: 700; }
         .lg-header span { color: #001F54; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .lg-summary { color: #0F172A; font-size: 13.5px; line-height: 1.55; }
@@ -224,7 +224,7 @@ export default function Legis({ compact = false }) {
         .lg-development h4 { margin: 0 0 6px; font-size: 14.5px; color: #001F54; }
         .lg-level1 { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #0F172A; font-weight: 500; }
         .lg-affected-work { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-        .lg-affected-work span { font-size: 10.5px; background: #E5E7EB; color: #0F172A; padding: 2px 8px; border-radius: 10px; }
+        .lg-affected-work span { font-size: 10.5px; background: #F1F2F4; color: #0F172A; padding: 2px 8px; border-radius: 10px; }
         .lg-expand-toggle { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; color: #001F54; font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; }
         .lg-level2 { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #cbd0d8; }
         .lg-development p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: #0F172A; }
