@@ -3490,7 +3490,21 @@ function AdminHome({ onNavigate }) {
   const [regulatoryOpen, setRegulatoryOpen] = useState(0);
   const [visibilityTarget, setVisibilityTarget] = useState("");
   const [visibility, setVisibility] = useState({});
+  const [ecadoViewer, setEcadoViewer] = useState(false);
   const isPrimary = user?.email?.trim().toLowerCase() === "aaron.dooley@ecologyconsulting.au";
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    // Reuses the existing Ecado escalations endpoint purely as a viewer
+    // probe — it already 404s for anyone not on the ecado_viewers
+    // allow-list, so a 200 here is the correct signal to show the tile at
+    // all. Never assume any admin can see this; only actual viewers do.
+    fetch("/api/ecado/escalations/close", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => setEcadoViewer(r.ok))
+      .catch(() => setEcadoViewer(false));
+  }, [session]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3642,6 +3656,23 @@ function AdminHome({ onNavigate }) {
       photo: "kookaburra.png",
     },
   ];
+
+  // Only rendered for actual ecado_viewers — never assume, always the
+  // probe result. Uses href, not mode, since Ecado is a real page route
+  // (/admin/ecado), not an internal view switch.
+  if (ecadoViewer) {
+    domains.push({
+      eyebrow: "Restricted · PPMO",
+      title: "Ecado",
+      desc: "Program & project management oversight — monitors, advises and prioritises. Visible only to granted viewers.",
+      accent: "#c9962a",
+      accent2: "#2a1c08",
+      Icon: ShieldCheck,
+      href: "/admin/ecado",
+      resourceKey: "admin.ecado",
+      photo: "wedgetail-eagle.jpg",
+    });
+  }
 
   const canSeeDomain = (resourceKey) => {
     if (isPrimary) return true;
