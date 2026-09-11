@@ -122,7 +122,7 @@ export default function Noticeboard({ compact = false }) {
         <header className="nb-hero">
           <WorkspaceNav
             audience={isAdmin ? "admin" : "staff"}
-            backHref={isAdmin ? "/admin" : "/"}
+            backHref={isAdmin ? "/?portal=admin" : "/"}
             backLabel="Back to portal"
           />
           <span><Megaphone size={17} /> Staff communications</span>

@@ -5004,8 +5004,8 @@ export default function OnboardingWorkbook() {
               },
               {
                 key: "timesheets",
-                label: "Work History",
-                desc: "Project tracker history and official time entry",
+                label: "Project Tracker",
+                desc: "Your project tracker entries and activity status",
                 Icon: Clock3,
                 staffOnly: true,
                 href: "/staff/timesheets",

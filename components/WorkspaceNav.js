@@ -11,7 +11,9 @@ export default function WorkspaceNav({
   onBack,
   className = "",
 }) {
-  const homeHref = audience === "admin" ? "/admin" : "/";
+  // "/admin" is not a route — the admin dashboard is served from "/" with
+  // ?portal=admin. Linking to /admin produced a hard 404 for every admin.
+  const homeHref = audience === "admin" ? "/?portal=admin" : "/";
   const back = onBack ? (
     <button type="button" className="workspace-nav__button" onClick={onBack}>
       <ChevronLeft size={15} /> {backLabel}

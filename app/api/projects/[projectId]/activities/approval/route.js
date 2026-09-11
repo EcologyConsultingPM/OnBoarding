@@ -41,7 +41,10 @@ export async function POST(request, { params }) {
     const now = new Date().toISOString();
 
     if (action === "request_review") {
-      const { data: activeActivities } = await access.admin.from("project_activities").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("is_active", true);
+      // Previously destructured as `data`, which is always null when
+      // head:true — the count lives on `count`, so this validation never ran.
+      const { count: activeCount } = await access.admin.from("project_activities").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("is_active", true);
+      if (!activeCount) return Response.json({ error: "Add at least one work activity before requesting Senior Ecologist review." }, { status: 400 });
       const { data, error } = await access.admin
         .from("projects")
         .update({ activities_approval_status: "pending_se_review", activities_se_review_requested_at: now, activities_se_review_requested_by: access.user.id })
@@ -64,6 +67,14 @@ export async function POST(request, { params }) {
     }
 
     // action === "approve"
+    // The UI hides this button once approved, but nothing stopped a repeat
+    // POST, a retry, or a reset -> approve cycle from re-running the whole
+    // tracker block and re-inserting "Project Tracker access available" for
+    // every allocated staff member.
+    if (project.activities_approval_status === "approved") {
+      return Response.json({ error: "Activities for this project are already approved." }, { status: 409 });
+    }
+
     const { data: pendingActivities, error: activitiesError } = await access.admin
       .from("project_activities")
       .select("id, title, due_date, staff_user_id")
@@ -79,7 +90,10 @@ export async function POST(request, { params }) {
       severity: "action_required",
       title: "Project activity awaiting acceptance",
       body: `${project.name}: ${activity.title}${formatDueDate(activity.due_date)}`,
-      href: "/staff/notifications",
+      // Was "/staff/notifications" — the page the card is already on, so
+      // clicking a notification hard-reloaded the same page and appeared to do
+      // nothing. Deep-link to the activity instead.
+      href: `/staff/projects?activity=${activity.id}`,
       source_table: "project_activities",
       source_id: activity.id,
     }));
@@ -177,7 +191,9 @@ export async function POST(request, { params }) {
         team = teamResult.data || [];
       }
       const recipients = [...new Set(team.map((row) => row.staff_user_id).filter(Boolean))];
-      if (recipients.length) {
+      // Guarded on tracker_visible so re-approval cannot stack duplicate
+      // "Project Tracker access available" cards on the whole team.
+      if (recipients.length && !currentSettings?.tracker_visible) {
         await access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
           recipient_id: recipientId,
           event_type: "project_tracker_enabled",

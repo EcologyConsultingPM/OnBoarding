@@ -755,7 +755,7 @@ function ProjectDetail({
                   </button>
                 </>
               ) : (
-                <span className="aps-stepper-note">Work through the steps below. Assigning work activities notifies the allocated staff automatically.</span>
+                <span className="aps-stepper-note">Work through the steps below. Assigned staff are notified only once you record Senior Ecologist approval.</span>
               )}
             </div>
           </div>
