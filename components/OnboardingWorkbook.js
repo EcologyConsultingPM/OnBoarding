@@ -3578,9 +3578,12 @@ function AdminHome({ onNavigate }) {
       photo: "rosella.png",
     },
     {
-      eyebrow: "Remote delivery",
-      title: "Remote Operations Oversight",
-      desc: "Assign, accept, review and complete remote task briefs across the team.",
+      // Renamed to match what the domain now actually owns. The quotes
+      // register was retired to Quote Pipeline and issue intake moved to
+      // Service Requests; task briefs are the substance of this domain.
+      eyebrow: "Task briefs",
+      title: "Task Briefs & Remote Coordination",
+      desc: "Assign, accept, review and complete task briefs, with remote-work and client coordination context.",
       accent: "#d789a6",
       accent2: "#321322",
       Icon: Users2,
