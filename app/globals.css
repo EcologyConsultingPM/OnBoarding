@@ -18134,3 +18134,94 @@ main {
 }
 .ec-icon-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
 .ec-icon-btn--destructive:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ===========================================================================
+   Notification action buttons — Defer and Delete were invisible
+   ===========================================================================
+   .portal-event-actions button sets color:#fff for every button in the panel,
+   but only .accept, .actioned and .decline are given a background. .defer and
+   .delete therefore rendered as white text on the card's own light background:
+   the icon showed, the label did not.
+
+   Both now carry a background and a legible foreground, on the same semantic
+   scale as the rest of the portal — defer is reversible (caution), delete
+   removes the notification (destructive).
+   =========================================================================== */
+.portal-event-actions button.defer {
+  background: #fdf8ec;
+  color: #8a6d1f;
+  border-color: #e7dcc2;
+}
+.portal-event-actions button.defer:hover:not(:disabled) {
+  background: #f9efd8;
+  border-color: #c9962a;
+}
+
+.portal-event-actions button.delete {
+  background: #fbecea;
+  color: #a5342a;
+  border-color: #e6c3bd;
+}
+.portal-event-actions button.delete:hover:not(:disabled) {
+  background: #f6ddd9;
+  border-color: #a5342a;
+}
+
+/* The expand / resolved / expired states added with the response rework, kept
+   on the same scale so the panel reads consistently. */
+.portal-event-expand {
+  margin: 0 .85rem .5rem 2.7rem;
+  border: 1px solid #cdd8c6;
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  background: #fff;
+  color: #2c6a34;
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.portal-event-expand:hover { background: #f2f7f0; border-color: #1f5a34; }
+
+.portal-event-detail {
+  margin: 0 .85rem .6rem 2.7rem;
+  padding: .7rem .85rem;
+  border: 1px solid #e3e6d8;
+  border-left: 3px solid #1f5a34;
+  border-radius: 0 .6rem .6rem 0;
+  background: #f7f9f3;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .5rem .9rem;
+}
+.portal-event-detail dt {
+  font-size: .62rem; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #7a877d;
+}
+.portal-event-detail dd { margin: .1rem 0 0; font-size: .78rem; color: #23301f; }
+
+.portal-event-note {
+  width: calc(100% - 3.55rem);
+  margin: 0 .85rem .5rem 2.7rem;
+  border: 1px solid #cdd8c6;
+  border-radius: .5rem;
+  padding: .45rem .6rem;
+  font: inherit;
+  font-size: .78rem;
+  background: #fff;
+  color: #23301f;
+}
+.portal-event-resolved,
+.portal-event-expired-note {
+  display: flex; align-items: center; gap: .35rem;
+  margin: 0; font-size: .72rem; font-weight: 700;
+}
+.portal-event-resolved { color: #1f5a34; }
+.portal-event-expired-note { color: #8a6d1f; }
+.portal-event-resolved-note { font-weight: 500; color: #5c6b58; }
+.portal-events-notice {
+  display: flex; gap: .4rem; align-items: center;
+  padding: .55rem .7rem; color: #1f5a34;
+  font-size: .77rem; font-weight: 700;
+}
+.portal-event.expired { opacity: .72; }
