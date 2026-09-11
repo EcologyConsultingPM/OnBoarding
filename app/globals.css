@@ -17896,3 +17896,43 @@ main {
 .st-table-wrap tbody tr.st-mine { background: #f2f7f0; }
 .st-table-wrap tbody tr.st-mine td strong { color: #1f5a34; }
 .st-table-wrap td small.st-issue { color: #a5342a; font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+   Admin project list — remove / archive control
+   The list row used to be a single <button>. A delete control cannot be nested
+   inside it (a button may not contain a button), so the row is now a flex
+   container holding the open-project button plus a separate remove button.
+   --------------------------------------------------------------------------- */
+.aps-proj-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.aps-proj-row > .aps-proj {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.aps-proj-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  border: 1px solid #e8eee2;
+  border-radius: 9px;
+  background: #fafcf8;
+  color: #8a927c;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.aps-proj-remove:hover:not(:disabled) {
+  color: #a5342a;
+  border-color: #e6c3bd;
+  background: #fbecea;
+}
+.aps-proj-remove:focus-visible {
+  outline: 2px solid #a5342a;
+  outline-offset: 1px;
+}
+.aps-proj-remove:disabled { cursor: wait; opacity: .55; }

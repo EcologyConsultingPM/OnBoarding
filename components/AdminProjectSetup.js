@@ -59,7 +59,10 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
         },
         body: body ? JSON.stringify(body) : undefined,
       }),
-    [session],
+    // Token string, not the session object: Supabase re-broadcasts a new
+    // session object on every TOKEN_REFRESHED (which fires on tab focus), and
+    // depending on the object made every consumer of `auth` unstable.
+    [session?.access_token],
   );
 
   const notify = (m) => {
@@ -70,6 +73,50 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   const fail = (e) => {
     setError(typeof e === "string" ? e : e.message);
     setMessage("");
+  };
+
+  const [removingId, setRemovingId] = useState("");
+
+  // Remove a project from the list.
+  //
+  // A project with no delivery record is deleted outright. One that HAS
+  // allocations, activities, schedule items or tracker history cannot be —
+  // the API returns 409 because deleting it would destroy the delivery and
+  // WHS record. In that case we offer archiving instead, which is what the
+  // list already filters on (status !== "archived"), so it disappears from the
+  // active list while the record is retained.
+  const removeProject = async (project) => {
+    const label = `${project.name}${project.client_name ? ` (${project.client_name})` : ""}`;
+    if (!window.confirm(`Remove ${label} from the project list?\n\nIf it has no activities, allocations or tracker history it will be deleted permanently. If it does, you will be offered the option to archive it instead so its delivery record is kept.`)) return;
+
+    setRemovingId(project.id);
+    setError("");
+    try {
+      const res = await auth("DELETE", `/api/projects/${project.id}`);
+      if (res.ok) {
+        setProjects((current) => current.filter((row) => row.id !== project.id));
+        if (openId === project.id) { setOpenId(""); setView("list"); }
+        notify(`${project.name} deleted.`);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        if (!window.confirm(`${label} has a delivery record and cannot be deleted.\n\n${data.error || ""}\n\nArchive it instead? It will be removed from the active project list and its history retained.`)) return;
+        const archiveRes = await auth("PATCH", `/api/projects/${project.id}`, { status: "archived" });
+        const archiveData = await archiveRes.json().catch(() => ({}));
+        if (!archiveRes.ok) throw new Error(archiveData.error || "Could not archive this project.");
+        setProjects((current) => current.filter((row) => row.id !== project.id));
+        if (openId === project.id) { setOpenId(""); setView("list"); }
+        notify(`${project.name} archived.`);
+        return;
+      }
+      throw new Error(data.error || "Could not remove this project.");
+    } catch (e) {
+      fail(e);
+    } finally {
+      setRemovingId("");
+    }
   };
 
   const loadProjects = useCallback(async () => {
@@ -370,23 +417,35 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           {projects.length ? (
             <div className="aps-list">
               {projects.map((p) => (
-                <button
-                  key={p.id}
-                  className="aps-proj"
-                  onClick={() => {
-                    setOpenId(p.id);
-                    setView("detail");
-                  }}
-                >
-                  <div>
-                    <strong style={{ color: "#fffdf8", fontSize: 16, fontWeight: 800, display: "block" }}>{p.name}</strong>
-                    <span style={{ color: "rgba(255,253,248,.62)" }}>{p.client_name || "No client"}</span>
-                  </div>
-                  <span className="aps-proj-status">
-                    {PROJECT_STATUS.find((s) => s.value === p.status)?.label ||
-                      p.status}
-                  </span>
-                </button>
+                <div key={p.id} className="aps-proj-row">
+                  <button
+                    type="button"
+                    className="aps-proj"
+                    onClick={() => {
+                      setOpenId(p.id);
+                      setView("detail");
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: "#fffdf8", fontSize: 16, fontWeight: 800, display: "block" }}>{p.name}</strong>
+                      <span style={{ color: "rgba(255,253,248,.62)" }}>{p.client_name || "No client"}</span>
+                    </div>
+                    <span className="aps-proj-status">
+                      {PROJECT_STATUS.find((s) => s.value === p.status)?.label ||
+                        p.status}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="aps-proj-remove"
+                    disabled={removingId === p.id}
+                    aria-label={`Remove ${p.name} from the project list`}
+                    title="Delete, or archive if it has a delivery record"
+                    onClick={() => removeProject(p)}
+                  >
+                    {removingId === p.id ? "…" : <Trash2 size={15} />}
+                  </button>
+                </div>
               ))}
             </div>
           ) : (

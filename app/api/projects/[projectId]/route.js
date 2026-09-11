@@ -193,6 +193,17 @@ export async function DELETE(request, { params }) {
       return Response.json({ error: "This project has allocations, activities, schedule items or tracker history. Archive it instead so its delivery record is retained." }, { status: 409 });
     }
 
+    // portal_events.source_id is polymorphic, so there is no foreign key to
+    // cascade from. Without this, deleting a project leaves staff holding
+    // "Project Tracker access available" cards that link to a project which no
+    // longer exists — the same orphaning that made activity notifications 404.
+    const { error: eventError } = await access.admin
+      .from("portal_events")
+      .delete()
+      .eq("source_table", "project_tracker_settings")
+      .eq("source_id", params.projectId);
+    if (eventError) return Response.json({ error: eventError.message }, { status: 400 });
+
     const { error } = await access.admin.from("projects").delete().eq("id", params.projectId);
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ success: true });
