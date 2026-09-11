@@ -91,6 +91,10 @@ export async function GET(request, { params }) {
         .order("sort_order", { ascending: true });
     }
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
+    // The project query's error was discarded, so a missing or deleted project
+    // returned HTTP 200 with project: null rather than a 404 — the caller had
+    // no way to distinguish "gone" from "empty".
+    if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
     const schedule = scheduleResult.data || [];
 
     // Attach staff emails to allocations and linked schedule activities so project
