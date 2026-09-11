@@ -18,6 +18,12 @@ const EVENT = {
   field_survey: { label: "Field survey", color: "#469b69" },
   task_brief: { label: "Task brief", color: "#2f8f8f" },
   leave: { label: "Approved leave", color: "#c76347" },
+  // Approved training is unavailable time in the same way leave is. It was
+  // approved through Service Requests and then never appeared in the capacity
+  // picture, so a person could be booked onto fieldwork on a day their course
+  // had already been signed off.
+  training: { label: "Approved training", color: "#b8862f" },
+  document_review: { label: "Document review", color: "#6b7fa8" },
   schedule: { label: "Schedule", color: "#d5b243" },
   milestone: { label: "Milestone", color: "#8d62ab" },
 };
