@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import useUnsavedGuard from "../lib/useUnsavedGuard";
 
 const STATUS = {
   available: { label: "Available", color: "#469b69" },
@@ -120,6 +121,23 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [error, setError] = useState("");
   const [editing, setEditing] = useState("");
   const [draft, setDraft] = useState({});
+
+  // Inline per-person editor: contracted weekly hours and a note. Two fields
+  // saved immediately, so localStorage draft retention would be more machinery
+  // than the risk warrants — but closing the row still discards typing, and
+  // capacity figures feed the whole resourcing picture.
+  const capacityDirty = Boolean(
+    editing &&
+    draft[editing] &&
+    (String(draft[editing].weeklyCapacityHours ?? "") !== String(
+      (data?.people || []).find((p) => p.id === editing)?.weeklyCapacityHours ?? "",
+    ) ||
+      String(draft[editing].notes ?? "") !== String(
+        (data?.people || []).find((p) => p.id === editing)?.notes ?? "",
+      )),
+  );
+
+  useUnsavedGuard(capacityDirty, "A capacity change has not been saved.");
   const [saving, setSaving] = useState(false);
   const [unassignedModal, setUnassignedModal] = useState(null); // admin: { activityId, projectId, title, taskCategory, budgetHours, startDate, dueDate, staffUserId }
   const [modalBusy, setModalBusy] = useState(false);
@@ -393,7 +411,11 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           <td><strong>{person.weeklyCapacityHours} h</strong><small>per week</small></td>
                           <td>{person.availableHours} h</td><td>{person.allocatedHours} h</td><td>{person.leaveDays ? `${person.leaveDays} day${person.leaveDays === 1 ? "" : "s"}` : "—"}</td><td>{person.activeProjectCount}</td><td>{person.upcomingDueCount}</td>
                           <td><span className="scp-status" style={{ color: status.color, borderColor: `${status.color}66`, background: `${status.color}14` }}>{status.label}</span></td>
-                          <td>{data.canEdit ? <button type="button" className="scp-edit" onClick={() => { setEditing(editing === person.id ? "" : person.id); setDraft({ ...draft, [person.id]: profile }); }} title="Edit contracted weekly hours"><Edit3 size={14} /></button> : null}</td>
+                          <td>{data.canEdit ? <button type="button" className="scp-edit" onClick={() => {
+                          if (editing === person.id && capacityDirty && !window.confirm("Discard the unsaved capacity change for this person?")) return;
+                          setEditing(editing === person.id ? "" : person.id);
+                          setDraft({ ...draft, [person.id]: profile });
+                        }} title="Edit contracted weekly hours"><Edit3 size={14} /></button> : null}</td>
                         </tr>
                         {editing === person.id ? <tr><td className="scp-profile" colSpan={10}><div className="scp-profile-fields"><label>Contracted weekly hours <input type="number" min="0" max="168" step="0.5" value={profile.weeklyCapacityHours} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, weeklyCapacityHours: event.target.value } })} /></label><label>Capacity notes <input value={profile.notes} onChange={(event) => setDraft({ ...draft, [person.id]: { ...profile, notes: event.target.value } })} placeholder="Optional availability note" /></label><button type="button" disabled={saving} onClick={() => saveProfile(person)}>{saving ? "Saving…" : "Save contracted hours"}</button></div></td></tr> : null}
                       </Fragment>;
