@@ -36,7 +36,7 @@ export default function ProjectsList({ onOpen }) {
         setError(requestError.message || "Could not load projects.");
       }
     })();
-  }, [session]);
+  }, [session?.access_token]);
 
   if (error) {
     return <div className="proj-error" role="alert"><AlertCircle size={16} /> {error}</div>;

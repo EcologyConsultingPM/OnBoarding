@@ -57,6 +57,13 @@ async function projectAccess(access, projectId, staffWorkspace = false) {
   return { project };
 }
 
+// A dependency table that does not exist yet must not block a purge.
+function unavailableTable(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "PGRST205" || message.includes("does not exist");
+}
+
 export async function GET(request, { params }) {
   try {
     const access = await requireSession(request);
@@ -91,6 +98,10 @@ export async function GET(request, { params }) {
         .order("sort_order", { ascending: true });
     }
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
+    // The project query's error was discarded, so a missing or deleted project
+    // returned HTTP 200 with project: null rather than a 404 — the caller had
+    // no way to distinguish "gone" from "empty".
+    if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
     const schedule = scheduleResult.data || [];
 
     // Attach staff emails to allocations and linked schedule activities so project
@@ -153,6 +164,9 @@ export async function PATCH(request, { params }) {
         budget_dollars: num(body.budgetDollars),
         default_hourly_rate: num(body.defaultHourlyRate),
         status: opt(body.status) || undefined,
+        // Restoring from the recycle bin. Explicit action rather than an
+        // arbitrary field write, so it can never happen by accident.
+        ...(body.action === "restore" ? { deleted_at: null, deleted_by: null } : {}),
       })
       .eq("id", params.projectId)
       .select(PROJECT_COLUMNS)
@@ -169,6 +183,15 @@ export async function PATCH(request, { params }) {
 // A project can be removed only while it has no delivery, allocation or audit
 // records. This preserves timesheet/tracker history and avoids broad cascade
 // deletion from a portfolio-management control.
+// DELETE — soft delete by default, permanent purge on request.
+//
+// Previously this refused outright for any project with a delivery record,
+// which was correct (a hard delete cascades away activities, tracker history
+// and WHS-relevant records) but left no way to remove a project from the list.
+// Archiving is a status, not a removal.
+//
+//   DELETE /api/projects/:id             -> soft delete, always succeeds, restorable
+//   DELETE /api/projects/:id?purge=true  -> permanent, only when nothing depends on it
 export async function DELETE(request, { params }) {
   try {
     const access = await requireSession(request);
@@ -177,21 +200,60 @@ export async function DELETE(request, { params }) {
     const authorisation = await projectAccess(access, params.projectId);
     if (authorisation.response) return authorisation.response;
 
+    const purge = new URL(request.url).searchParams.get("purge") === "true";
+    const now = new Date().toISOString();
+
+    if (!purge) {
+      // Soft delete: hide it everywhere, keep every dependent record intact.
+      const { error } = await access.admin
+        .from("projects")
+        .update({ deleted_at: now, deleted_by: access.user.id, updated_at: now })
+        .eq("id", params.projectId);
+      if (error) return Response.json({ error: error.message }, { status: 400 });
+
+      // Staff should not keep clickable cards for a project they can no longer
+      // open. Dismissed rather than deleted, so the trail survives a restore.
+      await access.admin
+        .from("portal_events")
+        .update({ dismissed_at: now })
+        .eq("source_table", "project_tracker_settings")
+        .eq("source_id", params.projectId)
+        .is("dismissed_at", null);
+
+      return Response.json({ success: true, deleted: "soft", restorable: true });
+    }
+
+    // Permanent deletion. The dependency guard stays exactly as it was: a
+    // project carrying delivery or WHS history is never destroyed.
     const checks = await Promise.all([
       access.admin.from("project_allocations").select("id").eq("project_id", params.projectId).limit(1),
       access.admin.from("project_activities").select("id").eq("project_id", params.projectId).limit(1),
       access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).limit(1),
       access.admin.from("project_activity_history").select("id").eq("project_id", params.projectId).limit(1),
+      access.admin.from("project_tracker_entries").select("id").eq("project_id", params.projectId).limit(1),
     ]);
-    const checkError = checks.find((result) => result.error)?.error;
+    const checkError = checks.find((result) => result.error && !unavailableTable(result.error))?.error;
     if (checkError) return Response.json({ error: checkError.message }, { status: 400 });
     if (checks.some((result) => (result.data || []).length > 0)) {
-      return Response.json({ error: "This project has allocations, activities, schedule items or tracker history. Archive it instead so its delivery record is retained." }, { status: 409 });
+      return Response.json({
+        error: "This project has allocations, activities, schedule items or tracker history, so it cannot be permanently deleted. It stays in the recycle bin, where its delivery record is retained.",
+        dependencies: true,
+      }, { status: 409 });
     }
+
+    // portal_events.source_id is polymorphic, so there is no foreign key to
+    // cascade from. Without this, deleting a project leaves staff holding
+    // "Project Tracker access available" cards that link to nothing.
+    const { error: eventError } = await access.admin
+      .from("portal_events")
+      .delete()
+      .eq("source_table", "project_tracker_settings")
+      .eq("source_id", params.projectId);
+    if (eventError) return Response.json({ error: eventError.message }, { status: 400 });
 
     const { error } = await access.admin.from("projects").delete().eq("id", params.projectId);
     if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ success: true });
+    return Response.json({ success: true, deleted: "permanent" });
   } catch (error) {
     return serverError(error);
   }

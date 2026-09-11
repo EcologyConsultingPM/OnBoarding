@@ -80,7 +80,7 @@ export async function generateTrackerFromActivities(access, projectId) {
 
   const { data: existingAllocations, error: existingAllocationsError } = await access.admin
     .from("project_budget_allocations")
-    .select("id, allocation_code")
+    .select("id, allocation_code, allocation_hours, hours_consumed, status, staff_visible")
     .eq("project_id", projectId)
     .eq("budget_source_id", source.id);
   if (existingAllocationsError) return { error: existingAllocationsError.message };
@@ -115,7 +115,49 @@ export async function generateTrackerFromActivities(access, projectId) {
     }
   }
 
-  return { success: true, source, allocations: results, categoriesGenerated: results.length };
+  // Stale allocations must be retired, or the budget double-counts.
+  //
+  // allocation_code is derived from the task category via slug(), so renaming a
+  // category (e.g. "Preparation" -> "Preparation (pre-fieldwork, pre-report set
+  // up)") produces a NEW code. The old row was previously left untouched —
+  // still status 'active' and staff_visible — so its allocation_hours kept
+  // being counted alongside the new row. Every regeneration after a category
+  // rename inflated the project's budget and made "hours remaining" wrong for
+  // the whole team.
+  //
+  // Only orphans with no consumed hours are closed. An orphan that HAS consumed
+  // hours is left active on purpose: closing it would hide real recorded work
+  // from the team board. Those are returned as a warning so an admin can
+  // reconcile them deliberately rather than silently.
+  const liveCodes = new Set([...byCategory.keys()].map((category) => slug(category)));
+  const orphans = (existingAllocations || []).filter((allocation) => !liveCodes.has(allocation.allocation_code));
+  const retired = [];
+  const needsReconciliation = [];
+  for (const orphan of orphans) {
+    if (num(orphan.hours_consumed) > 0) {
+      needsReconciliation.push({ code: orphan.allocation_code, hoursConsumed: num(orphan.hours_consumed), budgetHours: num(orphan.allocation_hours) });
+      continue;
+    }
+    if (orphan.status === "closed" && orphan.staff_visible === false) continue;
+    const { error } = await access.admin
+      .from("project_budget_allocations")
+      .update({ status: "closed", staff_visible: false, updated_by: access.user.id, updated_at: now })
+      .eq("id", orphan.id);
+    if (error) return { error: error.message };
+    retired.push(orphan.allocation_code);
+  }
+
+  return {
+    success: true,
+    source,
+    allocations: results,
+    categoriesGenerated: results.length,
+    retiredAllocations: retired,
+    reconcileAllocations: needsReconciliation,
+    warning: needsReconciliation.length
+      ? `${needsReconciliation.length} allocation(s) no longer match a work activity category but already have recorded hours (${needsReconciliation.map((a) => a.code).join(", ")}). They have been left active so recorded work is not hidden — reconcile them manually.`
+      : null,
+  };
 }
 
 export async function POST(request, { params }) {

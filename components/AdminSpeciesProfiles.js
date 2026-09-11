@@ -10,6 +10,7 @@ import { SURVEY_FAUNA } from "../lib/surveyFauna";
 import { mergeOverrides } from "../lib/mergeSpeciesOverrides";
 import SurveyRequirements from "./SurveyRequirements";
 import BioNetWatchlistsPanel from "./BioNetWatchlistsPanel";
+import useUnsavedGuard from "../lib/useUnsavedGuard";
 
 const FLORA_LC = {
   "Critically Endangered": { fg: "#a5342a", bg: "rgba(212,86,63,.14)", short: "CE", accent: "#d4563f" },
@@ -50,13 +51,29 @@ export default function AdminSpeciesProfiles({ onToast }) {
   const [q, setQ] = useState("");
   const [overrides, setOverrides] = useState([]);
   const [editing, setEditing] = useState(null);   // profile being edited (merged copy)
+
+  // This is an EDIT form, so it gets a guard rather than localStorage draft
+  // retention. Restoring a stale draft over a species profile someone else has
+  // since changed would overwrite their work silently — see lib/useUnsavedGuard.
+  const dirty = Boolean(
+    editing &&
+    ["name", "common", "listing", "family", "form", "habitat", "diag"].some(
+      (field) => (draft[field] ?? "") !== (editing[field] ?? ""),
+    ),
+  );
+  const closeEdit = () => {
+    // The backdrop, the X and Cancel all discarded a ten-field form with no
+    // warning at all.
+    if (dirty && !window.confirm("Discard your unsaved changes to this species profile?")) return;
+    setEditing(null);
+  };
   const [draft, setDraft] = useState({});
   const [savingEdit, setSavingEdit] = useState(false);
 
   const authFetch = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const apiBase = kingdom === "flora" ? "/api/flora-photos" : "/api/fauna-photos";
 
@@ -81,6 +98,8 @@ export default function AdminSpeciesProfiles({ onToast }) {
     } catch { /* non-fatal */ }
   }, [authFetch, kingdom]);
   useEffect(() => { if (session?.access_token) loadOverrides(); }, [session, kingdom, loadOverrides]);
+
+  useUnsavedGuard(dirty, "Your species profile edits have not been saved.");
 
   const overrideFor = (name) => overrides.find((o) => o.taxon_name === name) || null;
 
@@ -331,14 +350,14 @@ export default function AdminSpeciesProfiles({ onToast }) {
       </div>
 
       {editing ? (
-        <div className="spe-modal-bg" onMouseDown={() => setEditing(null)}>
+        <div className="spe-modal-bg" onMouseDown={closeEdit}>
           <div className="spe-modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="spe-modal-head">
               <div>
                 <span className="spe-kicker">Edit species profile · {kingdom}</span>
                 <h2>{editing.name}</h2>
               </div>
-              <button className="spe-close" onClick={() => setEditing(null)} aria-label="Close"><X size={18} /></button>
+              <button className="spe-close" onClick={closeEdit} aria-label="Close"><X size={18} /></button>
             </div>
             {error ? <p className="spe-error"><AlertCircle size={14} /> {error}</p> : null}
             <div className="spe-grid">
@@ -371,7 +390,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
 
             <div className="spe-modal-actions">
               <button className="spe-save" onClick={saveEdit} disabled={savingEdit}><Save size={14} /> {savingEdit ? "Saving…" : "Save changes"}</button>
-              <button className="spe-cancel" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="spe-cancel" onClick={closeEdit}>Cancel</button>
               <span className="spe-lock-hint">Lock the profile from the list to publish and protect it from further edits.</span>
             </div>
           </div>

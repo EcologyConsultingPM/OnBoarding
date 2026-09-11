@@ -25,7 +25,51 @@ export async function GET(request) {
     if (error) return Response.json({ error: error.message }, { status: 400 });
 
     const events = data || [];
-    return Response.json({ events, unread_count: events.filter((event) => !event.read_at).length });
+
+    // Project the CURRENT state of the underlying activity onto each event.
+    // Without this the client had nothing to gate its Accept/Decline buttons on
+    // (it checked `event.response_action`, a field nothing ever wrote), so the
+    // buttons rendered on every assignment notification forever — including
+    // ones whose activity had since been deleted (is_active = false), which is
+    // why responding returned "Activity not found." with a bare 404. The client
+    // can now render those as withdrawn, and already-answered ones as resolved.
+    const activityIds = [...new Set(
+      events
+        .filter((event) => event.source_table === "project_activities" && event.source_id)
+        .map((event) => event.source_id),
+    )];
+
+    let activityById = new Map();
+    if (activityIds.length) {
+      const { data: activities, error: activityError } = await access.admin
+        .from("project_activities")
+        .select("id, is_active, acceptance_status, response_note, title, detail, due_date, task_category, budget_hours, projects!project_activities_project_id_fkey(name)")
+        .in("id", activityIds);
+      // A failure here must not break the inbox: fall back to leaving the
+      // activity fields undefined, which the client treats as "unknown" and
+      // behaves exactly as it did before.
+      if (!activityError) activityById = new Map((activities || []).map((activity) => [activity.id, activity]));
+    }
+
+    const enriched = events.map((event) => {
+      if (event.source_table !== "project_activities" || !event.source_id) return event;
+      const activity = activityById.get(event.source_id) || null;
+      return {
+        ...event,
+        activity_exists: Boolean(activity),
+        activity_active: activity ? activity.is_active === true : false,
+        acceptance_status: activity?.acceptance_status || null,
+        response_note: activity?.response_note || "",
+        activity_title: activity?.title || "",
+        project_name: activity?.projects?.name || "",
+        due_date: activity?.due_date || null,
+        task_category: activity?.task_category || "",
+        budget_hours: activity?.budget_hours ?? null,
+        detail: activity?.detail || "",
+      };
+    });
+
+    return Response.json({ events: enriched, unread_count: enriched.filter((event) => !event.read_at).length });
   } catch (error) {
     return serverError(error);
   }

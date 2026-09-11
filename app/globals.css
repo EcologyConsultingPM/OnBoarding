@@ -16646,7 +16646,6 @@ main {
 .admin-learning-library .ld-add-save,
 .admin-service-requests .sr-review,
 .admin-service-requests .sr-approve,
-.admin-service-requests .sr-decline,
 .admin-species-profiles .afp-btn,
 .admin-species-profiles .spk-toggle button,
 .reg-watch .reg-watch__primary,
@@ -17785,3 +17784,472 @@ main {
 .spe-cancel { background: #fff; color: #5c6b58; border: 1px solid #d8dccf; border-radius: 9px; padding: 11px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
 .spe-lock-hint { flex: 1; min-width: 180px; font-size: 11.5px; color: #7a877d; font-style: italic; line-height: 1.4; }
 @media (max-width: 620px) { .spe-grid, .spe-photo-list { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------------------
+   Project Tracker — shared per-project team board
+   .st-budget-bar was referenced by StaffProjectTracker but had no rule at all,
+   so the consumed-hours bar rendered as a zero-height inline element and was
+   invisible. The remaining classes support the whole-team board: live budget
+   totals, per-member logged hours, and the team entry list.
+   --------------------------------------------------------------------------- */
+.st-budget-bar {
+  display: block;
+  width: 100%;
+  max-width: 160px;
+  height: 6px;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  background: #e7e9e0;
+  overflow: hidden;
+}
+.st-budget-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.st-budget-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+.st-budget-summary > div {
+  padding: 10px 12px;
+  border: 1px solid #e2e6da;
+  border-radius: 12px;
+  background: #fbfcf8;
+}
+.st-budget-summary span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a927c;
+}
+.st-budget-summary strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.15rem;
+  color: #173920;
+}
+.st-budget-summary .st-over strong,
+.st-budget-summary div.st-over strong { color: #c0392b; }
+
+.st-team-hours { margin-top: 16px; }
+.st-team-hours h3 {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8a927c;
+}
+.st-team-hours ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.st-team-hours li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  background: #f4f6ef;
+  font-size: 0.86rem;
+}
+.st-team-hours li.st-mine {
+  background: #e7f0e5;
+  border: 1px solid #cfe0cb;
+  font-weight: 700;
+}
+.st-team-hours li strong { color: #173920; }
+
+.st-view-toggle { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: #eef1e8; }
+.st-view-toggle button {
+  border: 0;
+  cursor: pointer;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5d6655;
+}
+.st-view-toggle button.is-active { background: #fff; color: #173920; box-shadow: 0 1px 3px rgba(23, 57, 32, 0.14); }
+
+.st-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid #d7dccf;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #2c4a33;
+}
+.st-refresh:disabled { opacity: 0.6; cursor: default; }
+
+.st-table-wrap tbody tr.st-mine { background: #f2f7f0; }
+.st-table-wrap tbody tr.st-mine td strong { color: #1f5a34; }
+.st-table-wrap td small.st-issue { color: #a5342a; font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+   Admin project list — remove / archive control
+   The list row used to be a single <button>. A delete control cannot be nested
+   inside it (a button may not contain a button), so the row is now a flex
+   container holding the open-project button plus a separate remove button.
+   --------------------------------------------------------------------------- */
+.aps-proj-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.aps-proj-row > .aps-proj {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.aps-proj-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  border: 1px solid #e8eee2;
+  border-radius: 9px;
+  background: #fafcf8;
+  color: #8a927c;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.aps-proj-remove:hover:not(:disabled) {
+  color: #a5342a;
+  border-color: #e6c3bd;
+  background: #fbecea;
+}
+.aps-proj-remove:focus-visible {
+  outline: 2px solid #a5342a;
+  outline-offset: 1px;
+}
+.aps-proj-remove:disabled { cursor: wait; opacity: .55; }
+
+/* Restored-draft notice on the new project form. */
+.aps-draft-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border: 1px solid #e7dcc2;
+  border-left: 3px solid #c9962a;
+  border-radius: 0 10px 10px 0;
+  background: #fdf8ec;
+  font-size: 12.5px;
+  color: #6b5a2e;
+}
+.aps-draft-note button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: #8a6d1f;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Inline error inside the open service-request action panel.
+   The page-level .sr-error sits in the header; with a long request list the
+   action buttons can be well below the fold, so a failed validation
+   ("Provide a note for this action.") rendered off-screen and the button
+   appeared to do nothing. */
+.sr-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  padding: 8px 12px;
+  border: 1px solid #e6c3bd;
+  border-left: 3px solid #a5342a;
+  border-radius: 0 9px 9px 0;
+  background: #fbecea;
+  color: #a5342a;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ===========================================================================
+   Semantic action buttons — service requests
+   ===========================================================================
+   Colour carries meaning here, so it has to be consistent. Before this, the
+   decision panel mixed three colour-coded buttons (Approve, Return, Decline)
+   with SEVEN unclassed ones (Assign, Start, Close & lock, Reopen, Lock,
+   Unlock, Archive) that fell back to the browser's default grey — so the most
+   consequential action on the panel, Archive, looked identical to Start.
+
+   Worse, an admin-portal override painted .sr-decline with the same green
+   gradient as .sr-approve, so Approve and Decline were visually identical in
+   the one portal where those decisions are actually made. That override no
+   longer includes Decline.
+
+   The scale, darkest intent to lightest:
+     positive     green  #1f5a34  proceeds / completes the record
+     caution      amber  #c9962a  reversible but consequential
+     destructive  clay   #a5342a  removes or refuses
+     neutral      sage outline    moves the record along, no judgement
+     quiet        text only       dismisses the panel, changes nothing
+   =========================================================================== */
+.sr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.sr-btn:disabled { opacity: .5; cursor: not-allowed; }
+.sr-btn:focus-visible { outline: 2px solid #1f5a34; outline-offset: 2px; }
+
+.sr-btn--positive { background: #1f5a34; color: #fffdf8; border-color: #173920; }
+.sr-btn--positive:hover:not(:disabled) { background: #173920; }
+
+.sr-btn--caution { background: #fdf8ec; color: #8a6d1f; border-color: #e7dcc2; }
+.sr-btn--caution:hover:not(:disabled) { background: #f9efd8; border-color: #c9962a; }
+
+.sr-btn--destructive { background: #fbecea; color: #a5342a; border-color: #e6c3bd; }
+.sr-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+
+.sr-btn--neutral { background: #fff; color: #2c4a33; border-color: #cdd8c6; }
+.sr-btn--neutral:hover:not(:disabled) { background: #f2f7f0; border-color: #1f5a34; }
+
+.sr-btn--quiet { background: none; color: #5c6b58; border-color: transparent; text-decoration: underline; }
+.sr-btn--quiet:hover:not(:disabled) { color: #173920; }
+
+/* Decline is a refusal. In the admin portal it previously inherited the same
+   green gradient as Approve; this keeps it unmistakably destructive. */
+.admin-service-requests .sr-decline {
+  background: #fbecea;
+  color: #a5342a;
+  border: 1px solid #e6c3bd;
+  box-shadow: none;
+}
+.admin-service-requests .sr-decline:hover:not(:disabled) {
+  background: #f6ddd9;
+  border-color: #a5342a;
+}
+
+/* ===========================================================================
+   Portal-wide semantic action buttons
+   ===========================================================================
+   globals.css has no bare `button` rule and no scoped fallback for several
+   admin workspaces, so ~100 buttons with an onClick and no className rendered
+   as the browser's default grey — visually identical whether they saved a
+   record or deleted one.
+
+   Two parts:
+     1. .ec-btn--* modifiers, available anywhere, same scale as .sr-btn--*.
+     2. A baseline for the containers that had no button styling at all, so an
+        unclassed button at least looks like it belongs to this application.
+
+   The baseline is deliberately neutral. It makes buttons legible; it does not
+   guess intent. Destructive actions still need .ec-btn--destructive applied
+   explicitly, because a rule cannot know that "Archive" removes something.
+   =========================================================================== */
+.ec-btn,
+.quote-governance button:not([class]),
+.restricted-workflows button:not([class]),
+.reg-source-controls button:not([class]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #cdd8c6;
+  background: #fff;
+  color: #2c4a33;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.quote-governance button:not([class]):hover:not(:disabled),
+.restricted-workflows button:not([class]):hover:not(:disabled),
+.reg-source-controls button:not([class]):hover:not(:disabled),
+.ec-btn:hover:not(:disabled) { background: #f2f7f0; border-color: #1f5a34; }
+
+.quote-governance button:not([class]):disabled,
+.restricted-workflows button:not([class]):disabled,
+.reg-source-controls button:not([class]):disabled,
+.ec-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ec-btn:focus-visible,
+.quote-governance button:not([class]):focus-visible,
+.restricted-workflows button:not([class]):focus-visible,
+.reg-source-controls button:not([class]):focus-visible {
+  outline: 2px solid #1f5a34;
+  outline-offset: 2px;
+}
+
+.ec-btn--positive    { background: #1f5a34; color: #fffdf8; border-color: #173920; }
+.ec-btn--positive:hover:not(:disabled)    { background: #173920; }
+
+.ec-btn--caution     { background: #fdf8ec; color: #8a6d1f; border-color: #e7dcc2; }
+.ec-btn--caution:hover:not(:disabled)     { background: #f9efd8; border-color: #c9962a; }
+
+.ec-btn--destructive { background: #fbecea; color: #a5342a; border-color: #e6c3bd; }
+.ec-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+
+.ec-btn--neutral     { background: #fff; color: #2c4a33; border-color: #cdd8c6; }
+.ec-btn--neutral:hover:not(:disabled)     { background: #f2f7f0; border-color: #1f5a34; }
+
+.ec-btn--quiet       { background: none; color: #5c6b58; border-color: transparent; text-decoration: underline; min-height: 0; padding: 2px 0; }
+.ec-btn--quiet:hover:not(:disabled)       { color: #173920; }
+
+/* Icon-only row controls (remove a witness, a corrective action, a pending
+   timesheet row). These sat unstyled next to their inputs with nothing to
+   indicate they delete. */
+.ec-icon-btn--destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #e6c3bd;
+  background: #fbecea;
+  color: #a5342a;
+  cursor: pointer;
+}
+.ec-icon-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+.ec-icon-btn--destructive:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ===========================================================================
+   Notification action buttons — Defer and Delete were invisible
+   ===========================================================================
+   .portal-event-actions button sets color:#fff for every button in the panel,
+   but only .accept, .actioned and .decline are given a background. .defer and
+   .delete therefore rendered as white text on the card's own light background:
+   the icon showed, the label did not.
+
+   Both now carry a background and a legible foreground, on the same semantic
+   scale as the rest of the portal — defer is reversible (caution), delete
+   removes the notification (destructive).
+   =========================================================================== */
+.portal-event-actions button.defer {
+  background: #fdf8ec;
+  color: #8a6d1f;
+  border-color: #e7dcc2;
+}
+.portal-event-actions button.defer:hover:not(:disabled) {
+  background: #f9efd8;
+  border-color: #c9962a;
+}
+
+.portal-event-actions button.delete {
+  background: #fbecea;
+  color: #a5342a;
+  border-color: #e6c3bd;
+}
+.portal-event-actions button.delete:hover:not(:disabled) {
+  background: #f6ddd9;
+  border-color: #a5342a;
+}
+
+/* The expand / resolved / expired states added with the response rework, kept
+   on the same scale so the panel reads consistently. */
+.portal-event-expand {
+  margin: 0 .85rem .5rem 2.7rem;
+  border: 1px solid #cdd8c6;
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  background: #fff;
+  color: #2c6a34;
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.portal-event-expand:hover { background: #f2f7f0; border-color: #1f5a34; }
+
+.portal-event-detail {
+  margin: 0 .85rem .6rem 2.7rem;
+  padding: .7rem .85rem;
+  border: 1px solid #e3e6d8;
+  border-left: 3px solid #1f5a34;
+  border-radius: 0 .6rem .6rem 0;
+  background: #f7f9f3;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .5rem .9rem;
+}
+.portal-event-detail dt {
+  font-size: .62rem; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #7a877d;
+}
+.portal-event-detail dd { margin: .1rem 0 0; font-size: .78rem; color: #23301f; }
+
+.portal-event-note {
+  width: calc(100% - 3.55rem);
+  margin: 0 .85rem .5rem 2.7rem;
+  border: 1px solid #cdd8c6;
+  border-radius: .5rem;
+  padding: .45rem .6rem;
+  font: inherit;
+  font-size: .78rem;
+  background: #fff;
+  color: #23301f;
+}
+.portal-event-resolved,
+.portal-event-expired-note {
+  display: flex; align-items: center; gap: .35rem;
+  margin: 0; font-size: .72rem; font-weight: 700;
+}
+.portal-event-resolved { color: #1f5a34; }
+.portal-event-expired-note { color: #8a6d1f; }
+.portal-event-resolved-note { font-weight: 500; color: #5c6b58; }
+.portal-events-notice {
+  display: flex; gap: .4rem; align-items: center;
+  padding: .55rem .7rem; color: #1f5a34;
+  font-size: .77rem; font-weight: 700;
+}
+.portal-event.expired { opacity: .72; }
+
+/* Project recycle bin. Soft-deleted projects are removed from the list but
+   retained in full; permanent deletion is refused by the server for anything
+   carrying delivery or WHS history. */
+.aps-trash-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; padding: 7px 13px;
+  border: 1px solid #e8eee2; border-radius: 999px;
+  background: #fafcf8; color: #5c6b58;
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.aps-trash-toggle:hover { border-color: #cdd8c6; color: #173920; }
+.aps-trash-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: #a5342a; color: #fff;
+  font-size: 10.5px; font-weight: 800;
+}
+.aps-trash {
+  margin-bottom: 14px; padding: 12px;
+  border: 1px dashed #d7dccf; border-radius: 12px; background: #fbfcf8;
+}
+.aps-trash-note { margin: 0 0 10px; color: #7a877d; font-size: 12px; line-height: 1.5; }
+.aps-trash-empty { margin: 0; color: #8a927c; font-size: 12.5px; }
+.aps-proj-row--trash { align-items: center; }
+.aps-proj--static { cursor: default; background: #fff; }
+.aps-proj--static strong { display: block; color: #172d20; font-size: 14px; font-weight: 800; }
+.aps-proj--static span { color: #6b7a6d; font-size: 12px; }

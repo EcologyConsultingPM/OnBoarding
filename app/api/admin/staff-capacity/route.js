@@ -111,14 +111,24 @@ function unavailable(error) {
 }
 
 export async function capacityData(access, rangeStart, rangeEnd) {
-  const [directory, profilesResult, activitiesResult, leavesResult, scheduleResult, projectsResult, tasksResult] = await Promise.all([
+  const [directory, profilesResult, activitiesResult, leavesResult, trainingResult, scheduleResult, projectsResult, tasksResult, reviewsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
     access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, budget_hours, due_date, start_date, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
+    // Approved training is time a person is unavailable for project work, just
+    // as leave is. It was being approved and then vanishing from the capacity
+    // picture entirely, so someone could be booked onto fieldwork on a day
+    // their course had already been signed off.
+    access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "training").eq("status", "approved"),
     access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, is_active").eq("is_active", true),
     access.admin.from("projects").select("id, name, client_name, status").neq("status", "archived"),
     access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, budget_hours, status, accepted_at, completed_at, declined_at, withdrawn_at").not("accepted_at", "is", null).is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
+    // Assigned policy and procedure reviews are real committed work with a due
+    // date, so they belong in the workload picture alongside activities and
+    // task briefs. Tolerates the columns being absent until
+    // sql/2026-09-11-policy-review-assignment.sql has been applied.
+    access.admin.from("policy_documents").select("id, title, doc_type, version, next_review_date, review_assigned_to, review_completed_at").not("review_assigned_to", "is", null).is("review_completed_at", null),
   ]);
 
   const failures = [profilesResult, activitiesResult, scheduleResult].find((result) => result.error);
@@ -142,6 +152,21 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     startDate: dateOnly(record.details?.start_date),
     endDate: dateOnly(record.details?.end_date || record.details?.start_date),
   })).filter((record) => record.startDate && record.endDate && intersects(record.startDate, record.endDate, rangeStart, rangeEnd));
+  // Training requests carry a preferred date rather than a range. Where an end
+  // date or duration is recorded it is honoured; otherwise the course is
+  // treated as a single day.
+  const training = (trainingResult?.data || []).map((record) => {
+    const start = dateOnly(record.details?.preferred_date || record.details?.start_date);
+    const end = dateOnly(record.details?.end_date) || start;
+    return { ...record, startDate: start, endDate: end };
+  }).filter((record) => record.startDate && record.endDate && intersects(record.startDate, record.endDate, rangeStart, rangeEnd));
+
+  // Degrades silently if the review-assignment migration has not run yet: an
+  // absent column yields an error here, not a crash, and reviews simply do not
+  // appear in the calendar.
+  const reviews = (reviewsResult?.error ? [] : reviewsResult?.data || [])
+    .filter((doc) => doc.next_review_date && intersects(doc.next_review_date, doc.next_review_date, rangeStart, rangeEnd));
+
   const today = new Date().toISOString().slice(0, 10);
   const rangeDays = Math.max(1, Math.ceil(((asDate(rangeEnd)?.getTime() || 0) - (asDate(rangeStart)?.getTime() || 0) + DAY) / DAY));
   const rangeWeeks = Math.max(1, rangeDays / 7);
@@ -201,6 +226,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       upcomingActivities: upcomingActivities.map((activity) => ({ id: activity.id, title: activity.title, dueDate: activity.due_date, projectName: projectById.get(activity.project_id)?.name || "Project", taskCategory: activity.task_category || "" })),
       upcomingTasks: upcomingTasks.map((task) => ({ id: task.id, title: task.task, dueDate: task.due_date, projectName: task.project || "Task Brief" })),
       leave: personLeaves.map((leave) => ({ id: leave.id, title: leave.title, startDate: leave.startDate, endDate: leave.endDate })),
+      training: training.filter((course) => course.created_by === person.id).map((course) => ({ id: course.id, title: course.details?.course || course.title || "Training", startDate: course.startDate, endDate: course.endDate })),
     };
   });
 
@@ -223,6 +249,22 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       };
     }),
     ...leaves.map((leave) => ({ id: `leave-${leave.id}`, type: "leave", startDate: leave.startDate, endDate: leave.endDate, title: leave.title, staffUserId: leave.created_by })),
+    ...reviews.map((doc) => ({
+      id: `review-${doc.id}`,
+      type: "document_review",
+      startDate: doc.next_review_date,
+      endDate: doc.next_review_date,
+      title: `${doc.doc_type === "procedure" ? "Procedure" : "Policy"} review: ${doc.title}`,
+      staffUserId: doc.review_assigned_to,
+    })),
+    ...training.map((course) => ({
+      id: `training-${course.id}`,
+      type: "training",
+      startDate: course.startDate,
+      endDate: course.endDate,
+      title: course.details?.course || course.title || "Training",
+      staffUserId: course.created_by,
+    })),
     ...tasks.filter((task) => {
       const span = taskSpan(task);
       return span && intersects(span.start, span.end, rangeStart, rangeEnd);

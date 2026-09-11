@@ -26,7 +26,7 @@ export default function AdminLearningLibrary() {
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const load = useCallback(async (parentId) => {
     try {

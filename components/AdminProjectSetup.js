@@ -32,6 +32,23 @@ const TASK_CATEGORIES = [
   "General Project Management",
   "Other",
 ];
+const BLANK_PROJECT = {
+  name: "",
+  clientName: "",
+  clientContact: "",
+  sharepointLink: "",
+  sharepointLabel: "Project workspace",
+  scopeOfWorks: "",
+  projectLeadUserId: "",
+  description: "",
+  startDate: "",
+  endDate: "",
+  budgetHours: "",
+  budgetDollars: "",
+  defaultHourlyRate: "",
+  status: "active",
+};
+
 const PROJECT_STATUS = [
   { value: "planning", label: "Planning" },
   { value: "active", label: "Active" },
@@ -59,7 +76,10 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
         },
         body: body ? JSON.stringify(body) : undefined,
       }),
-    [session],
+    // Token string, not the session object: Supabase re-broadcasts a new
+    // session object on every TOKEN_REFRESHED (which fires on tab focus), and
+    // depending on the object made every consumer of `auth` unstable.
+    [session?.access_token],
   );
 
   const notify = (m) => {
@@ -70,6 +90,78 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   const fail = (e) => {
     setError(typeof e === "string" ? e : e.message);
     setMessage("");
+  };
+
+  const [removingId, setRemovingId] = useState("");
+
+  // Remove a project from the list.
+  //
+  // A project with no delivery record is deleted outright. One that HAS
+  // allocations, activities, schedule items or tracker history cannot be —
+  // the API returns 409 because deleting it would destroy the delivery and
+  // WHS record. In that case we offer archiving instead, which is what the
+  // list already filters on (status !== "archived"), so it disappears from the
+  // active list while the record is retained.
+  const removeProject = async (project) => {
+    const label = `${project.name}${project.client_name ? ` (${project.client_name})` : ""}`;
+    if (!window.confirm(`Move ${label} to the recycle bin?\n\nIt is removed from the project list but nothing is destroyed — activities, tracker history and allocations are all kept, and you can restore it at any time.`)) return;
+
+    setRemovingId(project.id);
+    setError("");
+    try {
+      const res = await auth("DELETE", `/api/projects/${project.id}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not remove this project.");
+      setProjects((current) => current.filter((row) => row.id !== project.id));
+      if (openId === project.id) { setOpenId(""); setView("list"); }
+      notify(`${project.name} moved to the recycle bin.`);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setRemovingId("");
+    }
+  };
+
+  // ---- Recycle bin ----
+  const [trash, setTrash] = useState([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+
+  const loadTrash = useCallback(async () => {
+    try {
+      const res = await auth("GET", "/api/projects?view=trash");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setTrash(data.projects || []);
+    } catch (e) {
+      fail(e);
+    }
+  }, [auth]);
+
+  const restoreProject = async (project) => {
+    setRemovingId(project.id);
+    try {
+      const res = await auth("PATCH", `/api/projects/${project.id}`, { action: "restore" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not restore this project.");
+      setTrash((current) => current.filter((row) => row.id !== project.id));
+      await loadProjects();
+      notify(`${project.name} restored.`);
+    } catch (e) { fail(e); } finally { setRemovingId(""); }
+  };
+
+  // Permanent deletion is refused by the server for anything carrying delivery
+  // or WHS history. That guard is deliberate: the bin is the end of the road
+  // for those, not a route to destroying the record.
+  const purgeProject = async (project) => {
+    if (!window.confirm(`Permanently delete ${project.name}?\n\nThis cannot be undone. It will only succeed if the project has no activities, allocations, schedule items or tracker history.`)) return;
+    setRemovingId(project.id);
+    try {
+      const res = await auth("DELETE", `/api/projects/${project.id}?purge=true`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not permanently delete this project.");
+      setTrash((current) => current.filter((row) => row.id !== project.id));
+      notify(`${project.name} permanently deleted.`);
+    } catch (e) { fail(e); } finally { setRemovingId(""); }
   };
 
   const loadProjects = useCallback(async () => {
@@ -103,22 +195,43 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   }, [initialProjectId]);
 
   // ---- Create project ----
-  const [newProject, setNewProject] = useState({
-    name: "",
-    clientName: "",
-    clientContact: "",
-    sharepointLink: "",
-    sharepointLabel: "Project workspace",
-    scopeOfWorks: "",
-    projectLeadUserId: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    budgetHours: "",
-    budgetDollars: "",
-    defaultHourlyRate: "",
-    status: "active",
-  });
+  const [newProject, setNewProject] = useState(BLANK_PROJECT);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Project setup is the largest data-entry surface in the app — 38 fields
+  // across the create form and the detail panels — and it had no draft
+  // protection at all. Anything that unmounted the tree mid-entry (a token
+  // refresh on tab focus, a stray navigation, a closed laptop) lost the lot.
+  // Same per-user localStorage pattern already used by Service Requests.
+  const draftKey = session?.user?.id ? `ec-new-project-draft:${session.user.id}` : "";
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(draftKey) || "null");
+      if (saved && typeof saved === "object" && Object.values(saved).some((v) => String(v || "").trim() && v !== "Project workspace" && v !== "active")) {
+        setNewProject({ ...BLANK_PROJECT, ...saved });
+        setDraftRestored(true);
+      }
+    } catch {}
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const meaningful = Object.entries(newProject).some(([key, value]) =>
+      !["sharepointLabel", "status"].includes(key) && String(value || "").trim());
+    if (!meaningful) { window.localStorage.removeItem(draftKey); return; }
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(draftKey, JSON.stringify(newProject)); } catch {}
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, newProject]);
+
+  const discardDraft = () => {
+    if (draftKey) window.localStorage.removeItem(draftKey);
+    setNewProject(BLANK_PROJECT);
+    setDraftRestored(false);
+  };
   const createProject = async () => {
     if (!newProject.name.trim()) {
       fail("A project name is required.");
@@ -128,22 +241,9 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
       const res = await auth("POST", "/api/projects", newProject);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setNewProject({
-        name: "",
-        clientName: "",
-        clientContact: "",
-        sharepointLink: "",
-        sharepointLabel: "Project workspace",
-        scopeOfWorks: "",
-        projectLeadUserId: "",
-        description: "",
-        startDate: "",
-        endDate: "",
-        budgetHours: "",
-        budgetDollars: "",
-        defaultHourlyRate: "",
-        status: "active",
-      });
+      setNewProject(BLANK_PROJECT);
+      if (draftKey) window.localStorage.removeItem(draftKey);
+      setDraftRestored(false);
       await loadProjects();
       notify("Project created.");
       setOpenId(data.project.id);
@@ -229,6 +329,12 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           <h2>
             <FolderPlus size={16} /> New project
           </h2>
+          {draftRestored ? (
+            <p className="aps-draft-note">
+              Unsaved project details were restored from this browser.
+              <button type="button" className="ec-btn--quiet" onClick={discardDraft}>Discard and start again</button>
+            </p>
+          ) : null}
           <div className="aps-form">
             <input
               placeholder="Project name"
@@ -367,26 +473,88 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           <h2>
             <ClipboardList size={16} /> All projects
           </h2>
+          <button
+            type="button"
+            className="aps-trash-toggle"
+            onClick={() => { const next = !trashOpen; setTrashOpen(next); if (next) loadTrash(); }}
+          >
+            <Trash2 size={13} /> {trashOpen ? "Hide recycle bin" : "Recycle bin"}
+            {trash.length ? <span className="aps-trash-count">{trash.length}</span> : null}
+          </button>
+
+          {trashOpen ? (
+            <div className="aps-trash">
+              <p className="aps-trash-note">
+                Removed projects. Nothing here has been destroyed — activities, tracker
+                history and allocations are retained. Permanent deletion only succeeds
+                for projects with no delivery record.
+              </p>
+              {trash.length ? (
+                <div className="aps-list">
+                  {trash.map((p) => (
+                    <div key={p.id} className="aps-proj-row aps-proj-row--trash">
+                      <div className="aps-proj aps-proj--static">
+                        <div>
+                          <strong>{p.name}</strong>
+                          <span>{p.client_name || "No client"}{p.deleted_at ? ` · removed ${new Date(p.deleted_at).toLocaleDateString("en-AU")}` : ""}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="ec-btn ec-btn--neutral"
+                        disabled={removingId === p.id}
+                        onClick={() => restoreProject(p)}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="ec-btn ec-btn--destructive"
+                        disabled={removingId === p.id}
+                        onClick={() => purgeProject(p)}
+                        title="Only possible when the project has no activities, allocations, schedule items or tracker history"
+                      >
+                        Delete forever
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="aps-trash-empty">The recycle bin is empty.</p>}
+            </div>
+          ) : null}
+
           {projects.length ? (
             <div className="aps-list">
               {projects.map((p) => (
-                <button
-                  key={p.id}
-                  className="aps-proj"
-                  onClick={() => {
-                    setOpenId(p.id);
-                    setView("detail");
-                  }}
-                >
-                  <div>
-                    <strong style={{ color: "#fffdf8", fontSize: 16, fontWeight: 800, display: "block" }}>{p.name}</strong>
-                    <span style={{ color: "rgba(255,253,248,.62)" }}>{p.client_name || "No client"}</span>
-                  </div>
-                  <span className="aps-proj-status">
-                    {PROJECT_STATUS.find((s) => s.value === p.status)?.label ||
-                      p.status}
-                  </span>
-                </button>
+                <div key={p.id} className="aps-proj-row">
+                  <button
+                    type="button"
+                    className="aps-proj"
+                    onClick={() => {
+                      setOpenId(p.id);
+                      setView("detail");
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: "#fffdf8", fontSize: 16, fontWeight: 800, display: "block" }}>{p.name}</strong>
+                      <span style={{ color: "rgba(255,253,248,.62)" }}>{p.client_name || "No client"}</span>
+                    </div>
+                    <span className="aps-proj-status">
+                      {PROJECT_STATUS.find((s) => s.value === p.status)?.label ||
+                        p.status}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="aps-proj-remove"
+                    disabled={removingId === p.id}
+                    aria-label={`Remove ${p.name} from the project list`}
+                    title="Delete, or archive if it has a delivery record"
+                    onClick={() => removeProject(p)}
+                  >
+                    {removingId === p.id ? "…" : <Trash2 size={15} />}
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -742,7 +910,13 @@ function ProjectDetail({
                         const res = await auth("POST", `/api/projects/${projectId}/tracker/auto-generate`);
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error);
-                        notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities.`);
+                        // Surface the reconciliation warning. Stale allocations
+                        // (from a renamed task category) that already carry
+                        // recorded hours cannot be auto-closed without hiding
+                        // real work, so the admin has to be told.
+                        const retired = (d.retiredAllocations || []).length;
+                        if (d.warning) fail(new Error(d.warning));
+                        else notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities${retired ? `, ${retired} stale allocation${retired === 1 ? "" : "s"} retired` : ""}.`);
                       } catch (e) {
                         fail(e);
                       } finally {
@@ -755,7 +929,7 @@ function ProjectDetail({
                   </button>
                 </>
               ) : (
-                <span className="aps-stepper-note">Work through the steps below. Assigning work activities notifies the allocated staff automatically.</span>
+                <span className="aps-stepper-note">Work through the steps below. Assigned staff are notified only once you record Senior Ecologist approval.</span>
               )}
             </div>
           </div>

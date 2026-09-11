@@ -3504,7 +3504,7 @@ function AdminHome({ onNavigate }) {
     })
       .then((r) => setEcadoViewer(r.ok))
       .catch(() => setEcadoViewer(false));
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3526,7 +3526,7 @@ function AdminHome({ onNavigate }) {
         ),
       )
       .catch(() => setRegulatoryOpen(0));
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3538,7 +3538,7 @@ function AdminHome({ onNavigate }) {
       )
       .then((data) => setVisibility(data.visibility || {}))
       .catch(() => setVisibility({}));
-  }, [session]);
+  }, [session?.access_token]);
 
   // Project Health remains inside Projects & Operations. The remaining administration
   // areas use the same image-backed domain-card language as Staff Home so the control
@@ -3578,9 +3578,12 @@ function AdminHome({ onNavigate }) {
       photo: "rosella.png",
     },
     {
-      eyebrow: "Remote delivery",
-      title: "Remote Operations Oversight",
-      desc: "Assign, accept, review and complete remote task briefs across the team.",
+      // Renamed to match what the domain now actually owns. The quotes
+      // register was retired to Quote Pipeline and issue intake moved to
+      // Service Requests; task briefs are the substance of this domain.
+      eyebrow: "Task briefs",
+      title: "Task Briefs & Remote Coordination",
+      desc: "Assign, accept, review and complete task briefs, with remote-work and client coordination context.",
       accent: "#d789a6",
       accent2: "#321322",
       Icon: Users2,
@@ -3972,7 +3975,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       .then((r) => r.json())
       .then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : []))
       .catch(() => {});
-  }, [session]);
+  }, [session?.access_token]);
 
   const markSeen = async () => {
     setShowOutcomes(true);
@@ -5004,20 +5007,18 @@ export default function OnboardingWorkbook() {
               },
               {
                 key: "timesheets",
-                label: "Work History",
-                desc: "Project tracker history and official time entry",
+                label: "Project Tracker",
+                desc: "Your project tracker entries and activity status",
                 Icon: Clock3,
                 staffOnly: true,
                 href: "/staff/timesheets",
               },
-              {
-                key: "remoteops",
-                label: "Task Briefs",
-                desc: "Assigned task briefs, updates and delivery handovers",
-                Icon: Users2,
-                staffOnly: true,
-                href: "/staff/remote-operations",
-              },
+              // "Task Briefs" removed: it pointed at the retired
+              // /staff/remote-operations route, and the Notifications domain
+              // card above already covers "Task briefs, project allocations and
+              // decisions requiring your attention" — two cards, one
+              // destination. Remote/delivery issues are raised through Service
+              // Requests ("Remote / delivery issue").
             ]
               .filter((item) => {
                 if (item.requiresOnboarding && !hasAssignedOnboarding)

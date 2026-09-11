@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Scale, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import Legis from "./Legis";
+import useFormDraft from "../lib/useFormDraft";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -36,6 +38,8 @@ function safeRecords(value) {
 // Regulatory Watch deliberately displays only to administrators. Automated
 // source changes are unreviewed compliance prompts, never legal advice or an
 // automatic change to forms, survey standards or controlled documents.
+const BLANK_UPDATE = { title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] };
+
 export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
@@ -50,7 +54,16 @@ export default function AdminRegulatoryWatch({ onToast }) {
   const [openId, setOpenId] = useState("");
   const [drafts, setDrafts] = useState({});
   const [creating, setCreating] = useState(false);
-  const [newUpdate, setNewUpdate] = useState({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+  // Manually adding a regulatory update is a research task — a reviewer may
+  // have several tabs open reading source material while composing it. Losing
+  // it to a tab switch (see the TOKEN_REFRESHED remount) is expensive.
+  const {
+    value: newUpdate,
+    setValue: setNewUpdate,
+    restored: updateDraftRestored,
+    discard: discardUpdateDraft,
+    clear: clearUpdateDraft,
+  } = useFormDraft(session?.user?.id ? `ec-reg-update-draft:${session.user.id}` : "", BLANK_UPDATE, { ignore: ["severity"] });
 
   const headers = useCallback(() => ({
     "Content-Type": "application/json",
@@ -178,7 +191,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not add the regulatory update.");
       setUpdates((current) => [body.update, ...current]);
-      setNewUpdate({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+      setNewUpdate(BLANK_UPDATE);
+      clearUpdateDraft();
       setCreating(false);
       onToast?.("Regulatory Watch item added for review.");
     } catch (err) {
@@ -214,6 +228,23 @@ export default function AdminRegulatoryWatch({ onToast }) {
           <button type="button" onClick={() => setCreating((value) => !value)} className="reg-watch__primary"><Plus size={14} /> Add update</button>
         </div>
       </header>
+
+      {/* The admin domain previously surfaced only brief.watchlist — the
+          forward-looking items. The full weekly brief (developments with their
+          level-1 notification, what changed, effective/transitional dates,
+          consulting implications for quotes, scoping, reports and programme,
+          plus the evidence and citations) was rendered ONLY in the staff
+          notifications page, so an administrator reviewing Regulatory Watch
+          could not see the in-depth report at all. Legis is self-contained and
+          fetches its own brief, so it is embedded here in full. */}
+      <section className="reg-watch__legis reg-watch__legis--brief" aria-label="Legis weekly regulatory brief">
+        <div className="reg-watch__legis-head">
+          <span><Scale size={14} /> Legis</span>
+          <h3>Weekly Regulatory Brief — full detail</h3>
+          <p>The complete Monday brief: every development Legis identified, why it matters, what changed, when it applies, and the consulting implications. Expand any development for its evidence and citations.</p>
+        </div>
+        <Legis />
+      </section>
 
       <section className="reg-watch__legis" aria-label="Legis regulatory watchlist">
         <div className="reg-watch__legis-head">
@@ -257,6 +288,12 @@ export default function AdminRegulatoryWatch({ onToast }) {
         <section className="reg-watch__create">
           <h3><Plus size={16} /> Record an official update for review</h3>
           <p>This creates an internal review item only. It does not alter any procedure, survey method, form or staff requirement.</p>
+          {updateDraftRestored ? (
+            <p className="aps-draft-note">
+              An unsaved regulatory update was restored from this browser.
+              <button type="button" className="ec-btn--quiet" onClick={discardUpdateDraft}>Discard and start again</button>
+            </p>
+          ) : null}
           <div className="reg-watch__form-grid">
             <label><span>Official source</span><select value={newUpdate.source_id} onChange={(event) => setNewUpdate({ ...newUpdate, source_id: event.target.value, source_url: "" })}><option value="">Choose source or enter URL below</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}</select></label>
             <label><span>Priority</span><select value={newUpdate.severity} onChange={(event) => setNewUpdate({ ...newUpdate, severity: event.target.value })}>{Object.entries(SEVERITY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

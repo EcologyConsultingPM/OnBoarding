@@ -6,6 +6,7 @@ import { useAuth } from "../lib/AuthProvider";
 import QuoteDraftWorkspace from "./QuoteDraftWorkspace";
 import QuotePipelineImprovements from "./QuotePipelineImprovements";
 import QuoteGovernanceWorkspace from "./QuoteGovernanceWorkspace";
+import useFormDraft from "../lib/useFormDraft";
 
 function money(n) {
   if (n == null || n === "") return "—";
@@ -49,7 +50,17 @@ export default function AdminQuotePipeline() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState(EMPTY);
+  // 14 fields including commercial values. Booleans and the default status are
+  // ignored for the "has the user typed anything" test so an untouched form
+  // never persists a draft.
+  const {
+    value: form,
+    setValue: setForm,
+    restored: quoteDraftRestored,
+    discard: discardQuoteDraft,
+    clear: clearQuoteDraft,
+  } = useFormDraft(session?.user?.id ? `ec-quote-pipeline-draft:${session.user.id}` : "", EMPTY,
+    { ignore: ["status", "initialSent", "fullyInvoiced", "superseded"] });
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY);
   const [filters, setFilters] = useState({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" });
@@ -59,7 +70,9 @@ export default function AdminQuotePipeline() {
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  // Token string, not the session object — see AuthProvider: TOKEN_REFRESHED
+  // re-broadcasts a new object on tab focus, which made this unstable.
+  }), [session?.access_token]);
 
   const load = useCallback(async () => {
     try {
@@ -72,7 +85,7 @@ export default function AdminQuotePipeline() {
     } catch (e) { setError(e.message); }
   }, [auth]);
 
-  useEffect(() => { if (session?.access_token) load(); }, [session, load]);
+  useEffect(() => { if (session?.access_token) load(); }, [session?.access_token, load]);
   useEffect(() => {
     try {
       const initial = new URLSearchParams(window.location.search).get("quoteView");
@@ -93,7 +106,7 @@ export default function AdminQuotePipeline() {
 
   const create = async () => {
     if (!form.client.trim() && !form.project.trim()) { setError("Add a client or project."); return; }
-    try { const res = await auth("POST", "/api/quote-pipeline", form); const d = await res.json(); if (!res.ok) throw new Error(d.error); setForm(EMPTY); setAdding(false); await load(); notify("Quote added."); } catch (e) { setError(e.message); }
+    try { const res = await auth("POST", "/api/quote-pipeline", form); const d = await res.json(); if (!res.ok) throw new Error(d.error); setForm(EMPTY); clearQuoteDraft(); setAdding(false); await load(); notify("Quote added."); } catch (e) { setError(e.message); }
   };
   const saveEdit = async () => {
     try { const res = await auth("PATCH", `/api/quote-pipeline/${editingId}`, editForm); const d = await res.json(); if (!res.ok) throw new Error(d.error); setEditingId(null); await load(); notify("Quote updated."); } catch (e) { setError(e.message); }
@@ -215,7 +228,7 @@ export default function AdminQuotePipeline() {
       {error ? <p className="qp-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="qp-success"><CheckCircle2 size={15} /> {message}</p> : null}
       <section className="qp-controls" aria-label="Quote Pipeline controls"><div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange issued quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div><div className="qp-controls-fields"><label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{[...STATUS, SUPERSEDED_FILTER].map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label><label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Client · A–Z</option>{financialsVisible ? <option value="value_desc">Quote value · highest</option> : null}<option value="follow_up">Next follow-up</option></select></label><button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button></div></section>
-      {adding ? <div className="qp-editor"><div className="qp-editor-grid"><EditRow f={form} set={setForm} canSeeFinancials={financialsVisible} /></div><div className="qp-editor-actions"><button className="qp-primary" onClick={create}>Save quote</button><button className="qp-secondary" onClick={() => { setAdding(false); setForm(EMPTY); }}>Cancel</button></div></div> : <button className="qp-add" onClick={() => setAdding(true)}><Plus size={14} /> Add issued quote</button>}
+      {adding ? <div className="qp-editor">{quoteDraftRestored ? <p className="aps-draft-note">An unsaved quote was restored from this browser.<button type="button" className="ec-btn--quiet" onClick={discardQuoteDraft}>Discard</button></p> : null}<div className="qp-editor-grid"><EditRow f={form} set={setForm} canSeeFinancials={financialsVisible} /></div><div className="qp-editor-actions"><button className="qp-primary" onClick={create}>Save quote</button><button className="qp-secondary" onClick={() => { setAdding(false); discardQuoteDraft(); }}>Cancel</button></div></div> : <button className="qp-add" onClick={() => setAdding(true)}><Plus size={14} /> Add issued quote</button>}
       {pipelineTab === "active" ? (
         <div className="qp-table-wrap">
           <table className="qp-table">{tableHead}<tbody>{visibleQuotes.map(renderRow)}</tbody></table>

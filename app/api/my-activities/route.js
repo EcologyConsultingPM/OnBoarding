@@ -112,7 +112,20 @@ export async function PATCH(request) {
       .eq("is_active", true)
       .maybeSingle();
     if (readError) return Response.json({ error: readError.message }, { status: 400 });
-    if (!existing) return Response.json({ error: "Activity not found." }, { status: 404 });
+    if (!existing) {
+      // Distinguish "never existed" from "withdrawn by the project lead".
+      // Staff were previously shown a bare 404 for notifications whose
+      // activity had been deleted (is_active = false), with no way to tell
+      // that no action was required of them.
+      const { data: retired } = await access.admin
+        .from("project_activities")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+      return retired
+        ? Response.json({ error: "This activity was withdrawn or replaced by the project lead. No action is needed.", withdrawn: true }, { status: 410 })
+        : Response.json({ error: "Activity not found." }, { status: 404 });
+    }
     if (!access.isAdmin && existing.staff_user_id !== access.user.id) return Response.json({ error: "You can update only your own project activities." }, { status: 403 });
     if (existing.locked && !access.isAdmin) return Response.json({ error: "This activity is locked for project-lead review." }, { status: 409 });
 
@@ -124,20 +137,20 @@ export async function PATCH(request) {
     let previousStatus = existing.status;
 
     if (action === "accept") {
-      if (existing.acceptance_status !== "awaiting_response") return Response.json({ error: "This activity is no longer awaiting acceptance." }, { status: 409 });
+      if (existing.acceptance_status !== "awaiting_response") return Response.json({ error: "This activity is no longer awaiting acceptance.", acceptance_status: existing.acceptance_status }, { status: 409 });
       values.acceptance_status = "accepted";
       values.accepted_at = now;
       values.response_note = responseNote || null;
       event = { type: "project_activity_accepted", severity: "information", title: "Project activity accepted", body: `${existing.title}${responseNote ? ` · ${responseNote}` : ""}` };
     } else if (action === "decline") {
-      if (existing.acceptance_status !== "awaiting_response") return Response.json({ error: "Only activities awaiting a response can be declined." }, { status: 409 });
+      if (existing.acceptance_status !== "awaiting_response") return Response.json({ error: "Only activities awaiting a response can be declined.", acceptance_status: existing.acceptance_status }, { status: 409 });
       if (!responseNote) return Response.json({ error: "Please provide a reason or reassignment request." }, { status: 400 });
       values.acceptance_status = "declined";
       values.declined_at = now;
       values.response_note = responseNote;
       event = { type: "project_activity_declined", severity: "action_required", title: "Project activity declined / reassignment requested", body: `${existing.title} · ${responseNote}` };
     } else if (action === "actioned") {
-      if (!ACCEPTANCE_STATES.has(existing.acceptance_status) || existing.acceptance_status === "declined") return Response.json({ error: "This activity cannot be actioned." }, { status: 409 });
+      if (!ACCEPTANCE_STATES.has(existing.acceptance_status) || existing.acceptance_status === "declined") return Response.json({ error: "This activity cannot be actioned.", acceptance_status: existing.acceptance_status }, { status: 409 });
       values.acceptance_status = "actioned";
       values.actioned_at = now;
       values.response_note = responseNote || existing.response_note || null;
@@ -184,7 +197,9 @@ export async function PATCH(request) {
     }
 
     const scheduleWarning = await refreshLinkedSchedule(access.admin, activity, now);
-    if (["accept", "decline"].includes(action)) {
+    // "actioned" was omitted here, so actioning an activity left its
+    // notification sitting unread in the inbox forever.
+    if (["accept", "decline", "actioned"].includes(action)) {
       await access.admin.from("portal_events")
         .update({ read_at: now })
         .eq("recipient_id", access.user.id)
@@ -193,7 +208,19 @@ export async function PATCH(request) {
         .is("read_at", null);
     }
 
-    const recipientId = existing.assigned_by || null;
+    // assigned_by is null on activities created before it was recorded, and
+    // the notification used to be skipped silently in that case — meaning a
+    // decline with a reassignment request reached nobody at all. Fall back to
+    // the project lead so a WHS-relevant response is never dropped.
+    let recipientId = existing.assigned_by || null;
+    if (!recipientId) {
+      const { data: project } = await access.admin
+        .from("projects")
+        .select("project_lead_user_id")
+        .eq("id", existing.project_id)
+        .maybeSingle();
+      recipientId = project?.project_lead_user_id || null;
+    }
     const eventWarning = event && recipientId && recipientId !== access.user.id
       ? await createEvent(access.admin, {
           recipient_id: recipientId,

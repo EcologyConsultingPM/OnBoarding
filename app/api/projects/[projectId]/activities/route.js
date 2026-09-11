@@ -110,6 +110,12 @@ async function canReadProject(access, projectId, staffWorkspace = false) {
   return Boolean((allocationResult.data || []).length || (activityResult.data || []).length);
 }
 
+// DEAD CODE as of 3f4a0de ("Remove notifications on activity save"): this is
+// no longer called from anywhere. The approval endpoint has its own inline
+// emitter. Kept only because it documents the historical behaviour that
+// produced the duplicate notifications now being cleaned up — see
+// sql/2026-09-10-notification-integrity.sql. Safe to delete once that
+// migration has run in production.
 async function createAssignmentEvents(admin, project, activities) {
   const events = activities
     .filter((activity) => activity.staff_user_id)
@@ -286,6 +292,10 @@ export async function PUT(request, { params }) {
         if (changedAssignee) {
           row.acceptance_status = assignedTo ? "awaiting_response" : "accepted";
           row.response_note = null;
+          // Must clear notified_at: the approval emitter only notifies rows
+          // where notified_at IS NULL, so leaving it set meant reassigning an
+          // activity silently failed to notify the new assignee, forever.
+          row.notified_at = null;
           row.assigned_at = now;
           row.assigned_by = access.user.id;
           row.accepted_at = null;
@@ -372,6 +382,21 @@ export async function DELETE(request, { params }) {
       .update({ is_active: false, updated_at: now })
       .eq("id", activityId);
     if (retireError) return Response.json({ error: retireError.message }, { status: 400 });
+
+    // Retire any unactioned notification for this activity. Without this the
+    // staff member keeps a clickable "awaiting acceptance" card whose target no
+    // longer satisfies is_active = true, so every response attempt failed.
+    // Answered notifications (read_at set) are left alone so the audit trail of
+    // who accepted or declined survives the activity being retired.
+    const { error: eventRetireError } = await access.admin
+      .from("portal_events")
+      .update({ dismissed_at: now })
+      .eq("source_table", "project_activities")
+      .eq("source_id", activityId)
+      .eq("event_type", "project_activity_assigned")
+      .is("read_at", null)
+      .is("dismissed_at", null);
+    if (eventRetireError) return Response.json({ error: eventRetireError.message }, { status: 400 });
 
     if (validId(activity.schedule_item_id)) {
       const { count, error: countError } = await access.admin

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardList, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WorkspaceNav from "./WorkspaceNav";
 
 const initialForm = {
   organisation: "", siteLocation: "", incidentDate: "", incidentTime: "", reportDate: "",
@@ -125,6 +126,9 @@ export default function IncidentReportWorkspace() {
   return (
     <main className="swms-page">
       <header className="swms-hero">
+        {/* This workspace had no route back to the portal at all — a staff
+            member who opened it could only leave via the browser back button. */}
+        <WorkspaceNav audience="staff" />
         <span><ClipboardList size={18} /> Ecology Consulting · WHS incident record</span>
         <h1>Incident report form</h1>
         <p>Record what is known to have occurred — facts, not assumptions. Submit for review; full root cause analysis is completed separately.</p>
@@ -200,7 +204,7 @@ export default function IncidentReportWorkspace() {
         <div className="tt-rows">
           {witnesses.map((row, index) => (
             <div className="tt-row" key={index}>
-              <div className="tt-row-head"><span>Witness {index + 1}</span><button type="button" onClick={() => removeRow(setWitnesses, blankWitness)(index)} aria-label={`Remove witness ${index + 1}`}><Trash2 size={13} /></button></div>
+              <div className="tt-row-head"><span>Witness {index + 1}</span><button type="button" className="ec-icon-btn--destructive" onClick={() => removeRow(setWitnesses, blankWitness)(index)} aria-label={`Remove witness ${index + 1}`}><Trash2 size={13} /></button></div>
               <div className="swms-two-fields">
                 <input value={row.name} onChange={(e) => updateWitness(index, "name", e.target.value)} placeholder="Name & position" />
                 <input value={row.contact} onChange={(e) => updateWitness(index, "contact", e.target.value)} placeholder="Contact details" />
@@ -218,7 +222,7 @@ export default function IncidentReportWorkspace() {
         <div className="tt-rows">
           {actions.map((row, index) => (
             <div className="tt-row" key={index}>
-              <div className="tt-row-head"><span>Action {index + 1}</span><button type="button" onClick={() => removeRow(setActions, blankAction)(index)} aria-label={`Remove action ${index + 1}`}><Trash2 size={13} /></button></div>
+              <div className="tt-row-head"><span>Action {index + 1}</span><button type="button" className="ec-icon-btn--destructive" onClick={() => removeRow(setActions, blankAction)(index)} aria-label={`Remove action ${index + 1}`}><Trash2 size={13} /></button></div>
               <input value={row.action} onChange={(e) => updateAction(index, "action", e.target.value)} placeholder="Immediate action taken" />
               <div className="swms-two-fields">
                 <input value={row.responsible} onChange={(e) => updateAction(index, "responsible", e.target.value)} placeholder="Responsible person" />

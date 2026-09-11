@@ -29,7 +29,7 @@ export default function Noticeboard({ compact = false }) {
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const load = useCallback(async () => {
     try {
@@ -122,7 +122,7 @@ export default function Noticeboard({ compact = false }) {
         <header className="nb-hero">
           <WorkspaceNav
             audience={isAdmin ? "admin" : "staff"}
-            backHref={isAdmin ? "/admin" : "/"}
+            backHref={isAdmin ? "/?portal=admin" : "/"}
             backLabel="Back to portal"
           />
           <span><Megaphone size={17} /> Staff communications</span>

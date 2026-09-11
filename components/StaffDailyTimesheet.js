@@ -414,7 +414,7 @@ export default function StaffDailyTimesheet({ embedded = false }) {
                     <td>{row.errorMessage ? <span className="st-error-inline"><AlertCircle size={12} /> {row.errorMessage}</span> : "—"}</td>
                     <td className="st-row-actions">
                       <button type="button" onClick={() => editPending(row)} title="Edit">Edit</button>
-                      <button type="button" onClick={() => removePending(row.id)} title="Remove"><Trash2 size={13} /></button>
+                      <button type="button" className="ec-icon-btn--destructive" onClick={() => removePending(row.id)} title="Remove"><Trash2 size={13} /></button>
                     </td>
                   </tr>
                 ))}
