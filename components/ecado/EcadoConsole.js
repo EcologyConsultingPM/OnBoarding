@@ -106,36 +106,48 @@ export default function EcadoConsole({ initialEscalations }) {
 
   return (
     <div className="ec-console">
+      {/* Aligned to the Ecology Consulting admin style guide: Archivo body,
+          DM Serif Display headings, and the portal palette (deep green #173920
+          / #1f5a34, cream #fffdf8, sage #cdd8c6 / #e3e6d8, muted #7a877d,
+          clay #a5342a for alerts). Previously this console shipped a generic
+          slate/blue-grey palette with -apple-system type, so the hidden Ecado
+          domain looked like a different product to the rest of the portal. */}
       <style>{`
-        .ec-console { display: flex; flex-direction: column; gap: 28px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-        .ec-section-title { margin: 0 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; }
-        .ec-commands { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
-        .ec-command { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 12px 14px; text-align: left; cursor: pointer; font-family: inherit; }
-        .ec-command:hover { border-color: #94a3b8; }
+        .ec-console { display: flex; flex-direction: column; gap: 26px; font-family: "Archivo", "Nunito Sans", system-ui, sans-serif; color: #23301f; }
+        .ec-section-title { margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: #7a877d; }
+        .ec-commands { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; }
+        .ec-command { border: 1px solid #cdd8c6; background: #fffdf8; border-radius: 14px; padding: 13px 15px; text-align: left; cursor: pointer; font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease; }
+        .ec-command:hover { border-color: #1f5a34; box-shadow: 0 2px 8px rgba(31,90,52,.10); }
         .ec-command:disabled { opacity: .5; cursor: not-allowed; }
-        .ec-command strong { display: block; font-size: 13px; font-weight: 600; color: #0f172a; }
-        .ec-command span { display: block; font-size: 11px; color: #64748b; margin-top: 2px; }
-        .ec-project-input { margin-top: 10px; width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; box-sizing: border-box; }
-        .ec-error { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #991b1b; }
-        .ec-escalation { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-        .ec-escalation strong { font-size: 13px; color: #0f172a; }
-        .ec-escalation p { margin: 4px 0 0; font-size: 11.5px; color: #475569; }
-        .ec-close-btn { flex-shrink: 0; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 5px 10px; font-size: 11.5px; color: #334155; cursor: pointer; }
-        .ec-modal-bg { position: fixed; inset: 0; z-index: 200; background: rgba(15,23,42,.4); display: flex; align-items: center; justify-content: center; padding: 16px; }
-        .ec-modal { width: 100%; max-width: 480px; background: #fff; border-radius: 12px; padding: 20px; }
-        .ec-modal h3 { margin: 0 0 4px; font-size: 14px; color: #0f172a; }
-        .ec-modal textarea { width: 100%; margin-top: 8px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; font-size: 13px; box-sizing: border-box; font-family: inherit; }
-        .ec-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-        .ec-btn-secondary { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 7px 14px; font-size: 13px; color: #334155; cursor: pointer; }
-        .ec-btn-primary { border: none; background: #0f172a; color: #fff; border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+        .ec-command strong { display: block; font-size: 13.5px; font-weight: 700; color: #173920; }
+        .ec-command span { display: block; font-size: 11.5px; color: #7a877d; margin-top: 3px; }
+        .ec-project-input { margin-top: 11px; width: 100%; border: 1px solid #cdd8c6; border-radius: 10px; padding: 10px 13px; font-size: 13px; box-sizing: border-box; font-family: inherit; background: #fffdf8; color: #23301f; }
+        .ec-project-input:focus { outline: 2px solid #1f5a34; outline-offset: 1px; border-color: #1f5a34; }
+        .ec-error { border: 1px solid #e6c3bd; background: #fbecea; border-radius: 10px; padding: 11px 15px; font-size: 13px; color: #a5342a; font-weight: 600; }
+        .ec-escalation { border: 1px solid #cdd8c6; background: #fffdf8; border-radius: 14px; padding: 13px 15px; margin-bottom: 9px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        .ec-escalation strong { font-size: 13.5px; color: #173920; font-weight: 700; }
+        .ec-escalation p { margin: 5px 0 0; font-size: 12px; color: #5c6b58; line-height: 1.5; }
+        .ec-close-btn { flex-shrink: 0; border: 1px solid #cdd8c6; background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 11.5px; font-weight: 700; color: #2c6a34; cursor: pointer; }
+        .ec-close-btn:hover { border-color: #1f5a34; background: #f2f7f0; }
+        .ec-modal-bg { position: fixed; inset: 0; z-index: 200; background: rgba(18,33,26,.52); display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .ec-modal { width: 100%; max-width: 480px; background: #fffdf8; border-radius: 18px; padding: 22px; box-shadow: 0 18px 48px rgba(18,33,26,.22); }
+        .ec-modal h3 { margin: 0 0 5px; font-family: "DM Serif Display", Georgia, serif; font-size: 19px; font-weight: 400; color: #173920; }
+        .ec-modal textarea { width: 100%; margin-top: 9px; border: 1px solid #cdd8c6; border-radius: 10px; padding: 9px 11px; font-size: 13px; box-sizing: border-box; font-family: inherit; background: #fff; color: #23301f; }
+        .ec-modal textarea:focus { outline: 2px solid #1f5a34; outline-offset: 1px; }
+        .ec-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 16px; }
+        .ec-btn-secondary { border: 1px solid #cdd8c6; background: #fff; border-radius: 999px; padding: 8px 17px; font-size: 13px; font-weight: 700; color: #5c6b58; cursor: pointer; font-family: inherit; }
+        .ec-btn-primary { border: none; background: #1f5a34; color: #fffdf8; border-radius: 999px; padding: 8px 17px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .ec-btn-primary:hover { background: #173920; }
         .ec-btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-        .ec-brief-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
-        .ec-brief-head span { font-size: 12px; color: #475569; }
-        .ec-brief-unnarrated { font-size: 11px; color: #b45309; }
-        .ec-copy-btn { margin-left: auto; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 5px 10px; font-size: 11.5px; color: #334155; cursor: pointer; }
-        .ec-brief-article { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 18px 20px; font-size: 13px; line-height: 1.6; color: #1e293b; }
-        .ec-brief-article h1, .ec-brief-article h2, .ec-brief-article h3 { color: #0f172a; }
+        .ec-brief-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 11px; }
+        .ec-brief-head span { font-size: 12px; color: #5c6b58; }
+        .ec-brief-unnarrated { font-size: 11px; color: #a5342a; font-weight: 700; }
+        .ec-copy-btn { margin-left: auto; border: 1px solid #cdd8c6; background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 11.5px; font-weight: 700; color: #2c6a34; cursor: pointer; }
+        .ec-brief-article { border: 1px solid #cdd8c6; background: #fffdf8; border-radius: 16px; padding: 20px 22px; font-size: 13.5px; line-height: 1.65; color: #23301f; }
+        .ec-brief-article h1, .ec-brief-article h2, .ec-brief-article h3 { font-family: "DM Serif Display", Georgia, serif; font-weight: 400; color: #173920; }
+        .ec-brief-article a { color: #2c6a34; }
         .ec-indent { margin-left: 16px; }
+        .ec-empty { font-size: 13px; color: #7a877d; }
       `}</style>
 
       <section>
@@ -156,7 +168,7 @@ export default function EcadoConsole({ initialEscalations }) {
       <section>
         <h2 className="ec-section-title">Open escalations ({escalations.length}{openCritical ? ` \u00b7 ${openCritical} critical` : ""})</h2>
         {escalations.length === 0 ? (
-          <p style={{ fontSize: 13, color: "#64748b" }}>No open escalations.</p>
+          <p className="ec-empty">No open escalations.</p>
         ) : (
           escalations.map((e) => (
             <div key={e.id} className="ec-escalation">

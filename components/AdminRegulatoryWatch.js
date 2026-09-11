@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Scale, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import Legis from "./Legis";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -214,6 +215,23 @@ export default function AdminRegulatoryWatch({ onToast }) {
           <button type="button" onClick={() => setCreating((value) => !value)} className="reg-watch__primary"><Plus size={14} /> Add update</button>
         </div>
       </header>
+
+      {/* The admin domain previously surfaced only brief.watchlist — the
+          forward-looking items. The full weekly brief (developments with their
+          level-1 notification, what changed, effective/transitional dates,
+          consulting implications for quotes, scoping, reports and programme,
+          plus the evidence and citations) was rendered ONLY in the staff
+          notifications page, so an administrator reviewing Regulatory Watch
+          could not see the in-depth report at all. Legis is self-contained and
+          fetches its own brief, so it is embedded here in full. */}
+      <section className="reg-watch__legis reg-watch__legis--brief" aria-label="Legis weekly regulatory brief">
+        <div className="reg-watch__legis-head">
+          <span><Scale size={14} /> Legis</span>
+          <h3>Weekly Regulatory Brief — full detail</h3>
+          <p>The complete Monday brief: every development Legis identified, why it matters, what changed, when it applies, and the consulting implications. Expand any development for its evidence and citations.</p>
+        </div>
+        <Legis />
+      </section>
 
       <section className="reg-watch__legis" aria-label="Legis regulatory watchlist">
         <div className="reg-watch__legis-head">
