@@ -32,6 +32,23 @@ const TASK_CATEGORIES = [
   "General Project Management",
   "Other",
 ];
+const BLANK_PROJECT = {
+  name: "",
+  clientName: "",
+  clientContact: "",
+  sharepointLink: "",
+  sharepointLabel: "Project workspace",
+  scopeOfWorks: "",
+  projectLeadUserId: "",
+  description: "",
+  startDate: "",
+  endDate: "",
+  budgetHours: "",
+  budgetDollars: "",
+  defaultHourlyRate: "",
+  status: "active",
+};
+
 const PROJECT_STATUS = [
   { value: "planning", label: "Planning" },
   { value: "active", label: "Active" },
@@ -150,22 +167,43 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   }, [initialProjectId]);
 
   // ---- Create project ----
-  const [newProject, setNewProject] = useState({
-    name: "",
-    clientName: "",
-    clientContact: "",
-    sharepointLink: "",
-    sharepointLabel: "Project workspace",
-    scopeOfWorks: "",
-    projectLeadUserId: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    budgetHours: "",
-    budgetDollars: "",
-    defaultHourlyRate: "",
-    status: "active",
-  });
+  const [newProject, setNewProject] = useState(BLANK_PROJECT);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Project setup is the largest data-entry surface in the app — 38 fields
+  // across the create form and the detail panels — and it had no draft
+  // protection at all. Anything that unmounted the tree mid-entry (a token
+  // refresh on tab focus, a stray navigation, a closed laptop) lost the lot.
+  // Same per-user localStorage pattern already used by Service Requests.
+  const draftKey = session?.user?.id ? `ec-new-project-draft:${session.user.id}` : "";
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(draftKey) || "null");
+      if (saved && typeof saved === "object" && Object.values(saved).some((v) => String(v || "").trim() && v !== "Project workspace" && v !== "active")) {
+        setNewProject({ ...BLANK_PROJECT, ...saved });
+        setDraftRestored(true);
+      }
+    } catch {}
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const meaningful = Object.entries(newProject).some(([key, value]) =>
+      !["sharepointLabel", "status"].includes(key) && String(value || "").trim());
+    if (!meaningful) { window.localStorage.removeItem(draftKey); return; }
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(draftKey, JSON.stringify(newProject)); } catch {}
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, newProject]);
+
+  const discardDraft = () => {
+    if (draftKey) window.localStorage.removeItem(draftKey);
+    setNewProject(BLANK_PROJECT);
+    setDraftRestored(false);
+  };
   const createProject = async () => {
     if (!newProject.name.trim()) {
       fail("A project name is required.");
@@ -175,22 +213,9 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
       const res = await auth("POST", "/api/projects", newProject);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setNewProject({
-        name: "",
-        clientName: "",
-        clientContact: "",
-        sharepointLink: "",
-        sharepointLabel: "Project workspace",
-        scopeOfWorks: "",
-        projectLeadUserId: "",
-        description: "",
-        startDate: "",
-        endDate: "",
-        budgetHours: "",
-        budgetDollars: "",
-        defaultHourlyRate: "",
-        status: "active",
-      });
+      setNewProject(BLANK_PROJECT);
+      if (draftKey) window.localStorage.removeItem(draftKey);
+      setDraftRestored(false);
       await loadProjects();
       notify("Project created.");
       setOpenId(data.project.id);
@@ -276,6 +301,12 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           <h2>
             <FolderPlus size={16} /> New project
           </h2>
+          {draftRestored ? (
+            <p className="aps-draft-note">
+              Unsaved project details were restored from this browser.
+              <button type="button" onClick={discardDraft}>Discard and start again</button>
+            </p>
+          ) : null}
           <div className="aps-form">
             <input
               placeholder="Project name"
