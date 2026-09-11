@@ -742,7 +742,13 @@ function ProjectDetail({
                         const res = await auth("POST", `/api/projects/${projectId}/tracker/auto-generate`);
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error);
-                        notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities.`);
+                        // Surface the reconciliation warning. Stale allocations
+                        // (from a renamed task category) that already carry
+                        // recorded hours cannot be auto-closed without hiding
+                        // real work, so the admin has to be told.
+                        const retired = (d.retiredAllocations || []).length;
+                        if (d.warning) fail(new Error(d.warning));
+                        else notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities${retired ? `, ${retired} stale allocation${retired === 1 ? "" : "s"} retired` : ""}.`);
                       } catch (e) {
                         fail(e);
                       } finally {
