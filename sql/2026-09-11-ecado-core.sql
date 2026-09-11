@@ -65,8 +65,12 @@ create table if not exists public.ecado_escalations (
   source_id      text not null,
   source_ref     text,
   level          integer not null check (level between 1 and 4),
-  rating         text not null check (rating in ('critical','high','medium','low')),
-  peak_rating    text not null check (peak_rating in ('critical','high','medium','low')),
+  -- Live has NO check on these two (verified 2026-09-11): only
+  -- ecado_escalations_level_check exists. They are left unconstrained here so
+  -- this file matches production. The optional hardening block at the foot adds
+  -- them safely, after validating existing rows.
+  rating         text not null,
+  peak_rating    text not null,
   title          text not null,
   what_happened  text not null,
   why_it_matters text not null,
@@ -82,9 +86,15 @@ create table if not exists public.ecado_escalations (
   -- A named human and a reason of substance are required to close an
   -- escalation. Enforced here as well as in closeEscalation() so the invariant
   -- survives any future caller that bypasses the helper.
+  --
+  -- Written to match the live definition byte for byte, verified 2026-09-11.
+  -- Note it does NOT trim: ten spaces satisfies the database. closeEscalation()
+  -- does trim, so the application path is sound, but a direct SQL write could
+  -- close an escalation with a whitespace "reason". See the hardening block at
+  -- the foot of this file.
   constraint ecado_closure_requires_reason check (
     closed_at is null
-    or (closed_by is not null and closure_reason is not null and length(trim(closure_reason)) >= 10)
+    or (closed_by is not null and length(coalesce(closure_reason, ''::text)) >= 10)
   )
 );
 
@@ -127,6 +137,30 @@ create table if not exists public.ecado_thresholds (
 );
 
 -- ---------------------------------------------------------------------------
+-- Threshold change history.
+--
+-- This table exists in production but is never read or written by the
+-- application — lib/ecado/thresholds.js documents it as "written to
+-- ecado_threshold_history by trigger". The trigger is therefore also
+-- undocumented in this repo.
+--
+-- SHAPE UNVERIFIED. The constraint introspection confirms only that the table
+-- exists with a uuid primary key. Run the columns query at the foot of this
+-- file and the trigger query, then correct this block before relying on it.
+-- ---------------------------------------------------------------------------
+create table if not exists public.ecado_threshold_history (
+  id          uuid primary key default gen_random_uuid(),
+  key         text not null,
+  old_value   jsonb,
+  new_value   jsonb,
+  changed_by  text,
+  changed_at  timestamptz not null default now()
+);
+
+create index if not exists ecado_threshold_history_key_idx
+  on public.ecado_threshold_history (key, changed_at desc);
+
+-- ---------------------------------------------------------------------------
 -- RLS. Every one of these tables is reached exclusively through the service
 -- role in server routes, which is gated by requireEcadoViewerApi(). No browser
 -- client should ever read them directly, so RLS is enabled with no permissive
@@ -137,6 +171,7 @@ alter table public.ecado_audit_log   enable row level security;
 alter table public.ecado_escalations enable row level security;
 alter table public.ecado_briefs      enable row level security;
 alter table public.ecado_thresholds  enable row level security;
+alter table public.ecado_threshold_history enable row level security;
 
 comment on table public.ecado_viewers is
   'Allow-list for the hidden /admin/ecado domain. Revocation is a timestamp, never a delete.';
@@ -144,6 +179,35 @@ comment on table public.ecado_audit_log is
   'Append-only record of Ecado access decisions and brief generation, including denials.';
 comment on constraint ecado_closure_requires_reason on public.ecado_escalations is
   'An escalation may only be closed by a named person with a reason of at least 10 characters.';
+
+-- ---------------------------------------------------------------------------
+-- OPTIONAL HARDENING — review before running.
+--
+-- Production currently accepts any string in rating and peak_rating, and will
+-- accept a whitespace-only closure reason. Neither is reachable through the
+-- application, so these are defence in depth rather than bug fixes. Each
+-- validates existing data first and does nothing if the data would fail, so it
+-- is safe to run and safe to skip.
+-- ---------------------------------------------------------------------------
+-- do $$
+-- begin
+--   if not exists (select 1 from pg_constraint where conname = 'ecado_escalations_rating_check')
+--      and not exists (select 1 from public.ecado_escalations
+--                      where rating not in ('critical','high','medium','low')
+--                         or peak_rating not in ('critical','high','medium','low'))
+--   then
+--     alter table public.ecado_escalations
+--       add constraint ecado_escalations_rating_check
+--       check (rating in ('critical','high','medium','low')
+--          and peak_rating in ('critical','high','medium','low'));
+--   end if;
+-- end $$;
+--
+-- -- Require a closure reason with actual content, not just length.
+-- alter table public.ecado_escalations drop constraint if exists ecado_closure_requires_reason;
+-- alter table public.ecado_escalations add constraint ecado_closure_requires_reason
+--   check (closed_at is null
+--          or (closed_by is not null and length(btrim(coalesce(closure_reason, ''))) >= 10));
 
 -- ---------------------------------------------------------------------------
 -- VERIFY against production before trusting this file. Any row returned by the
@@ -157,3 +221,15 @@ comment on constraint ecado_closure_requires_reason on public.ecado_escalations 
 -- select conname, pg_get_constraintdef(oid)
 -- from pg_constraint
 -- where conrelid::regclass::text like 'ecado_%';
+--
+-- -- STILL OUTSTANDING: the trigger that maintains ecado_threshold_history.
+-- select tgname,
+--        pg_get_triggerdef(t.oid) as definition
+-- from pg_trigger t
+-- where not t.tgisinternal
+--   and t.tgrelid::regclass::text like 'ecado_%';
+--
+-- -- And the function it calls:
+-- select p.proname, pg_get_functiondef(p.oid)
+-- from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+-- where n.nspname = 'public' and p.proname ilike '%threshold%';
