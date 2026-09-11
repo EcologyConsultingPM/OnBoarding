@@ -304,7 +304,7 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           {draftRestored ? (
             <p className="aps-draft-note">
               Unsaved project details were restored from this browser.
-              <button type="button" onClick={discardDraft}>Discard and start again</button>
+              <button type="button" className="ec-btn--quiet" onClick={discardDraft}>Discard and start again</button>
             </p>
           ) : null}
           <div className="aps-form">

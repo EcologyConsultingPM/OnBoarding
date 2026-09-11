@@ -16646,7 +16646,6 @@ main {
 .admin-learning-library .ld-add-save,
 .admin-service-requests .sr-review,
 .admin-service-requests .sr-approve,
-.admin-service-requests .sr-decline,
 .admin-species-profiles .afp-btn,
 .admin-species-profiles .spk-toggle button,
 .reg-watch .reg-watch__primary,
@@ -17982,3 +17981,156 @@ main {
   font-size: 12.5px;
   font-weight: 600;
 }
+
+/* ===========================================================================
+   Semantic action buttons — service requests
+   ===========================================================================
+   Colour carries meaning here, so it has to be consistent. Before this, the
+   decision panel mixed three colour-coded buttons (Approve, Return, Decline)
+   with SEVEN unclassed ones (Assign, Start, Close & lock, Reopen, Lock,
+   Unlock, Archive) that fell back to the browser's default grey — so the most
+   consequential action on the panel, Archive, looked identical to Start.
+
+   Worse, an admin-portal override painted .sr-decline with the same green
+   gradient as .sr-approve, so Approve and Decline were visually identical in
+   the one portal where those decisions are actually made. That override no
+   longer includes Decline.
+
+   The scale, darkest intent to lightest:
+     positive     green  #1f5a34  proceeds / completes the record
+     caution      amber  #c9962a  reversible but consequential
+     destructive  clay   #a5342a  removes or refuses
+     neutral      sage outline    moves the record along, no judgement
+     quiet        text only       dismisses the panel, changes nothing
+   =========================================================================== */
+.sr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.sr-btn:disabled { opacity: .5; cursor: not-allowed; }
+.sr-btn:focus-visible { outline: 2px solid #1f5a34; outline-offset: 2px; }
+
+.sr-btn--positive { background: #1f5a34; color: #fffdf8; border-color: #173920; }
+.sr-btn--positive:hover:not(:disabled) { background: #173920; }
+
+.sr-btn--caution { background: #fdf8ec; color: #8a6d1f; border-color: #e7dcc2; }
+.sr-btn--caution:hover:not(:disabled) { background: #f9efd8; border-color: #c9962a; }
+
+.sr-btn--destructive { background: #fbecea; color: #a5342a; border-color: #e6c3bd; }
+.sr-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+
+.sr-btn--neutral { background: #fff; color: #2c4a33; border-color: #cdd8c6; }
+.sr-btn--neutral:hover:not(:disabled) { background: #f2f7f0; border-color: #1f5a34; }
+
+.sr-btn--quiet { background: none; color: #5c6b58; border-color: transparent; text-decoration: underline; }
+.sr-btn--quiet:hover:not(:disabled) { color: #173920; }
+
+/* Decline is a refusal. In the admin portal it previously inherited the same
+   green gradient as Approve; this keeps it unmistakably destructive. */
+.admin-service-requests .sr-decline {
+  background: #fbecea;
+  color: #a5342a;
+  border: 1px solid #e6c3bd;
+  box-shadow: none;
+}
+.admin-service-requests .sr-decline:hover:not(:disabled) {
+  background: #f6ddd9;
+  border-color: #a5342a;
+}
+
+/* ===========================================================================
+   Portal-wide semantic action buttons
+   ===========================================================================
+   globals.css has no bare `button` rule and no scoped fallback for several
+   admin workspaces, so ~100 buttons with an onClick and no className rendered
+   as the browser's default grey — visually identical whether they saved a
+   record or deleted one.
+
+   Two parts:
+     1. .ec-btn--* modifiers, available anywhere, same scale as .sr-btn--*.
+     2. A baseline for the containers that had no button styling at all, so an
+        unclassed button at least looks like it belongs to this application.
+
+   The baseline is deliberately neutral. It makes buttons legible; it does not
+   guess intent. Destructive actions still need .ec-btn--destructive applied
+   explicitly, because a rule cannot know that "Archive" removes something.
+   =========================================================================== */
+.ec-btn,
+.quote-governance button:not([class]),
+.restricted-workflows button:not([class]),
+.reg-source-controls button:not([class]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #cdd8c6;
+  background: #fff;
+  color: #2c4a33;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.quote-governance button:not([class]):hover:not(:disabled),
+.restricted-workflows button:not([class]):hover:not(:disabled),
+.reg-source-controls button:not([class]):hover:not(:disabled),
+.ec-btn:hover:not(:disabled) { background: #f2f7f0; border-color: #1f5a34; }
+
+.quote-governance button:not([class]):disabled,
+.restricted-workflows button:not([class]):disabled,
+.reg-source-controls button:not([class]):disabled,
+.ec-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ec-btn:focus-visible,
+.quote-governance button:not([class]):focus-visible,
+.restricted-workflows button:not([class]):focus-visible,
+.reg-source-controls button:not([class]):focus-visible {
+  outline: 2px solid #1f5a34;
+  outline-offset: 2px;
+}
+
+.ec-btn--positive    { background: #1f5a34; color: #fffdf8; border-color: #173920; }
+.ec-btn--positive:hover:not(:disabled)    { background: #173920; }
+
+.ec-btn--caution     { background: #fdf8ec; color: #8a6d1f; border-color: #e7dcc2; }
+.ec-btn--caution:hover:not(:disabled)     { background: #f9efd8; border-color: #c9962a; }
+
+.ec-btn--destructive { background: #fbecea; color: #a5342a; border-color: #e6c3bd; }
+.ec-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+
+.ec-btn--neutral     { background: #fff; color: #2c4a33; border-color: #cdd8c6; }
+.ec-btn--neutral:hover:not(:disabled)     { background: #f2f7f0; border-color: #1f5a34; }
+
+.ec-btn--quiet       { background: none; color: #5c6b58; border-color: transparent; text-decoration: underline; min-height: 0; padding: 2px 0; }
+.ec-btn--quiet:hover:not(:disabled)       { color: #173920; }
+
+/* Icon-only row controls (remove a witness, a corrective action, a pending
+   timesheet row). These sat unstyled next to their inputs with nothing to
+   indicate they delete. */
+.ec-icon-btn--destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #e6c3bd;
+  background: #fbecea;
+  color: #a5342a;
+  cursor: pointer;
+}
+.ec-icon-btn--destructive:hover:not(:disabled) { background: #f6ddd9; border-color: #a5342a; }
+.ec-icon-btn--destructive:disabled { opacity: .45; cursor: not-allowed; }

@@ -291,7 +291,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
           {updateDraftRestored ? (
             <p className="aps-draft-note">
               An unsaved regulatory update was restored from this browser.
-              <button type="button" onClick={discardUpdateDraft}>Discard and start again</button>
+              <button type="button" className="ec-btn--quiet" onClick={discardUpdateDraft}>Discard and start again</button>
             </p>
           ) : null}
           <div className="reg-watch__form-grid">
