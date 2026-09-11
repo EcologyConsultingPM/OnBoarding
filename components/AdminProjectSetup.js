@@ -104,36 +104,64 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   // active list while the record is retained.
   const removeProject = async (project) => {
     const label = `${project.name}${project.client_name ? ` (${project.client_name})` : ""}`;
-    if (!window.confirm(`Remove ${label} from the project list?\n\nIf it has no activities, allocations or tracker history it will be deleted permanently. If it does, you will be offered the option to archive it instead so its delivery record is kept.`)) return;
+    if (!window.confirm(`Move ${label} to the recycle bin?\n\nIt is removed from the project list but nothing is destroyed — activities, tracker history and allocations are all kept, and you can restore it at any time.`)) return;
 
     setRemovingId(project.id);
     setError("");
     try {
       const res = await auth("DELETE", `/api/projects/${project.id}`);
-      if (res.ok) {
-        setProjects((current) => current.filter((row) => row.id !== project.id));
-        if (openId === project.id) { setOpenId(""); setView("list"); }
-        notify(`${project.name} deleted.`);
-        return;
-      }
-
       const data = await res.json().catch(() => ({}));
-      if (res.status === 409) {
-        if (!window.confirm(`${label} has a delivery record and cannot be deleted.\n\n${data.error || ""}\n\nArchive it instead? It will be removed from the active project list and its history retained.`)) return;
-        const archiveRes = await auth("PATCH", `/api/projects/${project.id}`, { status: "archived" });
-        const archiveData = await archiveRes.json().catch(() => ({}));
-        if (!archiveRes.ok) throw new Error(archiveData.error || "Could not archive this project.");
-        setProjects((current) => current.filter((row) => row.id !== project.id));
-        if (openId === project.id) { setOpenId(""); setView("list"); }
-        notify(`${project.name} archived.`);
-        return;
-      }
-      throw new Error(data.error || "Could not remove this project.");
+      if (!res.ok) throw new Error(data.error || "Could not remove this project.");
+      setProjects((current) => current.filter((row) => row.id !== project.id));
+      if (openId === project.id) { setOpenId(""); setView("list"); }
+      notify(`${project.name} moved to the recycle bin.`);
     } catch (e) {
       fail(e);
     } finally {
       setRemovingId("");
     }
+  };
+
+  // ---- Recycle bin ----
+  const [trash, setTrash] = useState([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+
+  const loadTrash = useCallback(async () => {
+    try {
+      const res = await auth("GET", "/api/projects?view=trash");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setTrash(data.projects || []);
+    } catch (e) {
+      fail(e);
+    }
+  }, [auth]);
+
+  const restoreProject = async (project) => {
+    setRemovingId(project.id);
+    try {
+      const res = await auth("PATCH", `/api/projects/${project.id}`, { action: "restore" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not restore this project.");
+      setTrash((current) => current.filter((row) => row.id !== project.id));
+      await loadProjects();
+      notify(`${project.name} restored.`);
+    } catch (e) { fail(e); } finally { setRemovingId(""); }
+  };
+
+  // Permanent deletion is refused by the server for anything carrying delivery
+  // or WHS history. That guard is deliberate: the bin is the end of the road
+  // for those, not a route to destroying the record.
+  const purgeProject = async (project) => {
+    if (!window.confirm(`Permanently delete ${project.name}?\n\nThis cannot be undone. It will only succeed if the project has no activities, allocations, schedule items or tracker history.`)) return;
+    setRemovingId(project.id);
+    try {
+      const res = await auth("DELETE", `/api/projects/${project.id}?purge=true`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not permanently delete this project.");
+      setTrash((current) => current.filter((row) => row.id !== project.id));
+      notify(`${project.name} permanently deleted.`);
+    } catch (e) { fail(e); } finally { setRemovingId(""); }
   };
 
   const loadProjects = useCallback(async () => {
@@ -445,6 +473,56 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           <h2>
             <ClipboardList size={16} /> All projects
           </h2>
+          <button
+            type="button"
+            className="aps-trash-toggle"
+            onClick={() => { const next = !trashOpen; setTrashOpen(next); if (next) loadTrash(); }}
+          >
+            <Trash2 size={13} /> {trashOpen ? "Hide recycle bin" : "Recycle bin"}
+            {trash.length ? <span className="aps-trash-count">{trash.length}</span> : null}
+          </button>
+
+          {trashOpen ? (
+            <div className="aps-trash">
+              <p className="aps-trash-note">
+                Removed projects. Nothing here has been destroyed — activities, tracker
+                history and allocations are retained. Permanent deletion only succeeds
+                for projects with no delivery record.
+              </p>
+              {trash.length ? (
+                <div className="aps-list">
+                  {trash.map((p) => (
+                    <div key={p.id} className="aps-proj-row aps-proj-row--trash">
+                      <div className="aps-proj aps-proj--static">
+                        <div>
+                          <strong>{p.name}</strong>
+                          <span>{p.client_name || "No client"}{p.deleted_at ? ` · removed ${new Date(p.deleted_at).toLocaleDateString("en-AU")}` : ""}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="ec-btn ec-btn--neutral"
+                        disabled={removingId === p.id}
+                        onClick={() => restoreProject(p)}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="ec-btn ec-btn--destructive"
+                        disabled={removingId === p.id}
+                        onClick={() => purgeProject(p)}
+                        title="Only possible when the project has no activities, allocations, schedule items or tracker history"
+                      >
+                        Delete forever
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="aps-trash-empty">The recycle bin is empty.</p>}
+            </div>
+          ) : null}
+
           {projects.length ? (
             <div className="aps-list">
               {projects.map((p) => (

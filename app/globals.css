@@ -18225,3 +18225,31 @@ main {
   font-size: .77rem; font-weight: 700;
 }
 .portal-event.expired { opacity: .72; }
+
+/* Project recycle bin. Soft-deleted projects are removed from the list but
+   retained in full; permanent deletion is refused by the server for anything
+   carrying delivery or WHS history. */
+.aps-trash-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; padding: 7px 13px;
+  border: 1px solid #e8eee2; border-radius: 999px;
+  background: #fafcf8; color: #5c6b58;
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.aps-trash-toggle:hover { border-color: #cdd8c6; color: #173920; }
+.aps-trash-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: #a5342a; color: #fff;
+  font-size: 10.5px; font-weight: 800;
+}
+.aps-trash {
+  margin-bottom: 14px; padding: 12px;
+  border: 1px dashed #d7dccf; border-radius: 12px; background: #fbfcf8;
+}
+.aps-trash-note { margin: 0 0 10px; color: #7a877d; font-size: 12px; line-height: 1.5; }
+.aps-trash-empty { margin: 0; color: #8a927c; font-size: 12.5px; }
+.aps-proj-row--trash { align-items: center; }
+.aps-proj--static { cursor: default; background: #fff; }
+.aps-proj--static strong { display: block; color: #172d20; font-size: 14px; font-weight: 800; }
+.aps-proj--static span { color: #6b7a6d; font-size: 12px; }
