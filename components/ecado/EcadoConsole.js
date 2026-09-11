@@ -52,6 +52,7 @@ export default function EcadoConsole({ initialEscalations }) {
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
   const [projectRef, setProjectRef] = useState("");
+  const [openEvidence, setOpenEvidence] = useState("");
   const [closing, setClosing] = useState(null);
   const [reason, setReason] = useState("");
 
@@ -147,6 +148,24 @@ export default function EcadoConsole({ initialEscalations }) {
         .ec-brief-article h1, .ec-brief-article h2, .ec-brief-article h3 { font-family: "DM Serif Display", Georgia, serif; font-weight: 400; color: #173920; }
         .ec-brief-article a { color: #2c6a34; }
         .ec-indent { margin-left: 16px; }
+        .ec-escalation-body { min-width: 0; }
+        .ec-escalation-meta { color: #7a877d; }
+        .ec-evidence-toggle { margin-top: 9px; border: 1px solid #cdd8c6; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 11.5px; font-weight: 700; color: #2c6a34; cursor: pointer; font-family: inherit; }
+        .ec-evidence-toggle:hover { border-color: #1f5a34; background: #f2f7f0; }
+        .ec-evidence { margin-top: 11px; padding: 13px 15px; border: 1px solid #e3e6d8; border-left: 3px solid #1f5a34; border-radius: 0 12px 12px 0; background: #f7f9f3; }
+        .ec-evidence dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 18px; }
+        .ec-evidence dl > div { min-width: 0; }
+        .ec-evidence dt { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #7a877d; }
+        .ec-evidence dd { margin: 2px 0 0; font-size: 12.5px; color: #23301f; overflow-wrap: anywhere; }
+        .ec-evidence code { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; background: #eef1e8; padding: 1px 5px; border-radius: 4px; color: #173920; }
+        .ec-evidence-block { margin: 11px 0 0; display: block; font-size: 12.5px; line-height: 1.55; color: #23301f; }
+        .ec-evidence-block strong { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #7a877d; margin-bottom: 2px; }
+        .ec-evidence-values { margin-top: 11px; }
+        .ec-evidence-values strong { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #7a877d; margin-bottom: 5px; }
+        .ec-evidence-values ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+        .ec-evidence-values li { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+        .ec-evidence-values li span { color: #5c6b58; text-transform: capitalize; }
+        .ec-evidence-note { margin: 12px 0 0; font-size: 11px; color: #7a877d; line-height: 1.5; }
         .ec-empty { font-size: 13px; color: #7a877d; }
       `}</style>
 
@@ -172,10 +191,65 @@ export default function EcadoConsole({ initialEscalations }) {
         ) : (
           escalations.map((e) => (
             <div key={e.id} className="ec-escalation">
-              <div>
+              <div className="ec-escalation-body">
                 <strong>{ICON[e.rating]} {e.title}</strong>
                 <p>{e.what_happened}</p>
-                <p style={{ color: "#94a3b8" }}>Opened {new Date(e.opened_at).toLocaleDateString("en-AU")} \u00b7 {e.owner || "unassigned"}</p>
+                <p className="ec-escalation-meta">Opened {new Date(e.opened_at).toLocaleDateString("en-AU")} \u00b7 {e.owner || "unassigned"}</p>
+
+                {/* Evidence drawer. Every field here was already computed and
+                    persisted with the escalation, then discarded at render —
+                    so a reader could see the conclusion but not what produced
+                    it. Explainability is the point of a finding: the rule that
+                    fired, the record it read, the severity history, and what
+                    is being asked of the reader. */}
+                <button
+                  type="button"
+                  className="ec-evidence-toggle"
+                  aria-expanded={openEvidence === e.id}
+                  onClick={() => setOpenEvidence(openEvidence === e.id ? "" : e.id)}
+                >
+                  {openEvidence === e.id ? "Hide" : "Why Ecado flagged this"}
+                </button>
+
+                {openEvidence === e.id ? (
+                  <div className="ec-evidence">
+                    <dl>
+                      <div><dt>Rule</dt><dd><code>{e.rule_id}</code></dd></div>
+                      <div><dt>Source record</dt><dd>{e.source_ref || `${e.source_type} ${e.source_id}`}</dd></div>
+                      <div><dt>Severity</dt><dd>{e.rating}{e.peak_rating && e.peak_rating !== e.rating ? ` (peaked at ${e.peak_rating})` : ""}</dd></div>
+                      <div><dt>Escalation level</dt><dd>{e.level} of 4</dd></div>
+                      <div><dt>First seen</dt><dd>{new Date(e.opened_at).toLocaleString("en-AU")}</dd></div>
+                      {e.last_seen_at ? <div><dt>Last confirmed</dt><dd>{new Date(e.last_seen_at).toLocaleString("en-AU")}</dd></div> : null}
+                      <div><dt>Owner</dt><dd>{e.owner || "Unassigned"}</dd></div>
+                    </dl>
+
+                    {e.why_it_matters ? (
+                      <p className="ec-evidence-block"><strong>Why it matters</strong><span>{e.why_it_matters}</span></p>
+                    ) : null}
+                    {e.what_next ? (
+                      <p className="ec-evidence-block"><strong>What next</strong><span>{e.what_next}</span></p>
+                    ) : null}
+
+                    {e.detail && Object.keys(e.detail).length ? (
+                      <div className="ec-evidence-values">
+                        <strong>Values read</strong>
+                        <ul>
+                          {Object.entries(e.detail).map(([key, value]) => (
+                            <li key={key}>
+                              <span>{key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toLowerCase()}</span>
+                              <code>{value === null || value === undefined ? "—" : String(value)}</code>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <p className="ec-evidence-note">
+                      Determined by rule <code>{e.rule_id}</code> against the record above, not by the language model.
+                      Ecado does not approve, assign or change records.
+                    </p>
+                  </div>
+                ) : null}
               </div>
               <button type="button" className="ec-close-btn" onClick={() => { setClosing(e); setReason(""); }}>Close…</button>
             </div>

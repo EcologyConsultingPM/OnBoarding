@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node scripts/ecado_evals.mjs && node scripts/check_portal_visibility_contract.mjs && node scripts/check_core_training_quiz_contract.mjs && node scripts/check_responsive_portal_contract.mjs",
+    "test:ecado": "node scripts/ecado_evals.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^8.55.2",
