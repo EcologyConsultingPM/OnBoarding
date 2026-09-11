@@ -42,7 +42,7 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
       .then((data) => setVisibility(data.visibility || {}))
       .catch(() => setVisibility({}))
       .finally(() => setVisibilityReady(true));
-  }, [session]);
+  }, [session?.access_token]);
 
   const visibleTabs = TABS.filter(
     (candidate) => !visibilityReady || visibility[candidate.resourceKey] !== false,

@@ -37,7 +37,7 @@ export default function AdminRemoteOps() {
       ]);
       setProfiles(p.records); setClientRecords(c.records); setQuotes(q.records); setIssues(i.records);
     } catch (e) { setError(e.message); }
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => { if (session?.access_token) reload(); }, [session, reload]);
 

@@ -56,7 +56,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
   const authFetch = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const apiBase = kingdom === "flora" ? "/api/flora-photos" : "/api/fauna-photos";
 

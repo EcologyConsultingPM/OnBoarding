@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Scale, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import Legis from "./Legis";
+import useFormDraft from "../lib/useFormDraft";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -37,6 +38,8 @@ function safeRecords(value) {
 // Regulatory Watch deliberately displays only to administrators. Automated
 // source changes are unreviewed compliance prompts, never legal advice or an
 // automatic change to forms, survey standards or controlled documents.
+const BLANK_UPDATE = { title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] };
+
 export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
@@ -51,7 +54,16 @@ export default function AdminRegulatoryWatch({ onToast }) {
   const [openId, setOpenId] = useState("");
   const [drafts, setDrafts] = useState({});
   const [creating, setCreating] = useState(false);
-  const [newUpdate, setNewUpdate] = useState({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+  // Manually adding a regulatory update is a research task — a reviewer may
+  // have several tabs open reading source material while composing it. Losing
+  // it to a tab switch (see the TOKEN_REFRESHED remount) is expensive.
+  const {
+    value: newUpdate,
+    setValue: setNewUpdate,
+    restored: updateDraftRestored,
+    discard: discardUpdateDraft,
+    clear: clearUpdateDraft,
+  } = useFormDraft(session?.user?.id ? `ec-reg-update-draft:${session.user.id}` : "", BLANK_UPDATE, { ignore: ["severity"] });
 
   const headers = useCallback(() => ({
     "Content-Type": "application/json",
@@ -179,7 +191,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not add the regulatory update.");
       setUpdates((current) => [body.update, ...current]);
-      setNewUpdate({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+      setNewUpdate(BLANK_UPDATE);
+      clearUpdateDraft();
       setCreating(false);
       onToast?.("Regulatory Watch item added for review.");
     } catch (err) {
@@ -275,6 +288,12 @@ export default function AdminRegulatoryWatch({ onToast }) {
         <section className="reg-watch__create">
           <h3><Plus size={16} /> Record an official update for review</h3>
           <p>This creates an internal review item only. It does not alter any procedure, survey method, form or staff requirement.</p>
+          {updateDraftRestored ? (
+            <p className="aps-draft-note">
+              An unsaved regulatory update was restored from this browser.
+              <button type="button" onClick={discardUpdateDraft}>Discard and start again</button>
+            </p>
+          ) : null}
           <div className="reg-watch__form-grid">
             <label><span>Official source</span><select value={newUpdate.source_id} onChange={(event) => setNewUpdate({ ...newUpdate, source_id: event.target.value, source_url: "" })}><option value="">Choose source or enter URL below</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}</select></label>
             <label><span>Priority</span><select value={newUpdate.severity} onChange={(event) => setNewUpdate({ ...newUpdate, severity: event.target.value })}>{Object.entries(SEVERITY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

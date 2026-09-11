@@ -22,7 +22,7 @@ export default function AdminWhsMonitor() {
         setData(payload);
       } catch (e) { setError(e.message); }
     })();
-  }, [session]);
+  }, [session?.access_token]);
 
   if (error) return <div className="wm"><p className="wm-error"><AlertCircle size={15} /> {error}</p></div>;
   if (!data) return <div className="wm"><p style={{ color: "#6b755f", fontWeight: 600 }}>Loading WHS dashboard…</p></div>;

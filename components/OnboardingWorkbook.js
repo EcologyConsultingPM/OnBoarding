@@ -3504,7 +3504,7 @@ function AdminHome({ onNavigate }) {
     })
       .then((r) => setEcadoViewer(r.ok))
       .catch(() => setEcadoViewer(false));
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3526,7 +3526,7 @@ function AdminHome({ onNavigate }) {
         ),
       )
       .catch(() => setRegulatoryOpen(0));
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3538,7 +3538,7 @@ function AdminHome({ onNavigate }) {
       )
       .then((data) => setVisibility(data.visibility || {}))
       .catch(() => setVisibility({}));
-  }, [session]);
+  }, [session?.access_token]);
 
   // Project Health remains inside Projects & Operations. The remaining administration
   // areas use the same image-backed domain-card language as Staff Home so the control
@@ -3972,7 +3972,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       .then((r) => r.json())
       .then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : []))
       .catch(() => {});
-  }, [session]);
+  }, [session?.access_token]);
 
   const markSeen = async () => {
     setShowOutcomes(true);
