@@ -17962,3 +17962,23 @@ main {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Inline error inside the open service-request action panel.
+   The page-level .sr-error sits in the header; with a long request list the
+   action buttons can be well below the fold, so a failed validation
+   ("Provide a note for this action.") rendered off-screen and the button
+   appeared to do nothing. */
+.sr-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  padding: 8px 12px;
+  border: 1px solid #e6c3bd;
+  border-left: 3px solid #a5342a;
+  border-radius: 0 9px 9px 0;
+  background: #fbecea;
+  color: #a5342a;
+  font-size: 12.5px;
+  font-weight: 600;
+}
