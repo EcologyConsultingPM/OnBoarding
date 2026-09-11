@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
+import { listDirectoryUsers } from "../../../lib/staffDirectory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,12 +46,146 @@ async function ownEntries(access) {
   return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
 }
 
+// Every person allocated to a project needs to see the same picture: the live
+// budget position AND what their colleagues have already logged against it.
+// `ownEntries` is deliberately self-scoped, so this adds a sibling that is
+// scoped to a SINGLE project and gated on the caller being allocated to that
+// project (or an admin). It never returns rows for projects the caller is not
+// on, so "per assigned project" is enforced server-side rather than by the UI.
+async function teamEntries(access, projectId, eligible) {
+  const allowed = access.isAdmin || (eligible.projects || []).some((project) => project.id === projectId);
+  if (!allowed) return { allowed: false, entries: [], team: [] };
+
+  let result = await access.admin
+    .from("project_tracker_entries")
+    .select("id, project_id, staff_user_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at, updated_at, allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name), activity:project_activities!project_tracker_entries_activity_id_fkey(title)")
+    .eq("project_id", projectId)
+    .order("work_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (result.error && unavailable(result.error)) {
+    result = await access.admin
+      .from("project_tracker_entries")
+      .select("id, project_id, staff_user_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at, updated_at, allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name)")
+      .eq("project_id", projectId)
+      .order("work_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1000);
+  }
+  if (result.error) {
+    if (unavailable(result.error)) return { allowed: true, available: false, entries: [], team: [] };
+    throw new Error(result.error.message);
+  }
+
+  const rows = result.data || [];
+
+  // Name resolution is best-effort: if the directory lookup fails the board
+  // still renders, just with ids replaced by a neutral label rather than
+  // failing the whole request.
+  let nameById = new Map();
+  try {
+    const directory = await listDirectoryUsers(access.admin);
+    nameById = new Map((directory || []).map((person) => [person.id, person.name || person.email]));
+  } catch { nameById = new Map(); }
+
+  const [allocationsResult, activitiesResult] = await Promise.all([
+    access.admin.from("project_budget_allocations").select("id, allocation_code, allocation_name, allocation_hours, hours_consumed, allocation_value, staff_visible, status").eq("project_id", projectId),
+    access.admin.from("project_activities").select("id, title, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours").eq("project_id", projectId).eq("is_active", true),
+  ]);
+
+  const hoursByStaff = new Map();
+  rows.forEach((row) => {
+    hoursByStaff.set(row.staff_user_id, (hoursByStaff.get(row.staff_user_id) || 0) + Number(row.hours || 0));
+  });
+
+  // Only allocations an admin has explicitly marked staff_visible are exposed,
+  // and dollar values are withheld from non-admins so the board can be shown to
+  // the whole team without leaking commercial figures.
+  const allocations = (allocationsResult.error ? [] : allocationsResult.data || [])
+    .filter((allocation) => access.isAdmin || (allocation.staff_visible === true && allocation.status === "active"))
+    .map((allocation) => ({
+      id: allocation.id,
+      code: allocation.allocation_code,
+      name: allocation.allocation_name,
+      budgetHours: Number(allocation.allocation_hours || 0),
+      hoursConsumed: Number(allocation.hours_consumed || 0),
+      hoursRemaining: Number(allocation.allocation_hours || 0) - Number(allocation.hours_consumed || 0),
+      budgetValue: access.isAdmin ? Number(allocation.allocation_value || 0) : null,
+    }));
+
+  const activities = (activitiesResult.error ? [] : activitiesResult.data || []).map((activity) => ({
+    id: activity.id,
+    title: activity.title,
+    taskCategory: activity.task_category || "",
+    staffUserId: activity.staff_user_id,
+    staffName: nameById.get(activity.staff_user_id) || "Unassigned",
+    status: activity.status,
+    acceptanceStatus: activity.acceptance_status,
+    progressPercent: activity.progress_percent,
+    dueDate: activity.due_date || null,
+    budgetHours: activity.budget_hours ?? null,
+    isMine: activity.staff_user_id === access.user.id,
+  }));
+
+  return {
+    allowed: true,
+    available: true,
+    allocations,
+    activities,
+    totals: {
+      budgetHours: allocations.reduce((sum, a) => sum + a.budgetHours, 0),
+      hoursConsumed: allocations.reduce((sum, a) => sum + a.hoursConsumed, 0),
+      hoursRemaining: allocations.reduce((sum, a) => sum + a.hoursRemaining, 0),
+      entryCount: rows.length,
+      contributorCount: hoursByStaff.size,
+    },
+    team: [...hoursByStaff.entries()]
+      .map(([staffUserId, totalHours]) => ({
+        staffUserId,
+        staffName: nameById.get(staffUserId) || "Team member",
+        totalHours: Math.round(totalHours * 100) / 100,
+        isMine: staffUserId === access.user.id,
+      }))
+      .sort((a, b) => b.totalHours - a.totalHours),
+    entries: rows.map((entry) => ({
+      id: entry.id,
+      projectId: entry.project_id,
+      staffUserId: entry.staff_user_id,
+      staffName: nameById.get(entry.staff_user_id) || "Team member",
+      isMine: entry.staff_user_id === access.user.id,
+      allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated",
+      activityTitle: entry.activity?.title || "",
+      workDate: entry.work_date,
+      category: entry.activity_category,
+      information: entry.activity_information,
+      hours: entry.hours,
+      status: entry.status,
+      notableIssues: entry.notable_issues || "",
+      createdAt: entry.created_at,
+      updatedAt: entry.updated_at,
+    })),
+  };
+}
+
 export async function GET(request) {
   try {
     const access = await requireSession(request); if (access.error) return access.error;
     const denied = await requirePortalResource(access, "staff.projects.tracker"); if (denied) return denied;
     const [eligible, entries] = await Promise.all([eligibleProjects(access), ownEntries(access)]);
-    return Response.json({ ready: eligible.available && entries.available, eligibleProjects: eligible.projects, entries: entries.entries });
+
+    // ?projectId=<uuid> additionally returns the shared team board for that one
+    // project. Omitted => unchanged legacy response, so existing callers and any
+    // cached client bundle keep working.
+    const requestedProject = String(new URL(request.url).searchParams.get("projectId") || "").trim();
+    let board = null;
+    if (requestedProject) {
+      if (!validId(requestedProject)) return jsonError("A valid project is required.");
+      const team = await teamEntries(access, requestedProject, eligible);
+      if (!team.allowed) return jsonError("You are not allocated to this project.", 403);
+      board = team;
+    }
+
+    return Response.json({ ready: eligible.available && entries.available, eligibleProjects: eligible.projects, entries: entries.entries, board });
   } catch (error) { return serverError(error); }
 }
 

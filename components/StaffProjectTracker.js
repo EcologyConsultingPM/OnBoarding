@@ -12,6 +12,7 @@ import {
   Plus,
   TrendingUp,
   UserRound,
+  Users,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 
@@ -87,6 +88,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     }),
     [session?.access_token],
   );
+  const [board, setBoard] = useState(null);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [teamView, setTeamView] = useState("all");
+
   const selected = useMemo(
     () => projects.find((project) => project.id === form.projectId) || null,
     [projects, form.projectId],
@@ -162,6 +167,26 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   };
   const setField = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  // The shared per-project board: live budget position plus every team member's
+  // entries for THIS project only. Fetched separately from `load` so switching
+  // project does not re-pull the whole workspace, and so a board failure can
+  // never blank the entry form.
+  const loadBoard = useCallback(async (projectId) => {
+    if (!session?.access_token || !projectId) { setBoard(null); return; }
+    setBoardLoading(true);
+    try {
+      const response = await fetch(`/api/project-tracker-entries?projectId=${projectId}`, { headers: headers(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      setBoard(response.ok ? body.board || null : null);
+    } catch {
+      setBoard(null);
+    } finally {
+      setBoardLoading(false);
+    }
+  }, [headers, session?.access_token]);
+
+  useEffect(() => { loadBoard(form.projectId); }, [loadBoard, form.projectId]);
+
   const submit = async () => {
     if (!selected || !selectedSource || !selectedAllocation) {
       setError("Choose a project, budget source and allocation.");
@@ -206,8 +231,11 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
         );
       setEntries((current) => [body.entry, ...current]);
       setForm(blankForm(selected));
+      // Re-pull the shared board so the team's consumed/remaining hours and the
+      // entry list reflect this submission immediately for everyone.
+      loadBoard(form.projectId);
       setMessage(
-        "Project Tracker entry saved. It is now visible in your Timesheets history.",
+        "Project Tracker entry saved. The whole project team can now see it, and the remaining budget has been updated.",
       );
       setTimeout(() => setMessage(""), 4000);
     } catch (saveError) {
@@ -278,43 +306,145 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       ) : (
         <>
         {selected ? (
+          <>
           <section className="st-entry-card" aria-label="Project budget and hours — visible to the whole assigned team">
             <div className="st-card-head">
               <div>
-                <span className="st-kicker"><TrendingUp size={13} /> Whole-team visibility</span>
-                <h2>Budget & hours — {selected.name}</h2>
-                <p>Shared across everyone allocated to this project — hours consumed reflect entries from the whole team, not just your own.</p>
+                <span className="st-kicker"><TrendingUp size={13} /> Whole-team visibility · live</span>
+                <h2>Budget &amp; hours — {selected.name}</h2>
+                <p>
+                  Shared with everyone allocated to {selected.name}. Consumed hours
+                  include every team member&apos;s entries, not just your own.
+                  {board?.totals ? ` ${board.totals.entryCount} entr${board.totals.entryCount === 1 ? "y" : "ies"} from ${board.totals.contributorCount} team member${board.totals.contributorCount === 1 ? "" : "s"}.` : ""}
+                </p>
+              </div>
+              <button type="button" className="st-refresh" onClick={() => loadBoard(form.projectId)} disabled={boardLoading}>
+                {boardLoading ? <Loader2 size={13} className="spin" /> : <TrendingUp size={13} />} Refresh
+              </button>
+            </div>
+
+            {/* Prefer the board's figures (server-computed, team-wide and
+                permission-filtered). Fall back to the allocations embedded in
+                the eligibility payload if the board could not be loaded, so
+                this panel degrades rather than disappearing. */}
+            {(() => {
+              const rows = board?.allocations?.length
+                ? board.allocations
+                : (selected.sources || []).flatMap((source) => source.allocations || []).map((allocation) => ({
+                    id: allocation.id,
+                    code: allocation.allocation_code,
+                    name: allocation.allocation_name,
+                    budgetHours: Number(allocation.allocation_hours || 0),
+                    hoursConsumed: Number(allocation.hours_consumed || 0),
+                    hoursRemaining: Number(allocation.allocation_hours || 0) - Number(allocation.hours_consumed || 0),
+                    budgetValue: allocation.allocation_value,
+                  }));
+              const totalBudget = rows.reduce((sum, row) => sum + row.budgetHours, 0);
+              const totalConsumed = rows.reduce((sum, row) => sum + row.hoursConsumed, 0);
+              const totalRemaining = totalBudget - totalConsumed;
+              const totalPct = totalBudget ? Math.min(100, Math.round((totalConsumed / totalBudget) * 100)) : 0;
+              return (
+                <>
+                  {rows.length ? (
+                    <div className="st-budget-summary">
+                      <div><span>Budget</span><strong>{totalBudget.toFixed(1)} h</strong></div>
+                      <div><span>Consumed</span><strong>{totalConsumed.toFixed(1)} h</strong></div>
+                      <div className={totalRemaining < 0 ? "st-over" : ""}><span>Remaining</span><strong>{totalRemaining.toFixed(1)} h</strong></div>
+                      <div><span>Used</span><strong>{totalPct}%</strong></div>
+                    </div>
+                  ) : null}
+                  <div className="st-table-wrap">
+                    <table>
+                      <thead><tr><th>Allocation</th><th>Budget hours</th><th>Consumed</th><th>Remaining</th><th>Budget $</th></tr></thead>
+                      <tbody>
+                        {rows.map((row) => {
+                          const pct = row.budgetHours ? Math.min(100, Math.round((row.hoursConsumed / row.budgetHours) * 100)) : 0;
+                          return (
+                            <tr key={row.id}>
+                              <td><strong>{row.name}</strong><small>{row.code}</small></td>
+                              <td>{row.budgetHours || "—"} h</td>
+                              <td>
+                                <div className="st-budget-bar"><i style={{ width: `${pct}%`, background: pct >= 100 ? "#c0392b" : pct >= 80 ? "#c9962a" : "#2c6a34" }} /></div>
+                                {row.hoursConsumed} h ({pct}%)
+                              </td>
+                              <td style={{ color: row.hoursRemaining < 0 ? "#c0392b" : undefined }}>{row.hoursRemaining.toFixed(1)} h</td>
+                              <td>{row.budgetValue === null || row.budgetValue === undefined ? "—" : money(row.budgetValue)}</td>
+                            </tr>
+                          );
+                        })}
+                        {!rows.length ? (
+                          <tr><td colSpan={5} style={{ textAlign: "center", color: "#8a927c" }}>No budget allocations configured for this project yet.</td></tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
+
+            {board?.team?.length ? (
+              <div className="st-team-hours">
+                <h3>Hours logged by the project team</h3>
+                <ul>
+                  {board.team.map((member) => (
+                    <li key={member.staffUserId} className={member.isMine ? "st-mine" : ""}>
+                      <span>{member.staffName}{member.isMine ? " (you)" : ""}</span>
+                      <strong>{member.totalHours.toFixed(1)} h</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+
+          {/* Per-assigned-project only: this panel is driven by an endpoint that
+              refuses any project the signed-in user is not allocated to. */}
+          <section className="st-entry-card" aria-label="Project team tracker entries">
+            <div className="st-card-head">
+              <div>
+                <span className="st-kicker"><Users size={13} /> Project team activity</span>
+                <h2>Team entries — {selected.name}</h2>
+                <p>Everything logged against this project by everyone allocated to it, newest first. Entries for other projects are never shown here.</p>
+              </div>
+              <div className="st-view-toggle" role="group" aria-label="Filter entries">
+                <button type="button" className={teamView === "all" ? "is-active" : ""} onClick={() => setTeamView("all")}>Whole team</button>
+                <button type="button" className={teamView === "mine" ? "is-active" : ""} onClick={() => setTeamView("mine")}>Only mine</button>
               </div>
             </div>
-            <div className="st-table-wrap">
-              <table>
-                <thead><tr><th>Allocation</th><th>Budget hours</th><th>Consumed</th><th>Remaining</th><th>Budget $</th></tr></thead>
-                <tbody>
-                  {(selected.sources || []).flatMap((source) => source.allocations || []).map((allocation) => {
-                    const budgetHours = Number(allocation.allocation_hours || 0);
-                    const consumed = Number(allocation.hours_consumed || 0);
-                    const remaining = budgetHours - consumed;
-                    const pct = budgetHours ? Math.min(100, Math.round((consumed / budgetHours) * 100)) : 0;
-                    return (
-                      <tr key={allocation.id}>
-                        <td><strong>{allocation.allocation_name}</strong><small>{allocation.allocation_code}</small></td>
-                        <td>{budgetHours || "—"} h</td>
-                        <td>
-                          <div className="st-budget-bar"><i style={{ width: `${pct}%`, background: pct >= 100 ? "#c0392b" : pct >= 80 ? "#c9962a" : "#2c6a34" }} /></div>
-                          {consumed} h ({pct}%)
-                        </td>
-                        <td style={{ color: remaining < 0 ? "#c0392b" : undefined }}>{remaining.toFixed(1)} h</td>
-                        <td>{money(allocation.allocation_value)}</td>
-                      </tr>
-                    );
-                  })}
-                  {!(selected.sources || []).flatMap((s) => s.allocations || []).length ? (
-                    <tr><td colSpan={5} style={{ textAlign: "center", color: "#8a927c" }}>No budget allocations configured for this project yet.</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+
+            {boardLoading && !board ? (
+              <p className="st-empty"><Loader2 size={14} className="spin" /> Loading the project team&apos;s entries…</p>
+            ) : !board ? (
+              <p className="st-empty">The shared project view is unavailable right now. Your own entries are still listed below.</p>
+            ) : (() => {
+              const visible = (board.entries || []).filter((entry) => teamView === "all" || entry.isMine);
+              if (!visible.length) return <p className="st-empty">No Project Tracker entries have been recorded against {selected.name} yet.</p>;
+              return (
+                <div className="st-table-wrap">
+                  <table>
+                    <thead><tr><th>Date</th><th>Staff</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {visible.map((entry) => (
+                        <tr key={entry.id} className={entry.isMine ? "st-mine" : ""}>
+                          <td>{entry.workDate}</td>
+                          <td><strong>{entry.staffName}</strong>{entry.isMine ? <small>you</small> : null}</td>
+                          <td>{entry.allocation}</td>
+                          <td>
+                            {entry.activityTitle ? <strong>{entry.activityTitle}</strong> : null}
+                            <small>{entry.category}</small>
+                            {entry.notableIssues ? <small className="st-issue">Issue: {entry.notableIssues}</small> : null}
+                          </td>
+                          <td>{entry.hours} h</td>
+                          <td>{String(entry.status || "").replaceAll("_", " ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </section>
+          </>
         ) : null}
         <section className="st-entry-card">
           <div className="st-card-head">
