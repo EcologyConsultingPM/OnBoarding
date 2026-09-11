@@ -5010,14 +5010,12 @@ export default function OnboardingWorkbook() {
                 staffOnly: true,
                 href: "/staff/timesheets",
               },
-              {
-                key: "remoteops",
-                label: "Task Briefs",
-                desc: "Assigned task briefs, updates and delivery handovers",
-                Icon: Users2,
-                staffOnly: true,
-                href: "/staff/remote-operations",
-              },
+              // "Task Briefs" removed: it pointed at the retired
+              // /staff/remote-operations route, and the Notifications domain
+              // card above already covers "Task briefs, project allocations and
+              // decisions requiring your attention" — two cards, one
+              // destination. Remote/delivery issues are raised through Service
+              // Requests ("Remote / delivery issue").
             ]
               .filter((item) => {
                 if (item.requiresOnboarding && !hasAssignedOnboarding)

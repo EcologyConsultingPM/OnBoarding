@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardList, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WorkspaceNav from "./WorkspaceNav";
 
 const initialForm = {
   organisation: "", siteLocation: "", incidentDate: "", incidentTime: "", reportDate: "",
@@ -125,6 +126,9 @@ export default function IncidentReportWorkspace() {
   return (
     <main className="swms-page">
       <header className="swms-hero">
+        {/* This workspace had no route back to the portal at all — a staff
+            member who opened it could only leave via the browser back button. */}
+        <WorkspaceNav audience="staff" />
         <span><ClipboardList size={18} /> Ecology Consulting · WHS incident record</span>
         <h1>Incident report form</h1>
         <p>Record what is known to have occurred — facts, not assumptions. Submit for review; full root cause analysis is completed separately.</p>

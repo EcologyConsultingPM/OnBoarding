@@ -284,7 +284,9 @@ export async function DELETE(request) {
       severity: "information",
       title: "Remote Task withdrawn",
       body: `${data.project}: ${data.task} has been withdrawn.`,
-      href: "/staff/remote-operations",
+      // Task briefs are actioned in the Pending task briefs panel on the
+      // Notifications page; /staff/remote-operations is retired.
+      href: "/staff/notifications",
       source_table: "remote_tasks",
       source_id: data.id,
     });

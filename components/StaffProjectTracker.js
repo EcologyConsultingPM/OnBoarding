@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import WorkspaceNav from "./WorkspaceNav";
 
 const STATUS = {
   not_commenced: { label: "Not commenced", tone: "not-commenced" },
@@ -258,11 +259,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   return (
     <main className={`staff-tracker${embedded ? " st-embedded" : ""}`}>
       <header className="st-hero">
-        {!embedded ? (
-          <a className="workspace-home-link" href="/">
-            Home
-          </a>
-        ) : null}
+        {/* Was a raw <a href="/">, which forces a full page reload and discards
+            SPA state — including any half-entered tracker row. WorkspaceNav uses
+            next/link and matches every other staff workspace. */}
+        {!embedded ? <WorkspaceNav audience="staff" /> : null}
         <span>
           <ClipboardList size={14} /> Ecology Consulting · staff project
           tracking

@@ -14,6 +14,25 @@
 -- Written to be idempotent so it can be applied over the existing tables:
 -- every statement is IF NOT EXISTS / ADD COLUMN IF NOT EXISTS. Verify against
 -- production with the audit query at the end BEFORE relying on it.
+--
+-- VERIFICATION STATUS (2026-09-11)
+--   CONFIRMED against live introspection:
+--     - all primary keys and the ecado_escalations fingerprint UNIQUE
+--     - ecado_escalations_level_check
+--     - ecado_closure_requires_reason (live has NO trim; see note below)
+--     - live has NO check on rating / peak_rating
+--     - a sixth table exists: ecado_threshold_history
+--     - citext extension is installed and is a hard dependency
+--     - RLS policies exist and are gated on is_ecado_viewer()
+--     - trigger trg_ecado_threshold_change on ecado_thresholds
+--   NOT CONFIRMED (introspection output was not retrievable):
+--     - column types, nullability and defaults on every ecado_% table
+--     - whether closed_by is text or citext
+--     - the body of ecado_log_threshold_change(), and therefore the true
+--       column list of ecado_threshold_history (the shape below is INFERRED)
+--     - whether service_role retains table-level UPDATE on ecado_escalations
+--   Run the queries at the foot of this file and correct the two blocks
+--   marked UNVERIFIED before treating this as the source of truth.
 
 -- ---------------------------------------------------------------------------
 -- Access allow-list for the hidden /admin/ecado domain.

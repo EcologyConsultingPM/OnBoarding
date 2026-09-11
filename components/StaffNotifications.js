@@ -125,7 +125,7 @@ export default function StaffNotifications() {
             </div>
           </section>
 
-          <a className="sn-open-remote" href="/staff/remote-operations">
+          <a className="sn-open-remote" href="/staff/service-requests">
             <span>
               <ClipboardList size={16} /> View all Task Briefs (including in-progress)
             </span>
