@@ -4,7 +4,7 @@ import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
+const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active, deliverable_id";
 const LEGACY_COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, status, pause_reason, sort_order, updated_at, created_at";
 const ACTIVITY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 
