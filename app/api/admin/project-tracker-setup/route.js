@@ -140,7 +140,7 @@ async function settingsByProject(access) {
 
 // Must exactly match TASK_CATEGORIES in components/AdminProjectSetup.js — see
 // the identical fix and explanation in app/api/projects/[projectId]/activities/approval/route.js.
-const STANDARD_TRACKER_CATEGORIES = ["Desktop/Field plan", "Preparation (pre-fieldwork, pre-report set up)", "Fieldwork & travel", "Data Management", "Reporting", "GIS/Mapping", "QA Review", "Client Consultation", "General Project Management", "Other"];
+const STANDARD_TRACKER_CATEGORIES = ["Desktop Assessment", "Client Information Review", "Field Plan", "GIS & Mapping", "Field Survey", "Targeted Survey", "Site Inspection", "Data Analysis", "Project Management", "Client Meeting", "Internal Meeting", "Review", "QA Review", "Reporting", "Deliverable Preparation", "Invoice", "Close-Out", "Other"];
 
 async function teamCounts(access) {
   const { data, error } = await access.admin
