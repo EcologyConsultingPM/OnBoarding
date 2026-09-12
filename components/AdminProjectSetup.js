@@ -15,6 +15,7 @@ import {
   ExternalLink,
   GripVertical,
   ClipboardCheck,
+  Check,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
@@ -620,6 +621,7 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [deliverables, setDeliverables] = useState([]);
   const [deliverableTemplates, setDeliverableTemplates] = useState([]);
   const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
   const [quickAddTitle, setQuickAddTitle] = useState("");
@@ -641,9 +643,10 @@ function ProjectDetail({
 
   const load = useCallback(async () => {
     try {
-      const [pRes, aRes] = await Promise.all([
+      const [pRes, aRes, dRes] = await Promise.all([
         auth("GET", `/api/projects/${projectId}`),
         auth("GET", `/api/projects/${projectId}/activities`),
+        auth("GET", `/api/projects/${projectId}/deliverables`),
       ]);
       const pData = await pRes.json();
       if (!pRes.ok) throw new Error(pData.error);
@@ -683,6 +686,7 @@ function ProjectDetail({
             startDate: x.start_date || "",
             milestone: x.milestone === true,
             scheduleItemId: x.schedule_item_id || "",
+            deliverableId: x.deliverable_id || "",
             status: x.status || "not_commenced",
             acceptanceStatus: x.acceptance_status || "accepted",
             responseNote: x.response_note || "",
@@ -690,6 +694,8 @@ function ProjectDetail({
             locked: x.locked === true,
           })),
         );
+      const delData = await dRes.json();
+      if (dRes.ok) setDeliverables(delData.deliverables || []);
     } catch (e) {
       fail(e);
     }
@@ -855,11 +861,13 @@ function ProjectDetail({
         const hasDetails = Boolean(project?.name);
         const hasTeam = allocations.some((a) => a.staffUserId);
         const hasActivities = activities.some((a) => (a.title || "").trim());
+        const hasDeliverables = deliverables.length > 0;
         const steps = [
-          { key: "details", label: "1. Project details", done: hasDetails },
-          { key: "team", label: "2. Staff allocations", done: hasTeam },
-          { key: "activities", label: "3. Work activities & schedule", done: hasActivities },
-          { key: "tracker", label: "4. Project Tracker", done: false, isTracker: true },
+          { key: "details", label: "1. Project information", done: hasDetails },
+          { key: "deliverables", label: "2. Deliverables", done: hasDeliverables },
+          { key: "activities", label: "3. Activities & assignments", done: hasActivities && hasTeam },
+          { key: "review", label: "4. Review & readiness", done: false },
+          { key: "tracker", label: "5. Activate project", done: false, isTracker: true },
         ];
         const readyForTracker = hasDetails && hasTeam && hasActivities;
         return (
@@ -1168,13 +1176,21 @@ function ProjectDetail({
       </section>
 
       {/* Activities */}
-      <section className="aps-card" id="aps-section-activities">
+      <section className="aps-card" id="aps-section-deliverables">
+        <div className="aps-card-head">
+          <h2>
+            <ClipboardList size={16} /> Deliverables
+          </h2>
+        </div>
+        <p className="aps-note">
+          What you're actually producing for this project. Pick a deliverable
+          type below and its standard activity checklist generates
+          automatically — you then just allocate staff, budget and dates in
+          Work Activities.
+        </p>
         {deliverableTemplates.length ? (
           <div className="aps-quick-add" style={{ background: "#0f2a1a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
             <div style={{ color: "#fffdf8", fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Quick Add from Deliverable</div>
-            <p style={{ color: "#cfe0c8", fontSize: 12, margin: "0 0 10px" }}>
-              Pick a deliverable type and its standard activity checklist is generated automatically — you then just allocate staff, budget and dates.
-            </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <select value={quickAddTemplateId} onChange={(e) => setQuickAddTemplateId(e.target.value)} style={{ minWidth: 220 }}>
                 <option value="">Select a deliverable…</option>
@@ -1193,6 +1209,27 @@ function ProjectDetail({
             </div>
           </div>
         ) : null}
+        {deliverables.length ? (
+          <div className="aps-deliverables-list">
+            {deliverables.map((d) => {
+              const linkedCount = activities.filter((a) => a.deliverableId === d.id).length;
+              return (
+                <div key={d.id} className="aps-deliverable-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, background: "#0f2a1a", marginBottom: 8 }}>
+                  <div>
+                    <strong style={{ color: "#fffdf8" }}>{d.title}</strong>
+                    <div style={{ color: "#9db894", fontSize: 11.5 }}>{d.deliverable_type || "Custom"} · {linkedCount} activit{linkedCount === 1 ? "y" : "ies"}{d.due_date ? ` · Due ${d.due_date}` : ""}</div>
+                  </div>
+                  <span style={{ color: "#cfe0c8", fontSize: 11, textTransform: "uppercase", letterSpacing: ".03em" }}>{(d.status || "not_started").replaceAll("_", " ")}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="aps-note">No deliverables added yet — use Quick Add above, or add activities directly in Work Activities below without a deliverable.</p>
+        )}
+      </section>
+
+      <section className="aps-card" id="aps-section-activities">
         <div className="aps-card-head">
           <h2>
             <ClipboardList size={16} /> Work activities
@@ -1422,6 +1459,43 @@ function ProjectDetail({
       </section>
 
       <ProjectGantt schedule={schedule} />
+
+      {(() => {
+        const namedActivities = activities.filter((a) => (a.title || "").trim());
+        const checks = [
+          { label: "Deliverables Added", pass: deliverables.length > 0 },
+          { label: "Activities Allocated", pass: namedActivities.length > 0 && namedActivities.every((a) => a.staffUserId) },
+          { label: "Team Assigned", pass: allocations.some((a) => a.staffUserId) },
+          { label: "Dates Assigned", pass: namedActivities.length > 0 && namedActivities.every((a) => a.dueDate || a.startDate) },
+        ];
+        const readiness = Math.round((checks.filter((c) => c.pass).length / checks.length) * 100);
+        const totalBudget = allocations.reduce((sum, a) => sum + (Number(a.allocatedHours) || 0) * (Number(a.hourlyRate) || 0), 0);
+
+        return (
+          <section className="aps-card" id="aps-section-review">
+            <div className="aps-card-head">
+              <h2><ClipboardCheck size={16} /> Review &amp; Readiness</h2>
+            </div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 16 }}>
+              <div><div style={{ color: "#8a927c", fontSize: 11, textTransform: "uppercase" }}>Deliverables</div><div style={{ fontSize: 20, fontWeight: 700 }}>{deliverables.length}</div></div>
+              <div><div style={{ color: "#8a927c", fontSize: 11, textTransform: "uppercase" }}>Activities</div><div style={{ fontSize: 20, fontWeight: 700 }}>{namedActivities.length}</div></div>
+              <div><div style={{ color: "#8a927c", fontSize: 11, textTransform: "uppercase" }}>Team Members</div><div style={{ fontSize: 20, fontWeight: 700 }}>{allocations.filter((a) => a.staffUserId).length}</div></div>
+              <div><div style={{ color: "#8a927c", fontSize: 11, textTransform: "uppercase" }}>Budget</div><div style={{ fontSize: 20, fontWeight: 700 }}>{totalBudget ? `$${totalBudget.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : "—"}</div></div>
+              <div><div style={{ color: "#8a927c", fontSize: 11, textTransform: "uppercase" }}>Readiness</div><div style={{ fontSize: 20, fontWeight: 700, color: readiness === 100 ? "#2c6a34" : "#c98a1e" }}>{readiness}%</div></div>
+            </div>
+            <div>
+              {checks.map((c) => (
+                <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", color: c.pass ? "#2c6a34" : "#a5772b" }}>
+                  {c.pass ? <Check size={15} /> : <AlertCircle size={15} />} {c.label}
+                </div>
+              ))}
+            </div>
+            <p className="aps-note" style={{ marginTop: 12 }}>
+              This reflects what's genuinely recorded in the setup above — it isn't a separate approval step. Once ready, use "Confirm with SE" in Work Activities to notify staff and generate the tracker.
+            </p>
+          </section>
+        );
+      })()}
 
     </div>
   );
