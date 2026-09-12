@@ -21,15 +21,23 @@ import ProjectGantt from "./ProjectGantt";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 
 const TASK_CATEGORIES = [
-  "Desktop/Field plan",
-  "Preparation (pre-fieldwork, pre-report set up)",
-  "Fieldwork & travel",
-  "Data Management",
-  "Reporting",
-  "GIS/Mapping",
+  "Desktop Assessment",
+  "Client Information Review",
+  "Field Plan",
+  "GIS & Mapping",
+  "Field Survey",
+  "Targeted Survey",
+  "Site Inspection",
+  "Data Analysis",
+  "Project Management",
+  "Client Meeting",
+  "Internal Meeting",
+  "Review",
   "QA Review",
-  "Client Consultation",
-  "General Project Management",
+  "Reporting",
+  "Deliverable Preparation",
+  "Invoice",
+  "Close-Out",
   "Other",
 ];
 const BLANK_PROJECT = {
@@ -90,6 +98,35 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   const fail = (e) => {
     setError(typeof e === "string" ? e : e.message);
     setMessage("");
+  };
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/deliverable-templates", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json())
+      .then((d) => setDeliverableTemplates(d.templates || []))
+      .catch(() => setDeliverableTemplates([]));
+  }, [session?.access_token]);
+
+  const quickAddFromTemplate = async () => {
+    if (!quickAddTemplateId) { fail("Choose a deliverable template first."); return; }
+    setQuickAddBusy(true);
+    try {
+      const res = await auth("POST", `/api/projects/${projectId}/deliverables`, {
+        templateId: quickAddTemplateId,
+        title: quickAddTitle.trim() || undefined,
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      notify(`${d.activities?.length || 0} activities generated from "${d.templateUsed}" — allocate staff, budget and dates below.`);
+      setQuickAddTemplateId("");
+      setQuickAddTitle("");
+      await load();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setQuickAddBusy(false);
+    }
   };
 
   const [removingId, setRemovingId] = useState("");
@@ -583,6 +620,10 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [deliverableTemplates, setDeliverableTemplates] = useState([]);
+  const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
+  const [quickAddTitle, setQuickAddTitle] = useState("");
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const reorderActivities = (from, to) => {
     if (from === to || from == null || to == null) return;
@@ -1128,6 +1169,30 @@ function ProjectDetail({
 
       {/* Activities */}
       <section className="aps-card" id="aps-section-activities">
+        {deliverableTemplates.length ? (
+          <div className="aps-quick-add" style={{ background: "#0f2a1a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ color: "#fffdf8", fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Quick Add from Deliverable</div>
+            <p style={{ color: "#cfe0c8", fontSize: 12, margin: "0 0 10px" }}>
+              Pick a deliverable type and its standard activity checklist is generated automatically — you then just allocate staff, budget and dates.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <select value={quickAddTemplateId} onChange={(e) => setQuickAddTemplateId(e.target.value)} style={{ minWidth: 220 }}>
+                <option value="">Select a deliverable…</option>
+                {deliverableTemplates.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.standard_activities || []).length} activities)</option>)}
+              </select>
+              <input
+                type="text"
+                placeholder="Deliverable title (optional)"
+                value={quickAddTitle}
+                onChange={(e) => setQuickAddTitle(e.target.value)}
+                style={{ minWidth: 200 }}
+              />
+              <button type="button" className="aps-secondary" onClick={quickAddFromTemplate} disabled={quickAddBusy || !quickAddTemplateId}>
+                <ClipboardList size={13} /> {quickAddBusy ? "Generating…" : "Generate activities"}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="aps-card-head">
           <h2>
             <ClipboardList size={16} /> Work activities
