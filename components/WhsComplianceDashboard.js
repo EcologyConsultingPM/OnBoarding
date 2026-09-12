@@ -347,7 +347,7 @@ const WCD_DETAIL_CSS = `
 .wcd-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
 .wcd-detail-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c6b52; }
 .wcd-detail-value { font-size: 13px; color: #23301f; line-height: 1.5; }
-.wcd-detail-empty { color: #b0b8a8; font-style: italic; font-size: 12.5px; }
+.wcd-detail-empty { color: #6b7280; font-style: italic; font-size: 12.5px; }
 .wcd-detail-sig { max-width: 220px; max-height: 90px; border: 1px solid #e3e6d8; border-radius: 6px; background: #fff; }
 .wcd-detail-sig-sm { max-width: 90px; max-height: 40px; border: 1px solid #e3e6d8; border-radius: 4px; background: #fff; }
 .wcd-detail-checklist { display: flex; flex-direction: column; gap: 6px; }
