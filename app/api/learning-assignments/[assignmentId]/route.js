@@ -19,7 +19,12 @@ export async function PATCH(request, { params }) {
     if (!access.isAdmin) {
       if (current.user_id !== access.user.id) return Response.json({ error: "You can only update your own learning assignment." }, { status: 403 });
       if (action === "start" && current.status === "assigned") { values.status = "started"; values.started_at = now; }
-      else if (action === "submit" && ["assigned", "started", "returned"].includes(current.status)) { values.status = "submitted"; values.submitted_at = now; values.remediation_note = null; }
+      else if (action === "submit" && ["assigned", "started", "returned"].includes(current.status)) {
+        values.status = "submitted"; values.submitted_at = now; values.remediation_note = null;
+        // Nothing previously told the assigner a review was actually
+        // waiting — it just sat in a queue admins had to remember to check.
+        if (current.assigned_by) { title = `Ready for review: ${current.ld_nodes?.title || "Learning"}`; bodyText = "A staff member has submitted this for assessment."; target = current.assigned_by; }
+      }
       else return Response.json({ error: "This learning action is not available at the current status." }, { status: 409 });
     } else {
       if (!["assess", "verify", "return", "lock", "unlock", "archive", "restore"].includes(action)) return Response.json({ error: "Choose a valid learning administration action." }, { status: 400 });
