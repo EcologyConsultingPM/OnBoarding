@@ -215,6 +215,7 @@ export default function PsychosocialSelfRiskAssessment({ assessmentId = null }) 
         .psa-btn.secondary { background: #fff; color: #1f5a34; border: 1px solid #1f5a34; }
         .psa-btn:disabled { opacity: .5; cursor: not-allowed; }
         .psa-error { background: #fde2e1; color: #a5342a; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+        .psa input[type=checkbox] { width: 20px; height: 20px; cursor: pointer; margin-right: 4px; vertical-align: middle; }
         .psa-readonly { background: #f7f8f2; border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: #374151; margin-bottom: 10px; }
         @media (max-width: 480px) {
           .psa-row2 { grid-template-columns: 1fr; }
