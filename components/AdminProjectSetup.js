@@ -687,6 +687,7 @@ function ProjectDetail({
             milestone: x.milestone === true,
             scheduleItemId: x.schedule_item_id || "",
             deliverableId: x.deliverable_id || "",
+            loadedUpdatedAt: x.updated_at || null,
             status: x.status || "not_commenced",
             acceptanceStatus: x.acceptance_status || "accepted",
             responseNote: x.response_note || "",
@@ -792,7 +793,10 @@ function ProjectDetail({
         activities: activities.filter((a) => a.title.trim()),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error);
+      if (!res.ok) {
+        if (res.status === 409 && d.conflicts) await load();
+        throw new Error(d.error);
+      }
       notify(`${d.count || 0} activities saved. ${d.notified || 0} staff response request${d.notified === 1 ? "" : "s"} sent.`);
       await load();
     } catch (e) {
