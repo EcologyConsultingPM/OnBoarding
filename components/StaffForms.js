@@ -27,6 +27,8 @@ import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
 import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
 import DailyRiskAssessmentForm from "./DailyRiskAssessmentForm";
+import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
+import FirstAidKitChecks from "./FirstAidKitChecks";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -470,6 +472,26 @@ export default function StaffForms() {
         onSubmitted={loadHistory}
         onToast={notify}
       />
+    );
+  }
+
+  // ---------- Psychosocial Self Risk Assessment (bespoke form) ----------
+  if (view === "form" && activeKey === "psychosocial_self_risk_assessment") {
+    return (
+      <div>
+        <button type="button" className="sf-back" onClick={backToHub}>← Back</button>
+        <PsychosocialSelfRiskAssessment />
+      </div>
+    );
+  }
+
+  // ---------- First Aid Kit Checks (bespoke form, replaces the generic schema for this key) ----------
+  if (view === "form" && activeKey === "first_aid_kit") {
+    return (
+      <div>
+        <button type="button" className="sf-back" onClick={backToHub}>← Back</button>
+        <FirstAidKitChecks />
+      </div>
     );
   }
 
