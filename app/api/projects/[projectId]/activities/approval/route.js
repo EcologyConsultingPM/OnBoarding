@@ -137,6 +137,7 @@ export async function POST(request, { params }) {
     try {
       const generated = await generateTrackerFromActivities(access, projectId);
       if (generated.error && !generated.skipped) trackerWarning = generated.error;
+      else if (generated.warning) trackerWarning = generated.warning;
 
       const { data: existingTemplate, error: templateError } = await access.admin
         .from("project_tracker_templates")
