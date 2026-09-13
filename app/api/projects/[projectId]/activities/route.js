@@ -217,6 +217,26 @@ export async function PUT(request, { params }) {
     }
     if (inputRows.some((row) => row.staffUserId && !availableIds.has(row.staffUserId))) return Response.json({ error: "Project activities must be assigned to an available staff member from the Staff List." }, { status: 400 });
 
+    // Concurrency check: if a client's copy of an activity is stale — someone
+    // else saved a change to it since this client loaded the page — reject
+    // the whole save rather than silently overwriting their change. This
+    // previously had no check at all: two admins editing the same project's
+    // activities at once meant the second save always won with no warning.
+    const conflicts = [];
+    for (const input of inputRows) {
+      if (!validId(input.id)) continue;
+      const previous = existingById.get(input.id);
+      if (previous && input.loadedUpdatedAt && previous.updated_at && new Date(previous.updated_at).getTime() !== new Date(input.loadedUpdatedAt).getTime()) {
+        conflicts.push({ id: input.id, title: previous.title });
+      }
+    }
+    if (conflicts.length) {
+      return Response.json({
+        error: `${conflicts.length} activit${conflicts.length === 1 ? "y was" : "ies were"} changed by someone else since you loaded this page. Reload to see the current version before saving.`,
+        conflicts,
+      }, { status: 409 });
+    }
+
     const scheduleResult = await access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).eq("is_active", true);
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
     const scheduleIds = new Set((scheduleResult.data || []).map((item) => item.id));
