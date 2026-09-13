@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   FolderPlus,
   ArrowLeft,
@@ -235,6 +235,10 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   // ---- Create project ----
   const [newProject, setNewProject] = useState(BLANK_PROJECT);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [activitiesDraftAvailable, setActivitiesDraftAvailable] = useState(null); // null=not checked, or the parsed draft
+  const [knownMaxUpdatedAt, setKnownMaxUpdatedAt] = useState("");
+  const [conflictPending, setConflictPending] = useState(false);
+  const [activitiesDraftRestored, setActivitiesDraftRestored] = useState(false);
 
   // Project setup is the largest data-entry surface in the app — 38 fields
   // across the create form and the detail panels — and it had no draft
@@ -242,6 +246,21 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   // refresh on tab focus, a stray navigation, a closed laptop) lost the lot.
   // Same per-user localStorage pattern already used by Service Requests.
   const draftKey = session?.user?.id ? `ec-new-project-draft:${session.user.id}` : "";
+  const activitiesDraftKey = session?.user?.id && projectId ? `ec-activities-draft:${session.user.id}:${projectId}` : "";
+
+  // Auto-save the activities editor to localStorage, debounced, so a crash
+  // or accidental navigation mid-entry doesn't lose dozens of rows of work.
+  // This never touches the server — it's purely a local safety net until
+  // "Save activities" is clicked.
+  useEffect(() => {
+    if (!activitiesDraftKey) return;
+    const meaningful = activities.some((r) => (r.title || "").trim());
+    if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [activitiesDraftKey, activities]);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -621,8 +640,6 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [activitiesDraftRestored, setActivitiesDraftRestored] = useState(false);
-  const activitiesDraftChecked = useRef(false);
   const [deliverables, setDeliverables] = useState([]);
   const [deliverableTemplates, setDeliverableTemplates] = useState([]);
   const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
@@ -675,7 +692,8 @@ function ProjectDetail({
         })),
       );
       const actData = await aRes.json();
-      if (aRes.ok)
+      if (aRes.ok) {
+        setKnownMaxUpdatedAt((actData.activities || []).reduce((max, a) => (a.updated_at && a.updated_at > max ? a.updated_at : max), ""));
         setActivities(
           (actData.activities || []).map((x) => ({
             id: x.id,
@@ -689,7 +707,6 @@ function ProjectDetail({
             milestone: x.milestone === true,
             scheduleItemId: x.schedule_item_id || "",
             deliverableId: x.deliverable_id || "",
-            loadedUpdatedAt: x.updated_at || null,
             status: x.status || "not_commenced",
             acceptanceStatus: x.acceptance_status || "accepted",
             responseNote: x.response_note || "",
@@ -697,40 +714,30 @@ function ProjectDetail({
             locked: x.locked === true,
           })),
         );
+      }
       const delData = await dRes.json();
       if (dRes.ok) setDeliverables(delData.deliverables || []);
+
+      // Check for an unsaved local draft of the activities editor, but never
+      // apply it automatically — this restores onto real server data, and a
+      // silent overwrite could clobber a more recent edit from someone else
+      // working the same project. The admin explicitly chooses via a banner.
+      if (activitiesDraftKey) {
+        try {
+          const saved = JSON.parse(window.localStorage.getItem(activitiesDraftKey) || "null");
+          if (Array.isArray(saved) && saved.some((r) => (r.title || "").trim())) {
+            setActivitiesDraftAvailable(saved);
+          }
+        } catch {}
+      }
     } catch (e) {
       fail(e);
     }
   }, [projectId, auth, fail]);
 
-  const activitiesDraftKey = session?.user?.id && projectId ? `ec-activities-draft:${projectId}:${session.user.id}` : "";
-
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (activitiesDraftChecked.current || !activitiesDraftKey || !project) return;
-    activitiesDraftChecked.current = true;
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(activitiesDraftKey) || "null");
-      if (Array.isArray(saved) && saved.some((a) => (a.title || "").trim())) {
-        setActivities(saved);
-        setActivitiesDraftRestored(true);
-      }
-    } catch {}
-  }, [activitiesDraftKey, project]);
-
-  useEffect(() => {
-    if (!activitiesDraftKey || !activitiesDraftChecked.current) return;
-    const meaningful = activities.some((a) => (a.title || "").trim());
-    if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
-    const timer = window.setTimeout(() => {
-      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [activities, activitiesDraftKey]);
 
   const saveDetails = async () => {
     try {
@@ -811,20 +818,26 @@ function ProjectDetail({
       fail(e);
     }
   };
-  const saveActivities = async () => {
+  const saveActivities = async (forceSave = false) => {
     if (savingActivities) return;
     setSavingActivities(true);
+    setConflictPending(false);
     try {
       const res = await auth("PUT", `/api/projects/${projectId}/activities`, {
         activities: activities.filter((a) => a.title.trim()),
+        knownMaxUpdatedAt,
+        forceSave,
       });
       const d = await res.json();
-      if (!res.ok) {
-        if (res.status === 409 && d.conflicts) await load();
-        throw new Error(d.error);
+      if (res.status === 409 && d.conflict) {
+        setConflictPending(true);
+        fail(d.error);
+        return;
       }
+      if (!res.ok) throw new Error(d.error);
       notify(`${d.count || 0} activities saved. ${d.notified || 0} staff response request${d.notified === 1 ? "" : "s"} sent.`);
-      if (activitiesDraftKey) { try { window.localStorage.removeItem(activitiesDraftKey); } catch {} }
+      if (activitiesDraftKey) window.localStorage.removeItem(activitiesDraftKey);
+      setActivitiesDraftAvailable(null);
       setActivitiesDraftRestored(false);
       await load();
     } catch (e) {
@@ -940,7 +953,11 @@ function ProjectDetail({
                         if (!res.ok) throw new Error(d.error);
                         setProject((p) => ({ ...p, activities_approval_status: d.project.activities_approval_status }));
                         if (action === "request_review") notify("Marked as awaiting Senior Ecologist review. Confirm the schedule and assignments via Teams, then click Approval granted.");
-                        else if (action === "approve") notify(`Approval recorded — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent.`);
+                        else if (action === "approve") {
+                          const base = `Approval recorded — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent.`;
+                          if (d.tracker_warning) fail(`${base} Tracker warning: ${d.tracker_warning}`);
+                          else notify(base);
+                        }
                         else notify("Reset to draft.");
                       } catch (e) {
                         fail(e);
@@ -1262,20 +1279,23 @@ function ProjectDetail({
       </section>
 
       <section className="aps-card" id="aps-section-activities">
+        {activitiesDraftAvailable && !activitiesDraftRestored ? (
+          <div style={{ background: "#fbf6e6", border: "1px solid #ece0bc", borderLeft: "3px solid #c9962a", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12.5 }}>
+            <strong>Unsaved activities found from a previous session.</strong> Restoring will replace what's currently shown below with your unsaved draft — review carefully if someone else may have edited this project since.
+            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+              <button type="button" className="aps-secondary" onClick={() => { setActivities(activitiesDraftAvailable); setActivitiesDraftRestored(true); }}>Restore draft</button>
+              <button type="button" className="aps-secondary" onClick={() => { if (activitiesDraftKey) window.localStorage.removeItem(activitiesDraftKey); setActivitiesDraftAvailable(null); }}>Discard draft</button>
+            </div>
+          </div>
+        ) : null}
         <div className="aps-card-head">
           <h2>
             <ClipboardList size={16} /> Work activities
           </h2>
-          <button className="aps-secondary" onClick={saveActivities} disabled={savingActivities}>
-            <Save size={13} /> {savingActivities ? "Saving activities…" : "Save activities"}
+          <button className="aps-secondary" onClick={() => saveActivities(conflictPending)} disabled={savingActivities}>
+            <Save size={13} /> {savingActivities ? "Saving activities…" : conflictPending ? "Save anyway" : "Save activities"}
           </button>
         </div>
-        {activitiesDraftRestored ? (
-          <p className="aps-draft-note">
-            Unsaved activity changes were restored from this browser — save to keep them.
-            <button type="button" className="ec-btn--quiet" onClick={() => { if (activitiesDraftKey) { try { window.localStorage.removeItem(activitiesDraftKey); } catch {} } setActivitiesDraftRestored(false); load(); }}>Discard and reload</button>
-          </p>
-        ) : null}
         <p className="aps-note">
           Assign activities to allocated staff. Staff are notified immediately;
           an optional due date also places the activity in their portal
