@@ -829,7 +829,5 @@ const DRA_CSS = `
 }
 @media (max-width: 640px) {
   .dra-ppe-grid { grid-template-columns: 1fr; }
-  .dra-row3 { grid-template-columns: 1fr; }
-  .dra-row2 { grid-template-columns: 1fr; }
 }
 `;
