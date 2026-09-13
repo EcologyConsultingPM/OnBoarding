@@ -1217,7 +1217,7 @@ function ProjectDetail({
                 <div key={d.id} className="aps-deliverable-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, background: "#0f2a1a", marginBottom: 8 }}>
                   <div>
                     <strong style={{ color: "#fffdf8" }}>{d.title}</strong>
-                    <div style={{ color: "#9db894", fontSize: 11.5 }}>{d.deliverable_type || "Custom"} · {linkedCount} activit{linkedCount === 1 ? "y" : "ies"}{d.due_date ? ` · Due ${d.due_date}` : ""}</div>
+                    <div style={{ color: "#9db894", fontSize: 11.5 }}>{d.deliverable_type === "from_quote" ? "From quote" : (d.deliverable_type || "Custom")} · {linkedCount} activit{linkedCount === 1 ? "y" : "ies"}{d.due_date ? ` · Due ${d.due_date}` : ""}</div>
                   </div>
                   <span style={{ color: "#cfe0c8", fontSize: 11, textTransform: "uppercase", letterSpacing: ".03em" }}>{(d.status || "not_started").replaceAll("_", " ")}</span>
                 </div>
