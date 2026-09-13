@@ -201,7 +201,7 @@ export default function FirstAidKitChecks() {
         .fak-kit-hint b { display: block; font-size: 10px; text-transform: uppercase; color: #8a6a1c; margin-bottom: 2px; }
         .fak-table-scroll { overflow-x: auto; border: 1px solid #e3ded2; border-radius: 6px; }
         .fak table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-        .fak th { background: #14261a; color: #fff; padding: 8px 9px; font-size: 10.5px; text-align: left; white-space: nowrap; }
+        .fak th { background: #14261a; color: #fff; padding: 8px 9px; font-size: 11.5px; text-align: left; white-space: nowrap; }
         .fak td { border: 1px solid #eaeff5; padding: 3px; }
         .fak td.ref { font-weight: 700; color: #1f5a34; padding: 7px 8px; white-space: nowrap; }
         .fak td.desc { padding: 7px 8px; }
@@ -218,6 +218,10 @@ export default function FirstAidKitChecks() {
         .fak-btn:disabled { opacity: .5; }
         .fak-error { background: #fde2e1; color: #a5342a; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
         .fak-done { text-align: center; padding: 40px 20px; color: #1f5a34; }
+        @media (max-width: 480px) {
+          .fak-outcome-row { grid-template-columns: 1fr; }
+          .fak-restock-row { grid-template-columns: 1fr; }
+        }
       `}</style>
 
       <div className="fak-header"><Package size={20} /><h2>First Aid Kit Checks</h2></div>
