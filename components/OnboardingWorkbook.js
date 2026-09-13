@@ -4124,7 +4124,13 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   const unreadForDomain = (key) =>
     portalEvents.filter((event) => {
       if (event.read_at) return false;
-      if (key === "notifications") return true;
+      // Must match the exclusions in StaffNotifications.js's EXCLUDED_EVENT_TYPES —
+      // those event types are deliberately hidden from the notification feed
+      // because they already surface in My Projects (remote_task_assigned) and
+      // Timesheets (project_tracker_entry). Counting them here too made the
+      // badge show more than the feed actually displayed underneath it.
+      if (key === "notifications")
+        return !["remote_task_assigned", "project_tracker_entry"].includes(String(event.event_type || ""));
       if (key === "projects")
         return (
           [
