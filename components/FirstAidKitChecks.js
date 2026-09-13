@@ -205,7 +205,8 @@ export default function FirstAidKitChecks() {
         .fak td { border: 1px solid #eaeff5; padding: 3px; }
         .fak td.ref { font-weight: 700; color: #1f5a34; padding: 7px 8px; white-space: nowrap; }
         .fak td.desc { padding: 7px 8px; }
-        .fak td.c { text-align: center; }
+        .fak td.c { text-align: center; padding: 6px 10px; }
+        .fak input[type=checkbox] { width: 22px; height: 22px; cursor: pointer; }
         .fak td input[type=text] { border: none; padding: 6px 8px; font-size: 11.5px; width: 100%; box-sizing: border-box; }
         .fak tr.alt td { background: #faf7f0; }
         .fak-outcome-row { padding: 0 16px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
