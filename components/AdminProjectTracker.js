@@ -13,6 +13,7 @@ import {
   Plus,
   Trash2,
   UsersRound,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectTrackerSetup from "./ProjectTrackerSetup";
@@ -98,6 +99,31 @@ export default function AdminProjectTracker({
     () => projects.find((project) => project.id === selectedId) || null,
     [projects, selectedId],
   );
+  const [healthOverrideOpen, setHealthOverrideOpen] = useState(false);
+  const [overrideStatus, setOverrideStatus] = useState("On Track");
+  const [overrideNote, setOverrideNote] = useState("");
+  const [overrideBusy, setOverrideBusy] = useState(false);
+
+  const submitHealthOverride = async (status, note) => {
+    setOverrideBusy(true);
+    try {
+      const res = await fetch("/api/admin/project-tracker", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ action: "set_health_override", projectId: selected.id, status, note }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onToast?.(status ? `Status manually set to ${status}.` : "Manual override cleared.");
+      setHealthOverrideOpen(false);
+      setOverrideNote("");
+      await load?.();
+    } catch (e) {
+      setError(e.message || "Could not update the status override.");
+    } finally {
+      setOverrideBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -331,6 +357,12 @@ export default function AdminProjectTracker({
                   </p>
                 </div>
                 <div className="apt-heading-actions">
+                  <button
+                    type="button"
+                    onClick={() => { setOverrideStatus(selected.manualHealthStatus || "On Track"); setOverrideNote(""); setHealthOverrideOpen(true); }}
+                  >
+                    <ShieldAlert size={14} /> {selected.healthOverridden ? "Status overridden" : "Override status"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => onOpenProjectSetup?.(selected.id)}
@@ -731,6 +763,36 @@ export default function AdminProjectTracker({
               onCancel={() => setAllocationEditor(null)}
               saving={saving}
             />
+          ) : null}
+
+          {healthOverrideOpen ? (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }} onClick={() => setHealthOverrideOpen(false)}>
+              <div style={{ width: "100%", maxWidth: 440, background: "#fff", borderRadius: 12, padding: 22 }} onClick={(e) => e.stopPropagation()}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Override project status</h3>
+                <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#6b7280" }}>
+                  System would currently show <strong>{selected.computedHealth}</strong> based on budget and activity data. An override is visible to anyone viewing this project, with your note attached.
+                </p>
+                <label style={{ display: "block", marginBottom: 10 }}>
+                  <span style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>Status</span>
+                  <select value={overrideStatus} onChange={(e) => setOverrideStatus(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d9d3c6" }}>
+                    <option>On Track</option><option>Watch</option><option>At Risk</option>
+                  </select>
+                </label>
+                <label style={{ display: "block", marginBottom: 14 }}>
+                  <span style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>Note — why does this differ from the computed status</span>
+                  <textarea rows={3} value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d9d3c6", boxSizing: "border-box", fontFamily: "inherit" }} />
+                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  {selected.healthOverridden ? (
+                    <button type="button" onClick={() => submitHealthOverride(null, null)} disabled={overrideBusy} style={{ background: "none", border: "1px solid #d9d3c6", borderRadius: 6, padding: "8px 14px", fontSize: 12.5, cursor: "pointer" }}>Clear override</button>
+                  ) : <span />}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" onClick={() => setHealthOverrideOpen(false)} style={{ background: "none", border: "1px solid #d9d3c6", borderRadius: 6, padding: "8px 14px", fontSize: 12.5, cursor: "pointer" }}>Cancel</button>
+                    <button type="button" onClick={() => submitHealthOverride(overrideStatus, overrideNote)} disabled={overrideBusy} style={{ background: "#1f5a34", color: "#fff", border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Save override</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
         </>
       )}
