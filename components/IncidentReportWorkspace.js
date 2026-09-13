@@ -8,7 +8,7 @@ import WorkspaceNav from "./WorkspaceNav";
 const initialForm = {
   organisation: "", siteLocation: "", incidentDate: "", incidentTime: "", reportDate: "",
   reportedBy: "", supervisorNotified: "", supervisorContact: "",
-  severityRating: "", investigationTarget: "", notifiable: "", safeworkReference: "",
+  severityRating: "", investigationTarget: "", investigationDueDate: "", notifiable: "", safeworkReference: "",
   scenePreserved: "", notifiedDatetime: "",
   personName: "", personDob: "", personPosition: "", employmentType: "", employerCompany: "",
   yearsExperience: "", yearsWithOrg: "",
@@ -164,6 +164,7 @@ export default function IncidentReportWorkspace() {
         <div className="swms-two-fields">
           <label>Severity rating<select value={form.severityRating} onChange={(e) => setField("severityRating", e.target.value)}><option value="">Select…</option>{SEVERITY.map((s) => <option key={s} value={s}>{s}</option>)}</select></label>
           <label>Investigation target<input value={form.investigationTarget} onChange={(e) => setField("investigationTarget", e.target.value)} placeholder="e.g. 10 working days" /></label>
+          <label>Investigation due date<input type="date" value={form.investigationDueDate} onChange={(e) => setField("investigationDueDate", e.target.value)} /></label>
         </div>
         <div className="swms-two-fields">
           <label>Notifiable incident?<select value={form.notifiable} onChange={(e) => setField("notifiable", e.target.value)}><option value="">Select…</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
