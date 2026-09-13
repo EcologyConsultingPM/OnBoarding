@@ -3,7 +3,7 @@ import { requireSession, serverError } from "../../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at";
+const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at, manual_health_status, manual_health_note, manual_health_set_by, manual_health_set_at";
 const SOURCE_COLUMNS = "id, project_id, source_code, source_name, source_type, approved_value, approved_hours, approval_status, variation_reason, effective_date, created_at, updated_at";
 const ALLOCATION_COLUMNS = "id, project_id, budget_source_id, allocation_code, allocation_name, allocation_value, allocation_hours, hours_consumed, charge_out_spend, internal_cost, threshold_percent, status, staff_visible, created_at, updated_at";
 
@@ -101,7 +101,10 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   if (hoursNearlyGone) healthReasons.push(`Hours consumed at ${Math.round((usedHours / budgetHours) * 100)}% of budgeted hours`);
   if (!healthReasons.length && watchAllocations) healthReasons.push(`${watchAllocations} allocation${watchAllocations === 1 ? "" : "s"} approaching its threshold`);
   if (!healthReasons.length && utilisationPercent !== null && utilisationPercent >= 80) healthReasons.push(`Overall hours utilisation at ${utilisationPercent}%`);
-  const health = atRiskAllocations || pausedActivities || overdueActivities || budgetNearlyGone || hoursNearlyGone ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  const computedHealth = atRiskAllocations || pausedActivities || overdueActivities || budgetNearlyGone || hoursNearlyGone ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  const health = project.manual_health_status || computedHealth;
+  const healthOverridden = Boolean(project.manual_health_status && project.manual_health_status !== computedHealth);
+  if (healthOverridden) healthReasons.unshift(`Manually set to ${project.manual_health_status} by an admin${project.manual_health_note ? `: ${project.manual_health_note}` : ""} (system would show ${computedHealth})`);
 
   return {
     id: project.id,
@@ -116,6 +119,10 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     taskCompletion,
     health,
     healthReasons,
+    computedHealth,
+    healthOverridden,
+    manualHealthStatus: project.manual_health_status || null,
+    manualHealthNote: project.manual_health_note || null,
     financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
@@ -239,6 +246,19 @@ export async function POST(request) {
       const { data, error } = await auth.access.admin.from("project_budget_allocations").insert({ ...payload, created_by: auth.access.user.id }).select(ALLOCATION_COLUMNS).single();
       if (error) return jsonError(error.message);
       return Response.json({ allocation: data }, { status: 201 });
+    }
+    if (action === "set_health_override") {
+      const status = body.status === null ? null : body.status;
+      if (status !== null && !["On Track", "Watch", "At Risk"].includes(status)) return jsonError("Choose On Track, Watch, At Risk, or clear the override.");
+      if (status !== null && !String(body.note || "").trim()) return jsonError("A note is required when manually overriding a project's status.");
+      const { error } = await auth.access.admin.from("projects").update({
+        manual_health_status: status,
+        manual_health_note: status === null ? null : String(body.note || "").trim(),
+        manual_health_set_by: status === null ? null : auth.access.user.id,
+        manual_health_set_at: status === null ? null : new Date().toISOString(),
+      }).eq("id", projectId);
+      if (error) return jsonError(error.message);
+      return Response.json({ ok: true });
     }
     return jsonError("Unknown Project Tracker action.");
   } catch (error) {
