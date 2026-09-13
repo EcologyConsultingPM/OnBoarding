@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   FolderPlus,
   ArrowLeft,
@@ -621,6 +621,8 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [activitiesDraftRestored, setActivitiesDraftRestored] = useState(false);
+  const activitiesDraftChecked = useRef(false);
   const [deliverables, setDeliverables] = useState([]);
   const [deliverableTemplates, setDeliverableTemplates] = useState([]);
   const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
@@ -702,9 +704,33 @@ function ProjectDetail({
     }
   }, [projectId, auth, fail]);
 
+  const activitiesDraftKey = session?.user?.id && projectId ? `ec-activities-draft:${projectId}:${session.user.id}` : "";
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (activitiesDraftChecked.current || !activitiesDraftKey || !project) return;
+    activitiesDraftChecked.current = true;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(activitiesDraftKey) || "null");
+      if (Array.isArray(saved) && saved.some((a) => (a.title || "").trim())) {
+        setActivities(saved);
+        setActivitiesDraftRestored(true);
+      }
+    } catch {}
+  }, [activitiesDraftKey, project]);
+
+  useEffect(() => {
+    if (!activitiesDraftKey || !activitiesDraftChecked.current) return;
+    const meaningful = activities.some((a) => (a.title || "").trim());
+    if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [activities, activitiesDraftKey]);
 
   const saveDetails = async () => {
     try {
@@ -798,6 +824,8 @@ function ProjectDetail({
         throw new Error(d.error);
       }
       notify(`${d.count || 0} activities saved. ${d.notified || 0} staff response request${d.notified === 1 ? "" : "s"} sent.`);
+      if (activitiesDraftKey) { try { window.localStorage.removeItem(activitiesDraftKey); } catch {} }
+      setActivitiesDraftRestored(false);
       await load();
     } catch (e) {
       fail(e);
@@ -1242,6 +1270,12 @@ function ProjectDetail({
             <Save size={13} /> {savingActivities ? "Saving activities…" : "Save activities"}
           </button>
         </div>
+        {activitiesDraftRestored ? (
+          <p className="aps-draft-note">
+            Unsaved activity changes were restored from this browser — save to keep them.
+            <button type="button" className="ec-btn--quiet" onClick={() => { if (activitiesDraftKey) { try { window.localStorage.removeItem(activitiesDraftKey); } catch {} } setActivitiesDraftRestored(false); load(); }}>Discard and reload</button>
+          </p>
+        ) : null}
         <p className="aps-note">
           Assign activities to allocated staff. Staff are notified immediately;
           an optional due date also places the activity in their portal
