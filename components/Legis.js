@@ -219,7 +219,7 @@ export default function Legis({ compact = false }) {
         .lg-development { border: 1px solid #cbd0d8; border-left: 4px solid; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; background: #fff; }
         .lg-development-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
         .lg-classification { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; border: 1px solid; }
-        .lg-severity-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; color: #4b5563; }
+        .lg-severity-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #4b5563; }
         .lg-development-cat, .lg-development-juris { font-size: 11px; color: #4b5563; }
         .lg-development h4 { margin: 0 0 6px; font-size: 14.5px; color: #001F54; }
         .lg-level1 { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #0F172A; font-weight: 500; }
