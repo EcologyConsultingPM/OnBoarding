@@ -357,7 +357,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
         .scp-modal-save { display: inline-flex; align-items: center; gap: 6px; background: #1f5a34; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; margin-left: auto; }
         .scp-modal-save:disabled { opacity: .6; cursor: not-allowed; }
         .scp-success { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #2c6a34; background: #eef6ea; border: 1px solid rgba(44,106,52,.25); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
-        @media (max-width: 480px) {
+        @media (max-width: 640px) {
           .scp-modal-row { grid-template-columns: 1fr; }
         }
       `}</style>
