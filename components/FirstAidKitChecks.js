@@ -219,7 +219,7 @@ export default function FirstAidKitChecks() {
         .fak-btn:disabled { opacity: .5; }
         .fak-error { background: #fde2e1; color: #a5342a; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
         .fak-done { text-align: center; padding: 40px 20px; color: #1f5a34; }
-        @media (max-width: 480px) {
+        @media (max-width: 640px) {
           .fak-outcome-row { grid-template-columns: 1fr; }
           .fak-restock-row { grid-template-columns: 1fr; }
         }
