@@ -110,7 +110,7 @@ async function notifyApprovedAdmins(admin, title, body, sourceId) {
   const { error } = await admin.from("portal_events").insert(recipients.map((user) => ({
     recipient_id: user.id,
     event_type: "regulatory_source_health",
-    severity: "warning",
+    severity: "action_required",
     title,
     body,
     href: "/?portal=admin&area=regulatorywatch",
@@ -221,4 +221,3 @@ export async function GET(request) {
     return Response.json({ error: error.message || "Regulatory Watch scan failed." }, { status: 500 });
   }
 }
-  
