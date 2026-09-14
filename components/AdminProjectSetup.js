@@ -751,6 +751,7 @@ function ProjectDetail({
         sharepointLabel: project.sharepoint_label,
         scopeOfWorks: project.scope_of_works,
         projectLeadUserId: project.project_lead_user_id,
+        overseeingSeniorEcologistUserId: project.overseeing_senior_ecologist_user_id,
         description: project.description,
         startDate: project.start_date,
         endDate: project.end_date,
@@ -1071,17 +1072,30 @@ function ProjectDetail({
               }
             />
           </div>
-          <select
-            value={project.project_lead_user_id || ""}
-            onChange={(e) =>
-              setProject({ ...project, project_lead_user_id: e.target.value || null })
-            }
-          >
-            <option value="">Project lead / manager (optional)</option>
-            {staff.map((person) => (
-              <option key={person.id} value={person.id}>{person.name || person.email}</option>
-            ))}
-          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <select
+              value={project.project_lead_user_id || ""}
+              onChange={(e) =>
+                setProject({ ...project, project_lead_user_id: e.target.value || null })
+              }
+            >
+              <option value="">Select Project Lead</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>{person.name || person.email}</option>
+              ))}
+            </select>
+            <select
+              value={project.overseeing_senior_ecologist_user_id || ""}
+              onChange={(e) =>
+                setProject({ ...project, overseeing_senior_ecologist_user_id: e.target.value || null })
+              }
+            >
+              <option value="">Select Overseeing Senior Ecologist</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>{person.name || person.email}</option>
+              ))}
+            </select>
+          </div>
           <textarea
             placeholder="Scope of works / agreed deliverables"
             value={project.scope_of_works || ""}
@@ -1320,6 +1334,7 @@ function ProjectDetail({
             <input
               placeholder="Activity title"
               value={row.title}
+              style={{ width: "100%", boxSizing: "border-box" }}
               onChange={(e) =>
                 setActivities(
                   activities.map((r, j) =>
