@@ -30,8 +30,14 @@ function mondayOf(date) {
 function loadSourcePack() {
   const root = path.join(process.cwd(), "config", "legis");
   const read = (name) => {
-    try { return fs.readFileSync(path.join(root, name), "utf8"); }
-    catch { return "Not available in this deployment."; }
+    const file = path.join(root, name);
+    try {
+      const value = fs.readFileSync(file, "utf8").trim();
+      if (!value) throw new Error("file is empty");
+      return value;
+    } catch (error) {
+      throw new Error(`Legis source-pack file missing or unreadable: ${file} (${error.message})`);
+    }
   };
   return {
     sources: read("sources.yaml"),
