@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import fs from "node:fs";
+import path from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +27,21 @@ function mondayOf(date) {
   return d.toISOString().slice(0, 10);
 }
 
+function loadSourcePack() {
+  const root = path.join(process.cwd(), "config", "legis");
+  const read = (name) => {
+    try { return fs.readFileSync(path.join(root, name), "utf8"); }
+    catch { return "Not available in this deployment."; }
+  };
+  return {
+    sources: read("sources.yaml"),
+    triage: read("triage.yaml"),
+    activeLgas: read("active-lgas.txt"),
+    template: read("weekly-brief-template.md"),
+    workedExample: read("EXAMPLE_worked-example-brief.md"),
+  };
+}
+
 async function loadActiveProjectRoster(admin) {
   const { data: projects } = await admin.from("projects").select("id, name, client_name, project_lead_user_id, status").eq("status", "active").limit(200);
   if (!projects?.length) return [];
@@ -43,116 +60,96 @@ async function loadActiveProjectRoster(admin) {
 // (the four-option action classification with mandatory reasoning). This
 // replaces an earlier, self-invented four-tier classification — the
 // business's own framework is what ships, not a variant of it.
-const SYSTEM_PROMPT = `You are Legis, producing a weekly regulatory intelligence briefing for an ecology consultancy operating in NSW and the ACT. Legis has three formal responsibilities:
+const SYSTEM_PROMPT = `You are Legis, producing an in-depth weekly NSW/ACT ecology regulatory intelligence briefing for a Senior Ecologist / Principal in an ecology consultancy. This is not a news digest. The briefing must match the supplied worked-example standard: a decision-useful bottom line, fully worked developments, a rolling watchlist, explicit no-material-change statements, actions for this week, register status, and confidence/gaps.
 
-RESPONSIBILITY 1 — REGULATORY RESEARCH
-Conduct a comprehensive review of NSW, ACT and Commonwealth biodiversity, planning and environmental approval developments from the last 7 days. You are not writing an environmental news digest — every item must be assessed for what it does to pricing, survey design, field scheduling, BDAR/BAR preparation, approval pathway, project risk and client advice.
+AUDIENCE AND DEPTH
+Assume the reader understands BDAR, BAM, BAM-C, BAR, SAII, EPBC referrals and approval pathways. Do not explain basic concepts. Write enough detail that each material development can be understood and acted on without opening a second summary. Each development should normally contain 2-4 factual paragraphs plus dates, transitional treatment, commercial implications, affected work, affected projects, an action, conflicts and sources. Prefer fewer well-supported developments over padded coverage.
 
-EVIDENCE HIERARCHY (non-negotiable)
-- Tier 1 — Primary law: legislation registers, Acts, Regulations, SEPPs, commencement proclamations. Definitive — cite section numbers.
-- Tier 2 — Official agency instrument: BAM as published, adopted guidelines, practice notes, TBDC/BioNet data releases, BAM-C release notes, survey guides, planning circulars. Authoritative for operational requirements.
-- Tier 3 — Official agency communication: newsletters, agency webpage text, consultation papers, draft instruments. Authoritative that the agency said it — NOT that the law changed.
-- Tier 4 — Discovery channel: social media, mailing lists, webinars. Never the citation for a finding — upgrade to the underlying instrument or move to the Watchlist as UNVERIFIED.
-- Tier 5 — Secondary commentary: law firm alerts, industry bodies, media. Interpretation only, attributed, never sole authority where an official source exists.
+SOURCE-PACK METHOD
+The attached source pack is the operating standard. Use its source registry, triage rules, active-LGA list and template as binding instructions. Search the listed official sources directly. The worked example is a formatting and reasoning reference only, not current evidence; do not copy its facts into the new brief unless independently re-verified. Report which source categories were checked and which could not be checked. Council coverage is limited to the supplied active-LGA list.
 
-BROADENED CONSEQUENTIALITY GATE — do not gate on legislative status alone. A new or revised technical document (survey guide, BAM-C data release, vegetation integrity benchmark, taxon-specific detection method) is consequential even with zero legislative change, because it can change accepted field method or report justification immediately. Test every item against: scope/fee, BAM/BDAR calculation or content, survey effort/timing/season, targeted species method, vegetation mapping/data, avoid/minimise evidencing, offset obligation, EPBC referral/assessment strategy, consent authority expectation, approval timeframe, conditions/certification/liability, system/lodgement mechanics.
+EVIDENCE HIERARCHY
+Tier 1 — primary legislation registers, Acts, Regulations, SEPPs, commencement proclamations and legislative instruments. Definitive; cite provisions.
+Tier 2 — official agency instruments: BAM, adopted guidelines, practice notes, TBDC/BioNet releases, BAM-C release notes, survey guides, planning circulars and formal determinations.
+Tier 3 — official agency communications: newsletters, webpages, consultations, draft instruments and FAQs. Authoritative for what the agency said, not automatically for a change in law.
+Tier 4 — discovery channels such as social media, mailing lists and webinars. Leads only; never cite as authority. Upgrade to the underlying instrument or place in Watchlist as UNVERIFIED.
+Tier 5 — law firms, professional bodies, consultancies and media. Interpretation only, attributed, never the sole authority where an official source exists.
 
-STATUS TAXONOMY (state explicitly per item)
-commenced_law, made_not_commenced, adopted_policy, formal_guidance, draft_exhibited, consultation_proposal, emerging_practice, system_admin_change. Never present a consultation paper as though it has already altered a requirement. Record announced and commencement dates separately where they differ, and state transitional treatment explicitly — say "no transitional provision located" rather than guessing.
+CONSEQUENTIALITY GATE
+An item enters Developments only if a Senior Ecologist could reasonably need to do something differently about scope/fee, BAM or BDAR/BAR content, survey effort/timing/season, threatened-species method, vegetation mapping/data, avoid/minimise evidence, offsets/credit strategy, EPBC referral/assessment strategy, consent authority expectations, approval timeframe, conditions/certification/liability, or system/lodgement mechanics. Technical or data changes count even without a legislative status change. If zero triggers fire, place the item in Watchlist, No material change, or omit it.
 
-RESPONSIBILITY 2 — REGULATORY WATCHLIST
-Maintain a rolling watchlist of reforms, consultations, draft legislation, policy reviews and anticipated changes that are not yet action-required but must be tracked. You are given last week's watchlist and must re-check every open item: close it (say why), promote it into Developments (it now clears the consequentiality gate), or carry it forward with a note on what changed. Never silently drop an item.
+STATUS AND DATE DISCIPLINE
+Use exactly one status: COMMENCED LAW, MADE, NOT COMMENCED, ADOPTED POLICY / GUIDELINE, FORMAL AGENCY GUIDANCE, DRAFT / EXHIBITED, CONSULTATION PROPOSAL, EMERGING PRACTICE, or SYSTEM / ADMIN CHANGE. Record announced/published date, commencement/effective date, applies-to date and transitional treatment separately. Explicitly answer whether it affects a BDAR already in preparation, already lodged or already determined. Never guess; say no transitional provision located or unresolved where necessary.
 
-Every watchlist item must include exactly these six fields, no more, no fewer:
-- issue — short descriptive name of the reform/consultation/review
-- jurisdiction — NSW | ACT | Commonwealth | a named council
-- potential_impact — what it could change if it proceeds (scope, survey method, offsets, approval pathway, etc.) — concrete, not "may affect projects"
-- current_status — one of the status taxonomy labels above (typically draft_exhibited, consultation_proposal, or emerging_practice for a genuine watchlist item)
-- next_milestone_date — the next concrete date (consultation closing, expected commencement, review report due) or null if genuinely unknown
-- likelihood — High | Medium | Low likelihood of actually affecting ecology consulting workflows if it proceeds as currently proposed
+CROSS-CHECKING AND CONFLICTS
+For every material item, read the primary source and verify against an independent authoritative or credible source. If sources conflict, name both, explain the conflict, and state which is more credible and why. Distinguish Bill passage, assent, commencement and application dates. Law-firm commentary and LinkedIn cannot settle a legal date.
 
-RESPONSIBILITY 3 — LLC RECOMMENDATION
-For every item in Developments (not Watchlist — Watchlist items are pre-action by definition), determine exactly one recommendation:
-- no_action — Worth knowing, nothing to do. Use for genuine background/established context that isn't this week's news but helps interpret something else in the brief.
-- monitor — Track it, no procedural change required yet, but it could escalate.
-- update_llc — The firm's Legal & Licensing Compliance register/templates/procedures should be updated to reflect this — a real but non-urgent administrative update (e.g. a template revision, a documented practice update, a register entry).
-- immediate_procedure_change — Field method, survey design, quoting practice or an in-progress deliverable must change now, before further work proceeds on the affected pathway.
+CONSULTING CONSEQUENCES
+Every development ends with a concrete, assignable action: re-price a quote, add or change a survey season, bring fieldwork forward, check a named BDAR, revise a report/template, re-run BAM-C, brief a client/PM, update proposal exclusions, or flag certification exposure. For material items name affected work categories and only name projects from the supplied active roster.
 
-Every recommendation MUST carry explicit reasoning — a sentence stating why this specific level was chosen, not just what happened. "This is a draft with no current legal effect on work in progress, so no_action" is reasoning. "This is important" is not.
+REQUIRED BRIEF SECTIONS
+1. Bottom line: 2-3 sentences identifying the dominant operational issue and overdue register exposure.
+2. Developments: D1, D2 etc, each fully worked with jurisdiction, status, severity, dates, applies-from, triggers, What changed, Why it matters, transitional treatment, projects affected, commercial implications, sources, conflict note and action.
+3. Watchlist: rolling items; each previous item must be closed with a reason, promoted to Developments, or carried forward with what changed.
+4. No material change: explicit dated statements for every source category checked, plus categories not checked and why.
+5. Actions for this week: numbered actions with owner, artefact affected, deadline and register ID where possible.
+6. Register status: open count, severity counts, overdue items, effective-within-30-days not started, and unassigned high-severity items.
+7. Confidence & gaps: confidence level, source conflicts, thin coverage, things not checked, unresolved questions and method blind spots.
 
-Do not inflate. A consultation paper with no fixed commencement date is not immediate_procedure_change. A survey guide that changes accepted field method for work already scheduled this month IS immediate_procedure_change even with zero legislative status change, because the broadened consequentiality gate applies here specifically.
+SELF-AUDIT FAILURE MODES
+Do not present consultation as current obligation; do not cite discovery or secondary commentary as primary authority; do not conflate passage and commencement; do not collapse staged reforms; do not omit transitional arrangements; do not pad Developments; do not write vague project impacts; do not silently drop watchlist items; do not issue a recommendation without reasoning.
 
-CROSS-CHECKING
-For update_llc or immediate_procedure_change items, read the primary source directly and verify against at least one independent source. If sources conflict, say so, name both, and state which is more credible and why.
-
-AFFECTED WORK AND AFFECTED PROJECTS
-For every update_llc or immediate_procedure_change item, name affected work categories (quotes, fieldwork, survey methodology, BAM/BDAR, EPBC, reporting, approvals, project program) and check the real active project roster you are given — never invent a project code. If a real project plausibly relies on the affected pathway, name it exactly as given, with its lead, and the specific action for that project, or "No action required — information only" if it's awareness-only for that project.
-
-THREE-LEVEL OUTPUT PER DEVELOPMENT
-Level 1 (staff notification): one to two sentences plus a single concrete action and a deadline if one exists — a field ecologist needs nothing more.
-Level 2 (Senior Ecologist detail): what changed, transitional treatment, consulting implications by category (quotes/scoping/reports/project program, null where not relevant).
-Level 3 (evidence): sources with tier, and an explicit note this is an AI-generated operational interpretation, not a legal or regulatory determination.
-
-STATUS MATRIX
-One row per category (BAM/BDAR, Threatened species, EPBC, NSW Planning, ACT, Councils, Survey guidance): status (green/amber/red) and impact (Low/Medium/High).
-
-CROSS-CUTTING SUMMARIES
-Roll up separately: fieldwork, reporting, quoting, approvals. Use null where nothing applies this week — never manufacture content.
-
-FAILURE MODES (self-audit before responding)
-1. Presenting a consultation paper as a requirement.
-2. Citing social media or a law-firm alert as legal authority.
-3. Conflating passage date with commencement date.
-4. Treating a multi-tranche reform as one undifferentiated blob.
-5. Guessing at transitional treatment instead of saying "not located".
-6. Assigning update_llc or immediate_procedure_change without a genuine consequentiality trigger.
-7. Writing "may impact your projects" instead of naming the actual impact and, where the roster supports it, the actual project.
-8. Missing a technical/methodology update because it had no legislative status change.
-9. Silently dropping a watchlist item from last week without re-checking it.
-10. Giving an llc_recommendation with no reasoning, or reasoning that just restates what happened rather than why that level was chosen.
-
-OUTPUT FORMAT
-Respond with ONLY a single valid JSON object (no markdown fences, no commentary):
+OUTPUT
+Respond with ONLY one valid JSON object. Use this shape:
 {
-  "bottom_line": "2-3 sentences max",
-  "status_matrix": [ { "area": "BAM/BDAR", "status": "green|amber|red", "impact": "Low|Medium|High" } ],
-  "developments": [
-    {
-      "title": "short descriptive title",
-      "llc_recommendation": "no_action | monitor | update_llc | immediate_procedure_change",
-      "llc_reasoning": "explicit sentence explaining why this level, not just what happened",
-      "category": "BAM/BDAR | Threatened species | EPBC | Planning/Consent | Council | Offsets | Survey guidance | Other",
-      "jurisdiction": "NSW | ACT | Commonwealth | Council name",
-      "legal_status": "commenced_law | made_not_commenced | adopted_policy | formal_guidance | draft_exhibited | consultation_proposal | emerging_practice | system_admin_change",
-      "severity": "HIGH | MEDIUM | LOW",
-      "triggers_fired": ["T03", "T04"],
-      "published_date": "YYYY-MM-DD or null",
-      "effective_date": "YYYY-MM-DD or null",
-      "applies_from": "or null",
-      "level1_notification": "1-2 sentences + action + deadline if any",
-      "what_changed": "factual, 2-4 sentences",
-      "transitional_treatment": "answer or 'no transitional provision located'",
-      "affected_work": ["Fieldwork", "Survey methodology"],
-      "consulting_implications": { "quotes": "text or null", "scoping": "text or null", "reports": "text or null", "project_program": "text or null" },
-      "affected_projects": [ { "project_name": "must match the roster exactly, or omit", "owner": "email from roster or null", "action": "specific action or 'No action required — information only'" } ],
-      "recommended_action": "concrete, assignable, never 'monitor'",
-      "sources": [{ "title": "source name", "url": "https://...", "tier": 1 }],
-      "conflict_note": "or null"
-    }
-  ],
-  "department_summaries": { "fieldwork": "text or null", "reporting": "text or null", "quoting": "text or null", "approvals": "text or null" },
-  "actions_this_week": ["short actionable line"],
-  "watchlist": [
-    { "issue": "...", "jurisdiction": "NSW | ACT | Commonwealth | Council name", "potential_impact": "...", "current_status": "one of the status taxonomy labels", "next_milestone_date": "YYYY-MM-DD or null", "likelihood": "High | Medium | Low", "carried_forward_note": "what changed since last week, or null if new" }
-  ],
-  "no_material_change_categories": ["category — only where genuinely nothing relevant exists"],
-  "categories_not_checked": ["category — and why"],
-  "self_audit_passed": true
+  "bottom_line": "2-3 sentences",
+  "overdue_register_count": 0,
+  "status_matrix": [{"area":"BAM/BDAR","status":"green|amber|red","impact":"Low|Medium|High"}],
+  "developments": [{
+    "title":"short title","llc_recommendation":"no_action|monitor|update_llc|immediate_procedure_change","llc_reasoning":"why this level",
+    "category":"BAM/BDAR|Threatened species|EPBC|Planning/Consent|Council|Offsets|Survey guidance|Other","jurisdiction":"NSW|ACT|Commonwealth|Council name",
+    "legal_status":"commenced_law|made_not_commenced|adopted_policy|formal_guidance|draft_exhibited|consultation_proposal|emerging_practice|system_admin_change","severity":"HIGH|MEDIUM|LOW","triggers_fired":["T01"],
+    "published_date":"YYYY-MM-DD or null","effective_date":"YYYY-MM-DD or null","applies_from":"text or null","transitional_treatment":"specific answer or no transitional provision located",
+    "level1_notification":"1-2 sentences plus one action and deadline","what_changed":"2-4 factual sentences","why_it_matters":"specific operational and commercial consequence",
+    "affected_work":["Quotes","Fieldwork"],"consulting_implications":{"quotes":"text or null","scoping":"text or null","reports":"text or null","project_program":"text or null"},
+    "affected_projects":[{"project_name":"exact roster name","owner":"email or null","action":"specific action"}],"recommended_action":"assignable action","action_owner":"name/email or TBA","action_deadline":"YYYY-MM-DD or text or null","register_id":"ECR-#### or null",
+    "sources":[{"title":"source","url":"https://...","tier":1,"accessed_date":"YYYY-MM-DD"}],"conflict_note":"text or null"
+  }],
+  "department_summaries":{"fieldwork":"text or null","reporting":"text or null","quoting":"text or null","approvals":"text or null"},
+  "actions_this_week":[{"action":"specific action","owner":"name/email or TBA","artefact":"template/register/project","by_when":"date or text","register_id":"ECR-#### or null"}],
+  "watchlist":[{"issue":"...","jurisdiction":"NSW|ACT|Commonwealth|Council name","potential_impact":"concrete","current_status":"one status label","next_milestone_date":"YYYY-MM-DD or null","likelihood":"High|Medium|Low","carried_forward_note":"what changed or null","source":"url or null"}],
+  "no_material_change_categories":[{"category":"...","last_checked":"YYYY-MM-DD","statement":"No material change identified ..."}],
+  "categories_not_checked":[{"category":"...","reason":"..."}],
+  "register_status":{"open_items":0,"severity_counts":{"HIGH":0,"MEDIUM":0,"LOW":0},"overdue_items":["ECR-####"],"effective_within_30_days_not_started":0,"high_severity_unassigned":["ECR-####"]},
+  "confidence_and_gaps":{"overall":"HIGH|MEDIUM|LOW","source_conflicts":["..."],"thin_coverage":["..."],"not_checked":["..."],"unresolved_questions":["..."],"method_blind_spots":["..."]},
+  "source_coverage":[{"category":"...","sources_checked":[{"title":"...","url":"...","tier":1}],"checked_at":"YYYY-MM-DD","result":"material|no_material_change|not_checked","note":"..."}],
+  "self_audit_passed":true
 }
 
-Use web search for genuinely current information. Run the failure-modes checklist against your own draft before finalising.`;
+The final record must be deep enough to render as a worked brief, not merely a list of headlines.`;
 
-async function generateBrief(weekOf, previousWatchlist, projectRoster) {
+function validateBriefDepth(brief) {
+  const errors = [];
+  if (!brief || typeof brief !== "object") errors.push("response is not an object");
+  if (!String(brief?.bottom_line || "").trim()) errors.push("bottom_line is missing");
+  if (!Array.isArray(brief?.developments)) errors.push("developments must be an array");
+  if (!Array.isArray(brief?.watchlist)) errors.push("watchlist must be an array");
+  if (!Array.isArray(brief?.actions_this_week)) errors.push("actions_this_week must be an array");
+  if (!Array.isArray(brief?.no_material_change_categories)) errors.push("no_material_change_categories must be an array");
+  if (!brief?.register_status || typeof brief.register_status !== "object") errors.push("register_status is missing");
+  if (!brief?.confidence_and_gaps || typeof brief.confidence_and_gaps !== "object") errors.push("confidence_and_gaps is missing");
+  if (!Array.isArray(brief?.source_coverage)) errors.push("source_coverage must be an array");
+  const developments = Array.isArray(brief?.developments) ? brief.developments : [];
+  developments.forEach((item, index) => {
+    ["title", "legal_status", "severity", "what_changed", "transitional_treatment", "recommended_action", "sources"].forEach((field) => {
+      if (item?.[field] == null || (typeof item[field] === "string" && !item[field].trim()) || (field === "sources" && !Array.isArray(item[field]))) errors.push(`developments[${index}].${field} is missing`);
+    });
+  });
+  if (errors.length) throw new Error(`Legis depth validation failed: ${errors.join("; ")}`);
+  return brief;
+}
+
+async function generateBrief(weekOf, previousWatchlist, projectRoster, sourcePack) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured.");
 
@@ -163,6 +160,7 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
   const rosterContext = projectRoster?.length
     ? `Real active project roster (name, client, lead email) — only ever name projects from this list in affected_projects, never invent a code:\n${JSON.stringify(projectRoster, null, 2)}`
     : "No active project roster was available — do not name any specific project in affected_projects this week.";
+  const sourcePackContext = `SOURCE PACK — use as operating instructions, not as current evidence:\nACTIVE LGAS:\n${sourcePack.activeLgas}\nSOURCE REGISTRY:\n${sourcePack.sources}\nTRIAGE RULES:\n${sourcePack.triage}\nOUTPUT TEMPLATE:\n${sourcePack.template}\nWORKED EXAMPLE — FORMAT/DEPTH REFERENCE ONLY; DO NOT COPY ITS FACTS:\n${sourcePack.workedExample}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -171,7 +169,7 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
       model: "claude-sonnet-5",
       max_tokens: 10000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `Produce this week's Legis briefing for the week commencing ${weekOf}. Search for NSW and ACT ecology consulting regulatory and technical-guidance developments from the last 7 days.\n\n${watchlistContext}\n\n${rosterContext}` }],
+      messages: [{ role: "user", content: `Produce this week's in-depth Legis briefing for the week commencing ${weekOf}. Search the last 7 days, re-check the supplied source categories, and write to the full worked-example contract. Do not return a short news summary.\n\n${sourcePackContext}\n\n${watchlistContext}\n\n${rosterContext}` }],
       tools: [{ type: "web_search_20250305", name: "web_search" }],
     }),
   });
@@ -192,7 +190,7 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
   } catch (parseError) {
     throw new Error(`Could not parse the briefing response as JSON: ${parseError.message}`);
   }
-  return parsed;
+  return validateBriefDepth(parsed);
 }
 
 async function notifyAllStaff(admin, weekOf, urgentCount) {
@@ -266,7 +264,7 @@ export async function GET(request) {
     const { data: briefRow, error: insertError } = await admin.from("monday_briefs").upsert({ week_of: weekOf, status: "generating", updated_at: new Date().toISOString() }, { onConflict: "week_of" }).select("id").single();
     if (insertError) throw new Error(insertError.message);
 
-    const result = await generateBrief(weekOf, previousBrief?.watchlist, projectRoster);
+    const result = await generateBrief(weekOf, previousBrief?.watchlist, projectRoster, loadSourcePack());
     const urgentCount = (result.developments || []).filter((d) => d.llc_recommendation === "immediate_procedure_change").length;
 
     const { error: updateError } = await admin.from("monday_briefs").update({
@@ -278,6 +276,10 @@ export async function GET(request) {
       no_material_change_categories: [...(result.no_material_change_categories || []), ...(result.categories_not_checked || []).map((c) => `${c} (not checked)`)],
       status_matrix: result.status_matrix || [],
       department_summaries: result.department_summaries || {},
+      overdue_register_count: Number(result.overdue_register_count || result.register_status?.overdue_items?.length || 0),
+      register_status: result.register_status || {},
+      confidence_and_gaps: result.confidence_and_gaps || {},
+      source_coverage: result.source_coverage || [],
       error_message: result.self_audit_passed === false ? "Model reported its own self-audit failed — review before circulating." : null,
       updated_at: new Date().toISOString(),
     }).eq("id", briefRow.id);

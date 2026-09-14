@@ -1,0 +1,20 @@
+# Active LGAs — councils the practice currently has work in.
+# The council scanner sweeps ONLY these, plus any LGA named in a state-level change.
+# Sweeping all 128 NSW councils produces noise and misses the ones that matter.
+#
+# One per line. Comment out rather than delete when a job closes — you may need
+# the history when a client returns.
+#
+# --- NSW ---
+Blacktown City Council
+Camden Council
+Central Coast Council
+Cessnock City Council
+Lake Macquarie City Council
+Liverpool City Council
+Penrith City Council
+Shoalhaven City Council
+Wollondilly Shire Council
+#
+# --- ACT ---
+# The ACT has no councils; territory-wide instruments are handled by act-scanner.

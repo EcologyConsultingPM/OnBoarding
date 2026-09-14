@@ -12,6 +12,10 @@ create table if not exists public.monday_briefs (
   no_material_change_categories jsonb not null default '[]'::jsonb,
   status_matrix jsonb not null default '[]'::jsonb,
   department_summaries jsonb not null default '{}'::jsonb,
+  overdue_register_count integer not null default 0,
+  register_status jsonb not null default '{}'::jsonb,
+  confidence_and_gaps jsonb not null default '{}'::jsonb,
+  source_coverage jsonb not null default '[]'::jsonb,
   error_message text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -19,6 +23,11 @@ create table if not exists public.monday_briefs (
 
 create index if not exists monday_briefs_status_week_idx
   on public.monday_briefs (status, week_of desc);
+
+alter table public.monday_briefs add column if not exists overdue_register_count integer not null default 0;
+alter table public.monday_briefs add column if not exists register_status jsonb not null default '{}'::jsonb;
+alter table public.monday_briefs add column if not exists confidence_and_gaps jsonb not null default '{}'::jsonb;
+alter table public.monday_briefs add column if not exists source_coverage jsonb not null default '[]'::jsonb;
 
 alter table public.monday_briefs enable row level security;
 
