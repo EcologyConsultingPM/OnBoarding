@@ -101,35 +101,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
     setMessage("");
   };
 
-  useEffect(() => {
-    if (!session?.access_token) return;
-    fetch("/api/deliverable-templates", { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((r) => r.json())
-      .then((d) => setDeliverableTemplates(d.templates || []))
-      .catch(() => setDeliverableTemplates([]));
-  }, [session?.access_token]);
-
-  const quickAddFromTemplate = async () => {
-    if (!quickAddTemplateId) { fail("Choose a deliverable template first."); return; }
-    setQuickAddBusy(true);
-    try {
-      const res = await auth("POST", `/api/projects/${projectId}/deliverables`, {
-        templateId: quickAddTemplateId,
-        title: quickAddTitle.trim() || undefined,
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error);
-      notify(`${d.activities?.length || 0} activities generated from "${d.templateUsed}" — allocate staff, budget and dates below.`);
-      setQuickAddTemplateId("");
-      setQuickAddTitle("");
-      await load();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setQuickAddBusy(false);
-    }
-  };
-
   const [removingId, setRemovingId] = useState("");
 
   // Remove a project from the list.
@@ -235,10 +206,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   // ---- Create project ----
   const [newProject, setNewProject] = useState(BLANK_PROJECT);
   const [draftRestored, setDraftRestored] = useState(false);
-  const [activitiesDraftAvailable, setActivitiesDraftAvailable] = useState(null); // null=not checked, or the parsed draft
-  const [knownMaxUpdatedAt, setKnownMaxUpdatedAt] = useState("");
-  const [conflictPending, setConflictPending] = useState(false);
-  const [activitiesDraftRestored, setActivitiesDraftRestored] = useState(false);
 
   // Project setup is the largest data-entry surface in the app — 38 fields
   // across the create form and the detail panels — and it had no draft
@@ -246,21 +213,6 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   // refresh on tab focus, a stray navigation, a closed laptop) lost the lot.
   // Same per-user localStorage pattern already used by Service Requests.
   const draftKey = session?.user?.id ? `ec-new-project-draft:${session.user.id}` : "";
-  const activitiesDraftKey = session?.user?.id && projectId ? `ec-activities-draft:${session.user.id}:${projectId}` : "";
-
-  // Auto-save the activities editor to localStorage, debounced, so a crash
-  // or accidental navigation mid-entry doesn't lose dozens of rows of work.
-  // This never touches the server — it's purely a local safety net until
-  // "Save activities" is clicked.
-  useEffect(() => {
-    if (!activitiesDraftKey) return;
-    const meaningful = activities.some((r) => (r.title || "").trim());
-    if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
-    const timer = window.setTimeout(() => {
-      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [activitiesDraftKey, activities]);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -315,6 +267,7 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
       <ProjectDetail
         key={openId}
         projectId={openId}
+        userId={session?.user?.id}
         staff={staff}
         auth={auth}
         notify={notify}
@@ -626,6 +579,7 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
 // ---- Project detail: edit + schedule + allocations + activities ----
 function ProjectDetail({
   projectId,
+  userId,
   staff,
   auth,
   notify,
@@ -645,6 +599,26 @@ function ProjectDetail({
   const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const [quickAddBusy, setQuickAddBusy] = useState(false);
+  const [activitiesDraftAvailable, setActivitiesDraftAvailable] = useState(null); // null=not checked, or the parsed draft
+  const [knownMaxUpdatedAt, setKnownMaxUpdatedAt] = useState("");
+  const [conflictPending, setConflictPending] = useState(false);
+  const [activitiesDraftRestored, setActivitiesDraftRestored] = useState(false);
+  const activitiesDraftKey = userId && projectId ? `ec-activities-draft:${userId}:${projectId}` : "";
+
+  // Auto-save the activities editor to localStorage, debounced, so a crash
+  // or accidental navigation mid-entry doesn't lose dozens of rows of work.
+  // This never touches the server — it's purely a local safety net until
+  // "Save activities" is clicked.
+  useEffect(() => {
+    if (!activitiesDraftKey) return;
+    const meaningful = activities.some((r) => (r.title || "").trim());
+    if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [activitiesDraftKey, activities]);
+
   const [dragIndex, setDragIndex] = useState(null);
   const reorderActivities = (from, to) => {
     if (from === to || from == null || to == null) return;
@@ -659,6 +633,34 @@ function ProjectDetail({
   const [savingActivities, setSavingActivities] = useState(false);
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [gateBusy, setGateBusy] = useState(false);
+
+  useEffect(() => {
+    auth("GET", "/api/deliverable-templates")
+      .then((r) => r.json())
+      .then((d) => setDeliverableTemplates(d.templates || []))
+      .catch(() => setDeliverableTemplates([]));
+  }, [auth]);
+
+  const quickAddFromTemplate = async () => {
+    if (!quickAddTemplateId) { fail("Choose a deliverable template first."); return; }
+    setQuickAddBusy(true);
+    try {
+      const res = await auth("POST", `/api/projects/${projectId}/deliverables`, {
+        templateId: quickAddTemplateId,
+        title: quickAddTitle.trim() || undefined,
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      notify(`${d.activities?.length || 0} activities generated from "${d.templateUsed}" — allocate staff, budget and dates below.`);
+      setQuickAddTemplateId("");
+      setQuickAddTitle("");
+      await load();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setQuickAddBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
