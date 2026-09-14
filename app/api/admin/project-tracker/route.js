@@ -61,7 +61,7 @@ function healthForAllocation(allocation) {
   return "on_track";
 }
 
-function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings) {
+function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames) {
   const projectSources = sources.filter((source) => source.project_id === project.id);
   const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
   const original = projectSources.filter((source) => source.source_type === "original");
@@ -136,7 +136,31 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
-    entrySummary: { count: projectEntries.length, submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0), recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8) },
+    entrySummary: {
+      count: projectEntries.length,
+      submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0),
+      approvedHours: projectEntries.filter((e) => e.status === "completed").reduce((sum, entry) => sum + number(entry.hours), 0),
+      awaitingHours: projectEntries.filter((e) => e.status === "active").reduce((sum, entry) => sum + number(entry.hours), 0),
+      recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8),
+      all: projectEntries.map((entry) => ({ ...entry, staff_name: staffNames?.get(entry.staff_user_id) || "Unknown" })),
+    },
+    // Activity Position: what's allocated per activity, how much has actually
+    // been recorded against it, and what's left — kept distinct from Budget
+    // Allocations (which is money/category-level, not per-activity).
+    activityPosition: relevantActivities.filter((a) => (a.title || "").trim()).map((activity) => {
+      const actualHours = projectEntries.filter((e) => e.activity_category === activity.task_category).reduce((sum, e) => sum + number(e.hours), 0);
+      const allocatedHours = number(activity.budget_hours);
+      return {
+        id: activity.id,
+        title: activity.title,
+        category: activity.task_category,
+        assignedTo: staffNames?.get(activity.staff_user_id) || "Unassigned",
+        allocatedHours,
+        actualHours,
+        remainingHours: allocatedHours ? Math.round((allocatedHours - actualHours) * 10) / 10 : null,
+        status: activity.status,
+      };
+    }),
   };
 }
 
@@ -150,13 +174,18 @@ async function trackerData(access, requestedProjectId = "") {
   if (!ids.length) return { projects: [], financialReady: true };
 
   let [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
-    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active").in("project_id", ids).eq("is_active", true),
+    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active, staff_user_id, task_category, title, budget_hours").in("project_id", ids).eq("is_active", true),
     access.admin.from("project_allocations").select("project_id, staff_user_id, active").in("project_id", ids),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
     access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
     access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
   ]);
+
+  // No staff-name resolution existed anywhere in this route — Timesheet
+  // Entries and Activity Position both need "who", not just a UUID.
+  const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const staffNames = new Map((usersData?.users || []).map((u) => [u.id, u.user_metadata?.full_name || u.user_metadata?.name || u.email]));
 
   if (activitiesResult.error && tableUnavailable(activitiesResult.error)) {
     activitiesResult = await access.admin.from("project_activities").select("id, project_id, status").in("project_id", ids);
@@ -177,7 +206,7 @@ async function trackerData(access, requestedProjectId = "") {
   const settingsByProject = new Map((settingsResult.data || []).map((setting) => [setting.project_id, setting]));
   return {
     financialReady,
-    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id))),
+    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames)),
   };
 }
 
