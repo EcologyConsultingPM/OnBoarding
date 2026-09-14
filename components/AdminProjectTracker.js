@@ -89,6 +89,11 @@ export default function AdminProjectTracker({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [entryStaffFilter, setEntryStaffFilter] = useState("all");
+  const [entryActivityFilter, setEntryActivityFilter] = useState("all");
+  const [entryStatusFilter, setEntryStatusFilter] = useState("all");
+  const [entryDateFrom, setEntryDateFrom] = useState("");
+  const [entryDateTo, setEntryDateTo] = useState("");
   const [sourceEditor, setSourceEditor] = useState(null);
   const [allocationEditor, setAllocationEditor] = useState(null);
 
@@ -446,6 +451,37 @@ export default function AdminProjectTracker({
                 />
               </div>
 
+              {(() => {
+                const budgetTotal = selected.financials.overallBudget || 0;
+                const budgetUsed = selected.financials.chargeOutSpend || 0;
+                const budgetPct = budgetTotal > 0 ? Math.min(100, Math.round((budgetUsed / budgetTotal) * 100)) : 0;
+                const hoursTotal = selected.financials.budgetHours || 0;
+                const hoursUsed = selected.financials.usedHours || 0;
+                const hoursPct = hoursTotal > 0 ? Math.min(100, Math.round((hoursUsed / hoursTotal) * 100)) : 0;
+                return (
+                  <div className="apt-card" style={{ marginBottom: 18 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#8a927c", marginBottom: 4 }}>
+                        <span>Budget — {money(budgetUsed)} used</span>
+                        <span>{money(budgetTotal - budgetUsed)} remaining</span>
+                      </div>
+                      <div style={{ background: "#2a3a2a", borderRadius: 6, height: 10, overflow: "hidden" }}>
+                        <div style={{ width: `${budgetPct}%`, background: budgetPct >= 90 ? "#a5342a" : "#2c6a34", height: "100%" }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#8a927c", marginBottom: 4 }}>
+                        <span>Hours — {number(hoursUsed)} used</span>
+                        <span>{number(hoursTotal - hoursUsed)} remaining</span>
+                      </div>
+                      <div style={{ background: "#2a3a2a", borderRadius: 6, height: 10, overflow: "hidden" }}>
+                        <div style={{ width: `${hoursPct}%`, background: hoursPct >= 90 ? "#a5342a" : "#2c6a34", height: "100%" }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="apt-grid">
                 <section className="apt-card apt-allocations">
                   <div className="apt-card-head">
@@ -702,31 +738,115 @@ export default function AdminProjectTracker({
                       </li>
                     </ul>
                   </section>
-                  <section className="apt-card apt-recent-entries">
-                    <span className="apt-kicker">Review entries</span>
-                    <h3>Recent staff activity</h3>
-                    {selected.entrySummary?.recent?.length ? (
-                      <div>
-                        {selected.entrySummary.recent.map((entry) => (
-                          <div className="apt-recent-entry" key={entry.id}>
-                            <span>
-                              <strong>{entry.activity_category}</strong>
-                              <small>
-                                {entry.work_date} · {number(entry.hours)} h
-                              </small>
-                            </span>
-                            <em
-                              className={`apt-allocation-state ${entry.status === "completed" ? "on_track" : entry.status === "active" ? "watch" : entry.status === "paused_other" ? "at_risk" : "watch"}`}
-                            >
-                              {entry.status.replaceAll("_", " ")}
-                            </em>
+                  {(() => {
+                    const allEntries = selected.entrySummary?.all || [];
+                    const staffOptions = [...new Set(allEntries.map((e) => e.staff_name).filter(Boolean))];
+                    const activityOptions = [...new Set(allEntries.map((e) => e.activity_category).filter(Boolean))];
+                    const filteredEntries = allEntries.filter((e) =>
+                      (entryStaffFilter === "all" || e.staff_name === entryStaffFilter) &&
+                      (entryActivityFilter === "all" || e.activity_category === entryActivityFilter) &&
+                      (entryStatusFilter === "all" || e.status === entryStatusFilter) &&
+                      (!entryDateFrom || (e.work_date && e.work_date >= entryDateFrom)) &&
+                      (!entryDateTo || (e.work_date && e.work_date <= entryDateTo))
+                    );
+                    return (
+                      <section className="apt-card apt-recent-entries">
+                        <span className="apt-kicker">Timesheet position</span>
+                        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
+                          <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Total recorded</div><div style={{ fontSize: 18, fontWeight: 700 }}>{number(selected.entrySummary?.submittedHours || 0)} hrs</div></div>
+                          <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Approved</div><div style={{ fontSize: 18, fontWeight: 700, color: "#2c6a34" }}>{number(selected.entrySummary?.approvedHours || 0)} hrs</div></div>
+                          <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Awaiting approval</div><div style={{ fontSize: 18, fontWeight: 700, color: "#c98a1e" }}>{number(selected.entrySummary?.awaitingHours || 0)} hrs</div></div>
+                        </div>
+                        <h3>Timesheet entries</h3>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                          <select value={entryStaffFilter} onChange={(e) => setEntryStaffFilter(e.target.value)}>
+                            <option value="all">All staff</option>
+                            {staffOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <select value={entryActivityFilter} onChange={(e) => setEntryActivityFilter(e.target.value)}>
+                            <option value="all">All activities</option>
+                            {activityOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                          <select value={entryStatusFilter} onChange={(e) => setEntryStatusFilter(e.target.value)}>
+                            <option value="all">All statuses</option>
+                            <option value="active">Active</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <input type="date" value={entryDateFrom} onChange={(e) => setEntryDateFrom(e.target.value)} title="From date" />
+                          <input type="date" value={entryDateTo} onChange={(e) => setEntryDateTo(e.target.value)} title="To date" />
+                          {(entryStaffFilter !== "all" || entryActivityFilter !== "all" || entryStatusFilter !== "all" || entryDateFrom || entryDateTo) ? (
+                            <button type="button" onClick={() => { setEntryStaffFilter("all"); setEntryActivityFilter("all"); setEntryStatusFilter("all"); setEntryDateFrom(""); setEntryDateTo(""); }} style={{ background: "none", border: "1px solid #3a4a3a", color: "#cfe0c8", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>Clear filters</button>
+                          ) : null}
+                        </div>
+                        {filteredEntries.length ? (
+                          <div style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                              <thead>
+                                <tr style={{ textAlign: "left", borderBottom: "1px solid #3a4a3a" }}>
+                                  <th style={{ padding: "6px 8px" }}>Date</th>
+                                  <th style={{ padding: "6px 8px" }}>Staff</th>
+                                  <th style={{ padding: "6px 8px" }}>Activity</th>
+                                  <th style={{ padding: "6px 8px" }}>Description</th>
+                                  <th style={{ padding: "6px 8px" }}>Hours</th>
+                                  <th style={{ padding: "6px 8px" }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredEntries.map((entry) => (
+                                  <tr key={entry.id} style={{ borderBottom: "1px solid #2a3a2a" }}>
+                                    <td style={{ padding: "6px 8px" }}>{entry.work_date}</td>
+                                    <td style={{ padding: "6px 8px" }}>{entry.staff_name}</td>
+                                    <td style={{ padding: "6px 8px" }}>{entry.activity_category}</td>
+                                    <td style={{ padding: "6px 8px" }}>{entry.activity_information || "—"}</td>
+                                    <td style={{ padding: "6px 8px" }}>{number(entry.hours)}</td>
+                                    <td style={{ padding: "6px 8px" }}>
+                                      <em className={`apt-allocation-state ${entry.status === "completed" ? "on_track" : "watch"}`}>{entry.status.replaceAll("_", " ")}</em>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                        ))}
+                        ) : (
+                          <p>{allEntries.length ? "No entries match the selected filters." : "No staff tracker entries have been submitted."}</p>
+                        )}
+                      </section>
+                    );
+                  })()}
+
+                  {(selected.activityPosition || []).length ? (
+                    <section className="apt-card">
+                      <span className="apt-kicker">Activity position</span>
+                      <h3>What's allocated, who owns it, what's left</h3>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                          <thead>
+                            <tr style={{ textAlign: "left", borderBottom: "1px solid #3a4a3a" }}>
+                              <th style={{ padding: "6px 8px" }}>Activity</th>
+                              <th style={{ padding: "6px 8px" }}>Assigned to</th>
+                              <th style={{ padding: "6px 8px" }}>Allocated hrs</th>
+                              <th style={{ padding: "6px 8px" }}>Actual hrs</th>
+                              <th style={{ padding: "6px 8px" }}>Remaining hrs</th>
+                              <th style={{ padding: "6px 8px" }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selected.activityPosition.map((row) => (
+                              <tr key={row.id} style={{ borderBottom: "1px solid #2a3a2a" }}>
+                                <td style={{ padding: "6px 8px" }}>{row.title}</td>
+                                <td style={{ padding: "6px 8px" }}>{row.assignedTo}</td>
+                                <td style={{ padding: "6px 8px" }}>{row.allocatedHours ?? "—"}</td>
+                                <td style={{ padding: "6px 8px" }}>{row.actualHours}</td>
+                                <td style={{ padding: "6px 8px", color: row.remainingHours !== null && row.remainingHours < 0 ? "#a5342a" : "inherit" }}>{row.remainingHours ?? "—"}</td>
+                                <td style={{ padding: "6px 8px" }}><em className={`apt-allocation-state ${row.status === "completed" ? "on_track" : "watch"}`}>{(row.status || "").replaceAll("_", " ")}</em></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    ) : (
-                      <p>No staff tracker entries have been submitted.</p>
-                    )}
-                  </section>
+                    </section>
+                  ) : null}
+
                   <section className="apt-card">
                     <span className="apt-kicker">
                       Budget burn vs task progress
