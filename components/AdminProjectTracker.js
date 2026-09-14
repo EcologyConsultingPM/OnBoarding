@@ -26,6 +26,10 @@ function money(value) {
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
 }
+function hours(value) {
+  if (value === null || value === undefined) return "—";
+  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(Number(value))} hrs`;
+}
 function number(value) {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(
     Number(value || 0),
@@ -407,6 +411,38 @@ export default function AdminProjectTracker({
                   tone={
                     selected.financials.estimatedProfit < 0 ? "danger" : "moss"
                   }
+                />
+              </div>
+
+              <div className="apt-metrics">
+                <Metric
+                  label="Quoted hours"
+                  value={hours(selected.financials.budgetHours)}
+                />
+                <Metric
+                  label="Hours used"
+                  value={hours(selected.financials.usedHours)}
+                  tone="moss"
+                />
+                <Metric
+                  label="Hours remaining"
+                  value={hours(selected.financials.remainingHours)}
+                  tone={selected.financials.remainingHours !== null && selected.financials.remainingHours < 0 ? "danger" : ""}
+                />
+                <Metric
+                  label="Forecast at completion"
+                  value={selected.financials.forecastHours !== null ? hours(selected.financials.forecastHours) : "Not enough progress yet"}
+                  tone="gold"
+                />
+                <Metric
+                  label="Variance"
+                  value={selected.financials.hoursVariance !== null ? `${selected.financials.hoursVariance > 0 ? "+" : ""}${hours(selected.financials.hoursVariance)}` : "—"}
+                  tone={selected.financials.hoursVariance !== null && selected.financials.hoursVariance > 0 ? "danger" : "moss"}
+                />
+                <Metric
+                  label="Health"
+                  value={selected.health}
+                  tone={selected.health === "At Risk" ? "danger" : selected.health === "Watch" ? "gold" : "moss"}
                 />
               </div>
 
