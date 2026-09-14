@@ -212,6 +212,23 @@ async function notifyAllStaff(admin, weekOf, urgentCount) {
   if (error) console.warn("Legis: could not create staff notifications:", error.message);
 }
 
+async function notifyGenerationFailed(admin, weekOf, errorMessage) {
+  const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (usersError) { console.warn("Legis: could not list admins for failure notification:", usersError.message); return; }
+  const recipients = (usersData?.users || []).filter((user) => user.user_metadata?.is_primary_admin === true);
+  if (!recipients.length) return;
+  const { error } = await admin.from("portal_events").insert(recipients.map((user) => ({
+    recipient_id: user.id,
+    event_type: "legis_brief_failed",
+    severity: "action_required",
+    title: "Legis briefing failed to generate",
+    body: `The weekly briefing for ${weekOf} could not be produced: ${errorMessage.slice(0, 200)}`,
+    href: "/?portal=admin&area=whsmonitor&tab=regulatory-watch",
+    source_table: "monday_briefs",
+  })));
+  if (error) console.warn("Legis: could not create failure notification:", error.message);
+}
+
 // Only update_llc and immediate_procedure_change represent a genuine
 // register/procedure action — no_action and monitor are informational and
 // belong in the brief only, not in the admin's Regulatory Watch queue.
@@ -288,7 +305,9 @@ export async function GET(request) {
 
     return Response.json({ ok: true, brief_id: briefRow.id, developments_found: (result.developments || []).length, immediate_procedure_change: urgentCount, self_audit_passed: result.self_audit_passed !== false });
   } catch (error) {
-    await admin.from("monday_briefs").update({ status: "failed", error_message: String(error.message || error).slice(0, 1000), updated_at: new Date().toISOString() }).eq("week_of", weekOf);
+    const message = String(error.message || error).slice(0, 1000);
+    await admin.from("monday_briefs").update({ status: "failed", error_message: message, updated_at: new Date().toISOString() }).eq("week_of", weekOf);
+    await notifyGenerationFailed(admin, weekOf, message);
     return Response.json({ error: error.message || "Legis generation failed." }, { status: 500 });
   }
 }
