@@ -20,6 +20,7 @@ import { persistEscalations, staleOpenEscalations } from "../../../../lib/ecado/
 import { render } from "../../../../lib/ecado/render";
 import { ECADO_SYSTEM_PROMPT, buildNarrationPrompt, validateNarration, NARRATION_FALLBACK } from "../../../../lib/ecado/prompt";
 import { countByRating } from "../../../../lib/ecado/types";
+import { sendPortalEmail } from "../../../../lib/transactionalEmail";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -88,7 +89,7 @@ export async function POST(request) {
       findings = filterToCapacity(findings);
     }
 
-    const { opened, updated } = await persistEscalations(findings);
+    const { opened, updated, failures: escalationFailures } = await persistEscalations(findings);
     const stale = kind === "daily" || kind === "weekly" ? await staleOpenEscalations(findings.map((f) => f.fingerprint)) : [];
 
     let markdown = render(kind, findings, snapshot, stale, body.projectRef ?? null, now);
@@ -122,7 +123,25 @@ export async function POST(request) {
       narrated,
     });
 
-    await auditEcado(viewer.email, "brief.generate", { kind, counts, gaps: snapshot.gaps.length, escalations: { opened, updated }, narrationNote }, sourcesRead(snapshot));
+    let emailResult = null;
+    if (kind === "weekly") {
+      try {
+        emailResult = await sendPortalEmail({
+          request,
+          to: viewer.email,
+          subject: `Ecado — Weekly Executive Brief (${now.toISOString().slice(0, 10)})`,
+          heading: "Your weekly Ecado brief is ready",
+          body: `Portfolio, compliance, resource and commercial signals for the week of ${now.toISOString().slice(0, 10)} have been compiled. ${counts?.critical || counts?.high ? `${(counts.critical || 0) + (counts.high || 0)} finding(s) need attention.` : "No findings require immediate attention this week."} Open Ecado for the full brief.`,
+          ctaLabel: "Open Ecado",
+          ctaPath: "/admin/ecado",
+        });
+      } catch (error) {
+        console.error("Could not email the weekly Ecado brief", error);
+        emailResult = { sent: false, reason: "send_failed" };
+      }
+    }
+
+    await auditEcado(viewer.email, "brief.generate", { kind, counts, gaps: snapshot.gaps.length, escalations: { opened, updated, failed: escalationFailures?.length || 0 }, escalationFailures, narrationNote, emailSent: emailResult?.sent ?? null, emailReason: emailResult?.reason ?? null }, sourcesRead(snapshot));
 
     return Response.json({
       kind,
@@ -133,9 +152,12 @@ export async function POST(request) {
       gaps: snapshot.gaps,
       dataCurrentTo: snapshot.dataCurrentTo,
       staleEscalations: stale,
+      escalationFailures: escalationFailures?.length ? escalationFailures : undefined,
       markdown,
       narrated,
       model,
+      emailSent: emailResult?.sent ?? undefined,
+      emailReason: emailResult?.reason ?? undefined,
     });
   } catch (err) {
     console.error("[ecado] brief generation failed", err);
