@@ -14,14 +14,6 @@ import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
 import Legis from "./Legis";
 
-// Newly-assigned task briefs already appear in "Pending task briefs" above
-// (their own portal_events row would otherwise duplicate that). Routine
-// tracker-entry logging from other staff is informational noise for the
-// person viewing this feed, not something assigned to them or requiring
-// their attention — excluded per explicit request to keep this stream to
-// assigned items, regulatory updates and task briefs only. A stable
-// module-level constant (not an inline array literal) keeps the prop
-// reference stable across renders.
 const EXCLUDED_EVENT_TYPES = ["remote_task_assigned", "project_tracker_entry"];
 
 export default function StaffNotifications() {
@@ -125,9 +117,9 @@ export default function StaffNotifications() {
             </div>
           </section>
 
-          <a className="sn-open-remote" href="/staff/service-requests">
+          <a className="sn-open-remote" href="/staff/remote-operations">
             <span>
-              <ClipboardList size={16} /> View all Task Briefs (including in-progress)
+              <ClipboardList size={16} /> Open Remote Operations
             </span>
             <ExternalLink size={15} />
           </a>
