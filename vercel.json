@@ -7,6 +7,10 @@
     {
       "path": "/api/jobs/system-health",
       "schedule": "20 18 * * *"
+    },
+    {
+      "path": "/api/jobs/legis-brief",
+      "schedule": "0 22 * * 0"
     }
   ]
 }

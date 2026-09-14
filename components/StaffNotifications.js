@@ -5,12 +5,14 @@ import {
   CalendarDays,
   ClipboardList,
   ExternalLink,
+  Scale,
   ShieldCheck,
 } from "lucide-react";
 import WorkspaceNav from "./WorkspaceNav";
 import StaffPortalEvents from "./StaffPortalEvents";
 import StaffPortalTaskCalendar from "./StaffPortalTaskCalendar";
 import RemoteTasks from "./RemoteTasks";
+import Legis from "./Legis";
 
 export default function StaffNotifications() {
   return (
@@ -27,6 +29,22 @@ export default function StaffNotifications() {
           </p>
         </div>
         <WorkspaceNav audience="staff" />
+      </section>
+
+      <section className="sn-pending-card" aria-labelledby="sn-legis-title">
+        <div className="sn-section-head compact">
+          <div>
+            <span className="sn-kicker">Legis</span>
+            <h2 id="sn-legis-title">
+              <Scale size={18} /> Weekly Update
+            </h2>
+            <p>
+              NSW/ACT ecology regulatory developments affecting biodiversity
+              assessment and approvals, researched and compiled every Monday.
+            </p>
+          </div>
+        </div>
+        <Legis />
       </section>
 
       <section className="sn-pending-card" aria-labelledby="sn-pending-title">
