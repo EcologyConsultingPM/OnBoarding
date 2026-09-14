@@ -46,8 +46,8 @@ function formatWeek(value) {
   return Number.isNaN(date.getTime()) ? value : `Week of ${date.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}`;
 }
 
-function DevelopmentCard({ development }) {
-  const [expanded, setExpanded] = useState(development.llc_recommendation === "immediate_procedure_change");
+function DevelopmentCard({ development, compact = false }) {
+  const [expanded, setExpanded] = useState(!compact && development.llc_recommendation === "immediate_procedure_change");
   const cls = LLC_RECOMMENDATION[development.llc_recommendation] || LLC_RECOMMENDATION.monitor;
   const implications = development.consulting_implications || {};
   const hasImplications = Object.values(implications).some(Boolean);
@@ -61,20 +61,24 @@ function DevelopmentCard({ development }) {
         <span className="lg-development-juris">{development.jurisdiction}</span>
       </div>
       <h4>{development.title}</h4>
-      {development.llc_reasoning ? <p className="lg-reasoning"><strong>Why:</strong> {development.llc_reasoning}</p> : null}
+      {!compact && development.llc_reasoning ? <p className="lg-reasoning"><strong>Why:</strong> {development.llc_reasoning}</p> : null}
 
       {/* Level 1 — always visible, the whole point is a field ecologist needs nothing more */}
       {development.level1_notification ? <p className="lg-level1">{development.level1_notification}</p> : null}
 
-      {Array.isArray(development.affected_work) && development.affected_work.length ? (
+      {!compact && Array.isArray(development.affected_work) && development.affected_work.length ? (
         <div className="lg-affected-work">
           {development.affected_work.map((w) => <span key={w}>{w}</span>)}
         </div>
       ) : null}
 
+      {/* Compact mode (staff notifications) stops here — a targeted summary and
+          nothing else. Full detail & evidence is a Regulatory Watch concept. */}
+      {compact ? null : (
       <button type="button" className="lg-expand-toggle" onClick={() => setExpanded((v) => !v)}>
         {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {expanded ? "Hide" : "Show"} detail & evidence
       </button>
+      )}
 
       {expanded ? (
         <div className="lg-level2">
@@ -278,25 +282,25 @@ export default function Legis({ compact = false }) {
       <div className="lg-header"><span><Scale size={13} /> {formatWeek(brief.week_of)}</span></div>
       {brief.summary ? <p className="lg-summary">{brief.summary}</p> : null}
 
-      <StatusMatrix rows={brief.status_matrix} />
+      {compact ? null : <StatusMatrix rows={brief.status_matrix} />}
 
       {actionItems.length ? (
         <section>
           <h3>{"\ud83d\udd34"} Immediate procedure change ({actionItems.length})</h3>
-          {actionItems.map((d, i) => <DevelopmentCard key={i} development={d} />)}
+          {actionItems.map((d, i) => <DevelopmentCard key={i} development={d} compact={compact} />)}
         </section>
       ) : null}
 
       {otherItems.length ? (
         <section>
           <h3><BookOpen size={15} /> Other developments</h3>
-          {otherItems.map((d, i) => <DevelopmentCard key={i} development={d} />)}
+          {otherItems.map((d, i) => <DevelopmentCard key={i} development={d} compact={compact} />)}
         </section>
       ) : null}
 
       {!developments.length ? <p className="lg-no-developments">No developments met the consequentiality threshold this week.</p> : null}
 
-      {hasDepartments ? (
+      {!compact && hasDepartments ? (
         <section>
           <h3>Cross-cutting impact</h3>
           <div className="lg-departments">
@@ -320,7 +324,7 @@ export default function Legis({ compact = false }) {
         </section>
       ) : null}
 
-      {(brief.watchlist || []).length ? (
+      {!compact && (brief.watchlist || []).length ? (
         <section>
           <h3><Eye size={15} /> Regulatory Watchlist</h3>
           {brief.watchlist.map((item, index) => (
@@ -341,14 +345,16 @@ export default function Legis({ compact = false }) {
         </section>
       ) : null}
 
-      {(brief.no_material_change_categories || []).length ? (
+      {!compact && (brief.no_material_change_categories || []).length ? (
         <p className="lg-no-change">No material change this week: {brief.no_material_change_categories.join(", ")}.</p>
       ) : null}
 
+      {compact ? null : (
       <button type="button" className="lg-history-toggle" onClick={loadHistory}>
         {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Previous briefings
       </button>
-      {showHistory ? (
+      )}
+      {!compact && showHistory ? (
         <div className="lg-history">
           {history.filter((item) => item.id !== brief.id).map((item) => (
             <div key={item.id} className="lg-history-item">
