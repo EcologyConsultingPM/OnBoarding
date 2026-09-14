@@ -114,7 +114,7 @@ async function notifyAssignee(admin, draft, recipientId, kind = "assigned") {
   const { error } = await admin.from("portal_events").insert({
     recipient_id: recipientId,
     event_type: kind === "assigned" ? "quote_draft_assigned" : "quote_draft_ready",
-    severity: kind === "assigned" ? "action" : "information",
+    severity: kind === "assigned" ? "action_required" : "information",
     title: kind === "assigned" ? "Quote enquiry assigned" : "Quote enquiry ready to draft",
     body: kind === "assigned"
       ? `${draft.client_name}${draft.project_name ? ` · ${draft.project_name}` : ""} requires review and direct client contact before quote preparation.`
