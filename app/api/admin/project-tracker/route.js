@@ -86,6 +86,16 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     .map((activity) => Math.max(0, (new Date(activity.completed_at).getTime() - new Date(activity.assigned_at).getTime()) / 86400000));
   const averageDeliveryDays = completionDurations.length ? Math.round((completionDurations.reduce((sum, days) => sum + days, 0) / completionDurations.length) * 10) / 10 : null;
   const utilisationPercent = budgetHours > 0 ? Math.round((usedHours / budgetHours) * 1000) / 10 : null;
+  // Earned-value forecast: project total hours needed at completion based on
+  // actual work progress (taskCompletion), not on how much of the budget has
+  // been spent — those are different signals. A project at 50% of budget
+  // hours but only 30% of activities complete is heading for an overrun,
+  // and forecasting from hours-consumed alone would hide that. Guarded at
+  // 5% minimum progress since a forecast from near-zero completion is not
+  // meaningful (dividing by an almost-zero percentage produces a huge,
+  // misleading number rather than a useful early signal).
+  const forecastHours = usedHours > 0 && taskCompletion > 5 ? Math.round((usedHours / (taskCompletion / 100)) * 10) / 10 : null;
+  const hoursVariance = forecastHours !== null && budgetHours > 0 ? Math.round((forecastHours - budgetHours) * 10) / 10 : null;
   const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
   const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
   const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
@@ -123,7 +133,7 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     healthOverridden,
     manualHealthStatus: project.manual_health_status || null,
     manualHealthNote: project.manual_health_note || null,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
     entrySummary: { count: projectEntries.length, submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0), recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8) },
