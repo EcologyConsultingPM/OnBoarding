@@ -14,6 +14,8 @@ import {
   Trash2,
   UsersRound,
   ShieldAlert,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectTrackerSetup from "./ProjectTrackerSetup";
@@ -94,6 +96,7 @@ export default function AdminProjectTracker({
   const [entryStatusFilter, setEntryStatusFilter] = useState("all");
   const [entryDateFrom, setEntryDateFrom] = useState("");
   const [entryDateTo, setEntryDateTo] = useState("");
+  const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
   const [sourceEditor, setSourceEditor] = useState(null);
   const [allocationEditor, setAllocationEditor] = useState(null);
 
@@ -389,50 +392,9 @@ export default function AdminProjectTracker({
 
               <div className="apt-metrics">
                 <Metric
-                  label="Original budget"
-                  value={money(selected.financials.originalBudget)}
-                />
-                <Metric
-                  label="Approved variations"
-                  value={money(selected.financials.variationBudget)}
-                  tone="gold"
-                />
-                <Metric
-                  label="Overall budget"
-                  value={money(selected.financials.overallBudget)}
-                />
-                <Metric
-                  label="Charge-out spend"
-                  value={money(selected.financials.chargeOutSpend)}
-                  tone="moss"
-                />
-                <Metric
-                  label="Internal cost"
-                  value={money(selected.financials.internalCost)}
-                />
-                <Metric
-                  label="Estimated profit"
-                  value={money(selected.financials.estimatedProfit)}
-                  tone={
-                    selected.financials.estimatedProfit < 0 ? "danger" : "moss"
-                  }
-                />
-              </div>
-
-              <div className="apt-metrics">
-                <Metric
-                  label="Quoted hours"
-                  value={hours(selected.financials.budgetHours)}
-                />
-                <Metric
-                  label="Hours used"
-                  value={hours(selected.financials.usedHours)}
-                  tone="moss"
-                />
-                <Metric
-                  label="Hours remaining"
-                  value={hours(selected.financials.remainingHours)}
-                  tone={selected.financials.remainingHours !== null && selected.financials.remainingHours < 0 ? "danger" : ""}
+                  label="Health"
+                  value={selected.health}
+                  tone={selected.health === "At Risk" ? "danger" : selected.health === "Watch" ? "gold" : "moss"}
                 />
                 <Metric
                   label="Forecast at completion"
@@ -444,12 +406,57 @@ export default function AdminProjectTracker({
                   value={selected.financials.hoursVariance !== null ? `${selected.financials.hoursVariance > 0 ? "+" : ""}${hours(selected.financials.hoursVariance)}` : "—"}
                   tone={selected.financials.hoursVariance !== null && selected.financials.hoursVariance > 0 ? "danger" : "moss"}
                 />
-                <Metric
-                  label="Health"
-                  value={selected.health}
-                  tone={selected.health === "At Risk" ? "danger" : selected.health === "Watch" ? "gold" : "moss"}
-                />
               </div>
+
+              <button
+                type="button"
+                onClick={() => setFinancialDetailsOpen((v) => !v)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "#cfe0c8", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "4px 0", marginBottom: financialDetailsOpen ? 8 : 18 }}
+              >
+                {financialDetailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Financial details
+              </button>
+              {financialDetailsOpen ? (
+                <div className="apt-metrics" style={{ marginBottom: 18 }}>
+                  <Metric
+                    label="Original budget"
+                    value={money(selected.financials.originalBudget)}
+                  />
+                  <Metric
+                    label="Approved variations"
+                    value={money(selected.financials.variationBudget)}
+                    tone="gold"
+                  />
+                  <Metric
+                    label="Overall budget"
+                    value={money(selected.financials.overallBudget)}
+                  />
+                  <Metric
+                    label="Charge-out spend"
+                    value={money(selected.financials.chargeOutSpend)}
+                    tone="moss"
+                  />
+                  <Metric
+                    label="Internal cost"
+                    value={money(selected.financials.internalCost)}
+                  />
+                  <Metric
+                    label="Estimated profit"
+                    value={money(selected.financials.estimatedProfit)}
+                    tone={
+                      selected.financials.estimatedProfit < 0 ? "danger" : "moss"
+                    }
+                  />
+                  <Metric
+                    label="Quoted hours"
+                    value={hours(selected.financials.budgetHours)}
+                  />
+                  <Metric
+                    label="Hours used"
+                    value={hours(selected.financials.usedHours)}
+                    tone="moss"
+                  />
+                </div>
+              ) : null}
 
               {(() => {
                 const budgetTotal = selected.financials.overallBudget || 0;
@@ -476,6 +483,15 @@ export default function AdminProjectTracker({
                       </div>
                       <div style={{ background: "#2a3a2a", borderRadius: 6, height: 10, overflow: "hidden" }}>
                         <div style={{ width: `${hoursPct}%`, background: hoursPct >= 90 ? "#a5342a" : "#2c6a34", height: "100%" }} />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#8a927c", marginBottom: 4 }}>
+                        <span>Task progress</span>
+                        <span>{selected.taskCompletion}% delivery complete</span>
+                      </div>
+                      <div style={{ background: "#2a3a2a", borderRadius: 6, height: 10, overflow: "hidden" }}>
+                        <div style={{ width: `${selected.taskCompletion}%`, background: "#c98a1e", height: "100%" }} />
                       </div>
                     </div>
                   </div>
@@ -847,55 +863,6 @@ export default function AdminProjectTracker({
                     </section>
                   ) : null}
 
-                  <section className="apt-card">
-                    <span className="apt-kicker">
-                      Budget burn vs task progress
-                    </span>
-                    <h3>{selected.taskCompletion}% delivery complete</h3>
-                    <div className="apt-driver">
-                      <span>Budget burn</span>
-                      <b>
-                        {percent(
-                          selected.financials.chargeOutSpend,
-                          selected.financials.overallBudget,
-                        )}
-                        %
-                      </b>
-                      <i>
-                        <strong
-                          style={{
-                            width: `${percent(selected.financials.chargeOutSpend, selected.financials.overallBudget)}%`,
-                          }}
-                        />
-                      </i>
-                    </div>
-                    <div className="apt-driver">
-                      <span>Hours consumed</span>
-                      <b>
-                        {percent(
-                          selected.financials.usedHours,
-                          selected.financials.budgetHours,
-                        )}
-                        %
-                      </b>
-                      <i>
-                        <strong
-                          style={{
-                            width: `${percent(selected.financials.usedHours, selected.financials.budgetHours)}%`,
-                          }}
-                        />
-                      </i>
-                    </div>
-                    <div className="apt-driver">
-                      <span>Task progress</span>
-                      <b>{selected.taskCompletion}%</b>
-                      <i>
-                        <strong
-                          style={{ width: `${selected.taskCompletion}%` }}
-                        />
-                      </i>
-                    </div>
-                  </section>
                 </aside>
               </div>
             </div>
