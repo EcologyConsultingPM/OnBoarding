@@ -20,7 +20,7 @@ export async function eligibleProjects(access) {
   if (!ids.length) return { available: true, projects: [] };
 
   const [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult] = await Promise.all([
-    access.admin.from("projects").select("id, name, client_name, status").in("id", ids).eq("status", "active"),
+    access.admin.from("projects").select("id, name, client_name, status").in("id", ids).is("deleted_at", null).eq("status", "active"),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", ids),
     access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status").in("project_id", ids).eq("approval_status", "approved"),
