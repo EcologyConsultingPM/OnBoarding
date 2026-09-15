@@ -13,8 +13,8 @@ function validId(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89a
 function text(value, maximum = 5000) { return typeof value === "string" ? value.trim().slice(0, maximum) : ""; }
 function hours(value) { const result = Number(value); return Number.isFinite(result) && result >= 0 && result <= 24 ? result : null; }
 
-export async function eligibleProjects(access) {
-  const { data: staffAllocations, error: allocationError } = await access.admin.from("project_allocations").select("project_id, active").eq("staff_user_id", access.user.id);
+export async function eligibleProjects(access, staffUserId = access.user.id) {
+  const { data: staffAllocations, error: allocationError } = await access.admin.from("project_allocations").select("project_id, active").eq("staff_user_id", staffUserId);
   if (allocationError) throw new Error(allocationError.message);
   const ids = [...new Set((staffAllocations || []).filter((row) => row.active !== false).map((row) => row.project_id).filter(Boolean))];
   if (!ids.length) return { available: true, projects: [] };
@@ -195,17 +195,18 @@ export async function GET(request) {
 // allocation } on success — never throws, and never touches the HTTP layer,
 // so a bulk caller can process many of these without one failure aborting
 // the request or needing try/catch gymnastics around Response objects.
-export async function createTrackerEntry(access, input) {
+export async function createTrackerEntry(access, input, targetStaffUserId = access.user.id) {
+  const isOnBehalf = targetStaffUserId !== access.user.id;
   const projectId = String(input?.projectId || ""); const sourceId = String(input?.sourceId || ""); const allocationId = String(input?.allocationId || ""); const activityId = String(input?.activityId || "");
   const workDate = text(input?.workDate, 10); const activityCategory = text(input?.activityCategory, 120); const activityInformation = text(input?.activityInformation, 5000); const notableIssues = text(input?.notableIssues, 5000); const amount = hours(input?.hours); const status = String(input?.status || "");
   if (!validId(projectId) || !validId(sourceId) || !validId(allocationId)) return { error: "Choose an eligible project, budget source and allocation.", status: 400 };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) return { error: "Work date, activity category, activity information, hours and a valid status are required.", status: 400 };
   if (status !== "not_commenced" && amount <= 0) return { error: "Active, paused and completed entries must record positive hours.", status: 400 };
 
-  const eligibility = await eligibleProjects(access);
+  const eligibility = await eligibleProjects(access, targetStaffUserId);
   if (!eligibility.available) return { error: "Project Tracker entries are awaiting the approved tracker migration.", status: 409 };
   const project = eligibility.projects.find((item) => item.id === projectId);
-  if (!project) return { error: "This Project Tracker is not enabled, allocated to you, or its template is not locked.", status: 403 };
+  if (!project) return { error: isOnBehalf ? "This Project Tracker is not enabled, or this staff member has no active allocation on it, or its template is not locked." : "This Project Tracker is not enabled, allocated to you, or its template is not locked.", status: 403 };
   const source = project.sources.find((item) => item.id === sourceId);
   const allocation = source?.allocations.find((item) => item.id === allocationId);
   if (!source || !allocation) return { error: "Choose an active staff-visible budget allocation for this project.", status: 403 };
@@ -221,7 +222,7 @@ export async function createTrackerEntry(access, input) {
       .select("id, title, project_id, staff_user_id, acceptance_status, locked, progress_percent, schedule_item_id")
       .eq("id", activityId)
       .eq("project_id", projectId)
-      .eq("staff_user_id", access.user.id)
+      .eq("staff_user_id", targetStaffUserId)
       .eq("is_active", true)
       .maybeSingle();
     if (activityError) return { error: activityError.message, status: 400 };
@@ -232,7 +233,7 @@ export async function createTrackerEntry(access, input) {
   }
 
   const now = new Date().toISOString();
-  const { data: entry, error: entryError } = await access.admin.from("project_tracker_entries").insert({ project_id: projectId, budget_source_id: sourceId, budget_allocation_id: allocationId, activity_id: linkedActivity?.id || null, staff_user_id: access.user.id, work_date: workDate, activity_category: activityCategory, activity_information: activityInformation, hours: amount, status, notable_issues: notableIssues || null, custom_data: customData, created_at: now, updated_at: now }).select("id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at").single();
+  const { data: entry, error: entryError } = await access.admin.from("project_tracker_entries").insert({ project_id: projectId, budget_source_id: sourceId, budget_allocation_id: allocationId, activity_id: linkedActivity?.id || null, staff_user_id: targetStaffUserId, entered_by_admin_id: isOnBehalf ? access.user.id : null, work_date: workDate, activity_category: activityCategory, activity_information: activityInformation, hours: amount, status, notable_issues: notableIssues || null, custom_data: customData, created_at: now, updated_at: now }).select("id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at").single();
   if (entryError) return { error: entryError.message, status: 400 };
 
     const { data: entryRows, error: sumError } = await access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000);
@@ -284,6 +285,9 @@ export async function createTrackerEntry(access, input) {
 
     const { data: owner } = await access.admin.from("projects").select("created_by, name").eq("id", projectId).maybeSingle();
     if (owner?.created_by && owner.created_by !== access.user.id) await access.admin.from("portal_events").insert({ recipient_id: owner.created_by, event_type: "project_tracker_entry", severity: status === "paused_other" ? "action" : "information", title: `Project Tracker entry: ${project.name}`, body: `${activityCategory} · ${amount} hours · ${status.replaceAll("_", " ")}${notableIssues ? " · notable issue recorded" : ""}.`, href: "/?portal=admin&area=adminprojects", source_table: "project_tracker_entries", source_id: entry.id });
+    // On-behalf-of entries change someone's own timesheet without them
+    // typing it in — they need to know it happened, not just discover it.
+    if (isOnBehalf) await access.admin.from("portal_events").insert({ recipient_id: targetStaffUserId, event_type: "project_tracker_entry_on_behalf", severity: "information", title: `Timesheet entry added on your behalf: ${project.name}`, body: `An admin logged ${activityCategory} · ${amount} hours · ${workDate} for you, marked as a missed entry.`, href: "/?portal=staff&area=projecttracker", source_table: "project_tracker_entries", source_id: entry.id });
 
   return { entry: { id: entry.id, projectId, projectName: project.name, projectClient: project.clientName, allocation: `${allocation.allocation_code} · ${allocation.allocation_name}`, activityId: entry.activity_id || null, activityTitle: linkedActivity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at } };
 }
