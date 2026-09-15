@@ -122,6 +122,7 @@ async function projectRows(access) {
   const { data, error } = await access.admin
     .from("projects")
     .select("id, name, client_name, budget_hours, budget_dollars, status")
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data || [];
