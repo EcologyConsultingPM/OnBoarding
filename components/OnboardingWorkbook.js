@@ -4136,9 +4136,8 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
           [
             "remote_tasks",
             "project_activities",
-            "project_tracker_entries",
           ].includes(event.source_table) ||
-          String(event.event_type || "").includes("project_") ||
+          (String(event.event_type || "").includes("project_") && !String(event.event_type || "").includes("tracker")) ||
           String(event.event_type || "").includes("remote_task")
         );
       if (key === "servicerequests")
