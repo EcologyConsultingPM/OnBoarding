@@ -203,7 +203,31 @@ export default function ProjectHealth({ projectId, onBack, showBack = true }) {
                   </div>
                   {item.detail ? <div className="proj-schedule-detail" style={{ color: "#3a4740" }}>{item.detail}</div> : null}
                   {(item.start_date || item.end_date) ? <div className="proj-schedule-dates" style={{ color: "#5c6b52" }}>Key dates: {item.start_date || "—"} → {item.end_date || "—"}</div> : null}
-                  <div className="proj-schedule-assignees" style={{ color: "#3a4740" }}><Users size={13} /><strong>Assigned staff:</strong> {assignedStaff.length ? assignedStaff.map((staff) => <span key={staff.activityId || staff.id}>{staff.email} · {staff.progressPercent}%</span>) : <span>Not assigned</span>}</div>
+                  {assignedStaff.length ? (
+                    <div className="proj-schedule-assignees" style={{ color: "#3a4740" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: assignedStaff.length > 1 ? 6 : 0 }}>
+                        <Users size={13} />
+                        <strong>{assignedStaff.length > 1 ? `Shared by ${assignedStaff.length} people` : "Assigned staff"}</strong>
+                        {assignedStaff.length > 1 ? (
+                          <span style={{ color: "#8a927c", fontSize: 12 }}>
+                            · {assignedStaff.filter((s) => s.status === "completed").length} of {assignedStaff.length} complete
+                          </span>
+                        ) : null}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {assignedStaff.map((staff) => (
+                          <div key={staff.activityId || staff.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 12.5 }}>
+                            <span>{staff.email}{staff.id === myUserId ? " (you)" : ""}</span>
+                            <span style={{ color: staff.status === "completed" ? "#2c6a34" : staff.status === "not_commenced" ? "#8a927c" : "#c9962a", fontWeight: 700 }}>
+                              {staff.progressPercent}%{staff.status === "completed" ? " · done" : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="proj-schedule-assignees" style={{ color: "#3a4740" }}><Users size={13} /><strong>Assigned staff:</strong> <span>Not assigned</span></div>
+                  )}
                   {item.locked ? <small className="proj-schedule-lock"><Lock size={12} /> Schedule line locked by the project lead</small> : null}
                   {assignedStaff.some((staff) => staff.id === myUserId) ? <small className="proj-schedule-update-hint">Update your assigned delivery status above in My work activities.</small> : null}
                 </div>
