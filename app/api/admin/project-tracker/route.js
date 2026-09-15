@@ -179,7 +179,7 @@ async function trackerData(access, requestedProjectId = "") {
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
     access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
-    access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
+    access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
   ]);
 
   // No staff-name resolution existed anywhere in this route — Timesheet
