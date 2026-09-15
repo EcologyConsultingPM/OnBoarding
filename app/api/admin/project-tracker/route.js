@@ -3,6 +3,10 @@ import { requireSession, serverError } from "../../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at, manual_health_status, manual_health_note, manual_health_set_by, manual_health_set_at";
+const SOURCE_COLUMNS = "id, project_id, source_code, source_name, source_type, approved_value, approved_hours, approval_status, variation_reason, effective_date, created_at, updated_at";
+const ALLOCATION_COLUMNS = "id, project_id, budget_source_id, allocation_code, allocation_name, allocation_value, allocation_hours, hours_consumed, charge_out_spend, internal_cost, threshold_percent, status, staff_visible, created_at, updated_at";
+
 function jsonError(error, status = 400) {
   return Response.json({ error }, { status });
 }
@@ -10,105 +14,22 @@ function jsonError(error, status = 400) {
 function tableUnavailable(error) {
   const code = String(error?.code || "");
   const message = String(error?.message || "").toLowerCase();
-  return code === "42P01" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
+  return code === "42P01" || code === "42703" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
 }
 
-function toSettings(row) {
-  return {
-    trackerVisible: Boolean(row?.tracker_visible),
-    resourcesReady: Boolean(row?.resources_ready),
-    trainingChecked: Boolean(row?.training_checked),
-    formsConfigured: Boolean(row?.forms_configured),
-    whsChecked: Boolean(row?.whs_checked),
-  };
+function number(value) {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : 0;
 }
 
-function booleanInput(value) {
-  return value === true;
+function optionalNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const result = Number(value);
+  return Number.isFinite(result) && result >= 0 ? result : null;
 }
 
-function validProjectId(value) {
+function validId(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
-}
-
-function numberOrZero(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : 0;
-}
-
-// Staff tracker entries require an approved budget source and a staff-visible
-// allocation. The first activation should not require administrators to locate
-// a separate financial screen merely to create a valid timesheet path. This
-// helper creates a clearly labelled baseline only when those records are absent;
-// later detailed budget management remains in Project Tracker.
-async function ensureBaselineTrackerBudget(access, project, now) {
-  let { data: source, error: sourceError } = await access.admin
-    .from("project_budget_sources")
-    .select("id")
-    .eq("project_id", project.id)
-    .eq("source_type", "original")
-    .maybeSingle();
-  if (sourceError) return { error: sourceError.message };
-  if (!source) {
-    const inserted = await access.admin
-      .from("project_budget_sources")
-      .insert({
-        project_id: project.id,
-        source_code: "BASE",
-        source_name: "Project delivery baseline",
-        source_type: "original",
-        approved_value: numberOrZero(project.budget_dollars),
-        approved_hours: numberOrZero(project.budget_hours),
-        approval_status: "approved",
-        effective_date: new Date().toISOString().slice(0, 10),
-        created_by: access.user.id,
-        updated_by: access.user.id,
-        created_at: now,
-        updated_at: now,
-      })
-      .select("id")
-      .single();
-    if (inserted.error) return { error: inserted.error.message };
-    source = inserted.data;
-  }
-  const { data: visibleAllocation, error: allocationError } = await access.admin
-    .from("project_budget_allocations")
-    .select("id")
-    .eq("project_id", project.id)
-    .eq("budget_source_id", source.id)
-    .eq("status", "active")
-    .eq("staff_visible", true)
-    .limit(1);
-  if (allocationError) return { error: allocationError.message };
-  if (!(visibleAllocation || []).length) {
-    const { error } = await access.admin.from("project_budget_allocations").insert({
-      project_id: project.id,
-      budget_source_id: source.id,
-      allocation_code: "DELIVERY",
-      allocation_name: "Allocated project delivery",
-      allocation_value: numberOrZero(project.budget_dollars),
-      allocation_hours: numberOrZero(project.budget_hours),
-      hours_consumed: 0,
-      charge_out_spend: 0,
-      internal_cost: 0,
-      threshold_percent: 80,
-      status: "active",
-      staff_visible: true,
-      created_by: access.user.id,
-      updated_by: access.user.id,
-      created_at: now,
-      updated_at: now,
-    });
-    if (error) return { error: error.message };
-  }
-  return { sourceId: source.id };
-}
-
-function settingColumns() {
-  return [
-    "project_id", "tracker_visible", "resources_ready", "training_checked", "forms_configured", "whs_checked",
-    "activated_by", "activated_at", "updated_by", "updated_at",
-  ].join(", ");
 }
 
 async function requireAdmin(request) {
@@ -118,311 +39,296 @@ async function requireAdmin(request) {
   return { access };
 }
 
-async function projectRows(access) {
-  const { data, error } = await access.admin
-    .from("projects")
-    .select("id, name, client_name, budget_hours, budget_dollars, status")
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+function sourceStatus(source) {
+  return String(source.approval_status || "draft").toLowerCase();
 }
 
-async function settingsByProject(access) {
-  const { data, error } = await access.admin
-    .from("project_tracker_settings")
-    .select(settingColumns());
-  if (error) {
-    if (tableUnavailable(error)) return { ready: false, settings: new Map() };
-    throw new Error(error.message);
-  }
-  return { ready: true, settings: new Map((data || []).map((row) => [row.project_id, row])) };
+function healthForAllocation(allocation) {
+  const budget = number(allocation.allocation_value);
+  const spent = number(allocation.charge_out_spend);
+  const hours = number(allocation.allocation_hours);
+  const consumed = number(allocation.hours_consumed);
+  const threshold = number(allocation.threshold_percent) || 80;
+  const valueRatio = budget > 0 ? (spent / budget) * 100 : 0;
+  const hourRatio = hours > 0 ? (consumed / hours) * 100 : 0;
+  const ratio = Math.max(valueRatio, hourRatio);
+  // "At risk" means 10% or less of budget/hours remaining (90%+ consumed) —
+  // previously this only triggered once the budget was already fully or
+  // over-consumed (100%+), which is a warning that arrives too late to act
+  // on. "Watch" keeps the existing configurable threshold (defaulting 80%).
+  if (ratio >= 90) return "at_risk";
+  if (ratio >= threshold) return "watch";
+  return "on_track";
 }
 
-// Must exactly match TASK_CATEGORIES in components/AdminProjectSetup.js — see
-// the identical fix and explanation in app/api/projects/[projectId]/activities/approval/route.js.
-const STANDARD_TRACKER_CATEGORIES = ["Desktop Assessment", "Client Information Review", "Field Plan", "GIS & Mapping", "Field Survey", "Targeted Survey", "Site Inspection", "Data Analysis", "Project Management", "Client Meeting", "Internal Meeting", "Review", "QA Review", "Reporting", "Deliverable Preparation", "Invoice", "Close-Out", "Other"];
+function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames) {
+  const projectSources = sources.filter((source) => source.project_id === project.id);
+  const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
+  const original = projectSources.filter((source) => source.source_type === "original");
+  const variations = projectSources.filter((source) => source.source_type === "variation" && sourceStatus(source) === "approved");
+  const originalBudget = original.length ? original.reduce((sum, source) => sum + number(source.approved_value), 0) : number(project.budget_dollars);
+  const variationBudget = variations.reduce((sum, source) => sum + number(source.approved_value), 0);
+  const overallBudget = originalBudget + variationBudget;
+  const chargeOutSpend = projectAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0);
+  const internalCost = projectAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0);
+  const estimatedProfit = chargeOutSpend - internalCost;
+  const budgetHours = projectSources.length ? projectSources.filter((source) => sourceStatus(source) === "approved").reduce((sum, source) => sum + number(source.approved_hours), 0) : number(project.budget_hours);
+  const usedHours = projectAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
+  const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
+  const completedActivities = relevantActivities.filter((activity) => activity.status === "completed").length;
+  const taskCompletion = relevantActivities.length ? Math.round((relevantActivities.reduce((sum, activity) => sum + Math.max(0, Math.min(100, number(activity.progress_percent))), 0) / relevantActivities.length) * 100) / 100 : 0;
+  const pausedActivities = relevantActivities.filter((activity) => ["need_info", "paused_other"].includes(activity.status)).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueActivities = relevantActivities.filter((activity) => activity.due_date && activity.due_date < today && activity.status !== "completed").length;
+  const completionDurations = relevantActivities
+    .filter((activity) => activity.assigned_at && activity.completed_at)
+    .map((activity) => Math.max(0, (new Date(activity.completed_at).getTime() - new Date(activity.assigned_at).getTime()) / 86400000));
+  const averageDeliveryDays = completionDurations.length ? Math.round((completionDurations.reduce((sum, days) => sum + days, 0) / completionDurations.length) * 10) / 10 : null;
+  const utilisationPercent = budgetHours > 0 ? Math.round((usedHours / budgetHours) * 1000) / 10 : null;
+  // Earned-value forecast: project total hours needed at completion based on
+  // actual work progress (taskCompletion), not on how much of the budget has
+  // been spent — those are different signals. A project at 50% of budget
+  // hours but only 30% of activities complete is heading for an overrun,
+  // and forecasting from hours-consumed alone would hide that. Guarded at
+  // 5% minimum progress since a forecast from near-zero completion is not
+  // meaningful (dividing by an almost-zero percentage produces a huge,
+  // misleading number rather than a useful early signal).
+  const forecastHours = usedHours > 0 && taskCompletion > 5 ? Math.round((usedHours / (taskCompletion / 100)) * 10) / 10 : null;
+  const hoursVariance = forecastHours !== null && budgetHours > 0 ? Math.round((forecastHours - budgetHours) * 10) / 10 : null;
+  const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
+  const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
+  const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
+  // 90% consumed = "10% remaining", matching atRiskAllocations' own threshold
+  // above — previously this only fired once fully over-budget (100%+).
+  const budgetNearlyGone = overallBudget > 0 && chargeOutSpend >= overallBudget * 0.9;
+  const hoursNearlyGone = budgetHours > 0 && usedHours >= budgetHours * 0.9;
+  const healthReasons = [];
+  if (atRiskAllocations) healthReasons.push(`${atRiskAllocations} budget allocation${atRiskAllocations === 1 ? "" : "s"} at 90%+ of its limit`);
+  if (pausedActivities) healthReasons.push(`${pausedActivities} activit${pausedActivities === 1 ? "y" : "ies"} paused or needing information`);
+  if (overdueActivities) healthReasons.push(`${overdueActivities} activit${overdueActivities === 1 ? "y" : "ies"} overdue`);
+  if (budgetNearlyGone) healthReasons.push(`Charge-out spend at ${Math.round((chargeOutSpend / overallBudget) * 100)}% of the overall budget`);
+  if (hoursNearlyGone) healthReasons.push(`Hours consumed at ${Math.round((usedHours / budgetHours) * 100)}% of budgeted hours`);
+  if (!healthReasons.length && watchAllocations) healthReasons.push(`${watchAllocations} allocation${watchAllocations === 1 ? "" : "s"} approaching its threshold`);
+  if (!healthReasons.length && utilisationPercent !== null && utilisationPercent >= 80) healthReasons.push(`Overall hours utilisation at ${utilisationPercent}%`);
+  const computedHealth = atRiskAllocations || pausedActivities || overdueActivities || budgetNearlyGone || hoursNearlyGone ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  const health = project.manual_health_status || computedHealth;
+  const healthOverridden = Boolean(project.manual_health_status && project.manual_health_status !== computedHealth);
+  if (healthOverridden) healthReasons.unshift(`Manually set to ${project.manual_health_status} by an admin${project.manual_health_note ? `: ${project.manual_health_note}` : ""} (system would show ${computedHealth})`);
 
-async function teamCounts(access) {
-  const { data, error } = await access.admin
-    .from("project_allocations")
-    .select("project_id, staff_user_id, active");
-  if (error) {
-    // The active flag is introduced with the tracker configuration migration.
-    if (tableUnavailable(error) || String(error.message || "").includes("active")) {
-      const fallback = await access.admin.from("project_allocations").select("project_id, staff_user_id");
-      if (fallback.error) throw new Error(fallback.error.message);
-      return fallback.data || [];
-    }
-    throw new Error(error.message);
+  return {
+    id: project.id,
+    name: project.name,
+    clientName: project.client_name || "Client not recorded",
+    description: project.description || "",
+    startDate: project.start_date,
+    endDate: project.end_date,
+    status: project.status,
+    teamCount,
+    trackerVisible: Boolean(settings?.tracker_visible),
+    taskCompletion,
+    health,
+    healthReasons,
+    computedHealth,
+    healthOverridden,
+    manualHealthStatus: project.manual_health_status || null,
+    manualHealthNote: project.manual_health_note || null,
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
+    sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
+    activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
+    entrySummary: {
+      count: projectEntries.length,
+      submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0),
+      approvedHours: projectEntries.filter((e) => e.status === "completed").reduce((sum, entry) => sum + number(entry.hours), 0),
+      awaitingHours: projectEntries.filter((e) => e.status === "active").reduce((sum, entry) => sum + number(entry.hours), 0),
+      recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8),
+      all: projectEntries.map((entry) => ({ ...entry, staff_name: staffNames?.get(entry.staff_user_id) || "Unknown" })),
+    },
+    // Activity Position: what's allocated per activity, how much has actually
+    // been recorded against it, and what's left — kept distinct from Budget
+    // Allocations (which is money/category-level, not per-activity).
+    activityPosition: relevantActivities.filter((a) => (a.title || "").trim()).map((activity) => {
+      const actualHours = projectEntries.filter((e) => e.activity_category === activity.task_category).reduce((sum, e) => sum + number(e.hours), 0);
+      const allocatedHours = number(activity.budget_hours);
+      return {
+        id: activity.id,
+        title: activity.title,
+        category: activity.task_category,
+        assignedTo: staffNames?.get(activity.staff_user_id) || "Unassigned",
+        allocatedHours,
+        actualHours,
+        remainingHours: allocatedHours ? Math.round((allocatedHours - actualHours) * 10) / 10 : null,
+        status: activity.status,
+      };
+    }),
+  };
+}
+
+async function trackerData(access, requestedProjectId = "") {
+  const projectsQuery = access.admin.from("projects").select(PROJECT_COLUMNS).is("deleted_at", null).neq("status", "archived").order("updated_at", { ascending: false });
+  const projectsResult = requestedProjectId ? await projectsQuery.eq("id", requestedProjectId) : await projectsQuery.eq("status", "active");
+  if (projectsResult.error) throw new Error(projectsResult.error.message);
+  const projects = projectsResult.data || [];
+  if (requestedProjectId && !projects.length) return { projects: [], financialReady: true };
+  const ids = projects.map((project) => project.id);
+  if (!ids.length) return { projects: [], financialReady: true };
+
+  let [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
+    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active, staff_user_id, task_category, title, budget_hours").in("project_id", ids).eq("is_active", true),
+    access.admin.from("project_allocations").select("project_id, staff_user_id, active").in("project_id", ids),
+    access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
+    access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
+    access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
+    access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
+  ]);
+
+  // No staff-name resolution existed anywhere in this route — Timesheet
+  // Entries and Activity Position both need "who", not just a UUID.
+  const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const staffNames = new Map((usersData?.users || []).map((u) => [u.id, u.user_metadata?.full_name || u.user_metadata?.name || u.email]));
+
+  if (activitiesResult.error && tableUnavailable(activitiesResult.error)) {
+    activitiesResult = await access.admin.from("project_activities").select("id, project_id, status").in("project_id", ids);
   }
-  return (data || []).filter((row) => row.active !== false);
+  if (activitiesResult.error) throw new Error(activitiesResult.error.message);
+  if (allocationsResult.error && !tableUnavailable(allocationsResult.error)) throw new Error(allocationsResult.error.message);
+  if (settingsResult.error && !tableUnavailable(settingsResult.error)) throw new Error(settingsResult.error.message);
+  const financialReady = !sourcesResult.error && !trackerAllocationsResult.error;
+  if (!financialReady && !(tableUnavailable(sourcesResult.error) || tableUnavailable(trackerAllocationsResult.error))) {
+    throw new Error(sourcesResult.error?.message || trackerAllocationsResult.error?.message || "Could not load tracker budgets.");
+  }
+  if (trackerEntriesResult.error && !tableUnavailable(trackerEntriesResult.error)) throw new Error(trackerEntriesResult.error.message);
+
+  const teamCounts = new Map();
+  (allocationsResult.data || []).filter((row) => row.active !== false).forEach((row) => {
+    if (row.staff_user_id) teamCounts.set(row.project_id, (teamCounts.get(row.project_id) || 0) + 1);
+  });
+  const settingsByProject = new Map((settingsResult.data || []).map((setting) => [setting.project_id, setting]));
+  return {
+    financialReady,
+    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames)),
+  };
 }
 
 export async function GET(request) {
   try {
     const auth = await requireAdmin(request);
     if (auth.error) return auth.error;
-
-    const [projects, settingsResult, allocations] = await Promise.all([
-      projectRows(auth.access),
-      settingsByProject(auth.access),
-      teamCounts(auth.access),
-    ]);
-    const countByProject = new Map();
-    allocations.forEach((allocation) => {
-      if (!allocation.staff_user_id) return;
-      countByProject.set(allocation.project_id, (countByProject.get(allocation.project_id) || 0) + 1);
-    });
-
-    return Response.json({
-      setupReady: settingsResult.ready,
-      projects: projects.map((project) => ({
-        id: project.id,
-        name: project.name,
-        clientName: project.client_name,
-        budgetHours: project.budget_hours,
-        budgetDollars: project.budget_dollars,
-        status: project.status,
-        teamCount: countByProject.get(project.id) || 0,
-        settings: toSettings(settingsResult.settings.get(project.id)),
-      })),
-    });
+    const { searchParams } = new URL(request.url);
+    const projectId = String(searchParams.get("projectId") || "").trim();
+    if (projectId && !validId(projectId)) return jsonError("A valid project is required.");
+    const data = await trackerData(auth.access, projectId);
+    if (projectId && !data.projects.length) return jsonError("Active project not found.", 404);
+    return Response.json(projectId ? { project: data.projects[0], financialReady: data.financialReady } : data);
   } catch (error) {
     return serverError(error);
   }
 }
 
-// This controlled quick-start supports the normal staff timesheet path without
-// weakening the detailed tracker setup. It preserves a custom template if one
-// already exists, fills standard categories only when none have been provided,
-// and creates baseline budget records only when required for staff entry.
 export async function POST(request) {
   try {
     const auth = await requireAdmin(request);
     if (auth.error) return auth.error;
     const body = await request.json();
-    if (String(body?.action || "") !== "activate_staff_timesheets") return jsonError("Unknown Project Tracker setup action.");
-    const projectId = String(body?.projectId || "").trim();
-    if (!validProjectId(projectId)) return jsonError("A valid project is required.");
+    const action = String(body.action || "");
+    const projectId = String(body.projectId || "");
+    if (!validId(projectId)) return jsonError("A valid project is required.");
 
-    const { data: project, error: projectError } = await auth.access.admin
-      .from("projects")
-      .select("id, name, status, budget_hours, budget_dollars")
-      .eq("id", projectId)
-      .maybeSingle();
+    const { data: project, error: projectError } = await auth.access.admin.from("projects").select("id, name").eq("id", projectId).maybeSingle();
     if (projectError) return jsonError(projectError.message);
     if (!project) return jsonError("Project not found.", 404);
-    if (String(project.status || "").toLowerCase() !== "active") return jsonError("Set the project to Active in Setup & Allocations before enabling staff timesheets.", 409);
 
-    const { data: team, error: teamError } = await auth.access.admin
-      .from("project_allocations")
-      .select("staff_user_id")
-      .eq("project_id", projectId)
-      .eq("active", true);
-    if (teamError) return jsonError(teamError.message);
-    const recipients = (team || []).map((row) => row.staff_user_id).filter(Boolean);
-    if (!recipients.length) return jsonError("Allocate at least one active staff member before enabling staff timesheets.", 409);
-
-    const now = new Date().toISOString();
-    const { data: existingTemplate, error: templateError } = await auth.access.admin
-      .from("project_tracker_templates")
-      .select("id, template_name, instructions, category_options, column_definitions, guidance_rows, locked")
-      .eq("project_id", projectId)
-      .maybeSingle();
-    if (templateError) return jsonError(tableUnavailable(templateError) ? "Project Tracker templates are awaiting the approved tracker migration." : templateError.message, tableUnavailable(templateError) ? 409 : 400);
-
-    if (!existingTemplate) {
-      const { error } = await auth.access.admin.from("project_tracker_templates").insert({
-        project_id: projectId,
-        template_name: "Project Tracker",
-        instructions: "Record project activity accurately and identify issues requiring project-lead review.",
-        category_options: STANDARD_TRACKER_CATEGORIES,
-        column_definitions: [],
-        guidance_rows: [],
-        locked: true,
-        locked_by: auth.access.user.id,
-        locked_at: now,
-        created_by: auth.access.user.id,
-        updated_by: auth.access.user.id,
-        created_at: now,
-        updated_at: now,
-      });
+    if (action === "save_source") {
+      const sourceCode = String(body.sourceCode || "").trim().toUpperCase();
+      const sourceName = String(body.sourceName || "").trim();
+      const sourceType = ["original", "variation", "internal_reallocation"].includes(body.sourceType) ? body.sourceType : "variation";
+      const approvalStatus = ["draft", "pending_approval", "approved", "rejected", "closed"].includes(body.approvalStatus) ? body.approvalStatus : "draft";
+      const approvedValue = optionalNumber(body.approvedValue);
+      const approvedHours = optionalNumber(body.approvedHours);
+      if (!sourceCode || !sourceName || approvedValue === null || approvedHours === null) return jsonError("Source code, name, approved value and approved hours are required.");
+      if (sourceType === "variation" && !String(body.variationReason || "").trim()) return jsonError("A variation reason is required.");
+      const payload = { project_id: projectId, source_code: sourceCode, source_name: sourceName, source_type: sourceType, approved_value: approvedValue, approved_hours: approvedHours, approval_status: approvalStatus, variation_reason: String(body.variationReason || "").trim() || null, effective_date: body.effectiveDate || new Date().toISOString().slice(0, 10), updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
+      if (body.id && validId(body.id)) {
+        const { data, error } = await auth.access.admin.from("project_budget_sources").update(payload).eq("id", body.id).eq("project_id", projectId).select(SOURCE_COLUMNS).single();
+        if (error) return jsonError(error.message);
+        return Response.json({ source: data });
+      }
+      if (sourceType === "original") {
+        const { data: existing, error: existingError } = await auth.access.admin.from("project_budget_sources").select("id").eq("project_id", projectId).eq("source_type", "original").limit(1);
+        if (existingError) return jsonError(existingError.message);
+        if ((existing || []).length) return jsonError("This project already has an original contract source.", 409);
+      }
+      const { data, error } = await auth.access.admin.from("project_budget_sources").insert({ ...payload, created_by: auth.access.user.id }).select(SOURCE_COLUMNS).single();
       if (error) return jsonError(error.message);
-    } else if (!existingTemplate.locked) {
-      const categories = Array.isArray(existingTemplate.category_options) && existingTemplate.category_options.length ? existingTemplate.category_options : STANDARD_TRACKER_CATEGORIES;
-      const { error } = await auth.access.admin.from("project_tracker_templates").update({
-        category_options: categories,
-        locked: true,
-        locked_by: auth.access.user.id,
-        locked_at: now,
-        updated_by: auth.access.user.id,
-        updated_at: now,
-      }).eq("id", existingTemplate.id);
-      if (error) return jsonError(error.message);
+      return Response.json({ source: data }, { status: 201 });
     }
 
-    const baseline = await ensureBaselineTrackerBudget(auth.access, project, now);
-    if (baseline.error) return jsonError(`Could not prepare the staff timesheet baseline: ${baseline.error}`);
-    const { data: current, error: currentError } = await auth.access.admin.from("project_tracker_settings").select(settingColumns()).eq("project_id", projectId).maybeSingle();
-    if (currentError) return jsonError(tableUnavailable(currentError) ? "Project Tracker Setup is awaiting the approved configuration migration." : currentError.message, tableUnavailable(currentError) ? 409 : 400);
-    const previous = toSettings(current);
-    const { data: saved, error: settingsError } = await auth.access.admin.from("project_tracker_settings").upsert({
-      project_id: projectId,
-      tracker_visible: true,
-      resources_ready: previous.resourcesReady,
-      training_checked: previous.trainingChecked,
-      forms_configured: previous.formsConfigured,
-      whs_checked: previous.whsChecked,
-      activated_by: current?.activated_by || auth.access.user.id,
-      activated_at: current?.activated_at || now,
-      updated_by: auth.access.user.id,
-      updated_at: now,
-    }, { onConflict: "project_id" }).select(settingColumns()).single();
-    if (settingsError) return jsonError(settingsError.message);
-
-    const { error: auditError } = await auth.access.admin.from("project_tracker_setting_events").insert({
-      project_id: projectId,
-      action: "staff_timesheet_quickstart",
-      actor_id: auth.access.user.id,
-      before_state: previous,
-      after_state: toSettings(saved),
-      summary: `${project.name} staff Project Tracker enabled with a standard locked template and delivery baseline.`,
-    });
-    if (auditError) return jsonError(auditError.message);
-    const { error: eventError } = await auth.access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
-      recipient_id: recipientId,
-      event_type: "project_tracker_enabled",
-      severity: "information",
-      title: "Project Tracker access available",
-      body: `You can now log project activity and timesheet reference entries for ${project.name}.`,
-      href: "/staff/projects",
-      source_table: "project_tracker_settings",
-      source_id: projectId,
-    })));
-    if (eventError) console.warn("Project Tracker activation notification could not be created:", eventError.message);
-    return Response.json({ settings: toSettings(saved), standardTemplateApplied: !existingTemplate || !existingTemplate.locked });
+    if (action === "save_allocation") {
+      const sourceId = String(body.sourceId || "");
+      const allocationCode = String(body.allocationCode || "").trim().toUpperCase();
+      const allocationName = String(body.allocationName || "").trim();
+      const allocationValue = optionalNumber(body.allocationValue);
+      const allocationHours = optionalNumber(body.allocationHours);
+      const hoursConsumed = optionalNumber(body.hoursConsumed);
+      const chargeOutSpend = optionalNumber(body.chargeOutSpend);
+      const internalCost = optionalNumber(body.internalCost);
+      if (!validId(sourceId) || !allocationCode || !allocationName || allocationValue === null || allocationHours === null) return jsonError("Source, allocation code, name, value and hours are required.");
+      const { data: source, error: sourceError } = await auth.access.admin.from("project_budget_sources").select("id, project_id").eq("id", sourceId).eq("project_id", projectId).maybeSingle();
+      if (sourceError) return jsonError(sourceError.message);
+      if (!source) return jsonError("Budget source not found for this project.", 404);
+      const payload = { project_id: projectId, budget_source_id: sourceId, allocation_code: allocationCode, allocation_name: allocationName, allocation_value: allocationValue, allocation_hours: allocationHours, hours_consumed: hoursConsumed || 0, charge_out_spend: chargeOutSpend || 0, internal_cost: internalCost || 0, threshold_percent: Math.min(100, Math.max(1, Number(body.thresholdPercent) || 80)), status: ["draft", "active", "closed"].includes(body.status) ? body.status : "draft", staff_visible: body.staffVisible === true, updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
+      if (body.id && validId(body.id)) {
+        const { data, error } = await auth.access.admin.from("project_budget_allocations").update(payload).eq("id", body.id).eq("project_id", projectId).select(ALLOCATION_COLUMNS).single();
+        if (error) return jsonError(error.message);
+        return Response.json({ allocation: data });
+      }
+      const { data, error } = await auth.access.admin.from("project_budget_allocations").insert({ ...payload, created_by: auth.access.user.id }).select(ALLOCATION_COLUMNS).single();
+      if (error) return jsonError(error.message);
+      return Response.json({ allocation: data }, { status: 201 });
+    }
+    if (action === "set_health_override") {
+      const status = body.status === null ? null : body.status;
+      if (status !== null && !["On Track", "Watch", "At Risk"].includes(status)) return jsonError("Choose On Track, Watch, At Risk, or clear the override.");
+      if (status !== null && !String(body.note || "").trim()) return jsonError("A note is required when manually overriding a project's status.");
+      const { error } = await auth.access.admin.from("projects").update({
+        manual_health_status: status,
+        manual_health_note: status === null ? null : String(body.note || "").trim(),
+        manual_health_set_by: status === null ? null : auth.access.user.id,
+        manual_health_set_at: status === null ? null : new Date().toISOString(),
+      }).eq("id", projectId);
+      if (error) return jsonError(error.message);
+      return Response.json({ ok: true });
+    }
+    return jsonError("Unknown Project Tracker action.");
   } catch (error) {
     return serverError(error);
   }
 }
 
-export async function PUT(request) {
+export async function DELETE(request) {
   try {
     const auth = await requireAdmin(request);
     if (auth.error) return auth.error;
-
-    const body = await request.json();
-    const projectId = String(body?.projectId || "").trim();
-    if (!validProjectId(projectId)) return jsonError("A valid project is required.");
-
-    const settings = {
-      trackerVisible: booleanInput(body?.trackerVisible),
-      resourcesReady: booleanInput(body?.resourcesReady),
-      trainingChecked: booleanInput(body?.trainingChecked),
-      formsConfigured: booleanInput(body?.formsConfigured),
-      whsChecked: booleanInput(body?.whsChecked),
-    };
-
-    const { data: project, error: projectError } = await auth.access.admin
-      .from("projects")
-      .select("id, name, status, budget_hours, budget_dollars")
-      .eq("id", projectId)
-      .maybeSingle();
-    if (projectError) return jsonError(projectError.message);
-    if (!project) return jsonError("Project not found.", 404);
-
-    const { data: current, error: currentError } = await auth.access.admin
-      .from("project_tracker_settings")
-      .select(settingColumns())
-      .eq("project_id", projectId)
-      .maybeSingle();
-    if (currentError) {
-      if (tableUnavailable(currentError)) return jsonError("Project Tracker Setup is awaiting the approved configuration migration.", 409);
-      return jsonError(currentError.message);
+    const { searchParams } = new URL(request.url);
+    const action = String(searchParams.get("action") || "");
+    const id = String(searchParams.get("id") || "");
+    const projectId = String(searchParams.get("projectId") || "");
+    if (!validId(id) || !validId(projectId)) return jsonError("A valid project record is required.");
+    if (action === "source") {
+      const { data: source, error: sourceError } = await auth.access.admin.from("project_budget_sources").select("id, source_type").eq("id", id).eq("project_id", projectId).maybeSingle();
+      if (sourceError) return jsonError(sourceError.message);
+      if (!source) return jsonError("Budget source not found.", 404);
+      if (source.source_type === "original") return jsonError("The original contract source is retained as the project baseline. Close it instead of deleting it.", 409);
+      const { error } = await auth.access.admin.from("project_budget_sources").delete().eq("id", id).eq("project_id", projectId);
+      if (error) return jsonError(error.message);
+      return Response.json({ success: true });
     }
-
-    const projectActive = String(project.status || "").toLowerCase() === "active";
-    if (settings.trackerVisible && !projectActive) return jsonError("Set the project to Active before enabling staff tracker visibility.", 409);
-
-    const { data: template, error: templateError } = await auth.access.admin
-      .from("project_tracker_templates")
-      .select("id, locked")
-      .eq("project_id", projectId)
-      .maybeSingle();
-    if (templateError) {
-      if (tableUnavailable(templateError)) return jsonError("Save and lock the staff Project Tracker template after the approved tracker migration is applied.", 409);
-      return jsonError(templateError.message);
+    if (action === "allocation") {
+      const { error } = await auth.access.admin.from("project_budget_allocations").delete().eq("id", id).eq("project_id", projectId);
+      if (error) return jsonError(error.message);
+      return Response.json({ success: true });
     }
-    if (settings.trackerVisible && !template?.locked) return jsonError("Save and lock the staff Project Tracker template before enabling staff visibility.", 409);
-
-    const { data: activeAllocations, error: allocationError } = await auth.access.admin
-      .from("project_allocations")
-      .select("staff_user_id")
-      .eq("project_id", projectId)
-      .eq("active", true);
-    if (allocationError) return jsonError(allocationError.message);
-    if (settings.trackerVisible && !(activeAllocations || []).some((row) => row.staff_user_id)) {
-      return jsonError("Allocate at least one active staff member before enabling the staff tracker.", 409);
-    }
-
-    const previous = toSettings(current);
-    const isNew = !current;
-    const enabling = !previous.trackerVisible && settings.trackerVisible;
-    const pausing = previous.trackerVisible && !settings.trackerVisible;
-    const now = new Date().toISOString();
-    if (settings.trackerVisible) {
-      const baseline = await ensureBaselineTrackerBudget(auth.access, project, now);
-      if (baseline.error) return jsonError(`Could not prepare the staff timesheet baseline: ${baseline.error}`);
-    }
-    const payload = {
-      project_id: projectId,
-      tracker_visible: settings.trackerVisible,
-      resources_ready: settings.resourcesReady,
-      training_checked: settings.trainingChecked,
-      forms_configured: settings.formsConfigured,
-      whs_checked: settings.whsChecked,
-      updated_by: auth.access.user.id,
-      updated_at: now,
-      activated_by: enabling ? auth.access.user.id : current?.activated_by || null,
-      activated_at: enabling ? now : current?.activated_at || null,
-    };
-    const { data: saved, error: saveError } = await auth.access.admin
-      .from("project_tracker_settings")
-      .upsert(payload, { onConflict: "project_id" })
-      .select(settingColumns())
-      .single();
-    if (saveError) return jsonError(saveError.message);
-
-    const action = enabling ? "tracker_enabled" : pausing ? "tracker_paused" : isNew ? "settings_created" : "settings_updated";
-    const { error: auditError } = await auth.access.admin.from("project_tracker_setting_events").insert({
-      project_id: projectId,
-      action,
-      actor_id: auth.access.user.id,
-      before_state: previous,
-      after_state: toSettings(saved),
-      summary: `${project.name} Project Tracker ${enabling ? "enabled for allocated staff" : pausing ? "paused for staff" : "setup updated"}.`,
-    });
-    if (auditError) return jsonError(auditError.message);
-
-    if (enabling) {
-      const recipients = (activeAllocations || []).map((row) => row.staff_user_id).filter(Boolean);
-      if (recipients.length) {
-        const { error: eventError } = await auth.access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
-          recipient_id: recipientId,
-          event_type: "project_tracker_enabled",
-          severity: "information",
-          title: "Project Tracker access available",
-          body: `You have been allocated to ${project.name}. Its Project Tracker is now available in your Staff Portal.`,
-          href: "/staff/projects",
-          source_table: "project_tracker_settings",
-          source_id: projectId,
-        })));
-        if (eventError) console.warn("Project Tracker visibility notification could not be created:", eventError.message);
-      }
-    }
-
-    return Response.json({ settings: toSettings(saved) });
+    return jsonError("Unknown Project Tracker deletion.");
   } catch (error) {
     return serverError(error);
   }
