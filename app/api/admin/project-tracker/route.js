@@ -219,6 +219,15 @@ export async function GET(request) {
     if (projectId && !validId(projectId)) return jsonError("A valid project is required.");
     const data = await trackerData(auth.access, projectId);
     if (projectId && !data.projects.length) return jsonError("Active project not found.", 404);
+    // These notifications ("a colleague logged time on a project you own")
+    // had no view anywhere that ever cleared them — viewing the tracker
+    // itself is where that information is actually seen, so mark them read
+    // here rather than leaving the badge count to grow forever.
+    await auth.access.admin.from("portal_events")
+      .update({ read_at: new Date().toISOString() })
+      .eq("recipient_id", auth.access.user.id)
+      .eq("event_type", "project_tracker_entry")
+      .is("read_at", null);
     return Response.json(projectId ? { project: data.projects[0], financialReady: data.financialReady } : data);
   } catch (error) {
     return serverError(error);
