@@ -60,10 +60,12 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(
-      access,
-      access.isAdmin ? "admin.whs_monitoring" : "staff.forms",
-    );
+    // Submitting a form is a staff action even when the submitter is also an
+    // admin — staff.forms is always-visible by design. The isAdmin branch
+    // here previously routed admins through admin.whs_monitoring (a
+    // separate, review-dashboard-only resource), which could deny an admin
+    // submitting their own form from the staff-side forms page.
+    const denied = await requirePortalResource(access, "staff.forms");
     if (denied) return denied;
     const b = await request.json();
     if (!FORM_TYPES.includes(b.form_type)) return Response.json({ error: "Invalid form type." }, { status: 400 });
