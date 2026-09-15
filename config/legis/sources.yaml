@@ -1,0 +1,250 @@
+# Source registry for the NSW/ACT Ecology Brief
+# Tier meanings are defined in CLAUDE.md §2.
+# `check: weekly` items must be swept every run and reported on (even if "no change").
+
+meta:
+  jurisdictions: [NSW, ACT, Commonwealth]
+  timezone: Australia/Sydney
+  cadence: weekly-monday
+
+categories:
+
+  # ---------------------------------------------------------------- NSW BOS / BAM
+  - id: nsw-bos-bam
+    label: "NSW Biodiversity Offsets Scheme / BAM"
+    owner_agency: "NSW DCCEEW — Environment and Heritage"
+    check: weekly
+    sources:
+      - tier: 3
+        name: "BOS news and updates"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/news-and-updates
+      - tier: 3
+        name: "Latest scheme updates (BOS Update newsletter archive)"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/news-and-updates/latest-scheme-updates-biodiversity-offsets-scheme
+        note: "Monthly newsletter. Rolling 3-month window on this page; older issues under /previous-updates."
+      - tier: 3
+        name: "Previous BOS Updates"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/news-and-updates/previous-updates
+      - tier: 2
+        name: "For accredited assessors (hub)"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/accredited-assessors
+        note: "Gateway to BAM-C release notes and VI benchmark / PCT updates. High-yield."
+      - tier: 3
+        name: "BOS reforms status page"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/news-and-updates/biodiversity-offsets-scheme-reforms
+        note: "Tracks which Amendment Act provisions have and have not commenced."
+      - tier: 2
+        name: "BOS public registers (credit supply / demand / transactions / assessors)"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/maps-systems-and-resources/public-registers
+        note: "Use for credit availability and price-risk commentary."
+      - tier: 2
+        name: "BOS overview and achievements"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/about/biodiversity-offsets-scheme-achievements
+    triggers_to_watch:
+      - "BAM-C release notes / calculator version change"
+      - "New or revised vegetation integrity benchmarks; new/retired PCTs"
+      - "TBDC unit-of-measure changes for a species"
+      - "New or revised SAII guidance"
+      - "Like-for-like / variation rule changes; BCF payment availability"
+      - "Credit tender rounds and supply-fund releases (affects offset cost advice)"
+
+  # ---------------------------------------------------------------- NSW legislation
+  - id: nsw-legislation
+    label: "NSW legislation and instruments"
+    check: weekly
+    sources:
+      - tier: 1
+        name: "Biodiversity Conservation Act 2016 (NSW)"
+        url: https://legislation.nsw.gov.au/view/html/inforce/current/act-2016-063
+      - tier: 1
+        name: "Biodiversity Conservation Regulation 2017 (NSW)"
+        url: https://legislation.nsw.gov.au/view/html/inforce/current/sl-2017-0432
+      - tier: 1
+        name: "Environmental Planning and Assessment Act 1979 (NSW)"
+        url: https://legislation.nsw.gov.au/view/html/inforce/current/act-1979-203
+      - tier: 1
+        name: "SEPP (Biodiversity and Conservation) 2021"
+        url: https://legislation.nsw.gov.au/view/html/inforce/current/epi-2021-0713
+      - tier: 1
+        name: "Local Land Services Act 2013 (NSW) — Part 5A native vegetation"
+        url: https://legislation.nsw.gov.au/view/html/inforce/current/act-2013-051
+      - tier: 1
+        name: "NSW legislation — as made (new Acts and SIs)"
+        url: https://legislation.nsw.gov.au/information/asmade
+        note: "Primary sweep for new/amending instruments and commencement proclamations."
+    triggers_to_watch:
+      - "Biodiversity Conservation Regulation amendments (avoid/minimise standards, BCF circumstances)"
+      - "Commencement proclamations for uncommenced Amendment Act provisions"
+      - "SEPP amendments touching biodiversity or land clearing"
+
+  # ---------------------------------------------------------------- BioNet / species data
+  - id: bionet-species-data
+    label: "BioNet, TBDC and threatened species data"
+    check: weekly
+    sources:
+      - tier: 2
+        name: "NSW BioNet (hub)"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity/nsw-bionet
+      - tier: 2
+        name: "BioNet Threatened Biodiversity Profiles"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity/nsw-bionet/about-bionet-atlas/threatened-biodiversity-profiles
+      - tier: 2
+        name: "BioNet Threatened biodiversity profile search"
+        url: https://threatenedspecies.bionet.nsw.gov.au/
+      - tier: 2
+        name: "BioNet Species Sightings data"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity/nsw-bionet/about-bionet-atlas/species-sightings-data
+      - tier: 2
+        name: "SEED — NSW environmental data portal"
+        url: https://datasets.seed.nsw.gov.au/
+      - tier: 2
+        name: "NSW threatened species (public)"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/threatened-species
+    triggers_to_watch:
+      - "New listings / delistings / status changes (changes SAII and credit exposure)"
+      - "TBDC attribute changes: unit of measure, credit class, geographic/habitat constraints"
+      - "New or amended survey guidance embedded in a profile"
+      - "Sensitive species data policy or licence changes (affects data access lead time)"
+
+  # ---------------------------------------------------------------- NSW planning
+  - id: nsw-planning
+    label: "NSW planning system and portal"
+    check: weekly
+    sources:
+      - tier: 2
+        name: "NSW Planning (DPHI)"
+        url: https://www.planning.nsw.gov.au/
+      - tier: 2
+        name: "NSW Planning Portal"
+        url: https://www.planningportal.nsw.gov.au/
+      - tier: 2
+        name: "Major projects register (SSD/SSI)"
+        url: https://www.planningportal.nsw.gov.au/major-projects
+      - tier: 2
+        name: "Policy and legislation updates"
+        url: https://www.planning.nsw.gov.au/policy-and-legislation
+    triggers_to_watch:
+      - "SEARs template changes for biodiversity"
+      - "Changes to concurrence / referral routing for SSD & SSI"
+      - "Digital lodgement or document-format requirements affecting BDAR submission"
+      - "Planning reform packages that alter assessment pathway"
+
+  # ---------------------------------------------------------------- Commonwealth
+  - id: commonwealth-epbc
+    label: "Commonwealth EPBC Act and reform rollout"
+    check: weekly
+    sources:
+      - tier: 2
+        name: "DCCEEW — Environment protection reforms (rollout hub)"
+        url: https://www.dcceew.gov.au/environment/epbc/epbc-act-reform
+        note: "Authoritative for which tranche has commenced. Check every week during rollout."
+      - tier: 2
+        name: "DCCEEW — Stronger environmental protection and restoration"
+        url: https://www.dcceew.gov.au/environment/epbc/epbc-act-reform/stronger-environmental-protection-restoration
+      - tier: 2
+        name: "EPBC Act referrals and assessments"
+        url: https://www.dcceew.gov.au/environment/epbc/protected-matters-search-tool
+      - tier: 2
+        name: "SPRAT — Species Profile and Threats Database"
+        url: https://www.environment.gov.au/cgi-bin/sprat/public/sprat.pl
+      - tier: 1
+        name: "Federal Register of Legislation"
+        url: https://www.legislation.gov.au/
+        note: "Use for exact wording, commencement tables and compilations. Do not trust a summary."
+      - tier: 1
+        name: "EPBC Act 1999 (Cth)"
+        url: https://www.legislation.gov.au/C2004A00485
+    triggers_to_watch:
+      - "National Environmental Standards: draft vs final vs date they apply to decisions"
+      - "Commencement of the new approval tests (unacceptable impact, net gain)"
+      - "NEPA / EIA operational commencement and delegation"
+      - "Changes to s43A/s43B exemptions relevant to clearing advice"
+      - "New/updated significant impact guidelines or conservation advices"
+
+  # ---------------------------------------------------------------- ACT
+  - id: act-environment-planning
+    label: "ACT environment and planning"
+    check: weekly
+    sources:
+      - tier: 2
+        name: "ACT Planning — Environmental impact assessment"
+        url: https://www.planning.act.gov.au/applications-and-assessments/environmental-impact-assessment
+      - tier: 2
+        name: "ACT Planning — Environmental Significance Opinion"
+        url: https://www.planning.act.gov.au/applications-and-assessments/environmental-impact-assessment/environmental-significance-opinion
+      - tier: 2
+        name: "ACT EPSDD — Environment"
+        url: https://www.environment.act.gov.au/
+      - tier: 1
+        name: "Nature Conservation Act 2014 (ACT)"
+        url: https://www.legislation.act.gov.au/a/2014-59
+      - tier: 1
+        name: "Planning Act 2023 (ACT)"
+        url: https://www.legislation.act.gov.au/a/2023-19
+      - tier: 1
+        name: "ACT Legislation Register"
+        url: https://www.legislation.act.gov.au/
+      - tier: 3
+        name: "YourSay ACT — consultations"
+        url: https://yoursayconversations.act.gov.au/
+        note: "Nature Conservation Act 10-year review has run through here."
+    triggers_to_watch:
+      - "Nature Conservation Act review outcomes / amendment bills"
+      - "Conservator guidelines and action plan updates"
+      - "ESO scope and transitional treatment under the Planning Act 2023"
+      - "ACT threatened native species list changes"
+      - "ACT offsets policy and offset register requirements"
+
+  # ---------------------------------------------------------------- Councils
+  - id: councils
+    label: "NSW and ACT councils"
+    check: fortnightly
+    note: >
+      Do not sweep every council. Sweep the LGAs where the practice has live work, plus any
+      LGA named in a state-level change. Maintain the active list in config/active-lgas.txt.
+    triggers_to_watch:
+      - "New/updated biodiversity or tree DCP chapter"
+      - "Council-specific ecological report requirements or pro formas"
+      - "Vegetation mapping adoption (changes PCT/veg baseline arguments)"
+      - "Pre-lodgement or peer-review requirements"
+      - "Local koala plans of management"
+
+  # ---------------------------------------------------------------- Discovery only
+  - id: discovery-channels
+    label: "Discovery channels (tier 4 — never cite as authority)"
+    check: weekly
+    sources:
+      - tier: 4
+        name: "NSW Biodiversity Conservation Trust — LinkedIn"
+        url: https://www.linkedin.com/company/nsw-biodiversity-conservation-trust/
+        note: "Often first to surface credit tenders, BSA milestones, landholder programs."
+      - tier: 4
+        name: "NSW DCCEEW / Environment and Heritage — LinkedIn"
+        url: https://www.linkedin.com/company/nsw-climate-change-energy-environment-and-water/
+      - tier: 4
+        name: "NSW Department of Planning, Housing and Infrastructure — LinkedIn"
+        url: https://www.linkedin.com/company/nsw-department-of-planning-housing-and-infrastructure/
+      - tier: 4
+        name: "Australian Government DCCEEW — LinkedIn"
+        url: https://www.linkedin.com/company/dcceew/
+      - tier: 4
+        name: "ACT EPSDD — LinkedIn"
+        url: https://www.linkedin.com/company/epsdd/
+      - tier: 4
+        name: "BOS Update newsletter subscription"
+        url: https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/news-and-updates/latest-scheme-updates-biodiversity-offsets-scheme
+    rule: >
+      Anything found here must be upgraded to a tier 1-3 source before it may appear in
+      Developments. If it cannot be upgraded, it goes to Watchlist marked UNVERIFIED.
+
+  # ---------------------------------------------------------------- Secondary
+  - id: secondary-commentary
+    label: "Secondary commentary (tier 5 — attribute, never rely on alone)"
+    check: weekly
+    note: >
+      Useful for early detection of reform packages and for interpretation of contested
+      provisions. Named attribution required. Always chase the instrument.
+    examples:
+      - "Law firm environment/planning alerts"
+      - "EIANZ and professional body communications"
+      - "Ecological consultancy technical updates"

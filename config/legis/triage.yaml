@@ -1,0 +1,69 @@
+# Triage rules — deciding what earns a place in the brief
+#
+# Applied after scanning, before writing. See CLAUDE.md §3.
+
+consequentiality_triggers:
+  - id: T01
+    name: "Scope / fee"
+    test: "Would this change a fee estimate, a scope inclusion, or a standard exclusion?"
+  - id: T02
+    name: "BAM / BDAR content"
+    test: "Does it change a BAM calculation input, credit output, or a mandatory BDAR/BAR section?"
+  - id: T03
+    name: "Survey effort or timing"
+    test: "Does it change minimum survey effort, number of visits, or a seasonal window?"
+  - id: T04
+    name: "Targeted species method"
+    test: "Does it change an accepted method for a specific threatened species or group?"
+  - id: T05
+    name: "Vegetation mapping / data"
+    test: "Does it change PCTs, VI benchmarks, plot requirements, or an accepted data source?"
+  - id: T06
+    name: "Avoid / minimise"
+    test: "Does it change what must be demonstrated, or how it must be evidenced?"
+  - id: T07
+    name: "Offset obligation"
+    test: "Does it change credit class, like-for-like rules, variation rules, or BCF availability?"
+  - id: T08
+    name: "EPBC strategy"
+    test: "Does it change referral timing, controlling provisions, or assessment pathway choice?"
+  - id: T09
+    name: "Consent authority expectation"
+    test: "Does it change concurrence, referral routing, or what a reviewer will ask for?"
+  - id: T10
+    name: "Approval timeframe"
+    test: "Does it change statutory clocks or the likelihood of an information request?"
+  - id: T11
+    name: "Conditions / liability"
+    test: "Does it create peer review, certification or professional-liability exposure?"
+  - id: T12
+    name: "System / lodgement mechanics"
+    test: "Could it stall a lodgement or a data request if not known in advance?"
+
+placement_rules:
+  developments:
+    condition: "≥1 trigger fires AND status is COMMENCED LAW, MADE_NOT_COMMENCED, ADOPTED POLICY / GUIDELINE, FORMAL AGENCY GUIDANCE, or SYSTEM / ADMIN CHANGE"
+    note: "MADE_NOT_COMMENCED belongs in Developments only where a known future date requires action now (e.g. lodge before X)."
+  watchlist:
+    condition: "status is DRAFT / EXHIBITED, CONSULTATION PROPOSAL, EMERGING PRACTICE, or item is UNVERIFIED"
+    note: "Also use for anything with a future commencement date that requires no action yet."
+  no_material_change:
+    condition: "Category checked, nothing fired a trigger."
+  discard:
+    condition: "Zero triggers and no forward-looking relevance."
+
+# Weighting used to order Developments within the brief.
+severity_scale:
+  HIGH: "Affects work in progress, or a signed/lodged deliverable, or requires action before a date."
+  MEDIUM: "Affects future quotes, templates or survey programs; no immediate exposure."
+  LOW: "Worth knowing; adjust practice opportunistically."
+
+# Mandatory anti-inflation check before finalising.
+anti_inflation_checklist:
+  - "Did I mark any consultation paper or draft as if it created an obligation? (must be NO)"
+  - "Does every Development item name a specific action, not 'monitor'?"
+  - "Did I state the commencement date separately from the announcement date where they differ?"
+  - "Did I address transitional treatment for in-progress work?"
+  - "Is any tier-4 or tier-5 source doing load-bearing work as an authority? (must be NO)"
+  - "Did I produce a no-material-change line for every weekly category I checked?"
+  - "Did I flag every category I could NOT check?"
