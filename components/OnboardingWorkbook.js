@@ -31,17 +31,22 @@ import {
   ArrowUpRight,
   Clock3,
   BellRing,
+  LifeBuoy,
   Eye,
+  ClipboardCheck,
+  CalendarDays,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import * as db from "../lib/data";
 import ResourceLibrary from "./ResourceLibrary";
 import AdminProjectSetup from "./AdminProjectSetup";
+import StaffCapacityPlanner from "./StaffCapacityPlanner";
 import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
+import ProjectCloseOut from "./ProjectCloseOut";
 import AdminWhsGovernance from "./AdminWhsGovernance";
 import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
@@ -3485,7 +3490,21 @@ function AdminHome({ onNavigate }) {
   const [regulatoryOpen, setRegulatoryOpen] = useState(0);
   const [visibilityTarget, setVisibilityTarget] = useState("");
   const [visibility, setVisibility] = useState({});
+  const [ecadoViewer, setEcadoViewer] = useState(false);
   const isPrimary = user?.email?.trim().toLowerCase() === "aaron.dooley@ecologyconsulting.au";
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    // Reuses the existing Ecado escalations endpoint purely as a viewer
+    // probe — it already 404s for anyone not on the ecado_viewers
+    // allow-list, so a 200 here is the correct signal to show the tile at
+    // all. Never assume any admin can see this; only actual viewers do.
+    fetch("/api/ecado/escalations/close", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => setEcadoViewer(r.ok))
+      .catch(() => setEcadoViewer(false));
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3507,7 +3526,7 @@ function AdminHome({ onNavigate }) {
         ),
       )
       .catch(() => setRegulatoryOpen(0));
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -3519,7 +3538,7 @@ function AdminHome({ onNavigate }) {
       )
       .then((data) => setVisibility(data.visibility || {}))
       .catch(() => setVisibility({}));
-  }, [session]);
+  }, [session?.access_token]);
 
   // Project Health remains inside Projects & Operations. The remaining administration
   // areas use the same image-backed domain-card language as Staff Home so the control
@@ -3537,6 +3556,17 @@ function AdminHome({ onNavigate }) {
       photo: "palm-cockatoo.png",
     },
     {
+      eyebrow: "Delivery planning",
+      title: "Staff Capacity Planner",
+      desc: "Live workload view across the team — allocated hours, approved leave, deadlines and available capacity.",
+      accent: "#c9a35f",
+      accent2: "#3a2c0c",
+      Icon: CalendarDays,
+      mode: "staffcapacity",
+      resourceKey: "admin.staff_capacity",
+      photo: "kangaroo.png",
+    },
+    {
       eyebrow: "Commercial control",
       title: "Quote Pipeline",
       desc: "Track enquiry, proposal, review and award stages without leaving the control centre.",
@@ -3548,9 +3578,12 @@ function AdminHome({ onNavigate }) {
       photo: "rosella.png",
     },
     {
-      eyebrow: "Remote delivery",
-      title: "Remote Operations Oversight",
-      desc: "Assign, accept, review and complete remote task briefs across the team.",
+      // Renamed to match what the domain now actually owns. The quotes
+      // register was retired to Quote Pipeline and issue intake moved to
+      // Service Requests; task briefs are the substance of this domain.
+      eyebrow: "Task briefs",
+      title: "Task Briefs & Remote Coordination",
+      desc: "Assign, accept, review and complete task briefs, with remote-work and client coordination context.",
       accent: "#d789a6",
       accent2: "#321322",
       Icon: Users2,
@@ -3626,6 +3659,23 @@ function AdminHome({ onNavigate }) {
       photo: "kookaburra.png",
     },
   ];
+
+  // Only rendered for actual ecado_viewers — never assume, always the
+  // probe result. Uses href, not mode, since Ecado is a real page route
+  // (/admin/ecado), not an internal view switch.
+  if (ecadoViewer) {
+    domains.push({
+      eyebrow: "Restricted · PPMO",
+      title: "Ecado",
+      desc: "Program & project management oversight — monitors, advises and prioritises. Visible only to granted viewers.",
+      accent: "#c9962a",
+      accent2: "#2a1c08",
+      Icon: ShieldCheck,
+      href: "/admin/ecado",
+      resourceKey: "admin.ecado",
+      photo: "wedgetail-eagle.jpg",
+    });
+  }
 
   const canSeeDomain = (resourceKey) => {
     if (isPrimary) return true;
@@ -3925,7 +3975,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       .then((r) => r.json())
       .then((d) => setPortalEvents(Array.isArray(d.events) ? d.events : []))
       .catch(() => {});
-  }, [session]);
+  }, [session?.access_token]);
 
   const markSeen = async () => {
     setShowOutcomes(true);
@@ -3977,11 +4027,25 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       href: "/staff/projects",
     },
     {
+      key: "servicerequests",
+      resourceKey: "staff.service_requests",
+      n: "03",
+      eyebrow: "Staff support",
+      title: "Service Requests",
+      desc: "Submit and track leave, training, equipment, remote/delivery and other internal requests.",
+      Icon: LifeBuoy,
+      photo: "bottlebrush",
+      base: "#49634f",
+      g1: "#6f8d6f",
+      g2: "#192a20",
+      href: "/staff/service-requests",
+    },
+    {
       key: "timesheets",
       resourceKey: "staff.timesheets",
-      n: "03",
+      n: "04",
       eyebrow: "Time & delivery",
-      title: "Timesheets",
+      title: "Work History",
       desc: "Project tracker history, filters, XLSX export and official time entry.",
       Icon: Clock3,
       photo: "koala",
@@ -3993,7 +4057,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "staffforms",
       resourceKey: "staff.forms",
-      n: "04",
+      n: "05",
       eyebrow: "Safety, requests & governance",
       title: "WHS & EC Forms",
       desc: "Forms, requests, and approved internal policies and procedures.",
@@ -4006,7 +4070,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "ldlibrary",
       resourceKey: "staff.learning",
-      n: "05",
+      n: "06",
       eyebrow: "People & learning",
       title: "Learning & Development",
       desc: "Your approved training modules, resources and quizzes.",
@@ -4019,7 +4083,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "species",
       resourceKey: "staff.species",
-      n: "06",
+      n: "07",
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
       desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.",
@@ -4030,9 +4094,22 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       g2: "#0b2317",
     },
     {
+      key: "capacity",
+      resourceKey: "staff.capacity",
+      n: "08",
+      eyebrow: "Delivery planning",
+      title: "Staff Capacity Planner",
+      desc: "See the team's live workload — allocated hours, approved leave and available capacity. Read-only.",
+      Icon: CalendarDays,
+      photo: "kangaroo",
+      base: "#8a6d2f",
+      g1: "#c9962a",
+      g2: "#2a1c08",
+    },
+    {
       key: "mine",
       resourceKey: "staff.onboarding",
-      n: "07",
+      n: "09",
       requiresOnboarding: true,
       eyebrow: "Getting started",
       title: "My Onboarding",
@@ -4043,25 +4120,17 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       g1: "#3b7a3d",
       g2: "#123320",
     },
-    {
-      key: "remote",
-      resourceKey: "staff.remote_operations",
-      n: "08",
-      eyebrow: "International delivery",
-      title: "Remote Operations",
-      desc: "Remote-work profiles, coordination records and delivery handovers.",
-      Icon: Users2,
-      photo: "bottlebrush",
-      base: "#a34a32",
-      g1: "#c05a3e",
-      g2: "#2a1109",
-      href: "/staff/remote-operations",
-    },
   ];
   const unreadForDomain = (key) =>
     portalEvents.filter((event) => {
       if (event.read_at) return false;
-      if (key === "notifications") return true;
+      // Must match the exclusions in StaffNotifications.js's EXCLUDED_EVENT_TYPES —
+      // those event types are deliberately hidden from the notification feed
+      // because they already surface in My Projects (remote_task_assigned) and
+      // Timesheets (project_tracker_entry). Counting them here too made the
+      // badge show more than the feed actually displayed underneath it.
+      if (key === "notifications")
+        return !["remote_task_assigned", "project_tracker_entry"].includes(String(event.event_type || ""));
       if (key === "projects")
         return (
           [
@@ -4071,6 +4140,11 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
           ].includes(event.source_table) ||
           String(event.event_type || "").includes("project_") ||
           String(event.event_type || "").includes("remote_task")
+        );
+      if (key === "servicerequests")
+        return (
+          String(event.event_type || "").includes("service_request") ||
+          event.source_table === "service_requests"
         );
       if (key === "timesheets")
         return (
@@ -4439,100 +4513,6 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   );
 }
 
-// Staff-portal hub linking the WHS field forms. Each opens its own dedicated
-// page (they are full standalone workspaces, not embeddable panels).
-function WhsFormsHub() {
-  const forms = [
-    {
-      href: "/staff/toolbox-talks",
-      title: "Toolbox Talk Record",
-      desc: "Record a field toolbox talk, attendance and any corrective actions.",
-      color: "#3d7a35",
-    },
-    {
-      href: "/staff/incident-reports",
-      title: "Incident Report",
-      desc: "Report an incident or near miss. Notifiable incidents must be reported to SafeWork NSW immediately.",
-      color: "#c0392b",
-    },
-    {
-      href: "/staff/whs-drafts",
-      title: "WHS Draft Studio",
-      desc: "Draft a numbered SWMS or psychosocial risk assessment. Each draft requires competent review before use.",
-      color: "#4197D0",
-    },
-  ];
-  return (
-    <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <h1
-        style={{
-          margin: "0 0 6px",
-          fontSize: 24,
-          fontWeight: 900,
-          color: C.green800,
-          fontFamily: FONT,
-        }}
-      >
-        WHS Forms
-      </h1>
-      <p
-        style={{
-          margin: "0 0 22px",
-          fontSize: 14,
-          fontWeight: 600,
-          color: C.inkSoft,
-          lineHeight: 1.55,
-        }}
-      >
-        Field WHS records and controlled working drafts. All AI-assisted or
-        drafted WHS content is a draft requiring competent human review before
-        approved use.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {forms.map((form) => (
-          <a
-            key={form.href}
-            href={form.href}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              textDecoration: "none",
-              background: C.cardBg,
-              border: `1px solid ${C.line}`,
-              borderLeft: `4px solid ${form.color}`,
-              borderRadius: 12,
-              padding: "16px 18px",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: C.ink }}>
-                {form.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: C.inkSoft,
-                  marginTop: 3,
-                  lineHeight: 1.45,
-                }}
-              >
-                {form.desc}
-              </div>
-            </div>
-            <ChevronRight
-              size={18}
-              color={C.inkFaint}
-              style={{ flexShrink: 0 }}
-            />
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function OnboardingWorkbook() {
   const {
     user,
@@ -4682,6 +4662,7 @@ export default function OnboardingWorkbook() {
   const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
   const [projectTrackerTargetId, setProjectTrackerTargetId] = useState("");
   const [projectSetupTargetId, setProjectSetupTargetId] = useState(null);
+  const [projectCloseOutTarget, setProjectCloseOutTarget] = useState({ id: "", name: "" });
 
   // Compatibility for the retired standalone Health Report route. Quote
   // Pipeline and Remote Operations remain first-class administrator domains.
@@ -5016,6 +4997,13 @@ export default function OnboardingWorkbook() {
                 staffOnly: true,
               },
               {
+                key: "capacity",
+                label: "Staff Capacity Planner",
+                desc: "Team workload, leave & available capacity (read-only)",
+                Icon: CalendarDays,
+                staffOnly: true,
+              },
+              {
                 key: "projects",
                 label: "Projects & Tracker",
                 desc: "Your allocations, schedules, work status and budget",
@@ -5025,20 +5013,18 @@ export default function OnboardingWorkbook() {
               },
               {
                 key: "timesheets",
-                label: "Timesheets",
-                desc: "Project tracker history and official time entry",
+                label: "Project Tracker",
+                desc: "Your project tracker entries and activity status",
                 Icon: Clock3,
                 staffOnly: true,
                 href: "/staff/timesheets",
               },
-              {
-                key: "remoteops",
-                label: "Remote Operations",
-                desc: "Assigned task briefs, updates and delivery handovers",
-                Icon: Users2,
-                staffOnly: true,
-                href: "/staff/remote-operations",
-              },
+              // "Task Briefs" removed: it pointed at the retired
+              // /staff/remote-operations route, and the Notifications domain
+              // card above already covers "Task briefs, project allocations and
+              // decisions requiring your attention" — two cards, one
+              // destination. Remote/delivery issues are raised through Service
+              // Requests ("Remote / delivery issue").
             ]
               .filter((item) => {
                 if (item.requiresOnboarding && !hasAssignedOnboarding)
@@ -5146,8 +5132,6 @@ export default function OnboardingWorkbook() {
               onToast={showToast}
               initialTopic={libraryTopic}
             />
-          ) : mode === "whs" ? (
-            <WhsFormsHub />
           ) : mode === "mine" && !inAdminPortal && hasAssignedOnboarding ? (
             <MyOnboarding onToast={showToast} />
           ) : mode === "mine" && !inAdminPortal ? (
@@ -5212,9 +5196,32 @@ export default function OnboardingWorkbook() {
                 >
                   <TrendingUp size={13} /> Health report
                 </button>
+                <button
+                  role="tab"
+                  aria-selected={projectsSubview === "closeout"}
+                  className={
+                    "admin-subtab" +
+                    (projectsSubview === "closeout" ? " sel" : "")
+                  }
+                  onClick={() => setProjectsSubview("closeout")}
+                  disabled={!projectCloseOutTarget.id}
+                  title={!projectCloseOutTarget.id ? "Open a project first, from Setup or Tracker" : ""}
+                >
+                  <ClipboardCheck size={13} /> Project Close-out
+                </button>
               </div>
               {projectsSubview === "setup" && (
-                <AdminProjectSetup initialProjectId={projectSetupTargetId} />
+                <AdminProjectSetup
+                  initialProjectId={projectSetupTargetId}
+                  onOpenTracker={(projectId) => {
+                    setProjectTrackerTargetId(projectId || "");
+                    setProjectsSubview("tracker");
+                  }}
+                  onOpenCloseOut={(projectId, projectName) => {
+                    setProjectCloseOutTarget({ id: projectId || "", name: projectName || "" });
+                    setProjectsSubview("closeout");
+                  }}
+                />
               )}
               {projectsSubview === "tracker" && (
                 <AdminProjectTracker
@@ -5238,9 +5245,24 @@ export default function OnboardingWorkbook() {
                   }}
                 />
               )}
+              {projectsSubview === "closeout" && (
+                projectCloseOutTarget.id ? (
+                  <ProjectCloseOut
+                    projectId={projectCloseOutTarget.id}
+                    projectName={projectCloseOutTarget.name}
+                    onToast={showToast}
+                  />
+                ) : (
+                  <p style={{ padding: 20, color: "#6b755f", fontSize: 13.5 }}>
+                    Open a project from Setup &amp; allocations first — Close-out needs a project to work with.
+                  </p>
+                )
+              )}
             </div>
           ) : isAdmin && mode === "quotepipeline" ? (
             <AdminQuotePipeline />
+          ) : isAdmin && mode === "staffcapacity" ? (
+            <StaffCapacityPlanner />
           ) : isAdmin && mode === "remoteops" ? (
             <AdminRemoteOps />
           ) : isAdmin && mode === "whsmonitor" ? (
@@ -5260,6 +5282,8 @@ export default function OnboardingWorkbook() {
             <StaffLearningLibrary />
           ) : mode === "species" && !inAdminPortal ? (
             <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
+          ) : mode === "capacity" && !inAdminPortal ? (
+            <StaffCapacityPlanner mode="staff" />
           ) : mode === "staffforms" && !inAdminPortal ? (
             <WhsEcFormsDomain onToast={showToast} />
           ) : isAdmin && mode === "staff" ? (

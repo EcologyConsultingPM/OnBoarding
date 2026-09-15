@@ -9,11 +9,14 @@ import {
   Check,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   Copy,
+  Download,
   EyeOff,
   FileCheck2,
   Leaf,
   LockKeyhole,
+  Scale,
   Send,
   ShieldCheck,
   ShieldPlus,
@@ -24,6 +27,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import PortalSystemHealth from "./PortalSystemHealth";
+import AdminExportCentre from "./AdminExportCentre";
+import AdminAuditLog from "./AdminAuditLog";
+import AdminRestrictedWorkflows from "./AdminRestrictedWorkflows";
 import PortalStaffList from "./PortalStaffList";
 import PortalVisibilityManager from "./PortalVisibilityManager";
 
@@ -146,6 +152,10 @@ export default function PortalManagement({ onboardingContent, onToast }) {
   const [control, setControl] = useState(null);
   const [loadingControl, setLoadingControl] = useState(true);
   const [controlError, setControlError] = useState("");
+  const [ecadoViewers, setEcadoViewers] = useState([]);
+  const [ecadoLoading, setEcadoLoading] = useState(true);
+  const [ecadoError, setEcadoError] = useState("");
+  const [ecadoEmail, setEcadoEmail] = useState("");
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -232,8 +242,67 @@ export default function PortalManagement({ onboardingContent, onToast }) {
     }
   };
 
+  const refreshEcadoViewers = async () => {
+    if (!accessToken) return;
+    setEcadoLoading(true);
+    setEcadoError("");
+    try {
+      const response = await fetch("/api/admin/ecado-viewers", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      const data = await jsonFromResponse(response);
+      if (!response.ok) throw new Error(getError(data, "Could not load the Ecado viewer register."));
+      setEcadoViewers(data.viewers || []);
+    } catch (fetchError) {
+      // Non-primary admins correctly get a 403 here — that's expected, not
+      // an error to surface loudly, since this section only renders for
+      // primary admins in the first place.
+      setEcadoViewers([]);
+    } finally {
+      setEcadoLoading(false);
+    }
+  };
+
+  const grantEcadoAccess = async () => {
+    const email = ecadoEmail.trim().toLowerCase();
+    if (!email) { setEcadoError("Enter a staff email."); return; }
+    setEcadoError("");
+    try {
+      const response = await fetch("/api/admin/ecado-viewers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ email }),
+      });
+      const data = await jsonFromResponse(response);
+      if (!response.ok) throw new Error(getError(data, "Could not grant Ecado access."));
+      setEcadoEmail("");
+      await refreshEcadoViewers();
+      onToast?.("Ecado access granted.");
+    } catch (grantError) {
+      setEcadoError(grantError.message || "Could not grant Ecado access.");
+    }
+  };
+
+  const revokeEcadoAccess = async (email) => {
+    if (!window.confirm(`Remove Ecado access for ${email}?`)) return;
+    try {
+      const response = await fetch(`/api/admin/ecado-viewers?email=${encodeURIComponent(email)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await jsonFromResponse(response);
+      if (!response.ok) throw new Error(getError(data, "Could not revoke Ecado access."));
+      await refreshEcadoViewers();
+      onToast?.("Ecado access revoked.");
+    } catch (revokeError) {
+      setEcadoError(revokeError.message || "Could not revoke Ecado access.");
+    }
+  };
+
   useEffect(() => {
     refreshControl();
+    refreshEcadoViewers();
   }, [accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -513,6 +582,27 @@ export default function PortalManagement({ onboardingContent, onToast }) {
           label="Backup & system health"
           caption="Private archive status and operational log"
           onClick={() => setView("system")}
+        />
+        <TabButton
+          active={view === "exports"}
+          icon={Download}
+          label="Export Centre"
+          caption="Operational registers for Excel and CSV"
+          onClick={() => setView("exports")}
+        />
+        <TabButton
+          active={view === "audit"}
+          icon={ClipboardList}
+          label="Audit Log"
+          caption="Controlled action and permission history"
+          onClick={() => setView("audit")}
+        />
+        <TabButton
+          active={view === "restricted"}
+          icon={LockKeyhole}
+          label="Restricted Workflows"
+          caption="Primary administrator confidential controls"
+          onClick={() => setView("restricted")}
         />
       </nav>
 
@@ -905,6 +995,74 @@ export default function PortalManagement({ onboardingContent, onToast }) {
               </>
             )}
           </section>
+
+          {isPrimary ? (
+            <section className="pm-card pm-card--admin-control">
+              <div className="pm-section-head">
+                <div>
+                  <span className="pm-kicker">Restricted · Primary only</span>
+                  <h2>
+                    <Scale size={18} /> Ecado visibility
+                  </h2>
+                  <p className="pm-sub">
+                    Ecado is hidden from every account not on this list — no
+                    request flow, no delegation. Only Aaron Dooley or Tony
+                    Webster can grant or revoke it.
+                  </p>
+                </div>
+                <span className="pm-section-mark pm-section-mark--gold">
+                  <Scale size={19} />
+                </span>
+              </div>
+
+              {ecadoError ? <p className="pm-muted" style={{ color: "#a5342a" }}>{ecadoError}</p> : null}
+
+              <div className="pm-inline-form">
+                <label className="pm-field">
+                  <span>Staff email</span>
+                  <input
+                    list="pm-staff-directory"
+                    type="email"
+                    value={ecadoEmail}
+                    onChange={(event) => setEcadoEmail(event.target.value)}
+                    placeholder="staff.member@ecologyconsulting.au"
+                  />
+                </label>
+                <button className="pm-submit pm-submit--compact" type="button" onClick={grantEcadoAccess}>
+                  <ShieldPlus size={15} /> Grant Ecado access
+                </button>
+              </div>
+
+              <div className="pm-register pm-admin-register">
+                <div className="pm-register-head">
+                  <span>Ecado viewer register</span>
+                  <b>{ecadoViewers.length}</b>
+                </div>
+                {ecadoLoading ? (
+                  <p className="pm-muted">Loading Ecado viewer register…</p>
+                ) : ecadoViewers.length === 0 ? (
+                  <p className="pm-muted">No one has Ecado access yet.</p>
+                ) : (
+                  ecadoViewers.map((viewer) => (
+                    <div className="pm-register-row" key={viewer.email}>
+                      <span className="pm-register-row__identity">
+                        <Scale size={15} />
+                        <span>{viewer.email}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="pm-icon-btn pm-icon-btn--danger"
+                        onClick={() => revokeEcadoAccess(viewer.email)}
+                        aria-label={`Remove Ecado access for ${viewer.email}`}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
         </section>
       )}
 
@@ -1078,6 +1236,9 @@ export default function PortalManagement({ onboardingContent, onToast }) {
       )}
 
       {view === "system" && <PortalSystemHealth />}
+      {view === "exports" && <AdminExportCentre />}
+      {view === "audit" && <AdminAuditLog />}
+      {view === "restricted" && <AdminRestrictedWorkflows />}
 
       <datalist id="pm-staff-directory">
         {staffDirectory.map((person) => (

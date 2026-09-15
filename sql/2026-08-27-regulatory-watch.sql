@@ -54,7 +54,11 @@ insert into public.regulatory_sources (source_key, title, category, authority_na
   ('nsw_whs_legislation', 'NSW WHS legislation and changes', 'whs', 'SafeWork NSW', 'https://www.safework.nsw.gov.au/legal-obligations/legislation'),
   ('nsw_bam', 'Biodiversity Assessment Method and updates', 'biodiversity', 'NSW Environment', 'https://www.environment.nsw.gov.au/topics/animals-and-plants/biodiversity-offsets-scheme/about/biodiversity-assessment-method'),
   ('nsw_threatened_species_surveys', 'Threatened species surveys and assessments', 'flora_fauna', 'NSW Environment', 'https://www.environment.nsw.gov.au/topics/animals-and-plants/threatened-species/about-threatened-species/surveys-and-assessments'),
-  ('commonwealth_environment_reforms', 'EPBC Act and environmental protection reforms', 'environmental_reform', 'DCCEEW / National EPA', 'https://www.dcceew.gov.au/environment/epbc/epbc-act-reform')
+  ('commonwealth_environment_reforms', 'EPBC Act and environmental protection reforms', 'environmental_reform', 'DCCEEW / National EPA', 'https://www.dcceew.gov.au/environment/epbc/epbc-act-reform'),
+  ('nsw_bionet_threatened_species', 'NSW BioNet threatened biodiversity profiles', 'flora_fauna', 'NSW Environment / BioNet', 'https://threatenedspecies.bionet.nsw.gov.au/'),
+  ('nsw_biodiversity_conservation_trust', 'NSW Biodiversity Conservation Trust updates', 'biodiversity', 'NSW Biodiversity Conservation Trust', 'https://www.nsw.gov.au/departments-and-agencies/dcceew/nsw-biodiversity-conservation-trust'),
+  ('nsw_plants_animals', 'NSW plants and animals updates', 'flora_fauna', 'NSW Government / DCCEEW', 'https://www.nsw.gov.au/environment-land-and-water/plants-and-animals'),
+  ('act_conservator_flora_fauna', 'ACT Office of the Conservator of Flora and Fauna', 'flora_fauna', 'ACT Government', 'https://www.act.gov.au/directorates-and-agencies/city-and-environment-directorate/office-of-the-conservator-of-flora-and-fauna')
 on conflict (source_key) do nothing;
 
 commit;

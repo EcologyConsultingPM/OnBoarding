@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, ClipboardList, ShieldCheck } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import NumberedSwmsRows, { blankRow } from "./NumberedSwmsRows";
+import WorkspaceNav from "./WorkspaceNav";
 
 const initialForm = {
   title: "",
@@ -103,6 +104,9 @@ export default function SwmsDraftWorkspace() {
   return (
     <main className="swms-page">
       <header className="swms-hero">
+        {/* This workspace had no route back to the portal at all — a staff
+            member who opened it could only leave via the browser back button. */}
+        <WorkspaceNav audience="staff" />
         <span><ShieldCheck size={18} /> Ecology Consulting · WHS working draft</span>
         <h1>Draft a numbered SWMS or psychosocial assessment</h1>
         <p>Each hazard or psychosocial factor is recorded in an individual numbered row. This creates a working draft only and does not approve work or confirm safety.</p>

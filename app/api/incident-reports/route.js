@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const INCIDENT_COLUMNS =
-  "id, organisation, site_location, incident_date, incident_time, report_date, reported_by, supervisor_notified, supervisor_contact, incident_types, severity_rating, investigation_target, notifiable, safework_reference, scene_preserved, notified_datetime, person_name, person_dob, person_position, employment_type, employer_company, years_experience, years_with_org, injury_nature, body_parts, medical_treatment, task_performed, exact_location, environmental_conditions, incident_description, witnesses, corrective_actions, signoff, status, created_by, reviewed_by, reviewed_at, created_at, updated_at";
+  "id, organisation, site_location, incident_date, incident_time, report_date, reported_by, supervisor_notified, supervisor_contact, incident_types, severity_rating, investigation_target, investigation_due_date, notifiable, safework_reference, scene_preserved, notified_datetime, person_name, person_dob, person_position, employment_type, employer_company, years_experience, years_with_org, injury_nature, body_parts, medical_treatment, task_performed, exact_location, environmental_conditions, incident_description, witnesses, corrective_actions, signoff, status, created_by, reviewed_by, reviewed_at, created_at, updated_at";
 
 function opt(value) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -41,6 +41,7 @@ export function incidentValues(body) {
     incident_types: stringList(body.incidentTypes),
     severity_rating: opt(body.severityRating),
     investigation_target: opt(body.investigationTarget),
+    investigation_due_date: body.investigationDueDate || null,
     notifiable: opt(body.notifiable),
     safework_reference: opt(body.safeworkReference),
     scene_preserved: opt(body.scenePreserved),

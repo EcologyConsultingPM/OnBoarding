@@ -1,76 +1,80 @@
-import { createClient } from "@supabase/supabase-js";
+import { requireSession, serverError } from "../../../../lib/serverAuth";
 
-// See app/api/flora-photos/route.js for the auth-pattern note.
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-async function getRequestUser(req) {
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!token) return { user: null, isAdmin: false };
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return { user: null, isAdmin: false };
-  const email = (data.user.email || "").toLowerCase();
-  const { data: adminRow } = await supabase
-    .from("admin_emails")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle();
-  return { user: data.user, isAdmin: !!adminRow };
+const TABLE = "flora_photo_submissions";
+const COLUMNS = [
+  "id", "submitted_by", "taxon_name", "common_name", "photo_data", "note",
+  "status", "reviewed_by", "reviewed_at", "review_note", "seen_by_staff",
+  "created_at", "updated_at",
+].join(", ");
+
+function jsonError(error, status = 400) {
+  return Response.json({ error }, { status });
 }
 
-// PATCH — Flora expert (admin) verifies or rejects a submission.
-export async function PATCH(req, { params }) {
-  const { id } = params;
-  const { user, isAdmin } = await getRequestUser(req);
-  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
-  if (!isAdmin) return Response.json({ error: "Flora expert (admin) access required" }, { status: 403 });
+export async function PATCH(request, { params }) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Only administrators can review flora photos.", 403);
 
-  const body = await req.json().catch(() => ({}));
-  const { status, review_note } = body || {};
-  if (!["verified", "rejected"].includes(status)) {
-    return Response.json({ error: "status must be verified or rejected" }, { status: 400 });
+    const id = String(params?.id || "").trim();
+    const body = await request.json().catch(() => ({}));
+    const status = String(body?.status || "").trim();
+    const reviewNote = String(body?.review_note || "").trim();
+    if (!id) return jsonError("Submission ID is required.");
+    if (!["verified", "rejected"].includes(status)) {
+      return jsonError("Review status must be verified or rejected.");
+    }
+
+    const { data, error } = await access.admin
+      .from(TABLE)
+      .update({
+        status,
+        review_note: reviewNote || null,
+        reviewed_by: access.user.id,
+        reviewed_at: new Date().toISOString(),
+        seen_by_staff: false,
+      })
+      .eq("id", id)
+      .select(COLUMNS)
+      .maybeSingle();
+
+    if (error) return jsonError(error.message, 500);
+    if (!data) return jsonError("Photo submission not found.", 404);
+    return Response.json({ submission: data });
+  } catch (error) {
+    return serverError(error);
   }
-
-  const { data, error } = await supabase
-    .from("flora_photo_submissions")
-    .update({
-      status,
-      review_note: review_note || null,
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ submission: data });
 }
 
-// DELETE — the submitter can withdraw their own photo while it's still
-// pending; an admin can remove any submission.
-export async function DELETE(req, { params }) {
-  const { id } = params;
-  const { user, isAdmin } = await getRequestUser(req);
-  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
+export async function DELETE(request, { params }) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
 
-  const { data: existing, error: fetchErr } = await supabase
-    .from("flora_photo_submissions")
-    .select("submitted_by, status")
-    .eq("id", id)
-    .maybeSingle();
-  if (fetchErr) return Response.json({ error: fetchErr.message }, { status: 500 });
-  if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
+    const id = String(params?.id || "").trim();
+    if (!id) return jsonError("Submission ID is required.");
 
-  const ownsAndPending = existing.submitted_by === user.id && existing.status === "pending";
-  if (!isAdmin && !ownsAndPending) {
-    return Response.json({ error: "You can only remove your own pending submissions" }, { status: 403 });
+    const { data: existing, error: lookupError } = await access.admin
+      .from(TABLE)
+      .select("id, submitted_by, status")
+      .eq("id", id)
+      .maybeSingle();
+    if (lookupError) return jsonError(lookupError.message, 500);
+    if (!existing) return jsonError("Photo submission not found.", 404);
+
+    const isOwner = existing.submitted_by === access.user.id;
+    if (!access.isAdmin && (!isOwner || existing.status !== "pending")) {
+      return jsonError("Only your pending submission can be removed.", 403);
+    }
+
+    const { error } = await access.admin.from(TABLE).delete().eq("id", id);
+    if (error) return jsonError(error.message, 500);
+    return Response.json({ deleted: true, id });
+  } catch (error) {
+    return serverError(error);
   }
-
-  const { error } = await supabase.from("flora_photo_submissions").delete().eq("id", id);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ ok: true });
 }

@@ -30,7 +30,7 @@ export async function GET(request) {
   const admin = adminClient();
   const checks = [];
   try {
-    const tables = ["projects", "portal_events", "regulatory_sources", "project_tracker_templates", "backup_runs"];
+    const tables = ["projects", "portal_events", "regulatory_sources", "regulatory_source_health_alerts", "bionet_watchlists", "learning_assignments", "commercial_margin_snapshots", "psychosocial_support_cases", "admin_audit_log", "project_tracker_templates", "backup_runs"];
     for (const table of tables) {
       try {
         const details = await databaseCheck(admin, table);

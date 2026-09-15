@@ -16,7 +16,7 @@ const STATUS_COLORS = {
   active: "#3d7a35",
   on_hold: "#b08948",
   complete: "#2a8091",
-  archived: "#8a927c",
+  archived: "#5c6b52",
 };
 
 export default function ProjectsList({ onOpen }) {
@@ -36,7 +36,7 @@ export default function ProjectsList({ onOpen }) {
         setError(requestError.message || "Could not load projects.");
       }
     })();
-  }, [session]);
+  }, [session?.access_token]);
 
   if (error) {
     return <div className="proj-error" role="alert"><AlertCircle size={16} /> {error}</div>;

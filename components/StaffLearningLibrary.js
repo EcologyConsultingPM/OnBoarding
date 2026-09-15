@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
 import CoreTrainingQuizzes from "./CoreTrainingQuizzes";
+import LearningAssignmentsPanel from "./LearningAssignmentsPanel";
 
 const TYPE_ICON = {
   section: GraduationCap,
@@ -83,6 +84,8 @@ export default function StaffLearningLibrary() {
           <AlertCircle size={15} /> {error}
         </p>
       ) : null}
+
+      <LearningAssignmentsPanel />
 
       <div className="ld-crumbs">
         <button onClick={() => setParent(null)} className="ld-crumb">

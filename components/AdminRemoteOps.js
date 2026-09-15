@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Globe, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Send } from "lucide-react";
+import { Globe, Clock, MessageSquare, AlertCircle, CheckCircle2, Send } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import RemoteTasks from "./RemoteTasks";
 
@@ -24,7 +24,6 @@ export default function AdminRemoteOps() {
   const { session } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [clientRecords, setClientRecords] = useState([]);
-  const [quotes, setQuotes] = useState([]);
   const [issues, setIssues] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -32,12 +31,15 @@ export default function AdminRemoteOps() {
 
   const reload = useCallback(async () => {
     try {
-      const [p, c, q, i] = await Promise.all([
-        api(session, "profiles"), api(session, "client-records"), api(session, "quotes"), api(session, "issues"),
+      // "quotes" is no longer fetched: that register was retired in favour of
+      // the Quote Pipeline domain, and requesting it on every load was a
+      // round trip whose result nothing rendered.
+      const [p, c, i] = await Promise.all([
+        api(session, "profiles"), api(session, "client-records"), api(session, "issues"),
       ]);
-      setProfiles(p.records); setClientRecords(c.records); setQuotes(q.records); setIssues(i.records);
+      setProfiles(p.records); setClientRecords(c.records); setIssues(i.records);
     } catch (e) { setError(e.message); }
-  }, [session]);
+  }, [session?.access_token]);
 
   useEffect(() => { if (session?.access_token) reload(); }, [session, reload]);
 
@@ -54,16 +56,21 @@ export default function AdminRemoteOps() {
   return (
     <div className="ro-page" style={{ padding: 0 }}>
       <header className="ro-hero">
-        <span><Globe size={17} /> International delivery oversight</span>
-        <h1>Remote operations — oversight</h1>
-        <p>Read-only rollup of everyone's remote-work records. Respond to client questions and issues, note quotes and profiles, and close items off for management follow-up.</p>
+        <span><Globe size={17} /> Task briefs &amp; remote coordination</span>
+        <h1>Task briefs &amp; remote coordination</h1>
+        <p>
+          Assign and track task briefs, and see the remote-work context behind them —
+          time zones, availability and client coordination. New remote or delivery
+          issues are raised by staff through Service Requests (&ldquo;Remote / delivery
+          issue&rdquo;); the history below is retained for follow-up. Commercial quotes
+          are managed in the Quote Pipeline domain.
+        </p>
       </header>
 
       <div className="ro-stats">
         <Stat label="Active profiles" value={profiles.filter((p) => p.status === "active").length} />
         <Stat label="Open communications" value={openClient.length + openIssues.length} />
         <Stat label="Recent handovers" value={issues.filter((i) => i.issue_type === "handover").length} />
-        <Stat label="Active quotes" value={quotes.filter((q) => q.quote_stage === "draft" || q.quote_stage === "sent").length} />
       </div>
 
       {error ? <p className="ro-error"><AlertCircle size={15} /> {error}</p> : null}
@@ -105,27 +112,17 @@ export default function AdminRemoteOps() {
         ))}</div> : <p className="ro-empty">No client records yet.</p>}
       </section>
 
-      {/* Quotes */}
-      <section className="ro-followup">
-        <div className="ro-card-head"><span className="ro-eyebrow"><FileText size={13} /> Commercial pipeline</span><h2>Project quotes</h2></div>
-        {quotes.length ? <div className="ro-list">{quotes.map((q) => (
-          <div key={q.id} className="ro-item">
-            <div><strong>{q.quote_reference || "Quote"}</strong><span className="ro-muted"> · {q.quote_stage}{q.quote_value_aud != null ? ` · $${Number(q.quote_value_aud).toLocaleString("en-AU")}` : ""}</span></div>
-            {q.commercial_notes ? <span>{q.commercial_notes}</span> : null}
-            <div className="ro-admin-action">
-              <select defaultValue={q.quote_stage} onChange={(e) => setDrafts({ ...drafts, [`${q.id}_st`]: e.target.value })}>
-                <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option>
-              </select>
-              <input placeholder="Admin note" defaultValue={q.admin_note || ""} onChange={(e) => setDrafts({ ...drafts, [q.id]: e.target.value })} />
-              <button onClick={() => respond("quotes", q.id, { quoteStage: drafts[`${q.id}_st`] ?? q.quote_stage, adminNote: drafts[q.id] ?? q.admin_note ?? "" })}>Save</button>
-            </div>
-          </div>
-        ))}</div> : <p className="ro-empty">No quotes yet.</p>}
-      </section>
+      {/* Quotes section removed. remote_quotes was a second commercial register
+          running in parallel with the dedicated Quote Pipeline domain
+          (quote_pipeline), so the same quote could be tracked in two places with
+          different stages and no reconciliation between them. Quote Pipeline is
+          the system of record; it has deliverables, margin snapshots, drafts and
+          an approval workflow that this section never had. No data deleted —
+          remote_quotes is intact and still reachable via /api/remote-ops. */}
 
       {/* Issues */}
       <section className="ro-followup">
-        <div className="ro-card-head"><span className="ro-eyebrow"><MessageSquare size={13} /> Management follow-up</span><h2>Open questions, issues & client records</h2></div>
+        <div className="ro-card-head"><span className="ro-eyebrow"><MessageSquare size={13} /> Management follow-up</span><h2>Open questions, issues &amp; client records</h2><p className="ro-muted">Historical items. New issues arrive as Service Requests.</p></div>
         {issues.length ? <div className="ro-list">{issues.map((i) => (
           <div key={i.id} className="ro-item">
             <div><strong>{i.title}</strong><span className="ro-muted"> · {i.issue_type} · {i.status.replace("_", " ")}</span></div>

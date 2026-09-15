@@ -122,6 +122,7 @@ async function projectRows(access) {
   const { data, error } = await access.admin
     .from("projects")
     .select("id, name, client_name, budget_hours, budget_dollars, status")
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data || [];
@@ -138,7 +139,9 @@ async function settingsByProject(access) {
   return { ready: true, settings: new Map((data || []).map((row) => [row.project_id, row])) };
 }
 
-const STANDARD_TRACKER_CATEGORIES = ["Desktop / field plan", "Preparation", "Fieldwork & travel", "Data management", "Reporting", "GIS / mapping", "QA review", "Client consultation", "General project management", "Other"];
+// Must exactly match TASK_CATEGORIES in components/AdminProjectSetup.js — see
+// the identical fix and explanation in app/api/projects/[projectId]/activities/approval/route.js.
+const STANDARD_TRACKER_CATEGORIES = ["Desktop Assessment", "Client Information Review", "Field Plan", "GIS & Mapping", "Field Survey", "Targeted Survey", "Site Inspection", "Data Analysis", "Project Management", "Client Meeting", "Internal Meeting", "Review", "QA Review", "Reporting", "Deliverable Preparation", "Invoice", "Close-Out", "Other"];
 
 async function teamCounts(access) {
   const { data, error } = await access.admin

@@ -46,8 +46,8 @@ function formatWeek(value) {
   return Number.isNaN(date.getTime()) ? value : `Week of ${date.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}`;
 }
 
-function DevelopmentCard({ development }) {
-  const [expanded, setExpanded] = useState(development.llc_recommendation === "immediate_procedure_change");
+function DevelopmentCard({ development, compact = false }) {
+  const [expanded, setExpanded] = useState(!compact && development.llc_recommendation === "immediate_procedure_change");
   const cls = LLC_RECOMMENDATION[development.llc_recommendation] || LLC_RECOMMENDATION.monitor;
   const implications = development.consulting_implications || {};
   const hasImplications = Object.values(implications).some(Boolean);
@@ -61,28 +61,29 @@ function DevelopmentCard({ development }) {
         <span className="lg-development-juris">{development.jurisdiction}</span>
       </div>
       <h4>{development.title}</h4>
-      {development.llc_reasoning ? <p className="lg-reasoning"><strong>Why:</strong> {development.llc_reasoning}</p> : null}
+      {!compact && development.llc_reasoning ? <p className="lg-reasoning"><strong>Why:</strong> {development.llc_reasoning}</p> : null}
 
       {/* Level 1 — always visible, the whole point is a field ecologist needs nothing more */}
       {development.level1_notification ? <p className="lg-level1">{development.level1_notification}</p> : null}
 
-      {Array.isArray(development.affected_work) && development.affected_work.length ? (
+      {!compact && Array.isArray(development.affected_work) && development.affected_work.length ? (
         <div className="lg-affected-work">
           {development.affected_work.map((w) => <span key={w}>{w}</span>)}
         </div>
       ) : null}
 
+      {/* Compact mode (staff notifications) stops here — a targeted summary and
+          nothing else. Full detail & evidence is a Regulatory Watch concept. */}
+      {compact ? null : (
       <button type="button" className="lg-expand-toggle" onClick={() => setExpanded((v) => !v)}>
         {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {expanded ? "Hide" : "Show"} detail & evidence
       </button>
+      )}
 
       {expanded ? (
         <div className="lg-level2">
           {development.what_changed ? (
             <div className="lg-development-block"><strong>What changed</strong><p>{development.what_changed}</p></div>
-          ) : null}
-          {development.why_it_matters ? (
-            <div className="lg-development-block"><strong>Why it matters</strong><p>{development.why_it_matters}</p></div>
           ) : null}
           <div className="lg-development-dates">
             {development.published_date ? <span>Published {development.published_date}</span> : null}
@@ -197,12 +198,11 @@ export default function Legis({ compact = false }) {
   if (error) return <p className="lg-error"><AlertCircle size={14} /> {error}</p>;
 
   if (!brief || brief.status !== "ready") {
-    const failed = brief?.status === "failed";
     return (
-      <div className={`lg-empty${failed ? " lg-empty-error" : ""}`}>
-        {failed ? <AlertCircle size={20} /> : <Scale size={20} />}
-        <strong>{failed ? "This week's briefing could not be generated" : brief?.status === "generating" ? "This week's briefing is being researched" : "No briefing yet"}</strong>
-        <span>{failed ? (brief.error_message || "The scheduled Legis job failed. An administrator should check the system log and rerun the job.") : brief?.status === "generating" ? "Check back shortly — it's compiled every Monday morning." : "The first Legis briefing will appear here once generated."}</span>
+      <div className="lg-empty">
+        <Scale size={20} />
+        <strong>{brief?.status === "generating" ? "This week's briefing is being researched" : "No briefing yet"}</strong>
+        <span>{brief?.status === "generating" ? "Check back shortly — it's compiled every Monday morning." : "The first Legis briefing will appear here once generated."}</span>
       </div>
     );
   }
@@ -223,7 +223,7 @@ export default function Legis({ compact = false }) {
         .lg-development { border: 1px solid #cbd0d8; border-left: 4px solid; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; background: #fff; }
         .lg-development-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
         .lg-classification { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; border: 1px solid; }
-        .lg-severity-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; color: #4b5563; }
+        .lg-severity-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #4b5563; }
         .lg-development-cat, .lg-development-juris { font-size: 11px; color: #4b5563; }
         .lg-development h4 { margin: 0 0 6px; font-size: 14.5px; color: #001F54; }
         .lg-level1 { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #0F172A; font-weight: 500; }
@@ -244,11 +244,6 @@ export default function Legis({ compact = false }) {
         .lg-disclaimer { font-size: 10.5px; color: #6b7280; font-style: italic; margin: 6px 0 0; }
         .lg-loading, .lg-error { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #0F172A; padding: 16px; }
         .lg-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 30px 20px; color: #4b5563; }
-        .lg-empty-error { color: #8f2f2f; background: #fff4f2; border: 1px solid #f0c4bf; border-radius: 8px; }
-        .lg-register-status, .lg-confidence, .lg-no-change-section { background: #fff; border: 1px solid #cbd0d8; border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
-        .lg-register-status h3, .lg-confidence h3, .lg-no-change-section h3 { margin: 0 0 6px; }
-        .lg-register-status p, .lg-confidence p, .lg-no-change-section p { margin: 4px 0; font-size: 12px; line-height: 1.5; color: #0F172A; }
-        .lg-confidence { background: #f8fafc; }
         .lg-matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0 16px; background: #fff; border-radius: 8px; overflow: hidden; }
         .lg-matrix th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #4b5563; padding: 6px 10px; border-bottom: 1px solid #cbd0d8; }
         .lg-matrix td { padding: 6px 10px; border-bottom: 1px solid #eceff3; color: #0F172A; }
@@ -287,25 +282,25 @@ export default function Legis({ compact = false }) {
       <div className="lg-header"><span><Scale size={13} /> {formatWeek(brief.week_of)}</span></div>
       {brief.summary ? <p className="lg-summary">{brief.summary}</p> : null}
 
-      <StatusMatrix rows={brief.status_matrix} />
+      {compact ? null : <StatusMatrix rows={brief.status_matrix} />}
 
       {actionItems.length ? (
         <section>
           <h3>{"\ud83d\udd34"} Immediate procedure change ({actionItems.length})</h3>
-          {actionItems.map((d, i) => <DevelopmentCard key={i} development={d} />)}
+          {actionItems.map((d, i) => <DevelopmentCard key={i} development={d} compact={compact} />)}
         </section>
       ) : null}
 
       {otherItems.length ? (
         <section>
           <h3><BookOpen size={15} /> Other developments</h3>
-          {otherItems.map((d, i) => <DevelopmentCard key={i} development={d} />)}
+          {otherItems.map((d, i) => <DevelopmentCard key={i} development={d} compact={compact} />)}
         </section>
       ) : null}
 
       {!developments.length ? <p className="lg-no-developments">No developments met the consequentiality threshold this week.</p> : null}
 
-      {hasDepartments ? (
+      {!compact && hasDepartments ? (
         <section>
           <h3>Cross-cutting impact</h3>
           <div className="lg-departments">
@@ -325,14 +320,11 @@ export default function Legis({ compact = false }) {
       {(brief.actions_this_week || []).length ? (
         <section className="lg-actions">
           <h3><CheckCircle2 size={15} /> Actions for this week</h3>
-          <ul>{brief.actions_this_week.map((action, index) => {
-            const item = typeof action === "string" ? { action } : action;
-            return <li key={index}><strong>{item.action}</strong>{item.owner ? ` — Owner: ${item.owner}` : ""}{item.artefact ? ` · ${item.artefact}` : ""}{item.by_when ? ` · By ${item.by_when}` : ""}{item.register_id ? ` · ${item.register_id}` : ""}</li>;
-          })}</ul>
+          <ul>{brief.actions_this_week.map((action, index) => <li key={index}>{action}</li>)}</ul>
         </section>
       ) : null}
 
-      {(brief.watchlist || []).length ? (
+      {!compact && (brief.watchlist || []).length ? (
         <section>
           <h3><Eye size={15} /> Regulatory Watchlist</h3>
           {brief.watchlist.map((item, index) => (
@@ -353,36 +345,16 @@ export default function Legis({ compact = false }) {
         </section>
       ) : null}
 
-      {(brief.no_material_change_categories || []).length ? (
-        <section className="lg-no-change-section">
-          <h3>No material change</h3>
-          {brief.no_material_change_categories.map((item, index) => {
-            const row = typeof item === "string" ? { statement: item } : item;
-            return <p className="lg-no-change" key={index}><strong>{row.category ? `${row.category}: ` : ""}</strong>{row.statement || "No material change identified."}{row.last_checked ? ` Last checked ${row.last_checked}.` : ""}</p>;
-          })}
-        </section>
+      {!compact && (brief.no_material_change_categories || []).length ? (
+        <p className="lg-no-change">No material change this week: {brief.no_material_change_categories.join(", ")}.</p>
       ) : null}
 
-      {brief.register_status ? (
-        <section className="lg-register-status">
-          <h3>Register status</h3>
-          <p><strong>{brief.register_status.open_items ?? 0}</strong> open items · <strong>{brief.overdue_register_count ?? brief.register_status.overdue_items?.length ?? 0}</strong> overdue · <strong>{brief.register_status.effective_within_30_days_not_started ?? 0}</strong> effective within 30 days and not started.</p>
-          {brief.register_status.high_severity_unassigned?.length ? <p>High-severity unassigned: {brief.register_status.high_severity_unassigned.join(", ")}.</p> : null}
-        </section>
-      ) : null}
-
-      {brief.confidence_and_gaps && Object.keys(brief.confidence_and_gaps).length ? (
-        <section className="lg-confidence">
-          <h3>Confidence &amp; gaps</h3>
-          {brief.confidence_and_gaps.overall ? <p><strong>Overall confidence:</strong> {brief.confidence_and_gaps.overall}</p> : null}
-          {[["Source conflicts", brief.confidence_and_gaps.source_conflicts], ["Thin coverage", brief.confidence_and_gaps.thin_coverage], ["Not checked", brief.confidence_and_gaps.not_checked], ["Unresolved questions", brief.confidence_and_gaps.unresolved_questions], ["Method blind spots", brief.confidence_and_gaps.method_blind_spots]].map(([label, values]) => values?.length ? <p key={label}><strong>{label}:</strong> {values.join("; ")}</p> : null)}
-        </section>
-      ) : null}
-
+      {compact ? null : (
       <button type="button" className="lg-history-toggle" onClick={loadHistory}>
         {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Previous briefings
       </button>
-      {showHistory ? (
+      )}
+      {!compact && showHistory ? (
         <div className="lg-history">
           {history.filter((item) => item.id !== brief.id).map((item) => (
             <div key={item.id} className="lg-history-item">

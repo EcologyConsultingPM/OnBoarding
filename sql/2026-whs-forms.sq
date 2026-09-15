@@ -1,4 +1,51 @@
 -- whs_forms: unified WHS/field-form submissions (risk assessments, injury/incident,
 -- near miss, ERP, journey plan, pre-mobilisation, hazard, toolbox). RLS: staff own,
 -- admins all. Incidents/near-misses mirror into service_requests (types whs_incident,
--- whs_near_miss) for the admin queue. Applied live.
+-- whs_near_miss) for the admin queue — that mirroring is application-level logic in
+-- the API route, not a database trigger, so it isn't part of this table definition.
+--
+-- This file replaces sql/2026-whs-forms.sq, which had the wrong extension (.sq, not
+-- .sql) and contained only these descriptive comments with no actual schema — meaning
+-- a migration runner could never have picked it up. The table below is reconstructed
+-- directly from the genuinely live production schema, not guessed or assumed.
+
+create table if not exists public.whs_forms (
+  id uuid primary key default gen_random_uuid(),
+  created_by uuid not null default auth.uid(),
+  form_type text not null,
+  title text not null,
+  site text,
+  form_date date,
+  details jsonb not null default '{}'::jsonb,
+  status text not null default 'submitted',
+  notifiable_flag boolean not null default false,
+  review_note text,
+  reviewed_by uuid,
+  reviewed_at timestamptz,
+  seen_by_staff boolean not null default false,
+  submission_key text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.whs_forms enable row level security;
+
+create policy whs_forms_select on public.whs_forms
+  for select to authenticated
+  using (created_by = auth.uid() or is_admin());
+
+create policy whs_forms_insert on public.whs_forms
+  for insert to authenticated
+  with check (created_by = auth.uid());
+
+-- A submitter can edit their own form only while it's still in "submitted" status
+-- (before review); an admin can always update, including recording a review outcome.
+create policy whs_forms_update_own on public.whs_forms
+  for update to authenticated
+  using ((created_by = auth.uid() and status = 'submitted') or is_admin())
+  with check (created_by = auth.uid() or is_admin());
+
+create policy whs_forms_admin_all on public.whs_forms
+  for all to authenticated
+  using (is_admin())
+  with check (is_admin());

@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Search, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Search, AlertCircle, CheckCircle2, Expand, X, Pencil, Lock, Unlock, Save, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { FLORA_PROFILES } from "../lib/floraData";
 import { FAUNA_PROFILES } from "../lib/faunaData";
 import { SURVEY_FLORA } from "../lib/surveyFlora";
 import { SURVEY_FAUNA } from "../lib/surveyFauna";
+import { mergeOverrides } from "../lib/mergeSpeciesOverrides";
 import SurveyRequirements from "./SurveyRequirements";
+import BioNetWatchlistsPanel from "./BioNetWatchlistsPanel";
+import useUnsavedGuard from "../lib/useUnsavedGuard";
 
 const FLORA_LC = {
   "Critically Endangered": { fg: "#a5342a", bg: "rgba(212,86,63,.14)", short: "CE", accent: "#d4563f" },
@@ -24,6 +27,17 @@ const FAUNA_LC = {
 };
 function faunaListing(p) { return (p.listing || "").split(" | ")[0]; }
 
+async function responseData(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fallback = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return { error: fallback || `Request failed (${response.status}).` };
+  }
+}
+
 export default function AdminSpeciesProfiles({ onToast }) {
   const { session } = useAuth();
   const [kingdom, setKingdom] = useState("flora");
@@ -33,12 +47,33 @@ export default function AdminSpeciesProfiles({ onToast }) {
   const [error, setError] = useState("");
   const [reviewingId, setReviewingId] = useState(null);
   const [rejectNote, setRejectNote] = useState("");
+  const [preview, setPreview] = useState(null);
   const [q, setQ] = useState("");
+  const [overrides, setOverrides] = useState([]);
+  const [editing, setEditing] = useState(null);   // profile being edited (merged copy)
+
+  // This is an EDIT form, so it gets a guard rather than localStorage draft
+  // retention. Restoring a stale draft over a species profile someone else has
+  // since changed would overwrite their work silently — see lib/useUnsavedGuard.
+  const dirty = Boolean(
+    editing &&
+    ["name", "common", "listing", "family", "form", "habitat", "diag"].some(
+      (field) => (draft[field] ?? "") !== (editing[field] ?? ""),
+    ),
+  );
+  const closeEdit = () => {
+    // The backdrop, the X and Cancel all discarded a ten-field form with no
+    // warning at all.
+    if (dirty && !window.confirm("Discard your unsaved changes to this species profile?")) return;
+    setEditing(null);
+  };
+  const [draft, setDraft] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const authFetch = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const apiBase = kingdom === "flora" ? "/api/flora-photos" : "/api/fauna-photos";
 
@@ -46,8 +81,8 @@ export default function AdminSpeciesProfiles({ onToast }) {
     setLoading(true);
     try {
       const res = await authFetch("GET", apiBase);
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Couldn't load submissions");
+      const d = await responseData(res);
+      if (!res.ok) throw new Error(d.error || `Couldn't load submissions (${res.status}).`);
       setSubs(d.submissions || []);
     } catch (e) { setError(e.message); }
     setLoading(false);
@@ -55,11 +90,83 @@ export default function AdminSpeciesProfiles({ onToast }) {
 
   useEffect(() => { if (session?.access_token) load(); }, [session, kingdom, load]);
 
+  const loadOverrides = useCallback(async () => {
+    try {
+      const res = await authFetch("GET", `/api/species-overrides?kingdom=${kingdom}`);
+      const d = await res.json();
+      if (res.ok) setOverrides(d.overrides || []);
+    } catch { /* non-fatal */ }
+  }, [authFetch, kingdom]);
+  useEffect(() => { if (session?.access_token) loadOverrides(); }, [session, kingdom, loadOverrides]);
+
+  useUnsavedGuard(dirty, "Your species profile edits have not been saved.");
+
+  const overrideFor = (name) => overrides.find((o) => o.taxon_name === name) || null;
+
+  const openEdit = (profile) => {
+    setEditing(profile);
+    setDraft({
+      name: profile.name || "",
+      common: profile.common || "",
+      listing: profile.listing || "",
+      family: profile.family || "",
+      form: profile.form || "",
+      habitat: profile.habitat || "",
+      diag: profile.diag || "",
+      hidden: new Set((overrideFor(profile.name)?.hidden_photos || []).map(Number)),
+    });
+  };
+  const togglePhoto = (n) => setDraft((d) => {
+    const hidden = new Set(d.hidden); hidden.has(n) ? hidden.delete(n) : hidden.add(n);
+    return { ...d, hidden };
+  });
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSavingEdit(true); setError("");
+    try {
+      const fields = {
+        name: draft.name, common: draft.common, listing: draft.listing,
+        family: draft.family, form: draft.form, habitat: draft.habitat, diag: draft.diag,
+      };
+      const res = await authFetch("POST", "/api/species-overrides", {
+        kingdom, taxon_name: editing.name, fields, hidden_photos: Array.from(draft.hidden || []),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Couldn't save the profile edit.");
+      setEditing(null); await loadOverrides();
+      onToast && onToast("Profile updated.");
+    } catch (e) { setError(e.message); } finally { setSavingEdit(false); }
+  };
+  const toggleLock = async (profile, lock) => {
+    setError("");
+    try {
+      const res = await authFetch("PATCH", "/api/species-overrides", { kingdom, taxon_name: profile.name, locked: lock });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Couldn't change the lock state.");
+      await loadOverrides();
+      onToast && onToast(lock ? "Profile locked (published)." : "Profile unlocked for editing.");
+    } catch (e) { setError(e.message); }
+  };
+
+  useEffect(() => {
+    if (!preview) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [preview]);
+
   const decide = async (id, status, review_note) => {
     try {
       const res = await authFetch("PATCH", `${apiBase}/${id}`, { status, review_note: review_note || "" });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Couldn't update");
+      const d = await responseData(res);
+      if (!res.ok) throw new Error(d.error || `Couldn't update (${res.status}).`);
       setReviewingId(null); setRejectNote("");
       await load();
       onToast && onToast(status === "verified" ? "Photo verified." : "Photo rejected.");
@@ -73,7 +180,10 @@ export default function AdminSpeciesProfiles({ onToast }) {
   const pendingCount = subs.filter((s) => s.status === "pending").length;
   const verifiedCount = subs.filter((s) => s.status === "verified").length;
 
-  const PROFILES = kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES;
+  const PROFILES = useMemo(
+    () => mergeOverrides(kingdom === "flora" ? FLORA_PROFILES : FAUNA_PROFILES, overrides),
+    [kingdom, overrides],
+  );
   const LC = kingdom === "flora" ? FLORA_LC : FAUNA_LC;
   const nq = q.trim().toLowerCase();
   const browseList = useMemo(() => {
@@ -85,6 +195,9 @@ export default function AdminSpeciesProfiles({ onToast }) {
 
   if (subView === "survey") {
     return <SurveyRequirements initialKingdom={kingdom} onBack={() => setSubView("profiles")} />;
+  }
+  if (subView === "bionet") {
+    return <BioNetWatchlistsPanel onBack={() => setSubView("profiles")} />;
   }
 
   return (
@@ -103,6 +216,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
       <div className="spk-toggle light">
         <button className={"flora" + (kingdom === "flora" ? " sel" : "")} onClick={() => { setKingdom("flora"); setQ(""); }}>Flora</button>
         <button className={"fauna" + (kingdom === "fauna" ? " sel" : "")} onClick={() => { setKingdom("fauna"); setQ(""); }}>Fauna</button>
+        <button className="bionet" onClick={() => setSubView("bionet")}>BioNet watchlists</button>
       </div>
 
       {error ? <p className="fp-error"><AlertCircle size={15} /> {error}</p> : null}
@@ -122,7 +236,16 @@ export default function AdminSpeciesProfiles({ onToast }) {
               const c = s.status === "verified" ? "#4fb583" : s.status === "rejected" ? "#d4563f" : "#e7c979";
               return (
                 <div key={s.id} className="afp-row" style={{ borderLeftColor: c }}>
-                  <img src={s.photo_data} alt="Submitted field photo" />
+                  <button
+                    type="button"
+                    className="afp-photo-button"
+                    onClick={() => setPreview(s)}
+                    aria-label={`View full-screen photo of ${s.taxon_name}`}
+                    title="Open full-screen photo"
+                  >
+                    <img src={s.photo_data} alt={`Submitted field photo of ${s.taxon_name}`} />
+                    <span className="afp-photo-expand"><Expand size={14} /></span>
+                  </button>
                   <div className="afp-row-main">
                     <div className="afp-row-top">
                       <span className={"fp-status-pill " + s.status}>{s.status === "verified" ? "✓ Verified" : s.status === "rejected" ? "Rejected" : "Pending review"}</span>
@@ -155,6 +278,36 @@ export default function AdminSpeciesProfiles({ onToast }) {
         )}
       </div>
 
+      {preview ? (
+        <div
+          className="afp-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="afp-lightbox-title"
+          onMouseDown={() => setPreview(null)}
+        >
+          <div className="afp-lightbox-panel" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="afp-lightbox-head">
+              <div>
+                <span>Expert review · full-screen evidence</span>
+                <h2 id="afp-lightbox-title">{preview.taxon_name}</h2>
+                <p>{preview.common_name || "No common name recorded"} · {preview.submitted_by_email || "Staff"}</p>
+              </div>
+              <button type="button" className="afp-lightbox-close" onClick={() => setPreview(null)} aria-label="Close full-screen photo">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="afp-lightbox-image-wrap">
+              <img src={preview.photo_data} alt={`Full-screen field photo of ${preview.taxon_name}`} />
+            </div>
+            <div className="afp-lightbox-meta">
+              <span>{preview.note || "No field note supplied"}</span>
+              <small>Press Escape or select outside the image to close.</small>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="afp-browse">
         <div className="fp-section-label" style={{ color: "#1f5a34" }}>Reference library — quick lookup</div>
         <div className="fp-search" style={{ marginBottom: 12, background: "#f5f2ea", border: "1px solid #dce3d5", color: "#7a877d" }}>
@@ -168,6 +321,7 @@ export default function AdminSpeciesProfiles({ onToast }) {
               const pl = kingdom === "flora" ? p.listing : faunaListing(p);
               const c = LC[pl] || LC.Vulnerable;
               const verified = subs.some((s) => s.taxon_name === p.name && s.status === "verified");
+              const locked = p._locked === true;
               return (
                 <div key={p.name} className="afp-browse-row" style={{ borderLeftColor: c.accent }}>
                   <div>
@@ -176,7 +330,11 @@ export default function AdminSpeciesProfiles({ onToast }) {
                   </div>
                   <div className="afp-browse-tags">
                     <span className="fp-badge" style={{ background: c.bg, color: c.fg }}>{c.short}</span>
+                    {p._edited && !locked && <span className="afp-edited-tag">edited</span>}
+                    {locked && <span className="afp-locked-tag"><Lock size={10} /> published</span>}
                     {verified && <span className="fp-verified">✓ verified</span>}
+                    <button className="afp-edit-btn" onClick={() => openEdit(p)} disabled={locked} title={locked ? "Unlock to edit" : "Edit profile"}><Pencil size={13} /></button>
+                    <button className={`afp-lock-btn ${locked ? "locked" : ""}`} onClick={() => toggleLock(p, !locked)} title={locked ? "Unlock (allow edits)" : "Lock (publish / protect)"}>{locked ? <Unlock size={13} /> : <Lock size={13} />}</button>
                   </div>
                 </div>
               );
@@ -190,6 +348,54 @@ export default function AdminSpeciesProfiles({ onToast }) {
         <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "#5c6b58", lineHeight: 1.55 }}>{survey.readme["Purpose"]}</p>
         <button className="afp-btn verify" onClick={() => setSubView("survey")}>Open survey requirements →</button>
       </div>
+
+      {editing ? (
+        <div className="spe-modal-bg" onMouseDown={closeEdit}>
+          <div className="spe-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="spe-modal-head">
+              <div>
+                <span className="spe-kicker">Edit species profile · {kingdom}</span>
+                <h2>{editing.name}</h2>
+              </div>
+              <button className="spe-close" onClick={closeEdit} aria-label="Close"><X size={18} /></button>
+            </div>
+            {error ? <p className="spe-error"><AlertCircle size={14} /> {error}</p> : null}
+            <div className="spe-grid">
+              <label>Scientific name<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
+              <label>Common name<input value={draft.common} onChange={(e) => setDraft({ ...draft, common: e.target.value })} /></label>
+              <label>Listing status<input value={draft.listing} onChange={(e) => setDraft({ ...draft, listing: e.target.value })} placeholder="e.g. Endangered" /></label>
+              <label>{kingdom === "flora" ? "Family" : "Group / family"}<input value={draft.family} onChange={(e) => setDraft({ ...draft, family: e.target.value })} /></label>
+              <label>Form<input value={draft.form} onChange={(e) => setDraft({ ...draft, form: e.target.value })} /></label>
+              <label className="spe-wide">Habitat<textarea rows={2} value={draft.habitat} onChange={(e) => setDraft({ ...draft, habitat: e.target.value })} /></label>
+              <label className="spe-wide">Diagnostic / description<textarea rows={4} value={draft.diag} onChange={(e) => setDraft({ ...draft, diag: e.target.value })} /></label>
+            </div>
+
+            {Array.isArray(editing.atts) && editing.atts.length ? (
+              <div className="spe-photos">
+                <span className="spe-photos-label">Photos — tick to delete from this profile</span>
+                <div className="spe-photo-list">
+                  {editing.atts.map((a) => {
+                    const hidden = draft.hidden?.has(Number(a.n));
+                    return (
+                      <label key={a.n} className={`spe-photo ${hidden ? "removing" : ""}`}>
+                        <input type="checkbox" checked={!!hidden} onChange={() => togglePhoto(Number(a.n))} />
+                        <span className="spe-photo-meta"><strong>Photo {a.n}</strong><small>{a.creator || "Unknown"} · {a.provider || ""}</small></span>
+                        {hidden ? <Trash2 size={13} className="spe-photo-x" /> : null}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="spe-modal-actions">
+              <button className="spe-save" onClick={saveEdit} disabled={savingEdit}><Save size={14} /> {savingEdit ? "Saving…" : "Save changes"}</button>
+              <button className="spe-cancel" onClick={closeEdit}>Cancel</button>
+              <span className="spe-lock-hint">Lock the profile from the list to publish and protect it from further edits.</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

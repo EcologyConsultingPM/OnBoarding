@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Send, ShieldAlert, Trash2 } from "lucide-react";
+import { BellRing, BookOpenCheck, ExternalLink, FileSearch, ListFilter, Plus, RefreshCw, Scale, Send, ShieldAlert, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import Legis from "./Legis";
+import useFormDraft from "../lib/useFormDraft";
 
 const STATUS = {
   new: { label: "New review", tone: "review" },
@@ -36,17 +38,32 @@ function safeRecords(value) {
 // Regulatory Watch deliberately displays only to administrators. Automated
 // source changes are unreviewed compliance prompts, never legal advice or an
 // automatic change to forms, survey standards or controlled documents.
+const BLANK_UPDATE = { title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] };
+
 export default function AdminRegulatoryWatch({ onToast }) {
   const { session } = useAuth();
   const [sources, setSources] = useState([]);
+  const [legisWatchlist, setLegisWatchlist] = useState([]);
+  const [legisWeek, setLegisWeek] = useState(null);
+  const [legisLoading, setLegisLoading] = useState(true);
   const [updates, setUpdates] = useState([]);
+  const [healthAlerts, setHealthAlerts] = useState([]);
   const [filters, setFilters] = useState({ view: "open", category: "", severity: "", source: "", search: "", sort: "detected_desc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState("");
   const [drafts, setDrafts] = useState({});
   const [creating, setCreating] = useState(false);
-  const [newUpdate, setNewUpdate] = useState({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+  // Manually adding a regulatory update is a research task — a reviewer may
+  // have several tabs open reading source material while composing it. Losing
+  // it to a tab switch (see the TOKEN_REFRESHED remount) is expensive.
+  const {
+    value: newUpdate,
+    setValue: setNewUpdate,
+    restored: updateDraftRestored,
+    discard: discardUpdateDraft,
+    clear: clearUpdateDraft,
+  } = useFormDraft(session?.user?.id ? `ec-reg-update-draft:${session.user.id}` : "", BLANK_UPDATE, { ignore: ["severity"] });
 
   const headers = useCallback(() => ({
     "Content-Type": "application/json",
@@ -66,6 +83,7 @@ export default function AdminRegulatoryWatch({ onToast }) {
       // relationship payload to fail the entire client workspace.
       setSources(safeRecords(body?.sources));
       setUpdates(safeRecords(body?.updates));
+      setHealthAlerts(safeRecords(body?.healthAlerts));
     } catch (err) {
       setError(err.message || "Could not load Regulatory Watch.");
     } finally {
@@ -74,6 +92,20 @@ export default function AdminRegulatoryWatch({ onToast }) {
   }, [headers, session?.access_token]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/legis", { headers: headers() })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.brief?.status === "ready") {
+          setLegisWatchlist(data.brief.watchlist || []);
+          setLegisWeek(data.brief.week_of || null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLegisLoading(false));
+  }, [session?.access_token, headers]);
 
   const visibleUpdates = useMemo(() => {
     const filtered = safeRecords(updates).filter((update) => {
@@ -159,7 +191,8 @@ export default function AdminRegulatoryWatch({ onToast }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not add the regulatory update.");
       setUpdates((current) => [body.update, ...current]);
-      setNewUpdate({ title: "", summary: "", source_url: "", source_id: "", severity: "review", review_due_date: "", affected_domains: [] });
+      setNewUpdate(BLANK_UPDATE);
+      clearUpdateDraft();
       setCreating(false);
       onToast?.("Regulatory Watch item added for review.");
     } catch (err) {
@@ -169,6 +202,21 @@ export default function AdminRegulatoryWatch({ onToast }) {
 
   return (
     <section className="reg-watch" aria-label="Regulatory Watch">
+      <style>{`
+        .reg-watch__legis { background: #F1F2F4; border-radius: 10px; padding: 14px 18px; margin: 16px 0; }
+        .reg-watch__legis-head span { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #001F54; }
+        .reg-watch__legis-head h3 { margin: 4px 0 4px; color: #001F54; font-size: 16px; }
+        .reg-watch__legis-head p { margin: 0 0 10px; font-size: 12.5px; color: #374151; line-height: 1.5; }
+        .reg-watch__legis-table-wrap { overflow-x: auto; }
+        .reg-watch__legis-table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: #fff; border-radius: 8px; overflow: hidden; }
+        .reg-watch__legis-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #6b7280; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+        .reg-watch__legis-table td { padding: 8px 10px; border-bottom: 1px solid #f1f2f4; color: #0F172A; vertical-align: top; }
+        .reg-watch__legis-table td small { display: block; color: #92400e; font-style: italic; margin-top: 2px; }
+        .reg-watch__likelihood { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+        .reg-watch__likelihood--high { background: #fde2e1; color: #a5342a; }
+        .reg-watch__likelihood--medium { background: #fdecc8; color: #92400e; }
+        .reg-watch__likelihood--low { background: #e5e7eb; color: #4b5563; }
+      `}</style>
       <header className="reg-watch__hero">
         <div>
           <span><ShieldAlert size={14} /> Official regulatory intelligence</span>
@@ -181,6 +229,54 @@ export default function AdminRegulatoryWatch({ onToast }) {
         </div>
       </header>
 
+      {/* The admin domain previously surfaced only brief.watchlist — the
+          forward-looking items. The full weekly brief (developments with their
+          level-1 notification, what changed, effective/transitional dates,
+          consulting implications for quotes, scoping, reports and programme,
+          plus the evidence and citations) was rendered ONLY in the staff
+          notifications page, so an administrator reviewing Regulatory Watch
+          could not see the in-depth report at all. Legis is self-contained and
+          fetches its own brief, so it is embedded here in full. */}
+      <section className="reg-watch__legis reg-watch__legis--brief" aria-label="Legis weekly regulatory brief">
+        <div className="reg-watch__legis-head">
+          <span><Scale size={14} /> Legis</span>
+          <h3>Weekly Regulatory Brief — full detail</h3>
+          <p>The complete Monday brief: every development Legis identified, why it matters, what changed, when it applies, and the consulting implications. Expand any development for its evidence and citations.</p>
+        </div>
+        <Legis />
+      </section>
+
+      <section className="reg-watch__legis" aria-label="Legis regulatory watchlist">
+        <div className="reg-watch__legis-head">
+          <span><Scale size={14} /> Legis</span>
+          <h3>Regulatory Watchlist</h3>
+          <p>Reforms, consultations, draft legislation and anticipated changes Legis is tracking but has not yet escalated to a review item below. Updated every Monday.{legisWeek ? ` Last updated: week of ${legisWeek}.` : ""}</p>
+        </div>
+        {legisLoading ? (
+          <p className="reg-watch__empty">Loading Legis watchlist…</p>
+        ) : legisWatchlist.length ? (
+          <div className="reg-watch__legis-table-wrap">
+            <table className="reg-watch__legis-table">
+              <thead><tr><th>Issue</th><th>Jurisdiction</th><th>Potential impact</th><th>Current status</th><th>Next milestone</th><th>Likelihood</th></tr></thead>
+              <tbody>
+                {legisWatchlist.map((item, index) => (
+                  <tr key={index}>
+                    <td><strong>{item.issue}</strong>{item.carried_forward_note ? <small>Since last week: {item.carried_forward_note}</small> : null}</td>
+                    <td>{item.jurisdiction || "—"}</td>
+                    <td>{item.potential_impact || "—"}</td>
+                    <td>{item.current_status ? item.current_status.replaceAll("_", " ") : "—"}</td>
+                    <td>{item.next_milestone_date || "—"}</td>
+                    <td><span className={`reg-watch__likelihood reg-watch__likelihood--${String(item.likelihood || "").toLowerCase()}`}>{item.likelihood || "—"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="reg-watch__empty">Nothing on the Legis watchlist right now.</p>
+        )}
+      </section>
+
       <div className="reg-watch__summary" aria-label="Regulatory Watch summary">
         <div><strong>{openCount}</strong><span>Open reviews</span></div>
         <div><strong className={dueCount ? "is-alert" : ""}>{dueCount}</strong><span>Overdue review</span></div>
@@ -192,6 +288,12 @@ export default function AdminRegulatoryWatch({ onToast }) {
         <section className="reg-watch__create">
           <h3><Plus size={16} /> Record an official update for review</h3>
           <p>This creates an internal review item only. It does not alter any procedure, survey method, form or staff requirement.</p>
+          {updateDraftRestored ? (
+            <p className="aps-draft-note">
+              An unsaved regulatory update was restored from this browser.
+              <button type="button" className="ec-btn--quiet" onClick={discardUpdateDraft}>Discard and start again</button>
+            </p>
+          ) : null}
           <div className="reg-watch__form-grid">
             <label><span>Official source</span><select value={newUpdate.source_id} onChange={(event) => setNewUpdate({ ...newUpdate, source_id: event.target.value, source_url: "" })}><option value="">Choose source or enter URL below</option>{sources.map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}</select></label>
             <label><span>Priority</span><select value={newUpdate.severity} onChange={(event) => setNewUpdate({ ...newUpdate, severity: event.target.value })}>{Object.entries(SEVERITY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

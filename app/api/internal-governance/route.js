@@ -4,6 +4,9 @@ import { requirePortalResource } from "../../../lib/portalVisibility";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Local text sanitiser, matching the convention used across the other routes.
+const text = (value, limit = 2000) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
+
 const DOCUMENT_TYPES = new Set(["policy", "procedure"]);
 const DRAFTABLE = new Set(["draft", "rejected"]);
 const ALL_DOCUMENT_COLUMNS = `
@@ -12,6 +15,8 @@ const ALL_DOCUMENT_COLUMNS = `
   consultation_user_ids, consultation_starts_at, consultation_ends_at,
   submitted_for_approval_at, approved_by, approved_at, effective_date,
   next_review_date, supersedes_document_id, archived_at, published_at,
+  review_assigned_to, review_assigned_by, review_assigned_at, review_note,
+  review_completed_at,
   created_at, updated_at
 `;
 
@@ -312,6 +317,31 @@ export async function PATCH(request) {
       if (document.status !== "pending_approval") return jsonError("Only a document pending approval can be rejected.");
       values = { status: "rejected", updated_at: now };
       versionNote = body.change_note || "Approval amendment requested.";
+    } else if (body.action === "assign_review") {
+      // policy_documents has always had next_review_date, so the system knew
+      // WHEN a document was due but never WHO had to do it. Reviews had no
+      // owner and appeared in nobody's workload.
+      const reviewerId = String(body.reviewerId || "").trim();
+      if (!reviewerId) return jsonError("Choose a reviewer.");
+      const reviewDue = String(body.nextReviewDate || document.next_review_date || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(reviewDue)) return jsonError("A review due date is required.");
+      values = {
+        review_assigned_to: reviewerId,
+        review_assigned_by: access.user.id,
+        review_assigned_at: now,
+        review_note: text(body.note, 2000) || null,
+        review_completed_at: null,
+        next_review_date: reviewDue,
+        updated_at: now,
+      };
+      versionNote = `Review assigned, due ${reviewDue}.`;
+    } else if (body.action === "complete_review") {
+      if (!document.review_assigned_to) return jsonError("This document has no assigned review.");
+      if (!access.isAdmin && document.review_assigned_to !== access.user.id) {
+        return jsonError("Only the assigned reviewer or an administrator can complete this review.", 403);
+      }
+      values = { review_completed_at: now, review_note: text(body.note, 2000) || document.review_note, updated_at: now };
+      versionNote = "Review completed.";
     } else if (body.action === "archive") {
       if (document.status !== "published") return jsonError("Only a published document can be archived.");
       values = { status: "archived", archived_at: now, updated_at: now };
@@ -352,6 +382,22 @@ export async function PATCH(request) {
       const message = `Consultation closes ${new Date(data.consultation_ends_at).toLocaleDateString("en-AU")}.`;
       await publishNotice(access.admin, access.user.id, data, message);
       await publishGovernanceEvents(access.admin, data, "governance_consultation_open", "review", "Governance document open for consultation", `${data.title} v${data.version}. ${message}`);
+    }
+    if (body.action === "assign_review") {
+      // Notify the reviewer directly. publishGovernanceEvents broadcasts to a
+      // consultation audience, which is the wrong shape here — a review
+      // assignment has exactly one recipient.
+      const due = new Date(`${data.next_review_date}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+      await access.admin.from("portal_events").insert({
+        recipient_id: data.review_assigned_to,
+        event_type: "governance_review_assigned",
+        severity: "action_required",
+        title: "Document review assigned to you",
+        body: `${data.doc_type === "procedure" ? "Procedure" : "Policy"}: ${data.title} v${data.version} — review due ${due}.${data.review_note ? ` ${data.review_note}` : ""}`,
+        href: "/staff/governance",
+        source_table: "policy_documents",
+        source_id: data.id,
+      });
     }
     if (body.action === "submit_for_approval") {
       await publishGovernanceEvents(access.admin, data, "governance_approval_required", "approval", "Governance document awaiting approval", `${data.title} v${data.version} is ready for approval.`);

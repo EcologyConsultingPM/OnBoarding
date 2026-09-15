@@ -26,7 +26,13 @@ function shortDate(value) {
 }
 
 export default function ProjectGantt({ schedule = [] }) {
-  const rows = schedule.filter((item) => item.title);
+  const seen = new Set();
+  const rows = schedule.filter((item) => item.title).filter((item) => {
+    const key = item.id || [item.title, item.detail || "", item.startDate || "", item.endDate || ""].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const dated = rows.flatMap((item) => [dayStamp(item.startDate), dayStamp(item.endDate || item.startDate)]).filter((value) => Number.isFinite(value));
   const min = dated.length ? Math.min(...dated) : Date.now();
   const max = dated.length ? Math.max(...dated) : min + 7 * 86400000;

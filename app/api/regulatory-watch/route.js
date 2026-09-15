@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
+import { compactAuditRecord, recordAudit } from "../../../lib/auditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,13 +48,15 @@ export async function GET(request) {
     const denied = await requirePortalResource(access, "admin.regulatory_watch");
     if (denied) return denied;
 
-    const [sourcesResult, updatesResult] = await Promise.all([
+    const [sourcesResult, updatesResult, healthResult] = await Promise.all([
       access.admin.from("regulatory_sources").select("*").order("category").order("title"),
       access.admin.from("regulatory_updates").select(UPDATE_COLUMNS).order("detected_at", { ascending: false }).limit(150),
+      access.admin.from("regulatory_source_health_alerts").select("id, source_id, status, error_message, last_notified_at, last_seen_at, resolved_at, created_at, updated_at").order("updated_at", { ascending: false }).limit(100),
     ]);
     if (sourcesResult.error) return jsonError(sourcesResult.error.message);
     if (updatesResult.error) return jsonError(updatesResult.error.message);
-    return Response.json({ sources: sourcesResult.data || [], updates: updatesResult.data || [] });
+    if (healthResult.error) return jsonError(healthResult.error.message);
+    return Response.json({ sources: sourcesResult.data || [], updates: updatesResult.data || [], healthAlerts: healthResult.data || [] });
   } catch (error) {
     return serverError(error);
   }
@@ -83,8 +86,12 @@ export async function POST(request) {
         source_url: sourceUrl,
         category,
         authority_name: String(body.authority_name || "Ecology Consulting review source").trim(),
+        fetch_type: ["page", "rss", "atom", "json", "document"].includes(body.fetch_type) ? body.fetch_type : "page",
+        feed_url: String(body.feed_url || "").trim() || null,
+        content_scope: String(body.content_scope || "").trim() || null,
       }).select().single();
       if (error) return jsonError(error.message);
+      await recordAudit(access.admin, { actorId: access.user.id, action: "created", entityType: "regulatory_source", entityId: data.id, resourceKey: "admin.regulatory_watch.sources", afterData: compactAuditRecord(data, ["title", "category", "fetch_type", "active"]) });
       return Response.json({ source: data }, { status: 201 });
     }
 
@@ -125,6 +132,24 @@ export async function PATCH(request) {
     const denied = await requirePortalResource(access, "admin.regulatory_watch");
     if (denied) return denied;
     const body = await request.json();
+    if (body.action === "update_source") {
+      const sourceId = String(body.source_id || body.id || "");
+      if (!sourceId) return jsonError("Choose a Regulatory Watch source.");
+      const { data: source, error: sourceError } = await access.admin.from("regulatory_sources").select("*").eq("id", sourceId).maybeSingle();
+      if (sourceError) return jsonError(sourceError.message);
+      if (!source) return jsonError("Regulatory Watch source not found.", 404);
+      if (source.locked && body.unlock !== true) return jsonError("This source is locked. Unlock it with a recorded reason before editing.", 409);
+      const fetchType = ["page", "rss", "atom", "json", "document"].includes(body.fetch_type) ? body.fetch_type : source.fetch_type;
+      const values = { title: typeof body.title === "string" ? body.title.trim() || source.title : source.title, source_url: typeof body.source_url === "string" ? body.source_url.trim() || source.source_url : source.source_url, authority_name: typeof body.authority_name === "string" ? body.authority_name.trim() || source.authority_name : source.authority_name, fetch_type: fetchType, feed_url: typeof body.feed_url === "string" ? body.feed_url.trim() || null : source.feed_url, content_scope: typeof body.content_scope === "string" ? body.content_scope.trim() || null : source.content_scope, active: typeof body.active === "boolean" ? body.active : source.active, updated_at: new Date().toISOString() };
+      if (body.source_action === "lock") values.locked = true;
+      if (body.source_action === "unlock") { if (!String(body.reason || "").trim()) return jsonError("Provide an unlock reason."); values.locked = false; }
+      if (body.source_action === "archive") { values.active = false; values.archived_at = new Date().toISOString(); }
+      if (body.source_action === "restore") { values.active = true; values.archived_at = null; }
+      const { data, error } = await access.admin.from("regulatory_sources").update(values).eq("id", source.id).select().single();
+      if (error) return jsonError(error.message);
+      await recordAudit(access.admin, { actorId: access.user.id, action: body.source_action || "updated", entityType: "regulatory_source", entityId: data.id, resourceKey: "admin.regulatory_watch.sources", beforeData: compactAuditRecord(source, ["title", "active", "fetch_type", "locked"]), afterData: compactAuditRecord(data, ["title", "active", "fetch_type", "locked"]), reason: String(body.reason || "").trim() || null });
+      return Response.json({ source: data });
+    }
     const id = String(body.id || "");
     if (!id) return jsonError("Choose a Regulatory Watch update.");
 
@@ -132,17 +157,6 @@ export async function PATCH(request) {
       .from("regulatory_updates").select(UPDATE_COLUMNS).eq("id", id).maybeSingle();
     if (currentError) return jsonError(currentError.message);
     if (!current) return jsonError("Regulatory Watch update not found.", 404);
-
-    if (body.action === "update_source") {
-      const { data, error } = await access.admin.from("regulatory_sources").update({
-        active: typeof body.active === "boolean" ? body.active : undefined,
-        title: body.title?.trim() || undefined,
-        source_url: body.source_url?.trim() || undefined,
-        updated_at: new Date().toISOString(),
-      }).eq("id", current.source_id).select().single();
-      if (error) return jsonError(error.message);
-      return Response.json({ source: data });
-    }
 
     if (body.action !== "review") return jsonError("Unknown Regulatory Watch action.");
     const status = STATUSES.has(body.status) ? body.status : current.status;
@@ -181,6 +195,7 @@ export async function PATCH(request) {
       if (notifyError) return jsonError(notifyError.message);
       return Response.json({ update: notified });
     }
+    await recordAudit(access.admin, { actorId: access.user.id, action: "reviewed", entityType: "regulatory_update", entityId: data.id, resourceKey: "admin.regulatory_watch.review_queue", beforeData: compactAuditRecord(current, ["status", "severity"]), afterData: compactAuditRecord(data, ["status", "severity"]), reason: data.review_note });
     return Response.json({ update: data });
   } catch (error) {
     return serverError(error);

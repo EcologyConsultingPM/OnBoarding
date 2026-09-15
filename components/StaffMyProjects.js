@@ -4,20 +4,17 @@ import { useEffect, useState } from "react";
 import {
   ClipboardList,
   FolderKanban,
-  LifeBuoy,
   ListChecks,
 } from "lucide-react";
 import ProjectsList from "./ProjectsList";
 import ProjectHealth from "./ProjectHealth";
 import RemoteTasks from "./RemoteTasks";
 import StaffProjectTracker from "./StaffProjectTracker";
-import StaffServiceRequests from "./StaffServiceRequests";
 import WorkspaceNav from "./WorkspaceNav";
 import { useAuth } from "../lib/AuthProvider";
 
 const TABS = [
   { id: "activities", label: "Project activities", Icon: ListChecks, resourceKey: "staff.projects.activities" },
-  { id: "requests", label: "Service requests", Icon: LifeBuoy, resourceKey: "staff.projects.service_requests" },
 ];
 
 /**
@@ -45,7 +42,7 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
       .then((data) => setVisibility(data.visibility || {}))
       .catch(() => setVisibility({}))
       .finally(() => setVisibilityReady(true));
-  }, [session]);
+  }, [session?.access_token]);
 
   const visibleTabs = TABS.filter(
     (candidate) => !visibilityReady || visibility[candidate.resourceKey] !== false,
@@ -67,34 +64,36 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
           </span>
           <h1>My Projects</h1>
           <p>
-            Accepted task briefs, allocated project activities, your locked
-            Project Tracker and service requests in one place.
+            Accepted task briefs, allocated project activities and your locked
+            Project Tracker in one place.
           </p>
         </div>
-        <WorkspaceNav audience="staff" />
+        {!projectId ? <WorkspaceNav audience="staff" /> : null}
       </header>
 
-      <nav
-        className="my-projects-tabs"
-        role="tablist"
-        aria-label="My Projects areas"
-      >
-        {visibleTabs.map(({ id, label, Icon }) => (
-          <button
-            type="button"
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            className={tab === id ? "selected" : ""}
-            onClick={() => {
-              setTab(id);
-              setProjectId(null);
-            }}
-          >
-            <Icon size={15} /> {label}
-          </button>
-        ))}
-      </nav>
+      {visibleTabs.length > 1 ? (
+        <nav
+          className="my-projects-tabs"
+          role="tablist"
+          aria-label="My Projects areas"
+        >
+          {visibleTabs.map(({ id, label, Icon }) => (
+            <button
+              type="button"
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? "selected" : ""}
+              onClick={() => {
+                setTab(id);
+                setProjectId(null);
+              }}
+            >
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       {accessNotice ? <p className="my-projects-access-notice" role="status">{accessNotice}</p> : null}
 
@@ -162,7 +161,6 @@ export default function StaffMyProjects({ initialTab = "activities" }) {
         </section>
       ) : null}
 
-      {tab === "requests" && visibleTabs.some((candidate) => candidate.id === "requests") ? <StaffServiceRequests embedded /> : null}
     </main>
   );
 }

@@ -16,7 +16,7 @@ export async function GET(request) {
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
 
     const [{ data: projects }, { data: activities }, { data: allocations }, { data: roleRates }] = await Promise.all([
-      access.admin.from("projects").select("id, name, client_name, status, budget_hours, budget_dollars, default_hourly_rate").neq("status", "archived"),
+      access.admin.from("projects").select("id, name, client_name, status, budget_hours, budget_dollars, default_hourly_rate").is("deleted_at", null).neq("status", "archived"),
       access.admin.from("project_activities").select("project_id, status, budget_hours"),
       access.admin.from("project_allocations").select("project_id, allocated_hours, hourly_rate"),
       access.admin.from("project_role_rates").select("role_name, charge_rate"),

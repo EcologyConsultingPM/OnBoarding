@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { GraduationCap, Folder, FileText, ChevronRight, Home, Plus, Check, Clock, Eye, EyeOff, Trash2, X, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import LearningAssignmentsPanel from "./LearningAssignmentsPanel";
 
 const TYPE_ICON = { section: GraduationCap, career_level: Folder, module: Folder, folder: Folder, item: FileText };
 const APPROVAL = {
@@ -25,7 +26,7 @@ export default function AdminLearningLibrary() {
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const load = useCallback(async (parentId) => {
     try {
@@ -79,6 +80,8 @@ export default function AdminLearningLibrary() {
 
       {error ? <p className="ld-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="ld-success"><CheckCircle2 size={15} /> {message}</p> : null}
+
+      <LearningAssignmentsPanel admin />
 
       {/* Breadcrumbs */}
       <div className="ld-crumbs">

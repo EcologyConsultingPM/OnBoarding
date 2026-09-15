@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CheckCircle2, FileUp, Loader2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, FileUp, Loader2, ShieldCheck, Trash2, AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 
@@ -53,6 +53,14 @@ export default function GovernanceBulkImport({ onComplete = () => {} }) {
     setFiles(Array.from(event.target.files || []));
     setMessage("");
   };
+  // A single unrecognised file used to block staging every other file in the
+  // batch, with no way to see which one was the problem or drop just that
+  // one — the only option was re-choosing the entire file selection from
+  // scratch. This lets someone remove just the problem file instead.
+  const removeFile = (index) => {
+    setFiles((current) => current.filter((_, i) => i !== index));
+    if (fileInput.current) fileInput.current.value = "";
+  };
 
   const api = async (body) => {
     const response = await fetch("/api/internal-governance", {
@@ -66,11 +74,12 @@ export default function GovernanceBulkImport({ onComplete = () => {} }) {
   };
 
   const stageDocuments = async () => {
-    if (!files.length || unknown) return;
+    const recognised = classified.filter((row) => row.metadata);
+    if (!recognised.length) return;
     setBusy(true);
     setMessage("");
     const failures = [];
-    for (const { file, metadata } of classified) {
+    for (const { file, metadata } of recognised) {
       try {
         const created = await api({
           action: "create",
@@ -98,19 +107,46 @@ export default function GovernanceBulkImport({ onComplete = () => {} }) {
       }
     }
     setBusy(false);
-    if (failures.length) setMessage(`${files.length - failures.length} staged. ${failures.length} require attention: ${failures.join("; ")}`);
+    const skipped = files.length - recognised.length;
+    const skippedNote = skipped ? ` ${skipped} unrecognised file${skipped === 1 ? "" : "s"} skipped — remove or rename to import.` : "";
+    if (failures.length) setMessage(`${recognised.length - failures.length} staged. ${failures.length} require attention: ${failures.join("; ")}.${skippedNote}`);
     else {
-      setMessage(`${files.length} controlled documents staged as drafts for review and approval.`);
-      setFiles([]);
-      if (fileInput.current) fileInput.current.value = "";
+      setMessage(`${recognised.length} controlled document${recognised.length === 1 ? "" : "s"} staged as drafts for review and approval.${skippedNote}`);
+      setFiles((current) => current.filter((file) => !classify(file)));
+      if (!skipped && fileInput.current) fileInput.current.value = "";
       onComplete();
     }
   };
 
   return <section className="governance-bulk-import" aria-label="Controlled document bulk intake">
+    <style>{`
+      .governance-bulk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+      .governance-bulk-row { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); color: #eaf1e8; font-size: 12.5px; }
+      .governance-bulk-row svg { flex-shrink: 0; color: #8fe0b0; }
+      .governance-bulk-row.unknown { background: rgba(212,86,63,.12); border-color: rgba(212,86,63,.32); }
+      .governance-bulk-row.unknown svg { color: #ff9b86; }
+      .governance-bulk-filename { font-weight: 700; flex-shrink: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .governance-bulk-filestatus { flex: 1; color: rgba(234,241,232,.65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .governance-bulk-row.unknown .governance-bulk-filestatus { color: #ffcfc2; }
+      .governance-bulk-remove { flex-shrink: 0; background: none; border: none; color: rgba(234,241,232,.5); cursor: pointer; padding: 4px; }
+      .governance-bulk-remove:hover { color: #ff9b86; }
+    `}</style>
     <div className="governance-bulk-copy"><span><ShieldCheck size={14} /> Administrator only</span><h2>Stage approved library records</h2><p>Select the supplied controlled PDFs. Recognised document codes are classified automatically and uploaded to the private governance bucket as <strong>Draft</strong>; they are not staff-visible until an administrator reviews and publishes them.</p></div>
-    <div className="governance-bulk-actions"><input ref={fileInput} type="file" accept="application/pdf,.pdf" multiple onChange={chooseFiles} /><button className="governance-primary" disabled={busy || !files.length || unknown > 0} onClick={stageDocuments}>{busy ? <Loader2 className="spin" size={15} /> : <FileUp size={15} />}{busy ? "Staging controlled documents…" : `Stage ${files.length || ""} documents`}</button></div>
-    {files.length ? <div className="governance-bulk-summary"><CheckCircle2 size={15} /><span><strong>{files.length - unknown}</strong> recognised for secure draft intake{unknown ? `; ${unknown} file${unknown === 1 ? "" : "s"} must be classified manually before import.` : "."}</span></div> : null}
+    <div className="governance-bulk-actions"><input ref={fileInput} type="file" accept="application/pdf,.pdf" multiple onChange={chooseFiles} /><button className="governance-primary" disabled={busy || !files.length || unknown === files.length} onClick={stageDocuments}>{busy ? <Loader2 className="spin" size={15} /> : <FileUp size={15} />}{busy ? "Staging controlled documents…" : `Stage ${files.length - unknown || ""} document${files.length - unknown === 1 ? "" : "s"}`}</button></div>
+    {files.length ? (
+      <div className="governance-bulk-list">
+        {classified.map(({ file, metadata }, index) => (
+          <div key={`${file.name}-${index}`} className={`governance-bulk-row${metadata ? "" : " unknown"}`}>
+            {metadata ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+            <span className="governance-bulk-filename">{file.name}</span>
+            <span className="governance-bulk-filestatus">{metadata ? metadata.title : "Not recognised — remove or rename to match an approved document code"}</span>
+            <button type="button" className="governance-bulk-remove" onClick={() => removeFile(index)} title={`Remove ${file.name}`}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
+    ) : null}
     {message ? <p className="governance-bulk-message">{message}</p> : null}
   </section>;
 }

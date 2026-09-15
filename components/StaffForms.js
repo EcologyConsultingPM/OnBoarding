@@ -26,6 +26,9 @@ import { useAuth } from "../lib/AuthProvider";
 import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
 import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
+import DailyRiskAssessmentForm from "./DailyRiskAssessmentForm";
+import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
+import FirstAidKitChecks from "./FirstAidKitChecks";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -70,6 +73,47 @@ const FORM_REFERENCE_DOCS = {
   ],
 };
 
+const FORM_DRAFT_PREFIX = "ecology-consulting:whs-form:";
+const FORM_DRAFT_TTL = 1000 * 60 * 60 * 24 * 14;
+
+function formDraftKey(formKey) {
+  return `${FORM_DRAFT_PREFIX}${formKey}`;
+}
+
+function readFormDraft(formKey) {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(formDraftKey(formKey));
+    if (!raw) return {};
+    const saved = JSON.parse(raw);
+    if (!saved || Date.now() - Number(saved.savedAt || 0) > FORM_DRAFT_TTL) {
+      window.localStorage.removeItem(formDraftKey(formKey));
+      return {};
+    }
+    return saved.form && typeof saved.form === "object" ? saved.form : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFormDraft(formKey, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(formDraftKey(formKey), JSON.stringify({ savedAt: Date.now(), form: value }));
+  } catch {
+    // Storage can be unavailable in private browsing; the in-memory form still works.
+  }
+}
+
+function clearFormDraft(formKey) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(formDraftKey(formKey));
+  } catch {
+    // Ignore unavailable storage.
+  }
+}
+
 const WHS_DEFINITIONS = {
   injury_incident: {
     title: "What counts as a notifiable incident",
@@ -95,6 +139,8 @@ export default function StaffForms() {
   const [whsHistory, setWhsHistory] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [theme, setTheme] = useState("dark");
 
   const authFetch = useCallback(
     (method, url, body) =>
@@ -123,16 +169,39 @@ export default function StaffForms() {
     if (session?.access_token) loadHistory();
   }, [session, loadHistory]);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("ec-whs-forms-theme");
+      if (saved === "light" || saved === "dark") setTheme(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("ec-whs-forms-theme", theme);
+    } catch {}
+  }, [theme]);
+
+  useEffect(() => {
+    if (view !== "form" || !activeKey) return;
+    writeFormDraft(activeKey, form);
+  }, [activeKey, form, view]);
+
   const notify = (m) => {
     setMessage(m);
     setError("");
     setTimeout(() => setMessage(""), 2600);
   };
   const openForm = (key) => {
+    const savedDraft = readFormDraft(key);
     setActiveKey(key);
-    setForm({});
+    setForm(savedDraft);
     setError("");
     setView("form");
+    if (Object.keys(savedDraft).length) {
+      setMessage("Restored your saved draft from this device.");
+      setTimeout(() => setMessage(""), 3200);
+    }
   };
   const backToHub = () => {
     setView("hub");
@@ -144,8 +213,9 @@ export default function StaffForms() {
   const schema = activeKey ? FORM_SCHEMAS[activeKey] : null;
 
   const submit = async () => {
+    if (submitting || !schema) return;
+    setSubmitting(true);
     setError("");
-    if (!schema) return;
     // Title: first text field value, else form label.
     const firstText = schema.sections
       .flatMap((s) => s.fields)
@@ -163,6 +233,7 @@ export default function StaffForms() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
+      clearFormDraft(activeKey);
       backToHub();
       await loadHistory();
       notify(
@@ -174,6 +245,8 @@ export default function StaffForms() {
       );
     } catch (e) {
       setError(e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -343,13 +416,18 @@ export default function StaffForms() {
       })),
     ].sort((a, b) => new Date(b.when) - new Date(a.when));
     return (
-      <div className="sf">
+      <div className={`sf sf-theme-${theme}`}>
         <header className="sf-hero">
-          <span>Ecology Consulting - Your records</span>
+          <div className="sf-hero-topline">
+            <span>Ecology Consulting - Your records</span>
+            <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+              {theme === "dark" ? "Light theme" : "Dark theme"}
+            </button>
+          </div>
           <h1>Submission history</h1>
           <p>
             Every WHS form you have submitted, with its current status. Leave,
-            training and equipment requests are managed in My Projects.
+            training and equipment requests are managed in Service Requests.
           </p>
         </header>
         <button className="sf-back" onClick={() => setView("hub")}>
@@ -385,17 +463,51 @@ export default function StaffForms() {
     );
   }
 
+  // ---------- Daily Risk Assessment & Toolbox Talk (bespoke form) ----------
+  if (view === "form" && activeKey === "daily_risk_assessment") {
+    return (
+      <DailyRiskAssessmentForm
+        authFetch={authFetch}
+        onBack={backToHub}
+        onSubmitted={loadHistory}
+        onToast={notify}
+      />
+    );
+  }
+
+  // ---------- Psychosocial Self Risk Assessment (bespoke form) ----------
+  if (view === "form" && activeKey === "psychosocial_self_risk_assessment") {
+    return (
+      <div>
+        <button type="button" className="sf-back" onClick={backToHub}>← Back</button>
+        <PsychosocialSelfRiskAssessment />
+      </div>
+    );
+  }
+
+  // ---------- First Aid Kit Checks (bespoke form, replaces the generic schema for this key) ----------
+  if (view === "form" && activeKey === "first_aid_kit") {
+    return (
+      <div>
+        <button type="button" className="sf-back" onClick={backToHub}>← Back</button>
+        <FirstAidKitChecks />
+      </div>
+    );
+  }
+
   // ---------- A FORM ----------
   if (view === "form" && schema) {
     const def = WHS_DEFINITIONS[activeKey];
     const sourceDocuments = FORM_REFERENCE_DOCS[activeKey] || [];
     return (
-      <div className="sf">
+      <div className={`sf sf-theme-${theme}`}>
         <header className="sf-hero">
-          <span>
-            Ecology Consulting -{" "}
-            WHS field form
-          </span>
+          <div className="sf-hero-topline">
+            <span>Ecology Consulting - WHS field form</span>
+            <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+              {theme === "dark" ? "Light theme" : "Dark theme"}
+            </button>
+          </div>
           <h1>{schema.label}</h1>
           <p>{BLURBS[activeKey] || ""}</p>
         </header>
@@ -443,12 +555,18 @@ export default function StaffForms() {
               <div className="sf-grid">{sec.fields.map(renderField)}</div>
             </div>
           ))}
+          <div className="sf-draft-status" role="status">
+            This form saves automatically on this device. You can switch to another app and return without losing your entries.
+          </div>
           <div className="sf-actions">
-            <button className="sf-submit" onClick={submit}>
-              <Send size={14} /> Submit
+            <button className="sf-submit" onClick={submit} disabled={submitting} aria-busy={submitting}>
+              <Send size={14} /> {submitting ? "Submitting…" : "Submit"}
+            </button>
+            <button className="sf-clear-draft" type="button" onClick={() => { clearFormDraft(activeKey); setForm({}); setMessage("Saved draft cleared from this device."); }}>
+              Clear saved draft
             </button>
             <button className="sf-cancel" onClick={backToHub}>
-              Cancel
+              Save &amp; close
             </button>
           </div>
         </div>
@@ -465,10 +583,15 @@ export default function StaffForms() {
   })).filter((group) => group.forms.length > 0);
 
   return (
-    <div className="sf">
+    <div className={`sf sf-theme-${theme}`}>
       <header className="sf-hero">
         <WorkspaceNav audience="staff" />
-        <span>Ecology Consulting - Staff services</span>
+        <div className="sf-hero-topline">
+          <span>Ecology Consulting - Staff services</span>
+          <button className="sf-theme-toggle" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>
+            {theme === "dark" ? "Light theme" : "Dark theme"}
+          </button>
+        </div>
         <h1>WHS &amp; EC Forms</h1>
         <p>
           Field forms, WHS reports and approved internal governance in one
@@ -487,7 +610,7 @@ export default function StaffForms() {
         </p>
       ) : null}
       <div className="sf-hub-actions">
-        <a className="sf-service-request-link" href="/staff/projects/service-requests">
+        <a className="sf-service-request-link" href="/staff/service-requests">
           <CalendarDays size={15} /> Leave, training and equipment requests
         </a>
         <button className="sf-history-btn" onClick={() => setView("history")}>

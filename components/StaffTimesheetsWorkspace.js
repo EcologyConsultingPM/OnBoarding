@@ -42,7 +42,9 @@ function normaliseText(value) {
 
 // A staff-only view of immutable project activity history and staff-submitted
 // Project Tracker entries. Official payroll time remains in the independent
-// Ecology Consulting timesheet system; this screen is the controlled reference.
+// Actual time worked is entered in the separate Ecology Consulting timesheet
+// system (staff.ecologyconsulting.au). This screen is NOT a timesheet: it is
+// the read-only Project Tracker entry history and allocated activity status.
 export default function StaffTimesheetsWorkspace() {
   const { session } = useAuth();
   const [entries, setEntries] = useState([]);
@@ -59,9 +61,15 @@ export default function StaffTimesheetsWorkspace() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState("updated_desc");
 
+  // Depend on the token string, not the session object. Supabase re-broadcasts
+  // a NEW session object on every TOKEN_REFRESHED (which fires on tab focus via
+  // its own visibilitychange handler). Depending on `session` made this callback
+  // — and therefore `load` — unstable, so returning to the tab refetched
+  // /api/projects and /api/my-project-tracker and wiped any in-progress tracker
+  // entry. The token string is stable across re-broadcasts of the same token.
   const authHeaders = useCallback(
     () => ({ Authorization: `Bearer ${session?.access_token || ""}` }),
-    [session],
+    [session?.access_token],
   );
 
   const load = useCallback(async () => {
@@ -268,10 +276,10 @@ export default function StaffTimesheetsWorkspace() {
       { wch: 24 },
       { wch: 24 },
     ];
-    XLSX.utils.book_append_sheet(workbook, sheet, "My Timesheets");
+    XLSX.utils.book_append_sheet(workbook, sheet, "My Project Tracker Entries");
     XLSX.writeFile(
       workbook,
-      `ecology-consulting-timesheets-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `ecology-consulting-project-tracker-entries-${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
   const hasFilters =
@@ -290,13 +298,12 @@ export default function StaffTimesheetsWorkspace() {
       <header className="timesheet-hero">
         <WorkspaceNav audience="staff" />
         <span>
-          <Timer size={14} /> Ecology Consulting · staff time and project
-          tracking
+          <Timer size={14} /> Ecology Consulting · project tracker entries
         </span>
-        <h1>Timesheets</h1>
+        <h1>Project Tracker Entries</h1>
         <p>
-          Review your allocated project tracker entries, then use the official
-          timesheet system to enter actual time worked.
+          Your submitted Project Tracker entries and the delivery status of
+          each activity allocated to you.
         </p>
         <a
           className="timesheet-entry-link"
@@ -304,7 +311,7 @@ export default function StaffTimesheetsWorkspace() {
           target="_blank"
           rel="noreferrer"
         >
-          <Clock3 size={16} /> Enter timesheet <ArrowUpRight size={15} />
+          <Clock3 size={16} /> Open timesheet system <ArrowUpRight size={15} />
         </a>
       </header>
 
@@ -339,9 +346,8 @@ export default function StaffTimesheetsWorkspace() {
               <BarChart3 size={18} /> Project tracker history
             </h2>
             <p>
-              Your submitted Project Tracker entries and allocated activity
-              status updates. Use the official timesheet system to enter payroll
-              time.
+              Every Project Tracker entry you have submitted, with the current
+              delivery status of each allocated activity.
             </p>
           </div>
           <div className="timesheet-head-actions">

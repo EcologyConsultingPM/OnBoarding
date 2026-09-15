@@ -99,6 +99,12 @@ export async function POST(request) {
     const denied = await requirePortalResource(access, "admin.quote_pipeline");
     if (denied) return denied;
     const body = await request.json();
+    if (body.quoteTotal !== undefined && body.quoteTotal !== null && body.quoteTotal !== "") {
+      const parsed = Number(body.quoteTotal);
+      if (Number.isFinite(parsed) && parsed < 0) {
+        return Response.json({ error: "Quote total cannot be negative." }, { status: 400 });
+      }
+    }
     const financialsVisible = await canAccessPortalResource(
       access,
       "admin.quote_pipeline.financials",

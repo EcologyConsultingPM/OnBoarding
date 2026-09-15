@@ -1,10 +1,23 @@
+import crypto from "node:crypto";
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, form_type, title, site, form_date, details, status, notifiable_flag, review_note, reviewed_by, reviewed_at, created_by, created_at, updated_at";
+const COLUMNS = "id, form_type, title, site, form_date, details, status, notifiable_flag, review_note, reviewed_by, reviewed_at, created_by, created_at, updated_at, submission_key";
+
+function makeSubmissionKey({ createdBy, formType, title, site, formDate, notifiableFlag, details }) {
+  return crypto.createHash("md5").update([
+    createdBy,
+    formType,
+    title,
+    site || "",
+    formDate || "",
+    String(notifiableFlag),
+    JSON.stringify(details || {}),
+  ].join("|")).digest("hex");
+}
 
 const FORM_TYPES = [
   "daily_risk_assessment", "office_risk_assessment", "injury_incident", "near_miss",
@@ -56,18 +69,41 @@ export async function POST(request) {
     if (!FORM_TYPES.includes(b.form_type)) return Response.json({ error: "Invalid form type." }, { status: 400 });
     const title = (b.title || "").toString().trim();
     if (title.length < 2) return Response.json({ error: "A title is required." }, { status: 400 });
+    const site = (b.site || "").toString().trim() || null;
+    const formDate = b.form_date || null;
+    const details = b.details && typeof b.details === "object" ? b.details : {};
+    const notifiableFlag = b.notifiable_flag === true;
+    const submissionKey = makeSubmissionKey({
+      createdBy: access.user.id,
+      formType: b.form_type,
+      title,
+      site,
+      formDate,
+      notifiableFlag,
+      details,
+    });
 
     const { data, error } = await access.admin.from("whs_forms").insert({
       created_by: access.user.id,
       form_type: b.form_type,
       title,
-      site: (b.site || "").toString().trim() || null,
-      form_date: b.form_date || null,
-      details: b.details && typeof b.details === "object" ? b.details : {},
-      notifiable_flag: b.notifiable_flag === true,
+      site,
+      form_date: formDate,
+      details,
+      notifiable_flag: notifiableFlag,
+      submission_key: submissionKey,
       status: "submitted",
     }).select(COLUMNS).single();
-    if (error) return Response.json({ error: error.message }, { status: 400 });
+    if (error) {
+      // A repeated tap, browser retry, or mobile network replay is treated as
+      // an idempotent replay. Return the original record and do not re-send
+      // notifications or create a second history entry.
+      if (error.code === "23505" || String(error.message || "").includes("whs_forms_created_by_submission_key_uidx")) {
+        const { data: existing } = await access.admin.from("whs_forms").select(COLUMNS).eq("created_by", access.user.id).eq("submission_key", submissionKey).maybeSingle();
+        if (existing) return Response.json({ form: existing, duplicate: true }, { status: 200 });
+      }
+      return Response.json({ error: error.message }, { status: 400 });
+    }
 
     // Daily Risk Assessments are stored in the WHS monitor and actively
     // surfaced to each administrator as a portal report. Notification failure

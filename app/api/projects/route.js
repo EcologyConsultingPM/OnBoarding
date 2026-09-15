@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COLUMNS =
-  "id, name, client_name, client_contact, sharepoint_link, sharepoint_label, description, scope_of_works, project_lead_user_id, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, created_at, updated_at";
+  "id, name, client_name, client_contact, sharepoint_link, sharepoint_label, description, scope_of_works, project_lead_user_id, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, deleted_at, deleted_by, created_at, updated_at";
 
 function opt(value) {
   const t = typeof value === "string" ? value.trim() : "";
@@ -20,11 +20,19 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const staffWorkspace = new URL(request.url).searchParams.get("audience") === "staff";
+    const params = new URL(request.url).searchParams;
+    const staffWorkspace = params.get("audience") === "staff";
+    // ?view=trash returns soft-deleted projects for the administrator recycle
+    // bin. Everything else excludes them. Staff never see deleted projects
+    // regardless of what they ask for.
+    const trashView = params.get("view") === "trash" && access.isAdmin && !staffWorkspace;
+
     let query = access.admin
       .from("projects")
       .select(COLUMNS)
-      .order("updated_at", { ascending: false });
+      .order(trashView ? "deleted_at" : "updated_at", { ascending: false });
+
+    query = trashView ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
 
     // This route uses the server-side service client, so database RLS does not
     // apply here. Enforce the project-team boundary explicitly whenever the

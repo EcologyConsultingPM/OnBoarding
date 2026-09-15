@@ -3,7 +3,7 @@ import { requireSession, serverError } from "../../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at";
+const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at, manual_health_status, manual_health_note, manual_health_set_by, manual_health_set_at";
 const SOURCE_COLUMNS = "id, project_id, source_code, source_name, source_type, approved_value, approved_hours, approval_status, variation_reason, effective_date, created_at, updated_at";
 const ALLOCATION_COLUMNS = "id, project_id, budget_source_id, allocation_code, allocation_name, allocation_value, allocation_hours, hours_consumed, charge_out_spend, internal_cost, threshold_percent, status, staff_visible, created_at, updated_at";
 
@@ -52,12 +52,16 @@ function healthForAllocation(allocation) {
   const valueRatio = budget > 0 ? (spent / budget) * 100 : 0;
   const hourRatio = hours > 0 ? (consumed / hours) * 100 : 0;
   const ratio = Math.max(valueRatio, hourRatio);
-  if (ratio >= 100) return "at_risk";
+  // "At risk" means 10% or less of budget/hours remaining (90%+ consumed) —
+  // previously this only triggered once the budget was already fully or
+  // over-consumed (100%+), which is a warning that arrives too late to act
+  // on. "Watch" keeps the existing configurable threshold (defaulting 80%).
+  if (ratio >= 90) return "at_risk";
   if (ratio >= threshold) return "watch";
   return "on_track";
 }
 
-function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings) {
+function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames) {
   const projectSources = sources.filter((source) => source.project_id === project.id);
   const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
   const original = projectSources.filter((source) => source.source_type === "original");
@@ -82,10 +86,35 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     .map((activity) => Math.max(0, (new Date(activity.completed_at).getTime() - new Date(activity.assigned_at).getTime()) / 86400000));
   const averageDeliveryDays = completionDurations.length ? Math.round((completionDurations.reduce((sum, days) => sum + days, 0) / completionDurations.length) * 10) / 10 : null;
   const utilisationPercent = budgetHours > 0 ? Math.round((usedHours / budgetHours) * 1000) / 10 : null;
+  // Earned-value forecast: project total hours needed at completion based on
+  // actual work progress (taskCompletion), not on how much of the budget has
+  // been spent — those are different signals. A project at 50% of budget
+  // hours but only 30% of activities complete is heading for an overrun,
+  // and forecasting from hours-consumed alone would hide that. Guarded at
+  // 5% minimum progress since a forecast from near-zero completion is not
+  // meaningful (dividing by an almost-zero percentage produces a huge,
+  // misleading number rather than a useful early signal).
+  const forecastHours = usedHours > 0 && taskCompletion > 5 ? Math.round((usedHours / (taskCompletion / 100)) * 10) / 10 : null;
+  const hoursVariance = forecastHours !== null && budgetHours > 0 ? Math.round((forecastHours - budgetHours) * 10) / 10 : null;
   const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
   const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
   const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
-  const health = atRiskAllocations || pausedActivities || overdueActivities || (overallBudget > 0 && chargeOutSpend > overallBudget) || (budgetHours > 0 && usedHours > budgetHours) ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  // 90% consumed = "10% remaining", matching atRiskAllocations' own threshold
+  // above — previously this only fired once fully over-budget (100%+).
+  const budgetNearlyGone = overallBudget > 0 && chargeOutSpend >= overallBudget * 0.9;
+  const hoursNearlyGone = budgetHours > 0 && usedHours >= budgetHours * 0.9;
+  const healthReasons = [];
+  if (atRiskAllocations) healthReasons.push(`${atRiskAllocations} budget allocation${atRiskAllocations === 1 ? "" : "s"} at 90%+ of its limit`);
+  if (pausedActivities) healthReasons.push(`${pausedActivities} activit${pausedActivities === 1 ? "y" : "ies"} paused or needing information`);
+  if (overdueActivities) healthReasons.push(`${overdueActivities} activit${overdueActivities === 1 ? "y" : "ies"} overdue`);
+  if (budgetNearlyGone) healthReasons.push(`Charge-out spend at ${Math.round((chargeOutSpend / overallBudget) * 100)}% of the overall budget`);
+  if (hoursNearlyGone) healthReasons.push(`Hours consumed at ${Math.round((usedHours / budgetHours) * 100)}% of budgeted hours`);
+  if (!healthReasons.length && watchAllocations) healthReasons.push(`${watchAllocations} allocation${watchAllocations === 1 ? "" : "s"} approaching its threshold`);
+  if (!healthReasons.length && utilisationPercent !== null && utilisationPercent >= 80) healthReasons.push(`Overall hours utilisation at ${utilisationPercent}%`);
+  const computedHealth = atRiskAllocations || pausedActivities || overdueActivities || budgetNearlyGone || hoursNearlyGone ? "At Risk" : watchAllocations || (utilisationPercent !== null && utilisationPercent >= 80) ? "Watch" : "On Track";
+  const health = project.manual_health_status || computedHealth;
+  const healthOverridden = Boolean(project.manual_health_status && project.manual_health_status !== computedHealth);
+  if (healthOverridden) healthReasons.unshift(`Manually set to ${project.manual_health_status} by an admin${project.manual_health_note ? `: ${project.manual_health_note}` : ""} (system would show ${computedHealth})`);
 
   return {
     id: project.id,
@@ -99,15 +128,44 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     trackerVisible: Boolean(settings?.tracker_visible),
     taskCompletion,
     health,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null },
+    healthReasons,
+    computedHealth,
+    healthOverridden,
+    manualHealthStatus: project.manual_health_status || null,
+    manualHealthNote: project.manual_health_note || null,
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
-    entrySummary: { count: projectEntries.length, submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0), recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8) },
+    entrySummary: {
+      count: projectEntries.length,
+      submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0),
+      approvedHours: projectEntries.filter((e) => e.status === "completed").reduce((sum, entry) => sum + number(entry.hours), 0),
+      awaitingHours: projectEntries.filter((e) => e.status === "active").reduce((sum, entry) => sum + number(entry.hours), 0),
+      recent: projectEntries.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0)).slice(0, 8),
+      all: projectEntries.map((entry) => ({ ...entry, staff_name: staffNames?.get(entry.staff_user_id) || "Unknown" })),
+    },
+    // Activity Position: what's allocated per activity, how much has actually
+    // been recorded against it, and what's left — kept distinct from Budget
+    // Allocations (which is money/category-level, not per-activity).
+    activityPosition: relevantActivities.filter((a) => (a.title || "").trim()).map((activity) => {
+      const actualHours = projectEntries.filter((e) => e.activity_category === activity.task_category).reduce((sum, e) => sum + number(e.hours), 0);
+      const allocatedHours = number(activity.budget_hours);
+      return {
+        id: activity.id,
+        title: activity.title,
+        category: activity.task_category,
+        assignedTo: staffNames?.get(activity.staff_user_id) || "Unassigned",
+        allocatedHours,
+        actualHours,
+        remainingHours: allocatedHours ? Math.round((allocatedHours - actualHours) * 10) / 10 : null,
+        status: activity.status,
+      };
+    }),
   };
 }
 
 async function trackerData(access, requestedProjectId = "") {
-  const projectsQuery = access.admin.from("projects").select(PROJECT_COLUMNS).neq("status", "archived").order("updated_at", { ascending: false });
+  const projectsQuery = access.admin.from("projects").select(PROJECT_COLUMNS).is("deleted_at", null).neq("status", "archived").order("updated_at", { ascending: false });
   const projectsResult = requestedProjectId ? await projectsQuery.eq("id", requestedProjectId) : await projectsQuery.eq("status", "active");
   if (projectsResult.error) throw new Error(projectsResult.error.message);
   const projects = projectsResult.data || [];
@@ -116,13 +174,18 @@ async function trackerData(access, requestedProjectId = "") {
   if (!ids.length) return { projects: [], financialReady: true };
 
   let [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
-    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active").in("project_id", ids).eq("is_active", true),
+    access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active, staff_user_id, task_category, title, budget_hours").in("project_id", ids).eq("is_active", true),
     access.admin.from("project_allocations").select("project_id, staff_user_id, active").in("project_id", ids),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
     access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
     access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
   ]);
+
+  // No staff-name resolution existed anywhere in this route — Timesheet
+  // Entries and Activity Position both need "who", not just a UUID.
+  const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const staffNames = new Map((usersData?.users || []).map((u) => [u.id, u.user_metadata?.full_name || u.user_metadata?.name || u.email]));
 
   if (activitiesResult.error && tableUnavailable(activitiesResult.error)) {
     activitiesResult = await access.admin.from("project_activities").select("id, project_id, status").in("project_id", ids);
@@ -143,7 +206,7 @@ async function trackerData(access, requestedProjectId = "") {
   const settingsByProject = new Map((settingsResult.data || []).map((setting) => [setting.project_id, setting]));
   return {
     financialReady,
-    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id))),
+    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames)),
   };
 }
 
@@ -222,6 +285,19 @@ export async function POST(request) {
       const { data, error } = await auth.access.admin.from("project_budget_allocations").insert({ ...payload, created_by: auth.access.user.id }).select(ALLOCATION_COLUMNS).single();
       if (error) return jsonError(error.message);
       return Response.json({ allocation: data }, { status: 201 });
+    }
+    if (action === "set_health_override") {
+      const status = body.status === null ? null : body.status;
+      if (status !== null && !["On Track", "Watch", "At Risk"].includes(status)) return jsonError("Choose On Track, Watch, At Risk, or clear the override.");
+      if (status !== null && !String(body.note || "").trim()) return jsonError("A note is required when manually overriding a project's status.");
+      const { error } = await auth.access.admin.from("projects").update({
+        manual_health_status: status,
+        manual_health_note: status === null ? null : String(body.note || "").trim(),
+        manual_health_set_by: status === null ? null : auth.access.user.id,
+        manual_health_set_at: status === null ? null : new Date().toISOString(),
+      }).eq("id", projectId);
+      if (error) return jsonError(error.message);
+      return Response.json({ ok: true });
     }
     return jsonError("Unknown Project Tracker action.");
   } catch (error) {

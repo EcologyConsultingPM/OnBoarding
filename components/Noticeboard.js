@@ -6,7 +6,7 @@ import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
 
 const STATUS_META = {
-  draft: { label: "Draft", color: "#8a927c" },
+  draft: { label: "Draft", color: "#5c6b52" },
   submitted: { label: "Awaiting approval", color: "#b08948" },
   approved: { label: "Approved — ready to publish", color: "#4197D0" },
   published: { label: "Published", color: "#2c6a34" },
@@ -29,7 +29,7 @@ export default function Noticeboard({ compact = false }) {
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
-  }), [session]);
+  }), [session?.access_token]);
 
   const load = useCallback(async () => {
     try {
@@ -122,7 +122,7 @@ export default function Noticeboard({ compact = false }) {
         <header className="nb-hero">
           <WorkspaceNav
             audience={isAdmin ? "admin" : "staff"}
-            backHref={isAdmin ? "/admin" : "/"}
+            backHref={isAdmin ? "/?portal=admin" : "/"}
             backLabel="Back to portal"
           />
           <span><Megaphone size={17} /> Staff communications</span>

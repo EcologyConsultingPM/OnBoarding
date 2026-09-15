@@ -4,7 +4,7 @@ import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
+const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active, deliverable_id";
 const LEGACY_COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, status, pause_reason, sort_order, updated_at, created_at";
 const ACTIVITY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 
@@ -64,6 +64,24 @@ function assignmentSignature(activity) {
   return [activity.staff_user_id || "", String(activity.title || "").trim().toLowerCase(), activity.due_date || ""].join("|");
 }
 
+// Content signature used to recognise "this is actually the same activity
+// I already saved" across SEPARATE save requests, not just within one. The
+// previous version of this route only deduped rows within a single PUT
+// payload (a Set scoped to that one request) — it had no defence at all
+// against a "new" row (no real id) being re-submitted in a later, separate
+// save, which silently created a fresh duplicate activity AND a fresh
+// duplicate Gantt/schedule line every single time. This is what was
+// producing the same activity title appearing dozens of times.
+function contentSignature(row) {
+  return [
+    (row.staff_user_id ?? row.staffUserId) || "",
+    String(row.title || "").trim().toLowerCase(),
+    (row.detail ?? opt(row.detail)) || "",
+    (row.due_date ?? dueDate(row.dueDate)) || "",
+    (row.start_date ?? dueDate(row.startDate)) || "",
+  ].join("|");
+}
+
 function formatDueDate(value) {
   if (!value) return "";
   const date = new Date(`${value}T00:00:00`);
@@ -92,6 +110,12 @@ async function canReadProject(access, projectId, staffWorkspace = false) {
   return Boolean((allocationResult.data || []).length || (activityResult.data || []).length);
 }
 
+// DEAD CODE as of 3f4a0de ("Remove notifications on activity save"): this is
+// no longer called from anywhere. The approval endpoint has its own inline
+// emitter. Kept only because it documents the historical behaviour that
+// produced the duplicate notifications now being cleaned up — see
+// sql/2026-09-10-notification-integrity.sql. Safe to delete once that
+// migration has run in production.
 async function createAssignmentEvents(admin, project, activities) {
   const events = activities
     .filter((activity) => activity.staff_user_id)
@@ -163,13 +187,55 @@ export async function PUT(request, { params }) {
       return Response.json({ error: existingResult.error.message }, { status: 400 });
     }
     const existingById = new Map((existingResult.data || []).map((activity) => [activity.id, activity]));
+    const existingBySignature = new Map();
+    for (const activity of existingResult.data || []) {
+      const sig = contentSignature(activity);
+      if (!existingBySignature.has(sig)) existingBySignature.set(sig, activity);
+    }
 
     const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
     const availableIds = new Set(directory.map((person) => person.id));
-    const inputRows = body.activities
-      .filter((activity) => activity && typeof activity.title === "string" && activity.title.trim())
-      .map((activity, index) => ({ ...activity, title: activity.title.trim(), sortOrder: index + 1 }));
+    const inputRows = [];
+    const incomingSignatures = new Set();
+    for (const activity of body.activities) {
+      if (!activity || typeof activity.title !== "string" || !activity.title.trim()) continue;
+      const normalised = { ...activity, title: activity.title.trim() };
+      const signature = validId(normalised.id)
+        ? `id:${normalised.id}`
+        : [
+            opt(normalised.staffUserId) || "",
+            normalised.title.toLowerCase(),
+            opt(normalised.detail) || "",
+            dueDate(normalised.dueDate) || "",
+            dueDate(normalised.startDate) || "",
+            num(normalised.budgetHours) ?? "",
+            validId(normalised.scheduleItemId) ? normalised.scheduleItemId : "",
+          ].join("|");
+      if (incomingSignatures.has(signature)) continue;
+      incomingSignatures.add(signature);
+      inputRows.push({ ...normalised, sortOrder: inputRows.length + 1 });
+    }
     if (inputRows.some((row) => row.staffUserId && !availableIds.has(row.staffUserId))) return Response.json({ error: "Project activities must be assigned to an available staff member from the Staff List." }, { status: 400 });
+
+    // Concurrency check: if a client's copy of an activity is stale — someone
+    // else saved a change to it since this client loaded the page — reject
+    // the whole save rather than silently overwriting their change. This
+    // previously had no check at all: two admins editing the same project's
+    // activities at once meant the second save always won with no warning.
+    const conflicts = [];
+    for (const input of inputRows) {
+      if (!validId(input.id)) continue;
+      const previous = existingById.get(input.id);
+      if (previous && input.loadedUpdatedAt && previous.updated_at && new Date(previous.updated_at).getTime() !== new Date(input.loadedUpdatedAt).getTime()) {
+        conflicts.push({ id: input.id, title: previous.title });
+      }
+    }
+    if (conflicts.length) {
+      return Response.json({
+        error: `${conflicts.length} activit${conflicts.length === 1 ? "y was" : "ies were"} changed by someone else since you loaded this page. Reload to see the current version before saving.`,
+        conflicts,
+      }, { status: 409 });
+    }
 
     const scheduleResult = await access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).eq("is_active", true);
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
@@ -178,17 +244,21 @@ export async function PUT(request, { params }) {
 
     const now = new Date().toISOString();
     let nextScheduleSort = (scheduleResult.data || []).length + 1;
-    const incomingIds = new Set(inputRows.map((row) => row.id).filter(validId));
-    const retiredIds = [...existingById.keys()].filter((id) => !incomingIds.has(id));
-    if (retiredIds.length) {
-      const { error } = await access.admin.from("project_activities").update({ is_active: false, updated_at: now }).in("id", retiredIds);
-      if (error) return Response.json({ error: error.message }, { status: 400 });
-    }
+    // NOTE: this save is a pure upsert. It used to also retire (is_active:
+    // false) any existing activity whose id was missing from the payload —
+    // inferring "not sent this time" as "delete this". That silently wiped
+    // out activities whenever a save happened with an incomplete local list
+    // (e.g. adding a row before the initial load had finished), and left
+    // their linked Gantt/schedule entries orphaned, which is what caused
+    // the schedule to visibly "double up" when the same work was re-added.
+    // Deletion is now the DELETE handler below: explicit, immediate,
+    // one activity at a time — never inferred from what's absent here.
 
     const createdOrReassigned = [];
     const persisted = [];
     for (const input of inputRows) {
-      const previous = validId(input.id) ? existingById.get(input.id) : null;
+      const matchedBySignature = !validId(input.id) ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
+      const previous = validId(input.id) ? existingById.get(input.id) : matchedBySignature;
       const assignedTo = opt(input.staffUserId);
       const changedAssignee = Boolean(previous && previous.staff_user_id !== assignedTo);
       const requestedStatus = ACTIVITY_STATUSES.has(input.status) ? input.status : (previous?.status || "not_commenced");
@@ -206,7 +276,7 @@ export async function PUT(request, { params }) {
             detail: opt(input.detail),
             start_date: dueDate(input.startDate) || dueDate(input.dueDate),
             end_date: dueDate(input.dueDate),
-            milestone: false,
+            milestone: input.milestone === true,
             progress_percent: requestedStatus === "completed" ? 100 : percent(input.progressPercent),
             status: requestedStatus,
             is_active: true,
@@ -226,7 +296,9 @@ export async function PUT(request, { params }) {
         detail: opt(input.detail),
         budget_hours: num(input.budgetHours),
         due_date: dueDate(input.dueDate),
+        start_date: dueDate(input.startDate) || dueDate(input.dueDate),
         schedule_item_id: scheduleItemId,
+        milestone: input.milestone === true,
         status: changedAssignee ? "not_commenced" : requestedStatus,
         pause_reason: requestedStatus === "paused_other" ? opt(input.pauseReason) : null,
         sort_order: input.sortOrder,
@@ -240,6 +312,10 @@ export async function PUT(request, { params }) {
         if (changedAssignee) {
           row.acceptance_status = assignedTo ? "awaiting_response" : "accepted";
           row.response_note = null;
+          // Must clear notified_at: the approval emitter only notifies rows
+          // where notified_at IS NULL, so leaving it set meant reassigning an
+          // activity silently failed to notify the new assignee, forever.
+          row.notified_at = null;
           row.assigned_at = now;
           row.assigned_by = access.user.id;
           row.accepted_at = null;
@@ -283,8 +359,82 @@ export async function PUT(request, { params }) {
       if (updateScheduleError) return Response.json({ error: updateScheduleError.message }, { status: 400 });
     }
 
-    const eventWarning = await createAssignmentEvents(access.admin, project, createdOrReassigned);
-    return Response.json({ success: true, count: persisted.length, activities: persisted, retired: retiredIds.length, notified: createdOrReassigned.length, event_warning: eventWarning || null });
+    // Notifications no longer fire here. Saving activities is a draft step —
+    // staff are only notified once an admin explicitly records SE approval
+    // via POST .../activities/approval. See createAssignmentEvents below,
+    // now called from that endpoint instead of from every save.
+    return Response.json({ success: true, count: persisted.length, activities: persisted, notified: 0, event_warning: null });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
+// Explicit, immediate, single-activity deletion — replaces the old
+// infer-from-absence retirement that used to run inside PUT. Also retires
+// the activity's auto-created schedule/Gantt line, but only if no other
+// still-active activity is still linked to it (an admin can group several
+// activities under one shared schedule phase via the schedule dropdown, so
+// that shared phase must not disappear just because one of its activities
+// was deleted).
+export async function DELETE(request, { params }) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return Response.json({ error: "Only administrators can manage activities." }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const activityId = searchParams.get("id");
+    if (!validId(activityId)) return Response.json({ error: "A valid activity id is required." }, { status: 400 });
+
+    const { data: activity, error: fetchError } = await access.admin
+      .from("project_activities")
+      .select("id, project_id, schedule_item_id")
+      .eq("id", activityId)
+      .eq("project_id", params.projectId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (fetchError) return Response.json({ error: fetchError.message }, { status: 400 });
+    if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
+
+    const now = new Date().toISOString();
+    const { error: retireError } = await access.admin
+      .from("project_activities")
+      .update({ is_active: false, updated_at: now })
+      .eq("id", activityId);
+    if (retireError) return Response.json({ error: retireError.message }, { status: 400 });
+
+    // Retire any unactioned notification for this activity. Without this the
+    // staff member keeps a clickable "awaiting acceptance" card whose target no
+    // longer satisfies is_active = true, so every response attempt failed.
+    // Answered notifications (read_at set) are left alone so the audit trail of
+    // who accepted or declined survives the activity being retired.
+    const { error: eventRetireError } = await access.admin
+      .from("portal_events")
+      .update({ dismissed_at: now })
+      .eq("source_table", "project_activities")
+      .eq("source_id", activityId)
+      .eq("event_type", "project_activity_assigned")
+      .is("read_at", null)
+      .is("dismissed_at", null);
+    if (eventRetireError) return Response.json({ error: eventRetireError.message }, { status: 400 });
+
+    if (validId(activity.schedule_item_id)) {
+      const { count, error: countError } = await access.admin
+        .from("project_activities")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_item_id", activity.schedule_item_id)
+        .eq("is_active", true);
+      if (countError) return Response.json({ error: countError.message }, { status: 400 });
+      if (!count) {
+        const { error: scheduleRetireError } = await access.admin
+          .from("project_schedule_items")
+          .update({ is_active: false, updated_at: now })
+          .eq("id", activity.schedule_item_id);
+        if (scheduleRetireError) return Response.json({ error: scheduleRetireError.message }, { status: 400 });
+      }
+    }
+
+    return Response.json({ success: true });
   } catch (error) {
     return serverError(error);
   }
