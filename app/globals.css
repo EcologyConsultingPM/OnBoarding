@@ -18743,3 +18743,28 @@ main {
     grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   }
 }
+/* ===========================================================================
+   Staff Project Tracker — "your own entry" row was near-invisible
+   ===========================================================================
+   .st-table-wrap tbody tr.st-mine sets a light background (#f2f7f0) to
+   highlight the viewer's own rows, but every text color inside the table
+   (.st-table-wrap td, td strong, td small) is the pale palette meant for the
+   dark table background. On the light .st-mine background that's pale text
+   on a pale surface — exactly the same class of bug as the original Admin
+   Project Tracker contrast issue.
+   =========================================================================== */
+.st-table-wrap tbody tr.st-mine td {
+  color: #2c3e30;
+}
+.st-table-wrap tbody tr.st-mine td strong {
+  color: #163a22;
+}
+.st-table-wrap tbody tr.st-mine td small {
+  color: #5c6f60;
+}
+.st-table-wrap tbody tr.st-mine .st-status,
+.st-table-wrap tbody tr.st-mine .st-status-preview {
+  /* status pills already carry their own background/text pairing — leave
+     them as-is, they're not part of the contrast problem */
+  filter: none;
+}
