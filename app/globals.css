@@ -18253,3 +18253,493 @@ main {
 .aps-proj--static { cursor: default; background: #fff; }
 .aps-proj--static strong { display: block; color: #172d20; font-size: 14px; font-weight: 800; }
 .aps-proj--static span { color: #6b7a6d; font-size: 12px; }
+/* ===========================================================================
+   Legis — regulatory intelligence briefing
+   ===========================================================================
+   Confirmed via git history search: no .lg- class has ever existed in this
+   codebase's globals.css, on any branch. This isn't something lost in the
+   b44e22a incident — Legis.js has been unstyled since it was first built.
+   Matches the established dark-eucalyptus visual language used throughout
+   the rest of the portal (gold #e7c979 accents, dark green gradients,
+   Newsreader serif headings, IBM Plex Mono labels).
+   =========================================================================== */
+.lg {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #edf5e9;
+  font-family: "Archivo", "Helvetica Neue", sans-serif;
+}
+
+.lg-loading,
+.lg-empty,
+.lg-error,
+.lg-empty-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 60px;
+  padding: 14px 16px;
+  border: 1px dashed rgba(231, 201, 121, 0.28);
+  border-radius: 12px;
+  color: rgba(234, 244, 229, 0.75);
+  background: rgba(4, 24, 14, 0.4);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.lg-error,
+.lg-empty-error {
+  border: 1px solid rgba(239, 129, 116, 0.42);
+  color: #ffc6be;
+  background: rgba(139, 45, 35, 0.24);
+}
+
+.lg-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lg-summary {
+  margin: 0;
+  color: rgba(240, 247, 235, 0.88);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.lg-disclaimer {
+  margin: 0;
+  color: rgba(224, 237, 217, 0.55);
+  font-size: 10.5px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Status matrix — full view only (Regulatory Watch) */
+.lg-matrix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(231, 201, 121, 0.18);
+  border-radius: 11px;
+  background: rgba(4, 24, 14, 0.4);
+}
+.lg-matrix-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(234, 244, 229, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Developments */
+.lg-no-developments {
+  padding: 14px 16px;
+  border: 1px dashed rgba(231, 201, 121, 0.25);
+  border-radius: 11px;
+  color: rgba(224, 237, 217, 0.68);
+  font-size: 12.5px;
+  font-style: italic;
+}
+.lg-development {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 13px 15px;
+  border: 1px solid rgba(231, 201, 121, 0.16);
+  border-left: 3px solid #78ab6e;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(120deg, #0d2919, #143722);
+}
+.lg-development-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.lg-classification {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.lg-severity-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(234, 244, 229, 0.75);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.lg-development-cat,
+.lg-development-juris {
+  color: rgba(224, 237, 217, 0.6);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.lg-development h4 {
+  margin: 2px 0 0;
+  color: #fffdf8;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.lg-reasoning {
+  margin: 0;
+  color: rgba(234, 244, 229, 0.72);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lg-reasoning strong {
+  color: #f0d98d;
+}
+.lg-level1 {
+  margin: 4px 0 0;
+  color: #f2f6ef;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.lg-affected-work {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.lg-affected-work span {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(231, 201, 121, 0.1);
+  color: #e7c979;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.lg-triggers {
+  color: rgba(224, 237, 217, 0.55);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+}
+
+.lg-expand-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #e7c979;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lg-expand-toggle:hover {
+  color: #f2d98c;
+  text-decoration: underline;
+}
+.lg-level2 {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(231, 201, 121, 0.2);
+}
+.lg-development-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.lg-development-block strong {
+  color: #e7c979;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lg-development-block p {
+  margin: 0;
+  color: rgba(240, 247, 235, 0.82);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lg-development-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: rgba(224, 237, 217, 0.6);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+}
+.lg-development-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lg-development-sources a {
+  color: #8fd6c8;
+  font-size: 11.5px;
+  text-decoration: none;
+}
+.lg-development-sources a:hover {
+  text-decoration: underline;
+}
+
+/* Actions */
+.lg-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lg-actions li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: rgba(234, 244, 229, 0.82);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Watchlist */
+.lg-watch-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid rgba(231, 201, 121, 0.15);
+  border-radius: 9px;
+  margin-bottom: 7px;
+  background: rgba(4, 24, 14, 0.32);
+}
+.lg-watch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #f2f6ef;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.lg-watch-meta {
+  color: rgba(224, 237, 217, 0.58);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+}
+.lg-carried-forward {
+  margin-top: 6px;
+  color: rgba(224, 237, 217, 0.55);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* No material change */
+.lg-no-change-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lg-no-change {
+  margin: 0;
+  color: rgba(224, 237, 217, 0.65);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Register status, confidence & gaps (full view only) */
+.lg-register-status,
+.lg-confidence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(231, 201, 121, 0.18);
+  border-radius: 11px;
+  background: rgba(4, 24, 14, 0.4);
+  color: rgba(234, 244, 229, 0.8);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lg-likelihood {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  font-weight: 700;
+}
+.lg-likelihood-high { color: #ffb7ae; background: rgba(185, 59, 47, 0.22); }
+.lg-likelihood-medium { color: #f0d98d; background: rgba(231, 201, 121, 0.16); }
+.lg-likelihood-low { color: #a3dd9d; background: rgba(61, 130, 58, 0.18); }
+
+/* Departments (full view only) */
+.lg-departments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 9px;
+}
+.lg-dept-card {
+  padding: 11px 13px;
+  border: 1px solid rgba(231, 201, 121, 0.15);
+  border-radius: 10px;
+  background: rgba(4, 24, 14, 0.32);
+  color: rgba(234, 244, 229, 0.8);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* History */
+.lg-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #e7c979;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lg-history-toggle:hover {
+  color: #f2d98c;
+}
+.lg-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lg-history-item {
+  padding: 9px 11px;
+  border: 1px solid rgba(231, 201, 121, 0.14);
+  border-radius: 9px;
+  background: rgba(4, 24, 14, 0.28);
+}
+.lg-history-item strong {
+  display: block;
+  color: #e7c979;
+  font-size: 11px;
+}
+.lg-history-item p {
+  margin: 3px 0 0;
+  color: rgba(224, 237, 217, 0.72);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.lg-empty-inline {
+  margin: 0;
+  color: rgba(224, 237, 217, 0.5);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Compact mode (staff notification) — tighter spacing, no section headers to
+   accommodate since compact hides most of these sections at the JS level. */
+.lg-compact .lg-development {
+  padding: 11px 13px;
+  margin-bottom: 8px;
+}
+.lg-compact .lg-development h4 {
+  font-size: 15px;
+}
+.lg-compact .lg-level1 {
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .lg-development-head {
+    align-items: flex-start;
+  }
+  .lg-development-dates {
+    flex-direction: column;
+    gap: 3px;
+  }
+  .lg-departments {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===========================================================================
+   Admin Project Tracker — readability pass
+   ===========================================================================
+   The 6-column metric grid and dense allocation table were designed for a
+   full-width desktop viewport. At anything narrower (a half-screen browser,
+   a laptop), everything crammed into columns too narrow to read comfortably.
+   This widens breathing room and adds intermediate breakpoints so the grid
+   actually responds before hitting the existing 1220px/840px/540px steps.
+   =========================================================================== */
+
+/* Sidebar: slightly wider, larger text, more breathing room per project card */
+.apt-layout {
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+}
+.apt-project {
+  padding: 14px 13px;
+}
+.apt-project strong {
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.apt-project small {
+  font-size: 11px;
+}
+
+/* Metric grid: respond earlier so six columns never get narrower than ~150px each */
+.apt-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.apt-metric {
+  min-height: 88px;
+  padding: 14px 15px;
+}
+.apt-metric span {
+  font-size: 10.5px;
+}
+.apt-metric strong {
+  font-size: clamp(17px, 1.7vw, 24px);
+}
+
+/* Allocation / activity table: taller rows, larger text, less horizontal squeeze */
+.apt-row {
+  padding: 12px 13px;
+  font-size: 12px;
+}
+.apt-row span > small {
+  font-size: 10px;
+}
+.apt-table-head {
+  font-size: 9.5px;
+}
+
+/* Intermediate breakpoint the existing rules skip — most laptop/half-screen
+   widths land here, where six metric columns were still too tight. */
+@media (max-width: 1400px) and (min-width: 841px) {
+  .apt-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1000px) {
+  .apt-layout {
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  }
+}
