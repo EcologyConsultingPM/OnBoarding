@@ -98,6 +98,17 @@ export default function AdminProjectTracker({
   const [entryDateTo, setEntryDateTo] = useState("");
   const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
   const [expandedProjectId, setExpandedProjectId] = useState("");
+  const [missedEntryOpen, setMissedEntryOpen] = useState(false);
+  const [missedEntryStaff, setMissedEntryStaff] = useState([]);
+  const [missedEntryCategoryOptions, setMissedEntryCategoryOptions] = useState([]);
+  const [missedEntryLoading, setMissedEntryLoading] = useState(false);
+  const [missedEntrySaving, setMissedEntrySaving] = useState(false);
+  const [missedEntryError, setMissedEntryError] = useState("");
+  const [missedEntryForm, setMissedEntryForm] = useState({
+    staffUserId: "", sourceId: "", allocationId: "", activityId: "",
+    workDate: "", activityCategory: "", activityInformation: "",
+    hours: "", status: "completed", notableIssues: "",
+  });
   const [sourceEditor, setSourceEditor] = useState(null);
   const [allocationEditor, setAllocationEditor] = useState(null);
 
@@ -135,6 +146,46 @@ export default function AdminProjectTracker({
       setError(e.message || "Could not update the status override.");
     } finally {
       setOverrideBusy(false);
+    }
+  };
+
+  const openMissedEntry = async () => {
+    setMissedEntryOpen(true);
+    setMissedEntryError("");
+    setMissedEntryLoading(true);
+    try {
+      const res = await fetch(`/api/admin/project-tracker-entries?projectId=${selected.id}`, { headers: headers() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load eligible staff for this project.");
+      setMissedEntryStaff(data.staff || []);
+      setMissedEntryForm((form) => ({ ...form, staffUserId: "", sourceId: "", allocationId: "", activityCategory: "" }));
+      setMissedEntryCategoryOptions(data.categoryOptions || []);
+    } catch (e) {
+      setMissedEntryError(e.message || "Could not load eligible staff for this project.");
+    } finally {
+      setMissedEntryLoading(false);
+    }
+  };
+
+  const submitMissedEntry = async () => {
+    setMissedEntrySaving(true);
+    setMissedEntryError("");
+    try {
+      const res = await fetch("/api/admin/project-tracker-entries", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ projectId: selected.id, ...missedEntryForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save this entry.");
+      onToast?.("Timesheet entry logged on the staff member's behalf.");
+      setMissedEntryOpen(false);
+      setMissedEntryForm({ staffUserId: "", sourceId: "", allocationId: "", activityId: "", workDate: "", activityCategory: "", activityInformation: "", hours: "", status: "completed", notableIssues: "" });
+      await load();
+    } catch (e) {
+      setMissedEntryError(e.message || "Could not save this entry.");
+    } finally {
+      setMissedEntrySaving(false);
     }
   };
 
@@ -823,7 +874,83 @@ export default function AdminProjectTracker({
                           <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Approved</div><div style={{ fontSize: 18, fontWeight: 700, color: "#2c6a34" }}>{number(selected.entrySummary?.approvedHours || 0)} hrs</div></div>
                           <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Awaiting approval</div><div style={{ fontSize: 18, fontWeight: 700, color: "#c98a1e" }}>{number(selected.entrySummary?.awaitingHours || 0)} hrs</div></div>
                         </div>
-                        <h3>Timesheet entries</h3>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <h3 style={{ margin: 0 }}>Timesheet entries</h3>
+                          <button
+                            type="button"
+                            onClick={() => (missedEntryOpen ? setMissedEntryOpen(false) : openMissedEntry())}
+                            style={{ background: missedEntryOpen ? "rgba(231,201,121,0.14)" : "#1f5a34", color: missedEntryOpen ? "#e7c979" : "#fff", border: "1px solid #e7c979", borderRadius: 8, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            {missedEntryOpen ? "Cancel" : "Log missed entry"}
+                          </button>
+                        </div>
+                        {missedEntryOpen ? (
+                          <div style={{ margin: "10px 0 16px", padding: 14, border: "1px solid rgba(231,201,121,0.3)", borderRadius: 10, background: "rgba(4,24,14,0.4)" }}>
+                            <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "#a9c0a4" }}>
+                              This logs an entry exactly as if the staff member had submitted it themselves — they'll be notified it was added on their behalf.
+                            </p>
+                            {missedEntryLoading ? (
+                              <p style={{ fontSize: 12.5, color: "#a9c0a4" }}>Loading eligible staff…</p>
+                            ) : missedEntryStaff.length === 0 ? (
+                              <p style={{ fontSize: 12.5, color: "#e0b9a0" }}>No staff have an active allocation on this project.</p>
+                            ) : (
+                              <>
+                                {missedEntryError ? <p style={{ fontSize: 12, color: "#ffb7ae", margin: "0 0 10px" }}>{missedEntryError}</p> : null}
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginBottom: 8 }}>
+                                  <select value={missedEntryForm.staffUserId} onChange={(e) => setMissedEntryForm((f) => ({ ...f, staffUserId: e.target.value }))}>
+                                    <option value="">Staff member…</option>
+                                    {missedEntryStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                  </select>
+                                  <select
+                                    value={missedEntryForm.sourceId}
+                                    onChange={(e) => setMissedEntryForm((f) => ({ ...f, sourceId: e.target.value, allocationId: "" }))}
+                                  >
+                                    <option value="">Budget source…</option>
+                                    {selected.sources.map((s) => <option key={s.id} value={s.id}>{s.source_name}</option>)}
+                                  </select>
+                                  <select
+                                    value={missedEntryForm.allocationId}
+                                    onChange={(e) => setMissedEntryForm((f) => ({ ...f, allocationId: e.target.value }))}
+                                    disabled={!missedEntryForm.sourceId}
+                                  >
+                                    <option value="">Allocation…</option>
+                                    {(selected.sources.find((s) => s.id === missedEntryForm.sourceId)?.allocations || [])
+                                      .filter((a) => a.status === "active" && a.staff_visible)
+                                      .map((a) => <option key={a.id} value={a.id}>{a.allocation_name}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginBottom: 8 }}>
+                                  <input type="date" value={missedEntryForm.workDate} onChange={(e) => setMissedEntryForm((f) => ({ ...f, workDate: e.target.value }))} />
+                                  <select value={missedEntryForm.activityCategory} onChange={(e) => setMissedEntryForm((f) => ({ ...f, activityCategory: e.target.value }))}>
+                                    <option value="">Activity category…</option>
+                                    {missedEntryCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  <input type="number" min="0" step="0.25" placeholder="Hours" value={missedEntryForm.hours} onChange={(e) => setMissedEntryForm((f) => ({ ...f, hours: e.target.value }))} />
+                                </div>
+                                <textarea
+                                  placeholder="What was done — same as a normal timesheet description"
+                                  value={missedEntryForm.activityInformation}
+                                  onChange={(e) => setMissedEntryForm((f) => ({ ...f, activityInformation: e.target.value }))}
+                                  style={{ width: "100%", minHeight: 60, marginBottom: 8, boxSizing: "border-box" }}
+                                />
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
+                                  <select value={missedEntryForm.status} onChange={(e) => setMissedEntryForm((f) => ({ ...f, status: e.target.value }))}>
+                                    <option value="completed">Completed</option>
+                                    <option value="active">Active</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    disabled={missedEntrySaving || !missedEntryForm.staffUserId || !missedEntryForm.allocationId || !missedEntryForm.workDate || !missedEntryForm.activityCategory || !missedEntryForm.activityInformation || !missedEntryForm.hours}
+                                    onClick={submitMissedEntry}
+                                    style={{ background: "#1f5a34", color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", opacity: missedEntrySaving ? 0.6 : 1 }}
+                                  >
+                                    {missedEntrySaving ? "Saving…" : "Save entry"}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                           <select value={entryStaffFilter} onChange={(e) => setEntryStaffFilter(e.target.value)}>
                             <option value="all">All staff</option>
@@ -861,7 +988,10 @@ export default function AdminProjectTracker({
                                 {filteredEntries.map((entry) => (
                                   <tr key={entry.id} style={{ borderBottom: "1px solid #2a3a2a" }}>
                                     <td style={{ padding: "6px 8px" }}>{entry.work_date}</td>
-                                    <td style={{ padding: "6px 8px" }}>{entry.staff_name}</td>
+                                    <td style={{ padding: "6px 8px" }}>
+                                      {entry.staff_name}
+                                      {entry.entered_by_admin_id ? <span title="Logged by an admin on this staff member's behalf" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, color: "#e7c979", border: "1px solid rgba(231,201,121,0.4)", borderRadius: 4, padding: "1px 5px" }}>ADMIN</span> : null}
+                                    </td>
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_category}</td>
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_information || "—"}</td>
                                     <td style={{ padding: "6px 8px" }}>{number(entry.hours)}</td>
