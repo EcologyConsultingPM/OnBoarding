@@ -122,7 +122,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     // their course had already been signed off.
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "training").eq("status", "approved"),
     access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, is_active").eq("is_active", true),
-    access.admin.from("projects").select("id, name, client_name, status").neq("status", "archived"),
+    access.admin.from("projects").select("id, name, client_name, status").is("deleted_at", null).neq("status", "archived"),
     access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, budget_hours, status, accepted_at, completed_at, declined_at, withdrawn_at").not("accepted_at", "is", null).is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
     // Assigned policy and procedure reviews are real committed work with a due
     // date, so they belong in the workload picture alongside activities and
