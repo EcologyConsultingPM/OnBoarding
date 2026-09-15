@@ -97,6 +97,7 @@ export default function AdminProjectTracker({
   const [entryDateFrom, setEntryDateFrom] = useState("");
   const [entryDateTo, setEntryDateTo] = useState("");
   const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
+  const [expandedProjectId, setExpandedProjectId] = useState("");
   const [sourceEditor, setSourceEditor] = useState(null);
   const [allocationEditor, setAllocationEditor] = useState(null);
 
@@ -332,28 +333,77 @@ export default function AdminProjectTracker({
                 <span>Active projects</span>
                 <b>{projects.length}</b>
               </div>
-              {projects.map((project) => (
-                <button
-                  type="button"
-                  key={project.id}
-                  onClick={() => {
-                    setSelectedId(project.id);
-                    setSourceEditor(null);
-                    setAllocationEditor(null);
-                  }}
-                  className={`apt-project ${project.id === selected.id ? "selected" : ""}`}
-                >
-                  <span
-                    className={`apt-health ${project.health.toLowerCase().replace(/\s/g, "-")}`}
-                    title={project.healthReasons?.length ? project.healthReasons.join(" · ") : "No risk factors currently flagged"}
-                  >
-                    {project.health}
-                  </span>
-                  <strong>{project.name}</strong>
-                  <small>{project.clientName}</small>
-                  <em>{project.taskCompletion}% tasks complete</em>
-                </button>
-              ))}
+              {projects.map((project) => {
+                const isExpanded = expandedProjectId === project.id;
+                const budgetPct = percent(project.financials.chargeOutSpend, project.financials.overallBudget);
+                const hoursPct = percent(project.financials.usedHours, project.financials.budgetHours);
+                return (
+                  <div key={project.id} style={{ marginBottom: 7 }}>
+                    <div style={{ display: "flex", alignItems: "stretch", gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(project.id);
+                          setSourceEditor(null);
+                          setAllocationEditor(null);
+                        }}
+                        className={`apt-project ${project.id === selected.id ? "selected" : ""}`}
+                        style={{ flex: 1, marginBottom: 0 }}
+                      >
+                        <span
+                          className={`apt-health ${project.health.toLowerCase().replace(/\s/g, "-")}`}
+                          title={project.healthReasons?.length ? project.healthReasons.join(" · ") : "No risk factors currently flagged"}
+                        >
+                          {project.health}
+                        </span>
+                        <strong>{project.name}</strong>
+                        <small>{project.clientName}</small>
+                        <em>{project.taskCompletion}% tasks complete</em>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProjectId(isExpanded ? "" : project.id)}
+                        aria-label={isExpanded ? "Collapse quick stats" : "Expand quick stats"}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 26, flexShrink: 0, border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 8, background: isExpanded ? "rgba(231,201,121,0.14)" : "transparent",
+                          color: "#cfe0c8", cursor: "pointer",
+                        }}
+                      >
+                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    </div>
+                    {isExpanded ? (
+                      <div style={{ padding: "9px 11px", margin: "4px 0 0", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 9, background: "rgba(0,0,0,0.18)" }}>
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#8a927c", marginBottom: 3 }}>
+                            <span>Budget</span>
+                            <span>{budgetPct}%</span>
+                          </div>
+                          <div style={{ background: "#2a3a2a", borderRadius: 6, height: 6, overflow: "hidden" }}>
+                            <div style={{ width: `${budgetPct}%`, background: budgetPct >= 90 ? "#a5342a" : "#2c6a34", height: "100%" }} />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: project.healthReasons?.length ? 8 : 0 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#8a927c", marginBottom: 3 }}>
+                            <span>Hours</span>
+                            <span>{hoursPct}%</span>
+                          </div>
+                          <div style={{ background: "#2a3a2a", borderRadius: 6, height: 6, overflow: "hidden" }}>
+                            <div style={{ width: `${hoursPct}%`, background: hoursPct >= 90 ? "#a5342a" : "#2c6a34", height: "100%" }} />
+                          </div>
+                        </div>
+                        {project.healthReasons?.length ? (
+                          <ul style={{ margin: 0, padding: "0 0 0 14px", fontSize: 10.5, color: "#e0b9a0", lineHeight: 1.5 }}>
+                            {project.healthReasons.map((reason, i) => <li key={i}>{reason}</li>)}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </aside>
 
             <div className="apt-detail">
