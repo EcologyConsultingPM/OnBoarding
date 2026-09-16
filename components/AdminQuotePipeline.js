@@ -23,23 +23,19 @@ const SUPERSEDED_FILTER = { value: "superseded", label: "Superseded", color: "#7
 const EMPTY = { client: "", project: "", projectFolderLink: "", quoteLink: "", hyperlink: "", quoteTotal: "", initialSent: false, sentOn: "", followUpOn: "", status: "pending", comments: "", fullyInvoiced: false, superseded: false, supersededNote: "" };
 const VIEWS = new Set(["pipeline", "drafts", "improvements", "governance"]);
 
-// The pipeline restarts from 1 September 2026 — quotes sent before this stay
-// in the database (nothing is deleted) but no longer clutter the everyday
-// active view. Quotes with no sent_on at all (not yet sent) are always
-// treated as current work regardless of this floor.
-const PIPELINE_START = "2026-09-01";
-// Archiving is computed live from sent_on rather than a stored flag, so it
-// can never drift out of sync or need a scheduled job to keep it accurate.
-const ARCHIVE_AFTER_DAYS = 30;
-function isArchived(quote) {
-  if (!quote.sent_on) return false;
-  const sentDate = new Date(`${quote.sent_on}T00:00:00`);
-  if (Number.isNaN(sentDate.getTime())) return false;
-  const ageDays = (Date.now() - sentDate.getTime()) / 86400000;
-  return ageDays > ARCHIVE_AFTER_DAYS;
+const QUOTE_WINDOW_DAYS = 30;
+const FOLLOW_UP_WARNING_DAY = 25;
+function quoteAgeDays(quote) {
+  if (!quote.sent_on) return null;
+  const sentDate = new Date(`${quote.sent_on}T00:00:00.000Z`);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  if (Number.isNaN(sentDate.getTime())) return null;
+  return Math.floor((today.getTime() - sentDate.getTime()) / 86400000);
 }
-function archiveFolder(quote) {
-  return String(quote.sent_on || "").slice(0, 7) || "Undated";
+function followUpDue(quote) {
+  const age = quoteAgeDays(quote);
+  return quote.status === "pending" && !quote.superseded && age != null && age >= FOLLOW_UP_WARNING_DAY && age <= QUOTE_WINDOW_DAYS;
 }
 
 export default function AdminQuotePipeline() {
@@ -65,7 +61,6 @@ export default function AdminQuotePipeline() {
   const [editForm, setEditForm] = useState(EMPTY);
   const [filters, setFilters] = useState({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" });
   const [view, setView] = useState("drafts");
-  const [pipelineTab, setPipelineTab] = useState("active"); // "active" | "archived"
 
   const auth = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -138,32 +133,13 @@ export default function AdminQuotePipeline() {
     return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
   }), [filters.sort]);
 
-  // Active: the pipeline restart floor applies here — quotes sent before
-  // 1 September 2026 don't show in day-to-day work, though nothing is
-  // deleted. Quotes not yet sent are always active regardless of date.
+  // The API deliberately returns only the rolling 30-day cohort by sent date.
+  // Local filters can narrow that operational view without bringing historical
+  // rows back into the KPI calculations or the working pipeline.
   const activeQuotes = useMemo(() => {
-    const base = quotes.filter((quote) => !isArchived(quote) && (!quote.sent_on || quote.sent_on >= PIPELINE_START));
-    return sortQuotes(base.filter(matchesFilters));
+    return sortQuotes(quotes.filter(matchesFilters));
   }, [quotes, matchesFilters, sortQuotes]);
-
-  // Archived: anything sent 30+ days ago, regardless of the Sept 2026 floor
-  // (archiving is about age since sent, not about the pipeline restart date).
-  // Grouped into YYYY-MM folders by sent month for browsing.
-  const archivedGroups = useMemo(() => {
-    const base = quotes.filter((quote) => isArchived(quote) && matchesFilters(quote));
-    const byFolder = new Map();
-    for (const quote of base) {
-      const folder = archiveFolder(quote);
-      if (!byFolder.has(folder)) byFolder.set(folder, []);
-      byFolder.get(folder).push(quote);
-    }
-    return [...byFolder.entries()]
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([folder, list]) => [folder, sortQuotes(list)]);
-  }, [quotes, matchesFilters, sortQuotes]);
-  const archivedCount = useMemo(() => quotes.filter(isArchived).length, [quotes]);
-
-  const visibleQuotes = pipelineTab === "active" ? activeQuotes : archivedGroups.flatMap(([, list]) => list);
+  const visibleQuotes = activeQuotes;
 
   const EditRow = ({ f, set, canSeeFinancials }) => {
     const isSuperseded = f.superseded === true;
@@ -193,13 +169,13 @@ export default function AdminQuotePipeline() {
       </td>
     </tr>
   ) : (
-    <tr key={q.id} className={q.superseded ? "qp-superseded" : ""}>
+    <tr key={q.id} className={`${q.superseded ? "qp-superseded" : ""}${followUpDue(q) ? " qp-follow-up-due" : ""}`}>
       <td>{q.client || "—"}</td>
       <td>{q.project || "—"}{q.superseded ? <span className="qp-super-tag" title={q.superseded_note || "Superseded"}>superseded</span> : null}</td>
       {financialsVisible ? <td>{money(q.quote_total)}</td> : null}
       <td className="qp-links">{q.quote_link ? <a href={q.quote_link} target="_blank" rel="noreferrer" title="Quote link"><ExternalLink size={13} /></a> : null}{q.hyperlink ? <a href={q.hyperlink} target="_blank" rel="noreferrer" title="Hyperlink"><Link2 size={13} /></a> : null}{!q.quote_link && !q.hyperlink ? "—" : null}</td>
       <td>{q.initial_sent ? (q.sent_on || "✓") : "—"}</td>
-      <td>{q.follow_up_on || "—"}</td>
+      <td>{q.follow_up_on || "—"}{followUpDue(q) ? <span className="qp-follow-up-flag">Follow up now · day {quoteAgeDays(q)}</span> : null}</td>
       <td><span className="qp-status" style={{ background: `${(q.superseded ? SUPERSEDED_FILTER : STATUS.find((s) => s.value === q.status))?.color}1a`, color: (q.superseded ? SUPERSEDED_FILTER : STATUS.find((s) => s.value === q.status))?.color }}>{(q.superseded ? SUPERSEDED_FILTER : STATUS.find((s) => s.value === q.status))?.label || "Pending"}</span></td>
       <td className="qp-comments">{q.comments || "—"}</td>
       <td className="qp-actions"><button onClick={() => startEdit(q)} className="qp-edit">Edit</button><button onClick={() => remove(q.id)} className="qp-del"><Trash2 size={13} /></button></td>
@@ -219,32 +195,18 @@ export default function AdminQuotePipeline() {
     {view === "improvements" ? <QuotePipelineImprovements quotes={quotes} summary={summary} onOpenDrafts={() => selectView("drafts")} /> : null}
     {view === "governance" ? <QuoteGovernanceWorkspace quotes={quotes} onQuoteChanged={load} /> : null}
     {view === "pipeline" ? <>
-      <header className="qp-hero"><span><TrendingUp size={17} /> Delivery & commercial · Admin</span><h1>Issued Quote Pipeline</h1><p>Track issued quotes, outcomes and client follow-up. Dollar values and financial totals are shown only to people with authorised commercial visibility. Mark a quote superseded when a newer quote replaces it.</p></header>
-      <div className="qp-pipeline-tabs" role="tablist" aria-label="Active or archived issued quotes" style={{ display: "flex", gap: 8, margin: "0 0 14px" }}>
-        <button type="button" role="tab" aria-selected={pipelineTab === "active"} onClick={() => setPipelineTab("active")} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cdd8c6", background: pipelineTab === "active" ? "#1f5a34" : "#fff", color: pipelineTab === "active" ? "#fff" : "#3a4740", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Active (from {PIPELINE_START})</button>
-        <button type="button" role="tab" aria-selected={pipelineTab === "archived"} onClick={() => setPipelineTab("archived")} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cdd8c6", background: pipelineTab === "archived" ? "#1f5a34" : "#fff", color: pipelineTab === "archived" ? "#fff" : "#3a4740", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Archived ({archivedCount}) — 30+ days since sent</button>
-      </div>
-      {summary ? <div className="qp-summary"><div className="qp-sum"><div className="qp-sum-v">{summary.sent}</div><div className="qp-sum-l">Quotes sent</div></div><div className="qp-sum"><div className="qp-sum-v" style={{ color: "#2c6a34" }}>{summary.successful}</div><div className="qp-sum-l">Successful</div></div><div className="qp-sum"><div className="qp-sum-v">{summary.successRate}%</div><div className="qp-sum-l">Success rate</div></div>{financialsVisible ? <><div className="qp-sum"><div className="qp-sum-v">{money(summary.estimatedPipeline)}</div><div className="qp-sum-l">Estimated pipeline</div></div><div className="qp-sum"><div className="qp-sum-v">{money(summary.successfulValue)}</div><div className="qp-sum-l">Successful value</div></div></> : <div className="qp-financials-locked">Financial values are restricted by portal access controls.</div>}</div> : null}
+      <header className="qp-hero"><span><TrendingUp size={17} /> Delivery & commercial · Admin</span><h1>Issued Quote Pipeline</h1><p>Operational view of quotes sent in the last 30 days only. Pending quotes are highlighted from day 25 for follow-up. Dollar values and financial totals are shown only to people with authorised commercial visibility.</p></header>
+      <p className="qp-window-note">Rolling 30-day cohort by sent date. Older quotes remain safely stored outside this operational pipeline and do not affect its success-rate or value measures.</p>
+      {summary ? <div className="qp-summary"><div className="qp-sum"><div className="qp-sum-v">{summary.sent}</div><div className="qp-sum-l">Sent · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v" style={{ color: "#2c6a34" }}>{summary.successful}</div><div className="qp-sum-l">Successful · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v">{summary.successRate}%</div><div className="qp-sum-l">Success rate · 30 days</div></div>{financialsVisible ? <><div className="qp-sum"><div className="qp-sum-v">{money(summary.estimatedPipeline)}</div><div className="qp-sum-l">Pending value · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v">{money(summary.successfulValue)}</div><div className="qp-sum-l">Successful value · 30 days</div></div></> : <div className="qp-financials-locked">Financial values are restricted by portal access controls.</div>}</div> : null}
       {error ? <p className="qp-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="qp-success"><CheckCircle2 size={15} /> {message}</p> : null}
-      <section className="qp-controls" aria-label="Quote Pipeline controls"><div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange issued quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div><div className="qp-controls-fields"><label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{[...STATUS, SUPERSEDED_FILTER].map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label><label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Client · A–Z</option>{financialsVisible ? <option value="value_desc">Quote value · highest</option> : null}<option value="follow_up">Next follow-up</option></select></label><button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button></div></section>
+      <section className="qp-controls" aria-label="Quote Pipeline controls"><div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange current issued quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div><div className="qp-controls-fields"><label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{[...STATUS, SUPERSEDED_FILTER].map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label><label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Client · A–Z</option>{financialsVisible ? <option value="value_desc">Quote value · highest</option> : null}<option value="follow_up">Next follow-up</option></select></label><button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button></div></section>
       {adding ? <div className="qp-editor">{quoteDraftRestored ? <p className="aps-draft-note">An unsaved quote was restored from this browser.<button type="button" className="ec-btn--quiet" onClick={discardQuoteDraft}>Discard</button></p> : null}<div className="qp-editor-grid"><EditRow f={form} set={setForm} canSeeFinancials={financialsVisible} /></div><div className="qp-editor-actions"><button className="qp-primary" onClick={create}>Save quote</button><button className="qp-secondary" onClick={() => { setAdding(false); discardQuoteDraft(); }}>Cancel</button></div></div> : <button className="qp-add" onClick={() => setAdding(true)}><Plus size={14} /> Add issued quote</button>}
-      {pipelineTab === "active" ? (
-        <div className="qp-table-wrap">
-          <table className="qp-table">{tableHead}<tbody>{visibleQuotes.map(renderRow)}</tbody></table>
-          {!quotes.length ? <p className="qp-empty">No issued quotes yet. Start new enquiries under Quotes to be Drafted.</p> : null}
-          {quotes.length > 0 && !visibleQuotes.length ? <p className="qp-empty">No issued quotes match the current filters, or everything active has moved to Archived.</p> : null}
-        </div>
-      ) : (
-        <div className="qp-archive-groups">
-          {archivedGroups.length ? archivedGroups.map(([folder, list]) => (
-            <div key={folder} className="qp-table-wrap" style={{ marginBottom: 18 }}>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.04em", color: "#6b755f", padding: "10px 4px" }}>{folder} · {list.length} quote{list.length === 1 ? "" : "s"}</div>
-              <table className="qp-table">{tableHead}<tbody>{list.map(renderRow)}</tbody></table>
-            </div>
-          )) : <p className="qp-empty">Nothing archived yet — quotes move here automatically once it's been 30 days since they were sent.</p>}
-        </div>
-      )}
+      <div className="qp-table-wrap">
+        <table className="qp-table">{tableHead}<tbody>{visibleQuotes.map(renderRow)}</tbody></table>
+        {!quotes.length ? <p className="qp-empty">No quotes have been sent in the current 30-day period.</p> : null}
+        {quotes.length > 0 && !visibleQuotes.length ? <p className="qp-empty">No current 30-day issued quotes match the selected filters.</p> : null}
+      </div>
     </> : null}
   </div>;
 }

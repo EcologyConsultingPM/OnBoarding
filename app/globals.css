@@ -18916,3 +18916,32 @@ main {
   .apt-entry-editor__wide { grid-column: auto; }
   .apt-entry-actions { flex-direction: column; }
 }
+
+/* Issued Quote Pipeline: rolling 30-day cohort and proactive day-25 follow-up. */
+.qp-window-note {
+  margin: 0 0 14px;
+  border: 1px solid #d7c279;
+  border-left: 4px solid #b97c15;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #62470d;
+  background: #fff8dd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.qp-follow-up-due td { background: #fff8df; }
+.qp-follow-up-due td:first-child { box-shadow: inset 4px 0 #c77712; }
+.qp-follow-up-flag {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 4px;
+  border: 1px solid #d58c20;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #7d4706;
+  background: #fff0bf;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.3;
+}

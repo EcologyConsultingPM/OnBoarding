@@ -10,6 +10,14 @@ const NON_FINANCIAL_COLUMNS = "id, client, project, project_folder_link, quote_l
 function opt(v) { const t = typeof v === "string" ? v.trim() : ""; return t || null; }
 function num(v) { if (v === "" || v == null) return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
 function bool(v) { return v === true || v === "true"; }
+const ISSUED_QUOTE_WINDOW_DAYS = 30;
+
+function isoDateDaysAgo(days) {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
 
 // Follow-up defaults to 7 days after "sent on" when not given (matches sheet).
 function deriveFollowUp(sentOn, explicit) {
@@ -55,9 +63,14 @@ export async function GET(request) {
       access,
       "admin.quote_pipeline.financials",
     );
+    const windowEnd = isoDateDaysAgo(0);
+    const windowStart = isoDateDaysAgo(ISSUED_QUOTE_WINDOW_DAYS);
     const { data, error } = await access.admin
       .from("quote_pipeline")
       .select(financialsVisible ? COLUMNS : NON_FINANCIAL_COLUMNS)
+      .eq("initial_sent", true)
+      .gte("sent_on", windowStart)
+      .lte("sent_on", windowEnd)
       .order("updated_at", { ascending: false });
     if (error) return Response.json({ error: error.message }, { status: 400 });
     const rows = data || [];
@@ -78,6 +91,8 @@ export async function GET(request) {
     return Response.json({
       quotes: rows,
       financialsVisible,
+      windowStart,
+      windowEnd,
       summary: {
         sent,
         successful: successful.length,
