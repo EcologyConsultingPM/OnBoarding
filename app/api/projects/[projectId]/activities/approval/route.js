@@ -26,8 +26,8 @@ export async function POST(request, { params }) {
     const { projectId } = params;
     const body = await request.json().catch(() => ({}));
     const action = body?.action;
-    if (!["request_review", "approve", "reset"].includes(action)) {
-      return Response.json({ error: "action must be request_review, approve or reset." }, { status: 400 });
+    if (!["request_review", "approve", "administrator_override", "reset"].includes(action)) {
+      return Response.json({ error: "action must be request_review, approve, administrator_override or reset." }, { status: 400 });
     }
 
     const { data: project, error: projectError } = await access.admin
@@ -52,6 +52,12 @@ export async function POST(request, { params }) {
         .select("activities_approval_status, activities_se_review_requested_at")
         .single();
       if (error) return Response.json({ error: error.message }, { status: 400 });
+      const { error: auditError } = await access.admin.from("project_approval_history").insert({
+        project_id: projectId,
+        action: "senior_ecologist_review_requested",
+        performed_by: access.user.id,
+      });
+      if (auditError) return Response.json({ error: `Review state was saved but its audit record could not be written: ${auditError.message}` }, { status: 400 });
       return Response.json({ success: true, project: data });
     }
 
@@ -63,10 +69,18 @@ export async function POST(request, { params }) {
         .select("activities_approval_status")
         .single();
       if (error) return Response.json({ error: error.message }, { status: 400 });
+      const { error: auditError } = await access.admin.from("project_approval_history").insert({
+        project_id: projectId,
+        action: "returned_to_draft",
+        performed_by: access.user.id,
+      });
+      if (auditError) return Response.json({ error: `Draft state was saved but its audit record could not be written: ${auditError.message}` }, { status: 400 });
       return Response.json({ success: true, project: data });
     }
 
-    // action === "approve"
+    // A normal activation records Senior Ecologist approval after a review is
+    // requested. An administrator can exceptionally activate directly, but
+    // must record a substantive reason; it is not represented as SE approval.
     // The UI hides this button once approved, but nothing stopped a repeat
     // POST, a retry, or a reset -> approve cycle from re-running the whole
     // tracker block and re-inserting "Project Tracker access available" for
@@ -74,6 +88,20 @@ export async function POST(request, { params }) {
     if (project.activities_approval_status === "approved") {
       return Response.json({ error: "Activities for this project are already approved." }, { status: 409 });
     }
+    if (action === "approve" && project.activities_approval_status !== "pending_se_review") {
+      return Response.json({ error: "Request Senior Ecologist review before recording approval, or use the administrator override with a reason." }, { status: 409 });
+    }
+    const overrideReason = typeof body?.reason === "string" ? body.reason.trim() : "";
+    if (action === "administrator_override" && overrideReason.length < 10) {
+      return Response.json({ error: "Enter a clear administrator override reason (at least 10 characters)." }, { status: 400 });
+    }
+    const { count: allActiveActivities, error: countError } = await access.admin
+      .from("project_activities")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("is_active", true);
+    if (countError) return Response.json({ error: countError.message }, { status: 400 });
+    if (!allActiveActivities) return Response.json({ error: "Add and save at least one work activity before activating this project." }, { status: 400 });
 
     const { data: pendingActivities, error: activitiesError } = await access.admin
       .from("project_activities")
@@ -115,6 +143,16 @@ export async function POST(request, { params }) {
       .select("activities_approval_status, activities_approved_at")
       .single();
     if (approveError) return Response.json({ error: approveError.message }, { status: 400 });
+
+    const { error: approvalAuditError } = await access.admin.from("project_approval_history").insert({
+      project_id: projectId,
+      action: action === "administrator_override" ? "administrator_override_activated" : "senior_ecologist_approved",
+      reason: action === "administrator_override" ? overrideReason : null,
+      performed_by: access.user.id,
+    });
+    if (approvalAuditError) {
+      return Response.json({ error: `Project activated but the required approval audit record could not be written: ${approvalAuditError.message}` }, { status: 400 });
+    }
 
     // Approval used to be the end of the road — an admin then had to
     // separately click "Auto-generate tracker from Work Activities" and
@@ -209,7 +247,7 @@ export async function POST(request, { params }) {
       trackerWarning = trackerWarning || trackerError.message;
     }
 
-    return Response.json({ success: true, project: updatedProject, notified: events.length, event_warning: eventWarning, tracker_warning: trackerWarning });
+    return Response.json({ success: true, approval_mode: action, project: updatedProject, notified: events.length, event_warning: eventWarning, tracker_warning: trackerWarning });
   } catch (error) {
     return serverError(error);
   }

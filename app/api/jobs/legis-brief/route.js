@@ -164,15 +164,21 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
     ? `Real active project roster (name, client, lead email) — only ever name projects from this list in affected_projects, never invent a code:\n${JSON.stringify(projectRoster, null, 2)}`
     : "No active project roster was available — do not name any specific project in affected_projects this week.";
 
+  // The earlier 10,000-token limit cut off a well-formed but detailed weekly
+  // JSON report midway through its final array. JSON.parse then received an
+  // incomplete document and marked the whole briefing as failed. Constrain
+  // the report to a useful operational size and ask the API to guarantee a
+  // JSON object; do not rely on a prompt alone for a machine-read response.
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 10000,
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `Produce this week's Legis briefing for the week commencing ${weekOf}. Search for NSW and ACT ecology consulting regulatory and technical-guidance developments from the last 7 days.\n\n${watchlistContext}\n\n${rosterContext}` }],
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{ role: "user", content: `Produce this week's Legis briefing for the week commencing ${weekOf}. Search for NSW and ACT ecology consulting regulatory and technical-guidance developments from the last 7 days. Include only consequential verified items: at most 6 developments and at most 8 watchlist items. Keep each prose field concise (normally 1–3 sentences) so the briefing is usable by field staff and can complete in one response.\n\n${watchlistContext}\n\n${rosterContext}` }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8, user_location: { type: "approximate", country: "AU", timezone: "Australia/Sydney" } }],
+      output_config: { format: { type: "json_schema", schema: { type: "object", additionalProperties: true } } },
     }),
   });
 
@@ -184,6 +190,12 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
   const data = await response.json();
   const textBlocks = (data.content || []).filter((block) => block.type === "text").map((block) => block.text);
   const combined = textBlocks.join("\n").trim();
+  if (data.stop_reason === "max_tokens") {
+    throw new Error("Legis response reached its output limit before it could finish. Reduce the report scope and run it again.");
+  }
+  if (!combined) {
+    throw new Error("Legis returned no final briefing text. Run the briefing again; no incomplete report was published.");
+  }
   const cleaned = combined.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
 
   let parsed;
@@ -249,14 +261,13 @@ async function feedRegulatoryWatch(admin, briefId, weekOf, developments) {
   }
 }
 
-export async function GET(request) {
-  if (!jobAuthorised(request)) return Response.json({ error: "Unauthorised scheduler." }, { status: 401 });
+export async function runLegisBrief() {
   const admin = adminClient();
   const weekOf = mondayOf(new Date());
 
   try {
     const { data: existing } = await admin.from("monday_briefs").select("id, status").eq("week_of", weekOf).maybeSingle();
-    if (existing?.status === "ready") return Response.json({ ok: true, message: "Already generated for this week.", brief_id: existing.id });
+    if (existing?.status === "ready") return { ok: true, message: "Already generated for this week.", brief_id: existing.id };
 
     const [{ data: previousBrief }, projectRoster] = await Promise.all([
       admin.from("monday_briefs").select("watchlist").eq("status", "ready").lt("week_of", weekOf).order("week_of", { ascending: false }).limit(1).maybeSingle(),
@@ -286,9 +297,18 @@ export async function GET(request) {
     await feedRegulatoryWatch(admin, briefRow.id, weekOf, result.developments);
     await notifyAllStaff(admin, weekOf, urgentCount);
 
-    return Response.json({ ok: true, brief_id: briefRow.id, developments_found: (result.developments || []).length, immediate_procedure_change: urgentCount, self_audit_passed: result.self_audit_passed !== false });
+    return { ok: true, brief_id: briefRow.id, developments_found: (result.developments || []).length, immediate_procedure_change: urgentCount, self_audit_passed: result.self_audit_passed !== false };
   } catch (error) {
     await admin.from("monday_briefs").update({ status: "failed", error_message: String(error.message || error).slice(0, 1000), updated_at: new Date().toISOString() }).eq("week_of", weekOf);
+    throw error;
+  }
+}
+
+export async function GET(request) {
+  if (!jobAuthorised(request)) return Response.json({ error: "Unauthorised scheduler." }, { status: 401 });
+  try {
+    return Response.json(await runLegisBrief());
+  } catch (error) {
     return Response.json({ error: error.message || "Legis generation failed." }, { status: 500 });
   }
 }

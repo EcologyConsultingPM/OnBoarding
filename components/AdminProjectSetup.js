@@ -286,7 +286,7 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
           loadProjects();
         }}
         onOpenTracker={onOpenTracker ? () => onOpenTracker(openId) : null}
-        onOpenCloseOut={onOpenCloseOut ? (name) => onOpenCloseOut(openId, name) : null}
+        onOpenCloseOut={onOpenCloseOut ? (projectId, name) => onOpenCloseOut(projectId || openId, name) : null}
         error={error}
         message={message}
       />
@@ -897,20 +897,21 @@ function ProjectDetail({
     }
   };
 
-  const runApprovalGate = async (action) => {
+  const runApprovalGate = async (action, reason = "") => {
     setGateBusy(true);
     try {
-      const res = await auth("POST", `/api/projects/${projectId}/activities/approval`, { action });
+      const res = await auth("POST", `/api/projects/${projectId}/activities/approval`, { action, reason });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
       setProject((current) => ({
         ...current,
         activities_approval_status: d.project.activities_approval_status,
-        ...(action === "approve" ? { status: "active" } : {}),
+        ...(["approve", "administrator_override"].includes(action) ? { status: "active" } : {}),
       }));
       if (action === "request_review") notify("Setup submitted for Senior Ecologist review.");
-      else if (action === "approve") {
-        const base = `Project activated — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent and the tracker enabled.`;
+      else if (["approve", "administrator_override"].includes(action)) {
+        const method = action === "administrator_override" ? "Administrator override recorded" : "Senior Ecologist approval recorded";
+        const base = `${method} — project activated, ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent and the tracker enabled.`;
         if (d.tracker_warning) fail(`${base} Tracker warning: ${d.tracker_warning}`);
         else notify(base);
       } else notify("Project returned to draft setup.");
@@ -954,7 +955,7 @@ function ProjectDetail({
           onChange={(e) => setProject({ ...project, name: e.target.value })}
         />
         {onOpenCloseOut && project.activities_approval_status === "approved" ? (
-          <button className="aps-secondary" onClick={() => onOpenCloseOut(project.name)} title="Open Project Close-out for this project">
+          <button className="aps-secondary" onClick={() => onOpenCloseOut(projectId, project.name)} title="Open Project Close-out for this project">
             <ClipboardCheck size={14} /> Project Close-out →
           </button>
         ) : null}
@@ -1546,11 +1547,35 @@ function ProjectDetail({
               <button type="button" className="aps-primary" disabled={gateBusy} onClick={() => runApprovalGate("approve")}>
                 <CheckCircle2 size={14} /> {gateBusy ? "Activating…" : "Record approval & activate"}
               </button>
+              <button
+                type="button"
+                className="aps-secondary"
+                disabled={gateBusy}
+                onClick={() => {
+                  const reason = window.prompt("Administrator override reason (recorded in the project approval audit trail):");
+                  if (reason !== null) runApprovalGate("administrator_override", reason);
+                }}
+              >
+                Administrator override
+              </button>
             </>
           ) : (
-            <button type="button" className="aps-primary" disabled={gateBusy || !setupReadyForReview} onClick={() => runApprovalGate("request_review")}>
-              <ClipboardCheck size={14} /> {gateBusy ? "Submitting…" : "Submit for Senior Ecologist review"}
-            </button>
+            <>
+              <button type="button" className="aps-primary" disabled={gateBusy || !setupReadyForReview} onClick={() => runApprovalGate("request_review")}>
+                <ClipboardCheck size={14} /> {gateBusy ? "Submitting…" : "Submit for Senior Ecologist review"}
+              </button>
+              <button
+                type="button"
+                className="aps-secondary"
+                disabled={gateBusy || !setupReadyForReview}
+                onClick={() => {
+                  const reason = window.prompt("Administrator override reason (recorded in the project approval audit trail):");
+                  if (reason !== null) runApprovalGate("administrator_override", reason);
+                }}
+              >
+                Administrator override
+              </button>
+            </>
           )}
         </div>
       </footer>

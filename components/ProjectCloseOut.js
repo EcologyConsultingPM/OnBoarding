@@ -36,6 +36,45 @@ function fromRow(row) {
   };
 }
 
+export function ProjectCloseOutSelector({ onOpen }) {
+  const { session } = useAuth();
+  const [projects, setProjects] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/projects", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not load projects.");
+        return Array.isArray(data.projects) ? data.projects : [];
+      })
+      .then((rows) => {
+        const eligible = rows.filter((project) => ["active", "on_hold", "complete"].includes(String(project.status || "").toLowerCase()));
+        setProjects(eligible);
+        setSelectedId(eligible[0]?.id || "");
+      })
+      .catch((loadError) => setError(loadError.message || "Could not load projects."))
+      .finally(() => setLoading(false));
+  }, [session?.access_token]);
+
+  if (loading) return <section className="pco-card"><p className="aps-note">Loading projects eligible for close-out…</p></section>;
+  return (
+    <section className="pco-card pco-picker">
+      <header className="pco-head"><div><span className="pco-kicker"><ClipboardCheck size={14} /> Project governance</span><h2>Start Project Close-Out</h2><p>Choose an active, on-hold or completed project. Planning projects remain in the initiation workflow.</p></div></header>
+      {error ? <p className="pco-error">{error}</p> : null}
+      {projects.length ? (
+        <div className="pco-picker__controls">
+          <label>Project<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}{project.client_name ? ` — ${project.client_name}` : ""}</option>)}</select></label>
+          <button type="button" className="aps-primary" onClick={() => onOpen?.(projects.find((project) => project.id === selectedId))}><ClipboardCheck size={14} /> Open close-out</button>
+        </div>
+      ) : <p className="pco-empty">There are no active, on-hold or completed projects available for close-out.</p>}
+    </section>
+  );
+}
+
 export default function ProjectCloseOut({ projectId, projectName, onToast }) {
   const { session } = useAuth();
   const [form, setForm] = useState(EMPTY);
@@ -78,27 +117,8 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
       const data = await api("POST", form);
       setCloseout(data.closeout);
       setForm(fromRow(data.closeout));
-      // Archiving the close-out record is the terminal step of the project
-      // lifecycle — cascade it to the project's own status so it drops out
-      // of the active "All projects" list. This is a separate, deliberate
-      // step from "closed" (locked, but still an active/reviewable record).
-      if (form.status === "archived") {
-        try {
-          await fetch(`/api/projects/${projectId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-            body: JSON.stringify({ status: "archived" }),
-          });
-        } catch {
-          // Close-out itself saved fine; surface this separately so the
-          // person knows the project list may not have updated yet.
-          onToast?.("Close-out saved, but the project record couldn't be archived — check Project details.");
-        }
-      }
       onToast?.(
-        form.status === "archived"
-          ? "Project close-out archived — removed from the active project list."
-          : form.status === "closed"
+        form.status === "closed"
             ? "Project close-out approved and locked."
             : "Project close-out saved.",
       );
@@ -124,6 +144,17 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
+  const archiveProject = async () => {
+    if (!window.confirm("Archive this project? It will leave active project views but its locked close-out and audit history will be retained.")) return;
+    setBusy(true);
+    try {
+      const data = await api("POST", { action: "archive_project" });
+      setCloseout(data.closeout);
+      setForm(fromRow(data.closeout));
+      onToast?.("Project archived. Its close-out record remains available for audit.");
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const locked = Boolean(closeout?.locked_at) || form.status === "closed";
@@ -134,7 +165,7 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
     {error ? <p className="pco-error">{error}</p> : null}
     <div className="pco-project"><strong>{projectName || "Selected project"}</strong><span>Close-out remains scoped to this project and cannot link actions to another project.</span></div>
     <div className="pco-grid">
-      <label>Status<select value={form.status} onChange={(event) => set("status", event.target.value)}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Status<select value={form.status} disabled={locked} onChange={(event) => set("status", event.target.value)}>{STATUSES.filter(([value]) => value !== "archived").map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>Success score<select value={form.successScore} disabled={locked && form.status !== "archived"} onChange={(event) => set("successScore", event.target.value)}><option value="">Not scored</option>{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value} / 5</option>)}</select></label>
       <label className="pco-wide">Client outcome<textarea rows={3} disabled={locked && form.status !== "archived"} value={form.clientOutcome} onChange={(event) => set("clientOutcome", event.target.value)} placeholder="What outcome was delivered for the client?" /></label>
       <label className="pco-wide">Delivery summary<textarea rows={3} disabled={locked && form.status !== "archived"} value={form.deliverySummary} onChange={(event) => set("deliverySummary", event.target.value)} placeholder="Summarise scope, dates, key deliverables and exceptions." /></label>
@@ -144,7 +175,7 @@ export default function ProjectCloseOut({ projectId, projectName, onToast }) {
       <label>Recommendations<textarea rows={4} disabled={locked && form.status !== "archived"} value={form.recommendations} onChange={(event) => set("recommendations", event.target.value)} placeholder="Recommended process, training or template improvements." /></label>
       <label className="pco-wide">Approval note<textarea rows={2} disabled={locked && form.status !== "archived"} value={form.approvalNote} onChange={(event) => set("approvalNote", event.target.value)} placeholder="Administrator approval or amendment note." /></label>
     </div>
-    <div className="pco-actions"><button type="button" className="aps-primary" disabled={busy || (locked && form.status !== "archived")} onClick={save}>{form.status === "closed" ? <Lock size={14} /> : <Save size={14} />} {form.status === "closed" ? "Approve and lock close-out" : "Save close-out"}</button>{locked ? <span className="pco-locked"><Lock size={13} /> Locked records require administrator reopening.</span> : null}</div>
+    <div className="pco-actions"><button type="button" className="aps-primary" disabled={busy || locked} onClick={save}>{form.status === "closed" ? <Lock size={14} /> : <Save size={14} />} {form.status === "closed" ? "Approve and lock close-out" : "Save close-out"}</button>{locked ? <><button type="button" className="aps-secondary" disabled={busy || form.status === "archived"} onClick={archiveProject}>Archive project</button><span className="pco-locked"><Lock size={13} /> Locked records are retained as an audit record. Archive only after all improvement actions are complete or archived.</span></> : null}</div>
     <section className="pco-improvements"><div className="pco-section-head"><div><h3>Improvement actions</h3><p>Actions generated from this project remain project-scoped and auditable.</p></div><span>{actions.length} active</span></div><div className="pco-action-form"><input value={actionForm.title} onChange={(event) => setActionForm({ ...actionForm, title: event.target.value })} placeholder="Improvement action" /><input value={actionForm.description} onChange={(event) => setActionForm({ ...actionForm, description: event.target.value })} placeholder="Description" /><input type="date" value={actionForm.dueDate} onChange={(event) => setActionForm({ ...actionForm, dueDate: event.target.value })} /><button type="button" className="aps-secondary" disabled={busy || locked} onClick={addAction}><Plus size={13} /> Add action</button></div>{actions.length ? <div className="pco-actions-list">{actions.map((action) => <div className="pco-action-row" key={action.id}><div><strong>{action.title}</strong><span>{action.description || "No description"}{action.due_date ? ` · due ${action.due_date}` : ""}</span></div><div><span className={`pco-action-status pco-action-status--${action.status}`}>{action.status.replaceAll("_", " ")}</span><button type="button" className="pco-icon-button" disabled={busy || locked} onClick={() => archiveAction(action.id)} title="Archive improvement action"><Trash2 size={14} /></button></div></div>)}</div> : <p className="pco-empty">No improvement actions have been recorded.</p>}</section>
     <p className="pco-footnote"><CheckCircle2 size={14} /> Close-out approval locks the record and keeps the project’s historical delivery record available for audit.</p>
   </section>;

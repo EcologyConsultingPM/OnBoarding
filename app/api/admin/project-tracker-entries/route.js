@@ -102,7 +102,7 @@ export async function PATCH(request) {
 
     const { data: current, error: currentError } = await access.admin
       .from("project_tracker_entries")
-      .select("id, project_id, budget_allocation_id, activity_id, staff_user_id")
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return jsonError(currentError.message);
@@ -112,12 +112,14 @@ export async function PATCH(request) {
     const activityCategory = text(body.activityCategory, 120);
     const activityInformation = text(body.activityInformation, 5000);
     const notableIssues = text(body.notableIssues, 5000);
+    const correctionReason = text(body.correctionReason, 1000);
     const amount = validHours(body.hours);
     const status = String(body.status || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !ENTRY_STATUSES.has(status)) {
       return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
     }
     if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
+    if (correctionReason.length < 10) return jsonError("Enter a clear correction reason (at least 10 characters).", 400);
 
     const now = new Date().toISOString();
     const { data: entry, error } = await access.admin.from("project_tracker_entries").update({
@@ -131,6 +133,17 @@ export async function PATCH(request) {
     }).eq("id", id).select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, updated_at").single();
     if (error) return jsonError(error.message);
 
+    const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
+      project_id: current.project_id,
+      tracker_entry_id: id,
+      action: "corrected",
+      reason: correctionReason,
+      before_data: current,
+      after_data: entry,
+      performed_by: access.user.id,
+    });
+    if (auditError) return jsonError(`Entry was corrected but its mandatory audit record could not be saved: ${auditError.message}`, 500);
+
     await refreshAllocation(access, current.project_id, current.budget_allocation_id);
     if (current.activity_id) {
       await access.admin.from("project_activities").update({ status, progress_percent: status === "completed" ? 100 : undefined, updated_at: now }).eq("id", current.activity_id);
@@ -141,7 +154,7 @@ export async function PATCH(request) {
       severity: "information",
       title: "Project Tracker entry updated",
       body: `${activityCategory} · ${amount} hours · ${workDate}. An administrator corrected this entry.`,
-      href: "/?portal=staff&area=projecttracker",
+      href: "/staff/project-tracker",
       source_table: "project_tracker_entries",
       source_id: id,
     });
@@ -157,15 +170,29 @@ export async function DELETE(request) {
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Admin access required.", 403);
     const id = String(new URL(request.url).searchParams.get("id") || "");
+    const body = await request.json().catch(() => ({}));
+    const voidReason = text(body?.reason, 1000);
     if (!validId(id)) return jsonError("A valid tracker entry is required.");
+    if (voidReason.length < 10) return jsonError("Enter a clear reason for voiding this entry (at least 10 characters).", 400);
 
     const { data: current, error: currentError } = await access.admin
       .from("project_tracker_entries")
-      .select("id, project_id, budget_allocation_id, staff_user_id, activity_category, hours, work_date")
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return jsonError(currentError.message);
     if (!current) return jsonError("Tracker entry not found.", 404);
+
+    const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
+      project_id: current.project_id,
+      tracker_entry_id: id,
+      action: "voided",
+      reason: voidReason,
+      before_data: current,
+      after_data: null,
+      performed_by: access.user.id,
+    });
+    if (auditError) return jsonError(`Entry was not removed because its mandatory audit record could not be saved: ${auditError.message}`, 500);
 
     const { error } = await access.admin.from("project_tracker_entries").delete().eq("id", id);
     if (error) return jsonError(error.message);
@@ -177,7 +204,7 @@ export async function DELETE(request) {
       severity: "review",
       title: "Project Tracker entry removed",
       body: `${current.activity_category} · ${current.hours} hours · ${current.work_date}. An administrator removed this entry.`,
-      href: "/?portal=staff&area=projecttracker",
+      href: "/staff/project-tracker",
       source_table: "project_tracker_entry_audit",
       source_id: id,
     });

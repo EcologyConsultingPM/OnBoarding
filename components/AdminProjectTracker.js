@@ -18,7 +18,6 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
-import ProjectTrackerSetup from "./ProjectTrackerSetup";
 import ProjectTrackerExport from "./ProjectTrackerExport";
 
 function money(value) {
@@ -81,7 +80,7 @@ export default function AdminProjectTracker({
   initialProjectId = "",
 }) {
   const { session } = useAuth();
-  const [section, setSection] = useState("trackers");
+  const [detailView, setDetailView] = useState("overview");
   const [projects, setProjects] = useState([]);
   const [financialReady, setFinancialReady] = useState(false);
   const [selectedId, setSelectedId] = useState(() => {
@@ -201,6 +200,7 @@ export default function AdminProjectTracker({
       hours: entry.hours ?? "",
       status: entry.status || "active",
       notableIssues: entry.notable_issues || "",
+      correctionReason: "",
     });
   };
 
@@ -228,10 +228,12 @@ export default function AdminProjectTracker({
 
   const deleteEntry = async (entry) => {
     if (!window.confirm(`Delete ${entry.staff_name}'s ${entry.activity_category} entry for ${entry.work_date}? This removes it from project totals and cannot be undone.`)) return;
+    const reason = window.prompt("Why is this entry being voided? This reason is retained in the audit trail.");
+    if (reason === null) return;
     setEntryMutationBusy(entry.id);
     setError("");
     try {
-      const response = await fetch(`/api/admin/project-tracker-entries?id=${entry.id}`, { method: "DELETE", headers: headers() });
+      const response = await fetch(`/api/admin/project-tracker-entries?id=${entry.id}`, { method: "DELETE", headers: headers(), body: JSON.stringify({ reason }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not delete this tracker entry.");
       if (entryEditor?.id === entry.id) setEntryEditor(null);
@@ -359,18 +361,9 @@ export default function AdminProjectTracker({
     }
   };
 
-  if (section === "setup") {
-    return (
-      <section className="admin-project-tracker">
-        <TrackerTabs section={section} setSection={setSection} />
-        <ProjectTrackerSetup onToast={onToast} />
-      </section>
-    );
-  }
   if (loading)
     return (
       <section className="admin-project-tracker">
-        <TrackerTabs section={section} setSection={setSection} />
         <div className="apt-loading">
           <Loader2 className="spin" size={18} /> Loading active project
           trackers…
@@ -380,7 +373,6 @@ export default function AdminProjectTracker({
 
   return (
     <section className="admin-project-tracker" aria-label="Project Tracker">
-      <TrackerTabs section={section} setSection={setSection} />
       {error ? (
         <div className="apt-error" role="alert">
           {error}
@@ -412,9 +404,9 @@ export default function AdminProjectTracker({
             <button
               type="button"
               className="secondary"
-              onClick={() => setSection("setup")}
+              onClick={() => onOpenProjectSetup?.()}
             >
-              <FolderCog size={14} /> Configure tracker after creation
+              <FolderCog size={14} /> Open project initiation
             </button>
           </div>
         </div>
@@ -546,6 +538,8 @@ export default function AdminProjectTracker({
                 </div>
               </div>
 
+              <TrackerDetailTabs detailView={detailView} setDetailView={setDetailView} />
+
               <div className="apt-metrics">
                 <Metric
                   label="Budget remaining"
@@ -564,14 +558,14 @@ export default function AdminProjectTracker({
                 />
               </div>
 
-              <button
+              {detailView === "budget" ? <button
                 type="button"
                 onClick={() => setFinancialDetailsOpen((v) => !v)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "#cfe0c8", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "4px 0", marginBottom: financialDetailsOpen ? 8 : 18 }}
               >
                 {financialDetailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Financial details
-              </button>
-              {financialDetailsOpen ? (
+              </button> : null}
+              {detailView === "budget" && financialDetailsOpen ? (
                 <div className="apt-metrics" style={{ marginBottom: 18 }}>
                   <Metric
                     label="Original budget"
@@ -614,7 +608,7 @@ export default function AdminProjectTracker({
                 </div>
               ) : null}
 
-              {(() => {
+              {detailView === "overview" ? (() => {
                 const budgetTotal = selected.financials.overallBudget || 0;
                 const budgetUsed = selected.financials.chargeOutSpend || 0;
                 const budgetPct = budgetTotal > 0 ? Math.min(100, Math.round((budgetUsed / budgetTotal) * 100)) : 0;
@@ -652,10 +646,10 @@ export default function AdminProjectTracker({
                     </div>
                   </div>
                 );
-              })()}
+              })() : null}
 
-              <div className="apt-grid">
-                <section className="apt-card apt-allocations">
+              <div className={`apt-grid apt-grid--${detailView}`}>
+                {detailView === "budget" ? <section className="apt-card apt-allocations">
                   <div className="apt-card-head">
                     <div>
                       <span className="apt-kicker">
@@ -877,10 +871,10 @@ export default function AdminProjectTracker({
                       ? "Add variation or budget source"
                       : "Set original project budget"}
                   </button>
-                </section>
+                </section> : null}
 
                 <aside className="apt-side">
-                  <section className="apt-card">
+                  {detailView === "overview" ? <section className="apt-card">
                     <span className="apt-kicker">Project actions</span>
                     <h3>Needs attention</h3>
                     <ul>
@@ -909,8 +903,8 @@ export default function AdminProjectTracker({
                           : "No allocations approaching threshold"}
                       </li>
                     </ul>
-                  </section>
-                  {(() => {
+                  </section> : null}
+                  {detailView === "timesheets" ? (() => {
                     const allEntries = selected.entrySummary?.all || [];
                     const staffOptions = [...new Set(allEntries.map((e) => e.staff_name).filter(Boolean))];
                     const activityOptions = [...new Set(allEntries.map((e) => e.activity_category).filter(Boolean))];
@@ -1021,8 +1015,9 @@ export default function AdminProjectTracker({
                               </select></label>
                               <label className="apt-entry-editor__wide">Description<textarea rows={3} value={entryEditor.activityInformation} onChange={(event) => setEntryEditor((current) => ({ ...current, activityInformation: event.target.value }))} /></label>
                               <label className="apt-entry-editor__wide">Notable issues<textarea rows={2} value={entryEditor.notableIssues} onChange={(event) => setEntryEditor((current) => ({ ...current, notableIssues: event.target.value }))} /></label>
+                              <label className="apt-entry-editor__wide">Correction reason <textarea rows={2} value={entryEditor.correctionReason} placeholder="Explain why this entry is being corrected (retained in the audit trail)." onChange={(event) => setEntryEditor((current) => ({ ...current, correctionReason: event.target.value }))} /></label>
                             </div>
-                            <button type="button" className="aps-primary" disabled={Boolean(entryMutationBusy) || !entryEditor.workDate || !entryEditor.activityCategory.trim() || !entryEditor.activityInformation.trim() || entryEditor.hours === ""} onClick={saveEntryEdit}>
+                            <button type="button" className="aps-primary" disabled={Boolean(entryMutationBusy) || !entryEditor.workDate || !entryEditor.activityCategory.trim() || !entryEditor.activityInformation.trim() || entryEditor.hours === "" || entryEditor.correctionReason.trim().length < 10} onClick={saveEntryEdit}>
                               <CheckCircle2 size={14} /> {entryMutationBusy ? "Saving correction…" : "Save corrected entry"}
                             </button>
                           </div>
@@ -1091,9 +1086,9 @@ export default function AdminProjectTracker({
                         )}
                       </section>
                     );
-                  })()}
+                  })() : null}
 
-                  {(selected.activityPosition || []).length ? (
+                  {detailView === "activities" && (selected.activityPosition || []).length ? (
                     <section className="apt-card">
                       <span className="apt-kicker">Activity position</span>
                       <h3>What's allocated, who owns it, what's left</h3>
@@ -1124,7 +1119,7 @@ export default function AdminProjectTracker({
                         </table>
                       </div>
                     </section>
-                  ) : null}
+                  ) : detailView === "activities" ? <section className="apt-card"><p className="apt-no-allocation">No active work activities are available for this project.</p></section> : null}
 
                 </aside>
               </div>
@@ -1186,23 +1181,20 @@ export default function AdminProjectTracker({
   );
 }
 
-function TrackerTabs({ section, setSection }) {
+function TrackerDetailTabs({ detailView, setDetailView }) {
+  const tabs = [
+    ["overview", "Overview"],
+    ["budget", "Budget & variations"],
+    ["timesheets", "Timesheets"],
+    ["activities", "Work activities"],
+  ];
   return (
-    <nav className="apt-tabs" aria-label="Project Tracker sub-domains">
-      <button
-        type="button"
-        className={section === "trackers" ? "selected" : ""}
-        onClick={() => setSection("trackers")}
-      >
-        <BarChart3 size={14} /> Active project trackers
-      </button>
-      <button
-        type="button"
-        className={section === "setup" ? "selected" : ""}
-        onClick={() => setSection("setup")}
-      >
-        <FolderCog size={14} /> Enable staff timesheets
-      </button>
+    <nav className="apt-tabs apt-detail-tabs" aria-label="Selected project details">
+      {tabs.map(([value, label]) => (
+        <button type="button" key={value} className={detailView === value ? "selected" : ""} onClick={() => setDetailView(value)}>
+          {value === "overview" ? <BarChart3 size={14} /> : value === "timesheets" ? <ClipboardList size={14} /> : value === "activities" ? <CheckCircle2 size={14} /> : <FileSpreadsheet size={14} />} {label}
+        </button>
+      ))}
     </nav>
   );
 }

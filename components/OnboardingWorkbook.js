@@ -46,7 +46,7 @@ import AdminRemoteOps from "./AdminRemoteOps";
 import AdminQuotePipeline from "./AdminQuotePipeline";
 import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
-import ProjectCloseOut from "./ProjectCloseOut";
+import ProjectCloseOut, { ProjectCloseOutSelector } from "./ProjectCloseOut";
 import AdminWhsGovernance from "./AdminWhsGovernance";
 import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
@@ -4537,8 +4537,26 @@ export default function OnboardingWorkbook() {
     try {
       // A copied browser tab preserves its own URL context; a new portal window
       // without that context restores the last saved location for its portal.
-      const workspace = new URLSearchParams(window.location.search).get("workspace");
+      const params = new URLSearchParams(window.location.search);
+      const workspace = params.get("workspace");
       if (workspace) return workspace;
+      // Portal events created before workspace URLs used mode/area parameters.
+      // Interpret them here while event producers are progressively moved to
+      // canonical destinations, so a notification never marks itself read and
+      // simply returns the worker to their saved home.
+      const legacyLocation = params.get("area") || params.get("mode");
+      const legacyMap = {
+        forms: "staffforms",
+        whsmonitor: "whsmonitor",
+        "regulatory-watch": "regulatorywatch",
+        regulatorywatch: "regulatorywatch",
+        quote_pipeline: "quotepipeline",
+        quotepipeline: "quotepipeline",
+        adminprojects: "adminprojects",
+        portalmgmt: "portalmgmt",
+        species: "species",
+      };
+      if (legacyMap[legacyLocation]) return legacyMap[legacyLocation];
       const storedPortal = window.localStorage.getItem("ec_portal");
       const key = storedPortal === "admin"
         ? "ec-admin-portal-location"
@@ -4563,8 +4581,11 @@ export default function OnboardingWorkbook() {
       // During initial admin-role resolution a copied tab can briefly render as
       // Staff before its protected Admin portal is known. Keep an explicit URL
       // workspace in that transition instead of replacing it with a home card.
-      const requestedWorkspace = new URLSearchParams(window.location.search).get("workspace");
-      setMode(requestedWorkspace || window.localStorage.getItem(portalLocationKey) || portalHomeMode);
+      const params = new URLSearchParams(window.location.search);
+      const requestedWorkspace = params.get("workspace");
+      const legacyLocation = params.get("area") || params.get("mode");
+      const legacyMap = { forms: "staffforms", whsmonitor: "whsmonitor", "regulatory-watch": "regulatorywatch", regulatorywatch: "regulatorywatch", quote_pipeline: "quotepipeline", quotepipeline: "quotepipeline", adminprojects: "adminprojects", portalmgmt: "portalmgmt", species: "species" };
+      setMode(requestedWorkspace || legacyMap[legacyLocation] || window.localStorage.getItem(portalLocationKey) || portalHomeMode);
     } catch {
       setMode(portalHomeMode);
     }
@@ -5203,8 +5224,6 @@ export default function OnboardingWorkbook() {
                     (projectsSubview === "closeout" ? " sel" : "")
                   }
                   onClick={() => setProjectsSubview("closeout")}
-                  disabled={!projectCloseOutTarget.id}
-                  title={!projectCloseOutTarget.id ? "Open a project first, from Setup or Tracker" : ""}
                 >
                   <ClipboardCheck size={13} /> Project Close-out
                 </button>
@@ -5252,9 +5271,9 @@ export default function OnboardingWorkbook() {
                     onToast={showToast}
                   />
                 ) : (
-                  <p style={{ padding: 20, color: "#6b755f", fontSize: 13.5 }}>
-                    Open a project from Setup &amp; allocations first — Close-out needs a project to work with.
-                  </p>
+                  <ProjectCloseOutSelector
+                    onOpen={(project) => setProjectCloseOutTarget({ id: project.id, name: project.name })}
+                  />
                 )
               )}
             </div>

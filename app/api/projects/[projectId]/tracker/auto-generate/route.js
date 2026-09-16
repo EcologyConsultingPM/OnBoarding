@@ -28,7 +28,7 @@ export async function generateTrackerFromActivities(access, projectId) {
     access.admin.from("projects").select("id, name, budget_hours, budget_dollars, default_hourly_rate").eq("id", projectId).maybeSingle(),
     access.admin.from("project_activities").select("task_category, budget_hours, staff_user_id").eq("project_id", projectId).eq("is_active", true),
     access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
-    access.admin.from("project_budget_sources").select("id, source_code").eq("project_id", projectId),
+    access.admin.from("project_budget_sources").select("id, source_code, source_type").eq("project_id", projectId),
   ]);
   if (projectResult.error) return { error: projectResult.error.message };
   if (!projectResult.data) return { error: "Project not found." };
@@ -47,7 +47,11 @@ export async function generateTrackerFromActivities(access, projectId) {
   const now = new Date().toISOString();
 
   const SOURCE_CODE = "AUTO-ORIGINAL";
-  let source = (sourcesResult.data || []).find((s) => s.source_code === SOURCE_CODE);
+  // New projects seed ORG-01 when the approved baseline is saved; older
+  // projects use AUTO-ORIGINAL. Both represent exactly one Original Scope, so
+  // source_type is authoritative and prevents a duplicate baseline.
+  let source = (sourcesResult.data || []).find((s) => s.source_type === "original")
+    || (sourcesResult.data || []).find((s) => s.source_code === SOURCE_CODE);
   if (!source) {
     const { data, error } = await access.admin.from("project_budget_sources").insert({
       project_id: projectId,

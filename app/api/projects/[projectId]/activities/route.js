@@ -269,6 +269,7 @@ export async function PUT(request, { params }) {
       const changedAssignee = Boolean(previous && previous.staff_user_id !== assignedTo);
       const requestedStatus = ACTIVITY_STATUSES.has(input.status) ? input.status : (previous?.status || "not_commenced");
       let scheduleItemId = validId(input.scheduleItemId) ? input.scheduleItemId : (previous?.schedule_item_id || null);
+      let createdScheduleItem = false;
       // Each delivery activity must be visible in the project Gantt. Where an
       // administrator has not selected an existing phase, create a dedicated
       // activity schedule line using the due date as the delivery milestone.
@@ -293,6 +294,7 @@ export async function PUT(request, { params }) {
         scheduleItemId = scheduleItem.id;
         scheduleIds.add(scheduleItemId);
         nextScheduleSort += 1;
+        createdScheduleItem = true;
       }
       const row = {
         project_id: params.projectId,
@@ -333,6 +335,13 @@ export async function PUT(request, { params }) {
         const { data, error } = await access.admin.from("project_activities").update(row).eq("id", previous.id).select(COLUMNS).single();
         if (error) return Response.json({ error: error.message }, { status: 400 });
         persisted.push(data);
+        if (createdScheduleItem) {
+          const { error: provenanceError } = await access.admin
+            .from("project_schedule_items")
+            .update({ generated_from_activity_id: data.id, updated_at: now })
+            .eq("id", scheduleItemId);
+          if (provenanceError) return Response.json({ error: provenanceError.message }, { status: 400 });
+        }
         if (changedAssignee && assignedTo) createdOrReassigned.push(data);
       } else {
         row.created_by = access.user.id;
@@ -342,6 +351,13 @@ export async function PUT(request, { params }) {
         const { data, error } = await access.admin.from("project_activities").insert(row).select(COLUMNS).single();
         if (error) return Response.json({ error: error.message }, { status: 400 });
         persisted.push(data);
+        if (createdScheduleItem) {
+          const { error: provenanceError } = await access.admin
+            .from("project_schedule_items")
+            .update({ generated_from_activity_id: data.id, updated_at: now })
+            .eq("id", scheduleItemId);
+          if (provenanceError) return Response.json({ error: provenanceError.message }, { status: 400 });
+        }
         if (assignedTo) createdOrReassigned.push(data);
       }
     }
@@ -350,7 +366,7 @@ export async function PUT(request, { params }) {
     for (const scheduleItemId of linkedScheduleIds) {
       const { data: scheduleActivities, error: scheduleActivitiesError } = await access.admin
         .from("project_activities")
-        .select("status, progress_percent")
+        .select("id, title, detail, start_date, due_date, milestone, status, progress_percent")
         .eq("schedule_item_id", scheduleItemId)
         .eq("is_active", true);
       if (scheduleActivitiesError) return Response.json({ error: scheduleActivitiesError.message }, { status: 400 });
@@ -358,9 +374,31 @@ export async function PUT(request, { params }) {
       const progressPercent = linked.length ? Math.round((linked.reduce((sum, activity) => sum + percent(activity.progress_percent), 0) / linked.length) * 100) / 100 : 0;
       const states = new Set(linked.map((activity) => activity.status));
       const status = states.has("need_info") ? "need_info" : states.has("paused_other") ? "paused_other" : states.has("qa_review") ? "qa_review" : states.has("active") ? "active" : linked.length && [...states].every((value) => value === "completed") ? "completed" : "not_commenced";
+      const { data: scheduleItem, error: scheduleItemError } = await access.admin
+        .from("project_schedule_items")
+        .select("id, generated_from_activity_id")
+        .eq("id", scheduleItemId)
+        .maybeSingle();
+      if (scheduleItemError) return Response.json({ error: scheduleItemError.message }, { status: 400 });
+      const sourceActivity = linked.find((activity) => activity.id === scheduleItem?.generated_from_activity_id);
+      // Only a row explicitly marked as generated is rewritten. A manually
+      // created Gantt phase can group several activities and retains its own
+      // title, dates and milestone; its progress/status still aggregate here.
+      const scheduleUpdate = {
+        progress_percent: progressPercent,
+        status,
+        updated_at: now,
+        ...(sourceActivity ? {
+          title: sourceActivity.title,
+          detail: opt(sourceActivity.detail),
+          start_date: dueDate(sourceActivity.start_date) || dueDate(sourceActivity.due_date),
+          end_date: dueDate(sourceActivity.due_date),
+          milestone: sourceActivity.milestone === true,
+        } : {}),
+      };
       const { error: updateScheduleError } = await access.admin
         .from("project_schedule_items")
-        .update({ progress_percent: progressPercent, status, updated_at: now })
+        .update(scheduleUpdate)
         .eq("id", scheduleItemId);
       if (updateScheduleError) return Response.json({ error: updateScheduleError.message }, { status: 400 });
     }

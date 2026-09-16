@@ -167,31 +167,55 @@ const DEPARTMENT_ICONS = { fieldwork: Tent, reporting: FileText, quoting: Clipbo
 const DEPARTMENT_LABELS = { fieldwork: "Fieldwork", reporting: "Reporting", quoting: "Quoting", approvals: "Approvals" };
 
 export default function Legis({ compact = false }) {
-  const { session } = useAuth();
+  const { session, isAdmin } = useAuth();
   const [brief, setBrief] = useState(null);
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
   const headers = useCallback(() => ({ Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
 
-  useEffect(() => {
+  const loadBrief = useCallback(async () => {
     if (!session?.access_token) {
       setError("You must be signed in to load the Legis brief.");
       setLoading(false);
       return;
     }
-    fetch("/api/legis", { headers: headers() })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || `Legis request failed (${response.status}).`);
-        return data;
-      })
-      .then((data) => setBrief(data.brief || null))
-      .catch((requestError) => setError(requestError.message || "Could not load this week's Legis brief."))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/legis", { headers: headers(), cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Legis request failed (${response.status}).`);
+      setBrief(data.brief || null);
+    } catch (requestError) {
+      setError(requestError.message || "Could not load this week's Legis brief.");
+    } finally {
+      setLoading(false);
+    }
   }, [session?.access_token, headers]);
+
+  useEffect(() => { loadBrief(); }, [loadBrief]);
+
+  const generateCurrentBrief = async () => {
+    setGenerating(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/legis/generate", {
+        method: "POST",
+        headers: headers(),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not generate this week's Legis briefing.");
+      await loadBrief();
+    } catch (generationError) {
+      setError(generationError.message || "Could not generate this week's Legis briefing.");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const loadHistory = () => {
     if (showHistory) { setShowHistory(false); return; }
@@ -216,6 +240,12 @@ export default function Legis({ compact = false }) {
         <Scale size={20} />
         <strong>No current briefing available</strong>
         <span>The latest approved weekly briefing will appear here when available.</span>
+        {isAdmin && !compact ? (
+          <button type="button" className="lg-generate" onClick={generateCurrentBrief} disabled={generating}>
+            {generating ? <Loader2 size={14} className="spin" /> : <CalendarClock size={14} />}
+            {generating ? "Researching this week’s brief…" : "Generate this week’s brief"}
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -258,6 +288,8 @@ export default function Legis({ compact = false }) {
         .lg-loading, .lg-error { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #0F172A; padding: 16px; }
         .lg-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 30px 20px; color: #4b5563; }
         .lg-empty small { max-width: 760px; color: #92400e; font-size: 11px; word-break: break-word; }
+        .lg-generate { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; border: 1px solid #166534; border-radius: 7px; padding: 9px 12px; color: #fff; background: #166534; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .lg-generate:disabled { cursor: wait; opacity: .7; }
         .lg-matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0 16px; background: #fff; border-radius: 8px; overflow: hidden; }
         .lg-matrix th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #4b5563; padding: 6px 10px; border-bottom: 1px solid #cbd0d8; }
         .lg-matrix td { padding: 6px 10px; border-bottom: 1px solid #eceff3; color: #0F172A; }

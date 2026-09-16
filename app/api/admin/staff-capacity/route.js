@@ -114,14 +114,14 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const [directory, profilesResult, activitiesResult, leavesResult, trainingResult, scheduleResult, projectsResult, tasksResult, reviewsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
-    access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, budget_hours, due_date, start_date, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
+    access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
     // Approved training is time a person is unavailable for project work, just
     // as leave is. It was being approved and then vanishing from the capacity
     // picture entirely, so someone could be booked onto fieldwork on a day
     // their course had already been signed off.
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "training").eq("status", "approved"),
-    access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, is_active").eq("is_active", true),
+    access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, generated_from_activity_id, is_active").eq("is_active", true),
     access.admin.from("projects").select("id, name, client_name, status").is("deleted_at", null).neq("status", "archived"),
     access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, budget_hours, status, accepted_at, completed_at, declined_at, withdrawn_at").not("accepted_at", "is", null).is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
     // Assigned policy and procedure reviews are real committed work with a due
@@ -141,11 +141,17 @@ export async function capacityData(access, rangeStart, rangeEnd) {
 
   const projectById = new Map((projectsResult.data || []).map((project) => [project.id, project]));
   const profileByUser = new Map((profilesResult.data || []).map((profile) => [profile.user_id, profile]));
+  // The calendar needs every live activity, including unassigned ones, so the
+  // administrator can allocate it. Only an activity the person has accepted
+  // counts toward their capacity calculation.
+  const activeActivities = (activitiesResult.data || []).filter((activity) =>
+    projectById.has(activity.project_id),
+  );
   // Only activities the assigned staff member has actually accepted count
   // toward their workload — an assignment still sitting in
   // "awaiting_response" (SE-approved and notified, but not yet actioned by
   // the person) doesn't consume capacity or appear on the calendar yet.
-  const activities = (activitiesResult.data || []).filter((activity) =>
+  const activities = activeActivities.filter((activity) =>
     activity.staff_user_id &&
     projectById.has(activity.project_id) &&
     ["accepted", "actioned", "completed"].includes(activity.acceptance_status),
@@ -235,7 +241,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   });
 
   const calendarEvents = [
-    ...activities.filter((activity) => {
+    ...activeActivities.filter((activity) => {
       const span = activitySpan(activity);
       return span && intersects(span.start, span.end, rangeStart, rangeEnd);
     }).map((activity) => {
@@ -250,6 +256,11 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         projectId: activity.project_id,
         projectName: projectById.get(activity.project_id)?.name || "Project",
         status: activity.status,
+        taskCategory: activity.task_category || "",
+        detail: activity.detail || "",
+        budgetHours: number(activity.budget_hours),
+        milestone: activity.milestone === true,
+        acceptanceStatus: activity.acceptance_status || "accepted",
       };
     }),
     ...leaves.map((leave) => ({ id: `leave-${leave.id}`, type: "leave", startDate: leave.startDate, endDate: leave.endDate, title: leave.title, staffUserId: leave.created_by })),
@@ -285,7 +296,10 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         status: task.status,
       };
     }),
-    ...(scheduleResult.data || []).filter((item) => intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
+    // Activity-created Gantt rows are already displayed as their interactive
+    // source activity above. Keep only manual schedule phases here so the
+    // capacity calendar does not present the same work twice.
+    ...(scheduleResult.data || []).filter((item) => !item.generated_from_activity_id && intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
       id: `schedule-${item.id}`,
       type: item.milestone ? "milestone" : "schedule",
       startDate: item.start_date || item.end_date,

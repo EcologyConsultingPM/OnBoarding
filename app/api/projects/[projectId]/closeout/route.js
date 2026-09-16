@@ -123,9 +123,50 @@ export async function POST(request, { params }) {
       return Response.json({ action: data });
     }
 
+    if (body.action === "archive_project") {
+      const existing = await ensureCloseout(access, params.projectId, access.user.id);
+      if (existing.status !== "closed" || !existing.locked_at) {
+        return Response.json({ error: "Approve and lock the close-out before archiving this project." }, { status: 409 });
+      }
+      const { count: openActions, error: actionsError } = await access.admin
+        .from("project_improvement_actions")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", params.projectId)
+        .eq("is_active", true)
+        .not("status", "in", "(completed,verified,archived)");
+      if (actionsError) return Response.json({ error: actionsError.message }, { status: 400 });
+      if (openActions) return Response.json({ error: "Complete or archive all improvement actions before archiving this project." }, { status: 409 });
+      const { data: closeout, error: closeoutError } = await access.admin
+        .from("project_closeouts")
+        .update({ status: "archived", archived_at: now, archived_by: access.user.id, updated_by: access.user.id, updated_at: now })
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (closeoutError) return Response.json({ error: closeoutError.message }, { status: 400 });
+      const { error: projectUpdateError } = await access.admin
+        .from("projects")
+        .update({ status: "archived", updated_at: now })
+        .eq("id", params.projectId);
+      if (projectUpdateError) return Response.json({ error: `Close-out archived but the project status could not be updated: ${projectUpdateError.message}` }, { status: 400 });
+      return Response.json({ closeout, project_archived: true });
+    }
+
     const nextStatus = STATUSES.has(body.status) ? body.status : "not_started";
     const existing = await ensureCloseout(access, params.projectId, access.user.id);
+    if (nextStatus === "archived") return Response.json({ error: "Use the archive action after close-out approval." }, { status: 400 });
     if (existing.locked_at && nextStatus !== "archived") return Response.json({ error: "This close-out is locked and must be reopened by an administrator before editing." }, { status: 409 });
+    if (nextStatus === "closed") {
+      const missing = [
+        !score(body.successScore) && "success score",
+        !text(body.clientOutcome) && "client outcome",
+        !text(body.deliverySummary) && "delivery summary",
+        !text(body.financialReviewNotes) && "financial review",
+        !text(body.approvalNote) && "approval note",
+      ].filter(Boolean);
+      if (missing.length) {
+        return Response.json({ error: `Complete the ${missing.join(", ")} before approving and locking the close-out.` }, { status: 400 });
+      }
+    }
     const update = {
       status: nextStatus,
       success_score: score(body.successScore),

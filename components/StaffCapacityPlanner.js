@@ -198,7 +198,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     }
   };
 
-  // --- Admin: manage an unassigned activity from the calendar ---
+  // --- Admin: manage any project activity from the calendar ---
   const openUnassignedModal = (event) => {
     if (mode === "staff" || !data?.canEdit) return;
     if (!["activity", "field_survey"].includes(event.type) || !event.projectId) return;
@@ -211,7 +211,11 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       title: event.title,
       startDate: event.startDate || "",
       dueDate: event.endDate || "",
-      staffUserId: "",
+      staffUserId: event.staffUserId || "",
+      taskCategory: event.taskCategory || "",
+      detail: event.detail || "",
+      budgetHours: event.budgetHours ?? "",
+      milestone: event.milestone === true,
     });
   };
   const saveUnassignedAssignment = async () => {
@@ -228,6 +232,10 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           title: unassignedModal.title,
           startDate: unassignedModal.startDate || undefined,
           dueDate: unassignedModal.dueDate || undefined,
+          taskCategory: unassignedModal.taskCategory || undefined,
+          detail: unassignedModal.detail || undefined,
+          budgetHours: unassignedModal.budgetHours,
+          milestone: unassignedModal.milestone,
         }),
       });
       const payload = await response.json();
@@ -435,8 +443,8 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
             </>
           )}
 
-          <div className="scp-calendar-section">
-            <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Staff names stay frozen on the left while the selected period scrolls horizontally. Use week, month, year or a custom date range to search planned work.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
+              <div className="scp-calendar-section">
+            <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Staff names stay frozen on the left while the selected period scrolls horizontally. Administrators can click any blue or green project activity to assign it, move dates or correct its details; moving an activity also updates its linked generated schedule item.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
               <>
@@ -449,7 +457,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     {calendarDays.map((day) => {
                       const events = day.events.filter((event) => event.staffUserId === person.id);
                       return <div className="scp-calendar-cell" role="gridcell" key={`${person.id}-${day.date}`}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; return <button type="button" className="scp-calendar-event" key={event.id} onClick={() => onSelectStaff?.(person)} title={`${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
+                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" className="scp-calendar-event" key={event.id} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} title={manageable ? `${event.title} — click to assign or reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
@@ -463,9 +471,8 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           type="button"
                           className="scp-calendar-event"
                           key={event.id}
-                          title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — double-click to assign, edit or delete`) : event.title}
-                          onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); }}
-                          onDoubleClick={() => { if (manageable && mode !== "staff") openUnassignedModal(event); }}
+                          title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — click to assign or reschedule`) : event.title}
+                          onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); else if (manageable && mode !== "staff") openUnassignedModal(event); }}
                           style={{ cursor: manageable ? "pointer" : "default" }}
                         >
                           <i style={{ background: style.color }} /><span>{event.title}</span>
@@ -477,16 +484,17 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
               </div>
 
               {unassignedModal ? (
-                <div className="scp-modal-backdrop" role="dialog" aria-label="Manage unassigned activity" onClick={() => !modalBusy && setUnassignedModal(null)}>
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Manage project activity" onClick={() => !modalBusy && setUnassignedModal(null)}>
                   <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
                     <div className="scp-modal-head">
                       <div>
                         <span>{unassignedModal.projectName}</span>
-                        <h3>{unassignedModal.title}</h3>
+                        <h3>Assign or reschedule activity</h3>
                       </div>
                       <button type="button" onClick={() => !modalBusy && setUnassignedModal(null)}><X size={16} /></button>
                     </div>
                     {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
+                    <p>Changes apply to this work activity. A linked auto-generated Gantt item is updated at the same time; manually created schedule phases are retained.</p>
                     <label className="scp-modal-field">
                       Title
                       <input value={unassignedModal.title} onChange={(event) => setUnassignedModal({ ...unassignedModal, title: event.target.value })} />
@@ -505,7 +513,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     <div className="scp-modal-actions">
                       <button type="button" className="scp-modal-delete" disabled={modalBusy} onClick={deleteUnassignedActivity}><Trash2 size={14} /> Delete</button>
                       <button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveUnassignedAssignment}>
-                        {modalBusy ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {modalBusy ? "Saving…" : "Assign & notify"}
+                        {modalBusy ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {modalBusy ? "Saving…" : unassignedModal.staffUserId ? "Save activity & notify" : "Assign & notify"}
                       </button>
                     </div>
                   </div>

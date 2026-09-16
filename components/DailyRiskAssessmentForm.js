@@ -3,23 +3,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ChevronLeft, Plus, Send, ShieldAlert, Trash2 } from "lucide-react";
 import SignaturePad from "./SignaturePad";
+import { useAuth } from "../lib/AuthProvider";
 
 /* ---------------------------------------------------------------
    Draft autosave — same device-local mechanism StaffForms already
    uses for every other WHS form, duplicated here (not imported) so
    this component has no private dependency on StaffForms internals.
 ----------------------------------------------------------------- */
-const DRAFT_KEY = "ecology-consulting:whs-form:daily_risk_assessment";
+const DRAFT_PREFIX = "ecology-consulting:whs-form:daily_risk_assessment";
 const DRAFT_TTL = 1000 * 60 * 60 * 24 * 14;
 
-function readDraft() {
+function draftKey(userId) { return `${DRAFT_PREFIX}:${userId || "anonymous"}`; }
+function readDraft(userId) {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const raw = window.localStorage.getItem(draftKey(userId));
     if (!raw) return null;
     const saved = JSON.parse(raw);
     if (!saved || Date.now() - Number(saved.savedAt || 0) > DRAFT_TTL) {
-      window.localStorage.removeItem(DRAFT_KEY);
+      window.localStorage.removeItem(draftKey(userId));
       return null;
     }
     return saved.form && typeof saved.form === "object" ? saved.form : null;
@@ -27,18 +29,18 @@ function readDraft() {
     return null;
   }
 }
-function writeDraft(value) {
+function writeDraft(userId, value) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), form: value }));
+    window.localStorage.setItem(draftKey(userId), JSON.stringify({ savedAt: Date.now(), form: value }));
   } catch {
     // Private browsing or storage-full — the in-memory form still works.
   }
 }
-function clearDraft() {
+function clearDraft(userId) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(DRAFT_KEY);
+    window.localStorage.removeItem(draftKey(userId));
   } catch {}
 }
 
@@ -250,6 +252,7 @@ function SectionHead({ n, title, mandatory }) {
    Main component
 ----------------------------------------------------------------- */
 export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted, onToast }) {
+  const { user } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [errors, setErrors] = useState({});
@@ -259,17 +262,18 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
   const fieldRefs = useRef({});
 
   useEffect(() => {
-    const draft = readDraft();
+    if (!user?.id) return;
+    const draft = readDraft(user?.id);
     if (draft) {
       setForm({ ...initialForm(), ...draft });
       setRestoredDraft(true);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (submitted) return; // stop overwriting the draft once submitted+cleared
-    writeDraft(form);
-  }, [form, submitted]);
+    writeDraft(user?.id, form);
+  }, [form, submitted, user?.id]);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const setChecklistRow = (key) => (index, next) => setForm((f) => ({ ...f, [key]: f[key].map((r, i) => (i === index ? next : r)) }));
@@ -335,7 +339,7 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Couldn't submit — please try again.");
-      clearDraft();
+      clearDraft(user?.id);
       setSubmitted({ id: d.id || d.form?.id || null, at: new Date() });
       onSubmitted && onSubmitted();
       onToast && onToast("Daily Risk Assessment & Toolbox Talk submitted.");
@@ -347,7 +351,7 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
   };
 
   const startNew = () => {
-    clearDraft();
+    clearDraft(user?.id);
     setForm(initialForm());
     setSubmitted(null);
     setErrors({});

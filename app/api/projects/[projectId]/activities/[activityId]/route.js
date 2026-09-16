@@ -84,15 +84,28 @@ export async function PATCH(request, { params }) {
       .single();
     if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
 
-    // Keep the linked schedule/Gantt line's date span consistent with any
-    // date change here, mirroring the same cascade the bulk save performs.
-    if (updated.schedule_item_id && (body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined)) {
-      await access.admin.from("project_schedule_items").update({
-        title: updated.title,
-        start_date: updated.start_date,
-        end_date: updated.due_date || updated.start_date,
-        updated_at: now,
-      }).eq("id", updated.schedule_item_id);
+    // Keep an activity-created schedule line in sync with a calendar edit.
+    // A manual Gantt phase may intentionally group several activities, so it
+    // retains its independent title/dates and only activity-generated rows
+    // receive the source activity's details.
+    if (updated.schedule_item_id && (body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined || body?.detail !== undefined || body?.milestone !== undefined)) {
+      const { data: linkedSchedule, error: scheduleLookupError } = await access.admin
+        .from("project_schedule_items")
+        .select("id, generated_from_activity_id")
+        .eq("id", updated.schedule_item_id)
+        .maybeSingle();
+      if (scheduleLookupError) return Response.json({ error: scheduleLookupError.message }, { status: 400 });
+      if (linkedSchedule?.generated_from_activity_id === updated.id) {
+        const { error: scheduleUpdateError } = await access.admin.from("project_schedule_items").update({
+          title: updated.title,
+          detail: updated.detail,
+          start_date: updated.start_date || updated.due_date,
+          end_date: updated.due_date || updated.start_date,
+          milestone: updated.milestone === true,
+          updated_at: now,
+        }).eq("id", updated.schedule_item_id);
+        if (scheduleUpdateError) return Response.json({ error: scheduleUpdateError.message }, { status: 400 });
+      }
     }
 
     let notifyWarning = null;

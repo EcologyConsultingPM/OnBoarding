@@ -12424,6 +12424,23 @@ main {
   grid-template-columns: minmax(215px, 260px) minmax(0, 1fr);
   gap: 16px;
 }
+.apt-detail-tabs {
+  margin: 0 0 16px;
+}
+.apt-grid--budget {
+  grid-template-columns: minmax(0, 1fr);
+}
+.apt-grid--budget .apt-side:empty {
+  display: none;
+}
+.apt-grid--timesheets,
+.apt-grid--activities {
+  grid-template-columns: minmax(0, 1fr);
+}
+.apt-grid--timesheets .apt-side,
+.apt-grid--activities .apt-side {
+  display: block;
+}
 .apt-project-list,
 .apt-card {
   border: 1px solid rgba(231, 201, 121, 0.18);
