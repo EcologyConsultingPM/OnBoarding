@@ -39,6 +39,7 @@ export async function GET(request) {
     // Staff workspace calls this endpoint — including when a protected
     // administrator is using their own Staff portal view.
     if (!access.isAdmin || staffWorkspace) {
+      query = query.eq("status", "active");
       const [allocationResult, activityResult] = await Promise.all([
         access.admin
           .from("project_allocations")

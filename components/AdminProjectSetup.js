@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   FolderPlus,
   ArrowLeft,
@@ -12,7 +12,6 @@ import {
   ClipboardList,
   AlertCircle,
   CheckCircle2,
-  ExternalLink,
   GripVertical,
   ClipboardCheck,
   Check,
@@ -55,7 +54,7 @@ const BLANK_PROJECT = {
   budgetHours: "",
   budgetDollars: "",
   defaultHourlyRate: "",
-  status: "active",
+  status: "planning",
 };
 
 const PROJECT_STATUS = [
@@ -64,6 +63,15 @@ const PROJECT_STATUS = [
   { value: "on_hold", label: "On hold" },
   { value: "complete", label: "Complete" },
   { value: "archived", label: "Archived" },
+];
+
+const PROJECT_SETUP_STAGES = [
+  { key: "details", label: "Initiation", help: "Confirm the accepted project, client, scope, dates, manager and approved budget." },
+  { key: "team", label: "PMP team", help: "Allocate the project team, roles, hours and rates." },
+  { key: "deliverables", label: "Deliverables", help: "Define the outputs the project must produce." },
+  { key: "activities", label: "Work activities", help: "Break deliverables into assigned, budgeted and dated activities." },
+  { key: "schedule", label: "Schedule", help: "Review the delivery sequence, milestones and completion measures." },
+  { key: "review", label: "Review & activate", help: "Complete readiness checks and record the Senior Ecologist approval gate." },
 ];
 
 export default function AdminProjectSetup({ initialProjectId = null, onOpenTracker = null, onOpenCloseOut = null }) {
@@ -291,36 +299,12 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
         <span>
           <FolderPlus size={17} /> Delivery & commercial · Admin
         </span>
-        <h1>Project setup &amp; allocations</h1>
+        <h1>Project initiation &amp; delivery plan</h1>
         <p>
-          Create projects, set budgets, build the schedule, allocate staff and
-          assign work activities. Allocated staff then see their project health,
-          schedule and activities in the staff portal.
+          Move an accepted project through initiation, PMP setup, team allocation,
+          deliverables, activities, schedule review and controlled activation.
+          The live tracker then monitors budget, hours and completion through to close-out.
         </p>
-        <div className="aps-hero-links">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              if (typeof window !== "undefined")
-                window.dispatchEvent(new CustomEvent("ec-goto-remoteops"));
-            }}
-            className="aps-hero-link"
-          >
-            <ExternalLink size={13} /> Remote operations oversight
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              if (typeof window !== "undefined")
-                window.dispatchEvent(new CustomEvent("ec-goto-quotepipeline"));
-            }}
-            className="aps-hero-link"
-          >
-            <ExternalLink size={13} /> Quoting pipeline
-          </a>
-        </div>
       </header>
 
       {error ? (
@@ -631,8 +615,16 @@ function ProjectDetail({
   };
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [savingActivities, setSavingActivities] = useState(false);
-  const [autoGenerating, setAutoGenerating] = useState(false);
   const [gateBusy, setGateBusy] = useState(false);
+  const [activeStage, setActiveStage] = useState("details");
+  const [stageSaving, setStageSaving] = useState(false);
+  const stageTopRef = useRef(null);
+
+  const goToStage = (key) => {
+    setActiveStage(key);
+    if (key === "schedule") setScheduleExpanded(true);
+    window.requestAnimationFrame(() => stageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   useEffect(() => {
     auth("GET", "/api/deliverable-templates")
@@ -763,8 +755,10 @@ function ProjectDetail({
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
       notify("Project details saved.");
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     }
   };
   const saveSchedule = async () => {
@@ -786,8 +780,10 @@ function ProjectDetail({
         })));
       }
       notify("Schedule saved without breaking linked delivery activities.");
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     }
   };
   const deleteProject = async () => {
@@ -817,8 +813,10 @@ function ProjectDetail({
       if (!res.ok) throw new Error(d.error);
       notify("Allocations saved.");
       await load();
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     }
   };
   const saveActivities = async (forceSave = false) => {
@@ -843,10 +841,83 @@ function ProjectDetail({
       setActivitiesDraftAvailable(null);
       setActivitiesDraftRestored(false);
       await load();
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    } finally {
+      setSavingActivities(false);
+    }
+  };
+
+  const stageChecks = {
+    details: Boolean(
+      project?.name?.trim() &&
+      project?.client_name?.trim() &&
+      project?.scope_of_works?.trim() &&
+      project?.project_lead_user_id &&
+      Number(project?.budget_hours) > 0 &&
+      Number(project?.budget_dollars) > 0,
+    ),
+    team: allocations.some((allocation) => allocation.staffUserId && Number(allocation.allocatedHours) > 0),
+    deliverables: deliverables.length > 0,
+    activities: activities.some((activity) => activity.title?.trim() && activity.staffUserId && Number(activity.budgetHours) > 0 && (activity.startDate || activity.dueDate)),
+    schedule: schedule.some((item) => item.title?.trim() && (item.startDate || item.endDate)),
+    review: project?.activities_approval_status === "approved",
+  };
+
+  const stageIndex = PROJECT_SETUP_STAGES.findIndex((stage) => stage.key === activeStage);
+  const currentStage = PROJECT_SETUP_STAGES[stageIndex] || PROJECT_SETUP_STAGES[0];
+  const nextStage = PROJECT_SETUP_STAGES[stageIndex + 1] || null;
+  const setupReadyForReview = ["details", "team", "deliverables", "activities", "schedule"].every((key) => stageChecks[key]);
+
+  const saveStage = async (advance = false) => {
+    setStageSaving(true);
+    try {
+      const validationMessages = {
+        details: "Complete the project name, client, scope, project lead, approved hours and approved budget before continuing.",
+        team: "Allocate at least one team member with approved hours before continuing.",
+        deliverables: "Add at least one deliverable before continuing.",
+        activities: "Add at least one assigned activity with budgeted hours and a start or due date before continuing.",
+        schedule: "Add at least one dated schedule item before continuing.",
+      };
+      if (advance && validationMessages[activeStage] && !stageChecks[activeStage]) {
+        fail(validationMessages[activeStage]);
+        return;
+      }
+      let saved = true;
+      if (activeStage === "details") saved = await saveDetails();
+      if (activeStage === "team") saved = await saveAllocations();
+      if (activeStage === "activities") saved = await saveActivities(conflictPending);
+      if (activeStage === "schedule") saved = await saveSchedule();
+      if (advance && saved && nextStage) goToStage(nextStage.key);
+      if (!advance && saved && ["deliverables", "review"].includes(activeStage)) notify("Project setup progress saved.");
+    } finally {
+      setStageSaving(false);
+    }
+  };
+
+  const runApprovalGate = async (action) => {
+    setGateBusy(true);
+    try {
+      const res = await auth("POST", `/api/projects/${projectId}/activities/approval`, { action });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      setProject((current) => ({
+        ...current,
+        activities_approval_status: d.project.activities_approval_status,
+        ...(action === "approve" ? { status: "active" } : {}),
+      }));
+      if (action === "request_review") notify("Setup submitted for Senior Ecologist review.");
+      else if (action === "approve") {
+        const base = `Project activated — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent and the tracker enabled.`;
+        if (d.tracker_warning) fail(`${base} Tracker warning: ${d.tracker_warning}`);
+        else notify(base);
+      } else notify("Project returned to draft setup.");
     } catch (e) {
       fail(e);
     } finally {
-      setSavingActivities(false);
+      setGateBusy(false);
     }
   };
 
@@ -882,10 +953,7 @@ function ProjectDetail({
           value={project.name}
           onChange={(e) => setProject({ ...project, name: e.target.value })}
         />
-        <button className="aps-primary" onClick={saveDetails}>
-          <Save size={14} /> Save details
-        </button>
-        {onOpenCloseOut ? (
+        {onOpenCloseOut && project.activities_approval_status === "approved" ? (
           <button className="aps-secondary" onClick={() => onOpenCloseOut(project.name)} title="Open Project Close-out for this project">
             <ClipboardCheck size={14} /> Project Close-out →
           </button>
@@ -899,146 +967,28 @@ function ProjectDetail({
         </button>
       </div>
 
-      {/* Guided setup sequence: Details -> Team -> Work Activities -> Tracker.
-          Work Activities is the schedule — saving it auto-generates the linked
-          Gantt/schedule lines below, so Schedule is no longer a separate step.
-          Each step is marked done from live data; the final step opens the
-          Project Tracker. Staff are notified automatically when activities
-          are assigned. */}
-      {(() => {
-        const hasDetails = Boolean(project?.name);
-        const hasTeam = allocations.some((a) => a.staffUserId);
-        const hasActivities = activities.some((a) => (a.title || "").trim());
-        const hasDeliverables = deliverables.length > 0;
-        const steps = [
-          { key: "details", label: "1. Project information", done: hasDetails },
-          { key: "deliverables", label: "2. Deliverables", done: hasDeliverables },
-          { key: "activities", label: "3. Activities & assignments", done: hasActivities && hasTeam },
-          { key: "review", label: "4. Review & readiness", done: false },
-          { key: "tracker", label: "5. Activate project", done: false, isTracker: true },
-        ];
-        const readyForTracker = hasDetails && hasTeam && hasActivities;
-        return (
-          <div className="aps-stepper" role="list" aria-label="Project setup sequence">
-            <div className="aps-stepper-track">
-              {steps.map((s, i) => {
-                const clickable = s.isTracker ? (readyForTracker && onOpenTracker) : true;
-                return (
-                  <button
-                    type="button"
-                    key={s.key}
-                    className={`aps-step ${s.done ? "done" : ""} ${s.isTracker ? "tracker" : ""}`}
-                    role="listitem"
-                    disabled={!clickable}
-                    title={s.isTracker && !readyForTracker ? "Complete project details, staff allocations and work activities first" : ""}
-                    onClick={() => {
-                      if (s.isTracker) { if (readyForTracker && onOpenTracker) onOpenTracker(); return; }
-                      document.getElementById(`aps-section-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    style={{ background: "none", border: "none", cursor: clickable ? "pointer" : "default", padding: 0, font: "inherit", color: "inherit" }}
-                  >
-                    <span className="aps-step-dot">{s.done ? <CheckCircle2 size={14} /> : i + 1}</span>
-                    <span className="aps-step-label">{s.label.replace(/^\d+\.\s/, "")}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="aps-stepper-cta">
-              {readyForTracker ? (
-                <>
-                  {(() => {
-                    const gateStatus = project.activities_approval_status || "draft";
-                    const runGate = async (action) => {
-                      setGateBusy(true);
-                      try {
-                        const res = await auth("POST", `/api/projects/${projectId}/activities/approval`, { action });
-                        const d = await res.json();
-                        if (!res.ok) throw new Error(d.error);
-                        setProject((p) => ({ ...p, activities_approval_status: d.project.activities_approval_status }));
-                        if (action === "request_review") notify("Marked as awaiting Senior Ecologist review. Confirm the schedule and assignments via Teams, then click Approval granted.");
-                        else if (action === "approve") {
-                          const base = `Approval recorded — ${d.notified || 0} staff notification${d.notified === 1 ? "" : "s"} sent.`;
-                          if (d.tracker_warning) fail(`${base} Tracker warning: ${d.tracker_warning}`);
-                          else notify(base);
-                        }
-                        else notify("Reset to draft.");
-                      } catch (e) {
-                        fail(e);
-                      } finally {
-                        setGateBusy(false);
-                      }
-                    };
-                    if (gateStatus === "approved") {
-                      return (
-                        <span className="aps-stepper-note" style={{ color: "#1f5a34", fontWeight: 700 }}>
-                          <CheckCircle2 size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-                          Approved — assigned staff have been notified.
-                        </span>
-                      );
-                    }
-                    if (gateStatus === "pending_se_review") {
-                      return (
-                        <>
-                          <span className="aps-stepper-note">
-                            Awaiting Senior Ecologist review — confirm the schedule and assignments via a Teams meeting, then record the outcome.
-                          </span>
-                          <button className="aps-primary" disabled={gateBusy} onClick={() => runGate("approve")}>
-                            <CheckCircle2 size={14} /> {gateBusy ? "Recording…" : "Approval granted →"}
-                          </button>
-                          <button className="aps-secondary" disabled={gateBusy} onClick={() => runGate("reset")} title="Return to draft if changes are needed before SE review">
-                            Back to draft
-                          </button>
-                        </>
-                      );
-                    }
-                    return (
-                      <>
-                        <span className="aps-stepper-note">
-                          Setup complete. Staff are not notified yet — confirm the schedule and assignments with the Senior Ecologist first.
-                        </span>
-                        <button className="aps-primary" disabled={gateBusy} onClick={() => runGate("request_review")}>
-                          <ClipboardCheck size={14} /> {gateBusy ? "Saving…" : "Confirm with SE →"}
-                        </button>
-                      </>
-                    );
-                  })()}
-                  <button
-                    className="aps-secondary"
-                    disabled={autoGenerating}
-                    onClick={async () => {
-                      setAutoGenerating(true);
-                      try {
-                        const res = await auth("POST", `/api/projects/${projectId}/tracker/auto-generate`);
-                        const d = await res.json();
-                        if (!res.ok) throw new Error(d.error);
-                        // Surface the reconciliation warning. Stale allocations
-                        // (from a renamed task category) that already carry
-                        // recorded hours cannot be auto-closed without hiding
-                        // real work, so the admin has to be told.
-                        const retired = (d.retiredAllocations || []).length;
-                        if (d.warning) fail(new Error(d.warning));
-                        else notify(`Tracker generated — ${d.categoriesGenerated} categor${d.categoriesGenerated === 1 ? "y" : "ies"} allocated from Work Activities${retired ? `, ${retired} stale allocation${retired === 1 ? "" : "s"} retired` : ""}.`);
-                      } catch (e) {
-                        fail(e);
-                      } finally {
-                        setAutoGenerating(false);
-                      }
-                    }}
-                    title="Creates or updates budget allocations from your Work Activities, grouped by category and priced at each assignee's rate"
-                  >
-                    <ClipboardCheck size={14} /> {autoGenerating ? "Generating…" : "Auto-generate tracker from Work Activities"}
-                  </button>
-                </>
-              ) : (
-                <span className="aps-stepper-note">Work through the steps below. Assigned staff are notified only once you record Senior Ecologist approval.</span>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      <div className="aps-stage-shell" ref={stageTopRef}>
+        <nav className="aps-stage-nav" aria-label="Project lifecycle setup">
+          {PROJECT_SETUP_STAGES.map((stage, index) => (
+            <button
+              type="button"
+              key={stage.key}
+              className={`aps-stage-tab ${activeStage === stage.key ? "active" : ""} ${stageChecks[stage.key] ? "complete" : ""}`}
+              onClick={() => goToStage(stage.key)}
+            >
+              <span>{stageChecks[stage.key] ? <CheckCircle2 size={15} /> : index + 1}</span>
+              <div><strong>{stage.label}</strong><small>{stageChecks[stage.key] ? "Complete" : "In progress"}</small></div>
+            </button>
+          ))}
+        </nav>
+        <div className="aps-stage-heading">
+          <div><span>Stage {stageIndex + 1} of {PROJECT_SETUP_STAGES.length}</span><h2>{currentStage.label}</h2><p>{currentStage.help}</p></div>
+          <strong>{stageChecks[activeStage] ? "Ready to continue" : "Complete required items"}</strong>
+        </div>
+      </div>
 
-      <section className="aps-card" id="aps-section-details">
-        <h2>Project details</h2>
+      {activeStage === "details" ? <section className="aps-card aps-stage-panel" id="aps-section-details">
+        <h2>Project initiation &amp; PMP baseline</h2>
         <div className="aps-form">
           <div className="aps-two">
             <input
@@ -1146,17 +1096,14 @@ function ProjectDetail({
             </label>
           </div>
         </div>
-      </section>
+      </section> : null}
 
       {/* Allocations */}
-      <section className="aps-card" id="aps-section-team">
+      {activeStage === "team" ? <section className="aps-card aps-stage-panel" id="aps-section-team">
         <div className="aps-card-head">
           <h2>
             <Users size={16} /> Staff allocations
           </h2>
-          <button className="aps-secondary" onClick={saveAllocations}>
-            <Save size={13} /> Save allocations
-          </button>
         </div>
         {allocations.map((row, i) => (
           <div key={i} className="aps-row">
@@ -1238,10 +1185,10 @@ function ProjectDetail({
         >
           <Plus size={13} /> Add allocation
         </button>
-      </section>
+      </section> : null}
 
       {/* Activities */}
-      <section className="aps-card" id="aps-section-deliverables">
+      {activeStage === "deliverables" ? <section className="aps-card aps-stage-panel" id="aps-section-deliverables">
         <div className="aps-card-head">
           <h2>
             <ClipboardList size={16} /> Deliverables
@@ -1290,11 +1237,11 @@ function ProjectDetail({
             })}
           </div>
         ) : (
-          <p className="aps-note">No deliverables added yet — use Quick Add above, or add activities directly in Work Activities below without a deliverable.</p>
+          <p className="aps-note">No deliverables added yet. Choose a template above to define the project outputs and generate their standard work activities.</p>
         )}
-      </section>
+      </section> : null}
 
-      <section className="aps-card" id="aps-section-activities">
+      {activeStage === "activities" ? <section className="aps-card aps-stage-panel" id="aps-section-activities">
         {activitiesDraftAvailable && !activitiesDraftRestored ? (
           <div style={{ background: "#fbf6e6", border: "1px solid #ece0bc", borderLeft: "3px solid #c9962a", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12.5 }}>
             <strong>Unsaved activities found from a previous session.</strong> Restoring will replace what's currently shown below with your unsaved draft — review carefully if someone else may have edited this project since.
@@ -1308,14 +1255,11 @@ function ProjectDetail({
           <h2>
             <ClipboardList size={16} /> Work activities
           </h2>
-          <button className="aps-secondary" onClick={() => saveActivities(conflictPending)} disabled={savingActivities}>
-            <Save size={13} /> {savingActivities ? "Saving activities…" : conflictPending ? "Save anyway" : "Save activities"}
-          </button>
         </div>
         <p className="aps-note">
-          Assign activities to allocated staff. Staff are notified immediately;
-          an optional due date also places the activity in their portal
-          calendar.
+          Assign each activity to an allocated staff member and set its approved
+          hours and delivery dates. This remains a draft until Senior Ecologist
+          approval is recorded in the final stage.
         </p>
         {activities.map((row, i) => (
           <div
@@ -1494,16 +1438,15 @@ function ProjectDetail({
         >
           <Plus size={13} /> Add activity
         </button>
-      </section>
+      </section> : null}
 
       {/* Schedule — compact until a project lead chooses to edit the full delivery plan. */}
-      <section className="aps-card aps-schedule-card">
+      {activeStage === "schedule" ? <><section className="aps-card aps-schedule-card aps-stage-panel" id="aps-section-schedule">
         <div className="aps-card-head">
           <button type="button" className="aps-schedule-toggle" onClick={() => setScheduleExpanded((open) => !open)} aria-expanded={scheduleExpanded}>
             <span><Calendar size={16} /> Schedule &amp; Gantt (auto-generated from Work activities)</span>
             <small>{schedule.length} key date{schedule.length === 1 ? "" : "s"} · {scheduleExpanded ? "Hide schedule" : "View, edit or add a non-staff milestone (e.g. an invoice date)"}</small>
           </button>
-          {scheduleExpanded ? <button className="aps-secondary" onClick={saveSchedule}><Save size={13} /> Save schedule</button> : null}
         </div>
         {!scheduleExpanded ? <p className="aps-schedule-summary">Open the schedule to review key dates, linked staff, delivery status and Gantt progress.</p> : null}
         {scheduleExpanded ? <div className="aps-schedule-editor">
@@ -1534,8 +1477,9 @@ function ProjectDetail({
       </section>
 
       <ProjectGantt schedule={schedule} />
+      </> : null}
 
-      {(() => {
+      {activeStage === "review" ? (() => {
         const namedActivities = activities.filter((a) => (a.title || "").trim());
         const checks = [
           { label: "Deliverables Added", pass: deliverables.length > 0 },
@@ -1547,7 +1491,7 @@ function ProjectDetail({
         const totalBudget = allocations.reduce((sum, a) => sum + (Number(a.allocatedHours) || 0) * (Number(a.hourlyRate) || 0), 0);
 
         return (
-          <section className="aps-card" id="aps-section-review">
+          <section className="aps-card aps-stage-panel" id="aps-section-review">
             <div className="aps-card-head">
               <h2><ClipboardCheck size={16} /> Review &amp; Readiness</h2>
             </div>
@@ -1566,11 +1510,50 @@ function ProjectDetail({
               ))}
             </div>
             <p className="aps-note" style={{ marginTop: 12 }}>
-              This reflects what's genuinely recorded in the setup above — it isn't a separate approval step. Once ready, use "Confirm with SE" in Work Activities to notify staff and generate the tracker.
+              This reflects the saved project baseline. Submit it for Senior Ecologist review; staff notifications and the live tracker are enabled only after approval is recorded.
             </p>
           </section>
         );
-      })()}
+      })() : null}
+
+      <footer className="aps-stage-actions">
+        <button
+          type="button"
+          className="aps-secondary"
+          disabled={stageIndex === 0 || stageSaving || gateBusy}
+          onClick={() => goToStage(PROJECT_SETUP_STAGES[stageIndex - 1]?.key || "details")}
+        >
+          <ArrowLeft size={14} /> Previous stage
+        </button>
+        <div className="aps-stage-actions__right">
+          {activeStage !== "review" ? (
+            <>
+              <button type="button" className="aps-secondary" disabled={stageSaving || savingActivities} onClick={() => saveStage(false)}>
+                <Save size={14} /> {stageSaving ? "Saving…" : "Save progress"}
+              </button>
+              <button type="button" className="aps-primary" disabled={stageSaving || savingActivities} onClick={() => saveStage(true)}>
+                <CheckCircle2 size={14} /> {stageSaving ? "Saving…" : `Complete stage${nextStage ? " & continue" : ""}`}
+              </button>
+            </>
+          ) : project.activities_approval_status === "approved" ? (
+            <>
+              {onOpenTracker ? <button type="button" className="aps-primary" onClick={onOpenTracker}><ClipboardList size={14} /> Open live tracker</button> : null}
+              {onOpenCloseOut ? <button type="button" className="aps-secondary" onClick={() => onOpenCloseOut(project.name)}><ClipboardCheck size={14} /> Project close-out</button> : null}
+            </>
+          ) : project.activities_approval_status === "pending_se_review" ? (
+            <>
+              <button type="button" className="aps-secondary" disabled={gateBusy} onClick={() => runApprovalGate("reset")}>Return to draft</button>
+              <button type="button" className="aps-primary" disabled={gateBusy} onClick={() => runApprovalGate("approve")}>
+                <CheckCircle2 size={14} /> {gateBusy ? "Activating…" : "Record approval & activate"}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="aps-primary" disabled={gateBusy || !setupReadyForReview} onClick={() => runApprovalGate("request_review")}>
+              <ClipboardCheck size={14} /> {gateBusy ? "Submitting…" : "Submit for Senior Ecologist review"}
+            </button>
+          )}
+        </div>
+      </footer>
 
     </div>
   );

@@ -111,7 +111,7 @@ export async function POST(request, { params }) {
 
     const { data: updatedProject, error: approveError } = await access.admin
       .from("projects")
-      .update({ activities_approval_status: "approved", activities_approved_at: now, activities_approved_by: access.user.id })
+      .update({ activities_approval_status: "approved", activities_approved_at: now, activities_approved_by: access.user.id, status: "active", updated_at: now })
       .eq("id", projectId)
       .select("activities_approval_status, activities_approved_at")
       .single();

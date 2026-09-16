@@ -5171,7 +5171,7 @@ export default function OnboardingWorkbook() {
                   }
                   onClick={() => setProjectsSubview("setup")}
                 >
-                  Setup &amp; allocations
+                  Initiate &amp; plan
                 </button>
                 <button
                   role="tab"

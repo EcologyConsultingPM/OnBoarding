@@ -493,19 +493,19 @@ export default function AdminProjectTracker({
 
               <div className="apt-metrics">
                 <Metric
-                  label="Health"
-                  value={selected.health}
-                  tone={selected.health === "At Risk" ? "danger" : selected.health === "Watch" ? "gold" : "moss"}
+                  label="Budget remaining"
+                  value={money((selected.financials.overallBudget || 0) - (selected.financials.chargeOutSpend || 0))}
+                  tone={(selected.financials.overallBudget || 0) - (selected.financials.chargeOutSpend || 0) < 0 ? "danger" : "moss"}
                 />
                 <Metric
-                  label="Forecast at completion"
-                  value={selected.financials.forecastHours !== null ? hours(selected.financials.forecastHours) : "Not enough progress yet"}
-                  tone="gold"
+                  label="Hours remaining"
+                  value={hours((selected.financials.budgetHours || 0) - (selected.financials.usedHours || 0))}
+                  tone={(selected.financials.budgetHours || 0) - (selected.financials.usedHours || 0) < 0 ? "danger" : "moss"}
                 />
                 <Metric
-                  label="Variance"
-                  value={selected.financials.hoursVariance !== null ? `${selected.financials.hoursVariance > 0 ? "+" : ""}${hours(selected.financials.hoursVariance)}` : "—"}
-                  tone={selected.financials.hoursVariance !== null && selected.financials.hoursVariance > 0 ? "danger" : "moss"}
+                  label="Overall completion"
+                  value={`${selected.taskCompletion}%`}
+                  tone={selected.taskCompletion >= 100 ? "moss" : "gold"}
                 />
               </div>
 

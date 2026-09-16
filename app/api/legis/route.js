@@ -3,7 +3,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, week_of, status, summary, developments, actions_this_week, watchlist, no_material_change_categories, status_matrix, department_summaries, error_message, created_at, updated_at";
+const COLUMNS = "id, week_of, status, summary, developments, actions_this_week, watchlist, no_material_change_categories, status_matrix, department_summaries, created_at, updated_at";
 
 export async function GET(request) {
   try {
@@ -19,7 +19,9 @@ export async function GET(request) {
       return Response.json({ briefs: data || [] });
     }
 
-    const { data, error } = await access.admin.from("monday_briefs").select(COLUMNS).order("week_of", { ascending: false }).limit(1).maybeSingle();
+    // Staff should receive the latest usable briefing. Scheduler failures are
+    // operational/admin concerns and must not replace a valid prior briefing.
+    const { data, error } = await access.admin.from("monday_briefs").select(COLUMNS).eq("status", "ready").order("week_of", { ascending: false }).limit(1).maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ brief: data || null });
   } catch (error) {

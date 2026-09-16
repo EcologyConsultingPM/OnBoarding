@@ -214,9 +214,8 @@ export default function Legis({ compact = false }) {
     return (
       <div className="lg-empty">
         <Scale size={20} />
-        <strong>{brief?.status === "generating" ? "This week's briefing is being researched" : brief?.status === "failed" ? "This week's briefing failed to generate" : "No briefing yet"}</strong>
-        <span>{brief?.status === "generating" ? "Check back shortly — it's compiled every Monday morning." : brief?.status === "failed" ? "The deployment has been corrected. Run the scheduled Legis job again, then refresh this page." : "The first Legis briefing will appear here once generated."}</span>
-        {brief?.status === "failed" && brief.error_message ? <small>{brief.error_message}</small> : null}
+        <strong>No current briefing available</strong>
+        <span>The latest approved weekly briefing will appear here when available.</span>
       </div>
     );
   }
