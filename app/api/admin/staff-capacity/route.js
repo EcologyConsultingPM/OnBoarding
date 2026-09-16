@@ -1,5 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
-import { canAccessPortalResource, requirePortalResource } from "../../../../lib/portalVisibility";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../../lib/staffDirectory";
 
 export const runtime = "nodejs";
@@ -325,11 +325,12 @@ export async function GET(request) {
     const rangeStart = requestedStart || new Date().toISOString().slice(0, 10);
     const rangeEnd = requestedEnd || addDays(rangeStart, 27);
     if (!validRange(rangeStart, rangeEnd)) return Response.json({ error: "Choose a valid period of up to 12 months." }, { status: 400 });
-    const [data, canEdit] = await Promise.all([
-      capacityData(access, rangeStart, rangeEnd),
-      canAccessPortalResource(access, "admin.staff_capacity.edit"),
-    ]);
-    return Response.json({ ...data, canEdit });
+    const data = await capacityData(access, rangeStart, rangeEnd);
+    // Opening this route already requires the Staff Capacity Planner admin
+    // domain. All authenticated administrators can allocate project work from
+    // its calendar; a stale optional visibility override must not make the
+    // planner appear editable while blocking all assignment actions.
+    return Response.json({ ...data, canEdit: access.isAdmin === true });
   } catch (error) {
     return serverError(error);
   }
@@ -339,8 +340,7 @@ export async function POST(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(access, "admin.staff_capacity.edit");
-    if (denied) return denied;
+    if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
     const body = await request.json();
     const userId = String(body?.userId || "");
     const weeklyCapacityHours = Number(body?.weeklyCapacityHours);

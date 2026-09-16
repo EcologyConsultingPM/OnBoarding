@@ -270,6 +270,26 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     }
   };
 
+  const beginActivityDrag = (dragEvent, activity) => {
+    // Chrome requires populated transfer data before it consistently treats a
+    // button as draggable. Keep a native id as a fallback if React state is
+    // refreshed between dragstart and drop.
+    dragEvent.dataTransfer.effectAllowed = "move";
+    dragEvent.dataTransfer.setData("text/plain", String(activity.id || ""));
+    dragEvent.dataTransfer.setData("application/x-ecology-activity", JSON.stringify(activity));
+    setDraggedActivity(activity);
+  };
+
+  const activityFromDrop = (dragEvent) => {
+    if (draggedActivity) return draggedActivity;
+    try {
+      const raw = dragEvent.dataTransfer.getData("application/x-ecology-activity");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    const id = dragEvent.dataTransfer.getData("text/plain");
+    return (data?.calendarEvents || []).find((activity) => activity.id === id) || null;
+  };
+
   // Dragging is the fast planning path: move an activity to a person's row
   // and a new date in one gesture. The click/double-click editor remains the
   // detailed path for reviewing hours, category and activity instructions.
@@ -380,22 +400,27 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     <section className={`scp${compact ? " scp--compact" : ""}`} aria-label="Staff Capacity Planner">
       <style>{`
         .scp-modal-backdrop { position: fixed; inset: 0; background: rgba(8,17,13,.55); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
-        .scp-modal { background: #fdfbf6; border-radius: 14px; padding: 22px; width: 100%; max-width: 420px; box-shadow: 0 30px 60px -20px rgba(6,18,12,.5); }
+        .scp-modal { background: #fdfbf6; border-radius: 14px; padding: 22px; width: 100%; max-width: 560px; box-shadow: 0 30px 60px -20px rgba(6,18,12,.5); }
         .scp-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
         .scp-modal-head span { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #6b755f; }
         .scp-modal-head h3 { margin: 4px 0 0; font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 19px; color: #12211a; }
         .scp-modal-head button { background: none; border: none; color: #8a927c; cursor: pointer; padding: 4px; }
         .scp-modal p { font-size: 13px; line-height: 1.55; color: #3a4740; margin: 0 0 14px; }
         .scp-modal-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: #3a4740; margin-bottom: 12px; }
-        .scp-modal-field input, .scp-modal-field select { font-family: inherit; font-weight: 400; font-size: 13.5px; border: 1px solid #cdd8c6; border-radius: 8px; padding: 9px 11px; }
+        .scp-modal-field input, .scp-modal-field select, .scp-modal-field textarea { width: 100%; box-sizing: border-box; font-family: inherit; font-weight: 400; font-size: 13.5px; border: 1px solid #cdd8c6; border-radius: 8px; padding: 9px 11px; color: #1c3023; background: #fff; }
+        .scp-modal-field textarea { resize: vertical; min-height: 76px; }
         .scp-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .scp-modal-context { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
+        .scp-modal-context div { min-width: 0; border: 1px solid #dce4d8; border-radius: 7px; padding: 7px 9px; background: #f5f9f1; }
+        .scp-modal-context span { display: block; margin-bottom: 2px; color: #6b755f; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+        .scp-modal-context strong { display: block; overflow: hidden; color: #173523; font-size: 12px; line-height: 1.32; text-overflow: ellipsis; white-space: nowrap; }
         .scp-modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; }
         .scp-modal-delete { display: inline-flex; align-items: center; gap: 6px; background: #fef4f2; color: #a5342a; border: 1px solid rgba(196,69,58,.3); border-radius: 8px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .scp-modal-save { display: inline-flex; align-items: center; gap: 6px; background: #1f5a34; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; margin-left: auto; }
         .scp-modal-save:disabled { opacity: .6; cursor: not-allowed; }
         .scp-success { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #2c6a34; background: #eef6ea; border: 1px solid rgba(44,106,52,.25); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
         @media (max-width: 640px) {
-          .scp-modal-row { grid-template-columns: 1fr; }
+          .scp-modal-row, .scp-modal-context { grid-template-columns: 1fr; }
         }
       `}</style>
       <header className="scp-head">
@@ -486,8 +511,8 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     {calendarDays.map((day) => {
                       const events = day.events.filter((event) => event.staffUserId === person.id);
                       const canReceiveDrop = mode !== "staff" && data.canEdit;
-                      return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop && draggedActivity) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(draggedActivity, person.id, day.date); }}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (!manageable) return; dragEvent.dataTransfer.effectAllowed = "move"; setDraggedActivity(event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
+                      return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(activityFromDrop(event), person.id, day.date); }}>
+                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
@@ -503,7 +528,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           key={event.id}
                           draggable={manageable && mode !== "staff" && data.canEdit}
                           title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — click for details, or drag onto a staff member and date`) : event.title}
-                          onDragStart={(dragEvent) => { if (!(manageable && mode !== "staff" && data.canEdit)) return; dragEvent.dataTransfer.effectAllowed = "move"; setDraggedActivity(event); }}
+                          onDragStart={(dragEvent) => { if (manageable && mode !== "staff" && data.canEdit) beginActivityDrag(dragEvent, event); }}
                           onDragEnd={() => setDraggedActivity(null)}
                           onDoubleClick={() => manageable && mode !== "staff" && openUnassignedModal(event)}
                           onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); else if (manageable && mode !== "staff") openUnassignedModal(event); }}
@@ -529,6 +554,12 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     </div>
                     {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
                     <p>Changes apply to this work activity. A linked auto-generated Gantt item is updated at the same time; manually created schedule phases are retained.</p>
+                    <div className="scp-modal-context">
+                      <div><span>Project</span><strong>{unassignedModal.projectName || "Project"}</strong></div>
+                      <div><span>Activity</span><strong>{unassignedModal.title || "Untitled activity"}</strong></div>
+                      <div><span>Category</span><strong>{unassignedModal.taskCategory || "Not categorised"}</strong></div>
+                      <div><span>Budgeted effort</span><strong>{unassignedModal.budgetHours === "" ? "Not set" : `${unassignedModal.budgetHours} hours`}</strong></div>
+                    </div>
                     <label className="scp-modal-field">
                       Title
                       <input value={unassignedModal.title} onChange={(event) => setUnassignedModal({ ...unassignedModal, title: event.target.value })} />
@@ -544,6 +575,11 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                         {(data.people || []).map((person) => <option key={person.id} value={person.id}>{person.name || person.email}</option>)}
                       </select>
                     </label>
+                    <div className="scp-modal-row">
+                      <label className="scp-modal-field">Work category<input value={unassignedModal.taskCategory} onChange={(event) => setUnassignedModal({ ...unassignedModal, taskCategory: event.target.value })} placeholder="e.g. Fieldwork & Travel" /></label>
+                      <label className="scp-modal-field">Budgeted hours<input type="number" min="0" step="0.25" value={unassignedModal.budgetHours} onChange={(event) => setUnassignedModal({ ...unassignedModal, budgetHours: event.target.value })} /></label>
+                    </div>
+                    <label className="scp-modal-field">Activity details<textarea rows={3} value={unassignedModal.detail} onChange={(event) => setUnassignedModal({ ...unassignedModal, detail: event.target.value })} placeholder="Scope, fieldwork instructions, handover requirements or dependencies" /></label>
                     <div className="scp-modal-actions">
                       <button type="button" className="scp-modal-delete" disabled={modalBusy} onClick={deleteUnassignedActivity}><Trash2 size={14} /> Delete</button>
                       <button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveUnassignedAssignment}>
