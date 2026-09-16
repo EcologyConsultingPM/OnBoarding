@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../../../../lib/serverAuth";
 import { generateTrackerFromActivities } from "../../tracker/auto-generate/route";
+import { TIME_CATEGORIES } from "../../../../../../lib/ecologicalWbs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -170,7 +171,7 @@ export async function POST(request, { params }) {
     // string-match the category already recorded on the activity, silently
     // misallocating hours_consumed to the wrong budget bucket on any
     // subsequent tracker regeneration.
-    const STANDARD_TRACKER_CATEGORIES = ["Desktop Assessment", "Client Information Review", "Field Plan", "GIS & Mapping", "Field Survey", "Targeted Survey", "Site Inspection", "Data Analysis", "Project Management", "Client Meeting", "Internal Meeting", "Review", "QA Review", "Reporting", "Deliverable Preparation", "Invoice", "Close-Out", "Other"];
+    const STANDARD_TRACKER_CATEGORIES = TIME_CATEGORIES;
     try {
       const generated = await generateTrackerFromActivities(access, projectId);
       if (generated.error && !generated.skipped) trackerWarning = generated.error;
