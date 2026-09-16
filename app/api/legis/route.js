@@ -3,7 +3,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, week_of, status, summary, developments, actions_this_week, watchlist, no_material_change_categories, status_matrix, department_summaries, created_at";
+const COLUMNS = "id, week_of, status, summary, developments, actions_this_week, watchlist, no_material_change_categories, status_matrix, department_summaries, error_message, created_at, updated_at";
 
 export async function GET(request) {
   try {

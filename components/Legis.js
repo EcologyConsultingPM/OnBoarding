@@ -214,8 +214,9 @@ export default function Legis({ compact = false }) {
     return (
       <div className="lg-empty">
         <Scale size={20} />
-        <strong>{brief?.status === "generating" ? "This week's briefing is being researched" : "No briefing yet"}</strong>
-        <span>{brief?.status === "generating" ? "Check back shortly — it's compiled every Monday morning." : "The first Legis briefing will appear here once generated."}</span>
+        <strong>{brief?.status === "generating" ? "This week's briefing is being researched" : brief?.status === "failed" ? "This week's briefing failed to generate" : "No briefing yet"}</strong>
+        <span>{brief?.status === "generating" ? "Check back shortly — it's compiled every Monday morning." : brief?.status === "failed" ? "The deployment has been corrected. Run the scheduled Legis job again, then refresh this page." : "The first Legis briefing will appear here once generated."}</span>
+        {brief?.status === "failed" && brief.error_message ? <small>{brief.error_message}</small> : null}
       </div>
     );
   }
@@ -257,6 +258,7 @@ export default function Legis({ compact = false }) {
         .lg-disclaimer { font-size: 10.5px; color: #6b7280; font-style: italic; margin: 6px 0 0; }
         .lg-loading, .lg-error { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #0F172A; padding: 16px; }
         .lg-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 30px 20px; color: #4b5563; }
+        .lg-empty small { max-width: 760px; color: #92400e; font-size: 11px; word-break: break-word; }
         .lg-matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0 16px; background: #fff; border-radius: 8px; overflow: hidden; }
         .lg-matrix th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: #4b5563; padding: 6px 10px; border-bottom: 1px solid #cbd0d8; }
         .lg-matrix td { padding: 6px 10px; border-bottom: 1px solid #eceff3; color: #0F172A; }
