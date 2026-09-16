@@ -5,7 +5,7 @@ set -euo pipefail
 # Do not commit .env.local or paste the service-role key into source files.
 
 cat > .env.local <<'EOF'
-NEXT_PUBLIC_SUPABASE_URL=https://mqgumjgotjiphfgqdyyl.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://qjsdglkipgncttztksxl.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=PASTE_YOUR_SUPABASE_ANON_KEY_HERE
 SUPABASE_SERVICE_ROLE_KEY=PASTE_YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE
 EOF
