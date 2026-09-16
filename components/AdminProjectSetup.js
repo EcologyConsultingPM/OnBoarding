@@ -1510,7 +1510,7 @@ function ProjectDetail({
               ))}
             </div>
             <p className="aps-note" style={{ marginTop: 12 }}>
-              This reflects the saved project baseline. Submit it for Senior Ecologist review; staff notifications and the live tracker are enabled only after approval is recorded.
+              This reflects the saved project baseline. Submit it for Senior Ecologist review when the readiness checks pass. An administrator may instead record a reasoned override for an accepted project; it activates the live tracker and sends each saved, assigned work activity to the relevant staff member immediately.
             </p>
           </section>
         );
@@ -1566,13 +1566,13 @@ function ProjectDetail({
               <button
                 type="button"
                 className="aps-secondary"
-                disabled={gateBusy || !setupReadyForReview}
+                disabled={gateBusy}
                 onClick={() => {
-                  const reason = window.prompt("Administrator override reason (recorded in the project approval audit trail):");
+                  const reason = window.prompt("Administrator override reason (recorded in the project approval audit trail). All saved assigned work activities will be sent to staff immediately:");
                   if (reason !== null) runApprovalGate("administrator_override", reason);
                 }}
               >
-                Administrator override
+                Override & activate
               </button>
             </>
           )}
