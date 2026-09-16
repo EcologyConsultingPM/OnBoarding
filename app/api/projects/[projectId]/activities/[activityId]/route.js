@@ -13,6 +13,7 @@ function dueDate(value) {
   const clean = String(value || "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : null;
 }
+const ACTIVITY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 function formatDueDate(value) {
   if (!value) return "";
   const date = new Date(`${value}T00:00:00`);
@@ -75,12 +76,26 @@ export async function PATCH(request, { params }) {
     if (body?.startDate !== undefined) patch.start_date = dueDate(body.startDate);
     if (body?.dueDate !== undefined) patch.due_date = dueDate(body.dueDate);
     if (body?.milestone !== undefined) patch.milestone = body.milestone === true;
+    if (body?.status !== undefined) {
+      const status = String(body.status || "");
+      if (!ACTIVITY_STATUSES.has(status)) return Response.json({ error: "Choose a valid delivery status." }, { status: 400 });
+      patch.status = status;
+      if (status === "completed") {
+        patch.progress_percent = 100;
+        patch.completed_at = now;
+      }
+    }
+    if (body?.progressPercent !== undefined && patch.status !== "completed") {
+      const progress = Number(body.progressPercent);
+      if (!Number.isFinite(progress) || progress < 0 || progress > 100) return Response.json({ error: "Progress must be between 0 and 100." }, { status: 400 });
+      patch.progress_percent = Math.round(progress * 100) / 100;
+    }
 
     const { data: updated, error: updateError } = await access.admin
       .from("project_activities")
       .update(patch)
       .eq("id", activityId)
-      .select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, acceptance_status, schedule_item_id")
+      .select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, progress_percent, acceptance_status, schedule_item_id")
       .single();
     if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
 
@@ -88,7 +103,7 @@ export async function PATCH(request, { params }) {
     // A manual Gantt phase may intentionally group several activities, so it
     // retains its independent title/dates and only activity-generated rows
     // receive the source activity's details.
-    if (updated.schedule_item_id && (body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined || body?.detail !== undefined || body?.milestone !== undefined)) {
+    if (updated.schedule_item_id && (body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined || body?.detail !== undefined || body?.milestone !== undefined || body?.status !== undefined || body?.progressPercent !== undefined)) {
       const { data: linkedSchedule, error: scheduleLookupError } = await access.admin
         .from("project_schedule_items")
         .select("id, generated_from_activity_id")
@@ -102,6 +117,8 @@ export async function PATCH(request, { params }) {
           start_date: updated.start_date || updated.due_date,
           end_date: updated.due_date || updated.start_date,
           milestone: updated.milestone === true,
+          status: updated.status,
+          progress_percent: updated.progress_percent,
           updated_at: now,
         }).eq("id", updated.schedule_item_id);
         if (scheduleUpdateError) return Response.json({ error: scheduleUpdateError.message }, { status: 400 });

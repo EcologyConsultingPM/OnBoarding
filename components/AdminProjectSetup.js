@@ -19,27 +19,12 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
+import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
 
-const TASK_CATEGORIES = [
-  "Desktop Assessment",
-  "Client Information Review",
-  "Field Plan",
-  "GIS & Mapping",
-  "Field Survey",
-  "Targeted Survey",
-  "Site Inspection",
-  "Data Analysis",
-  "Project Management",
-  "Client Meeting",
-  "Internal Meeting",
-  "Review",
-  "QA Review",
-  "Reporting",
-  "Deliverable Preparation",
-  "Invoice",
-  "Close-Out",
-  "Other",
-];
+// Activities are detailed WBS steps; staff record time only against these ten
+// consistent categories. This keeps the tracker usable across projects while
+// the generated activity title tells a worker exactly what the time relates to.
+const TASK_CATEGORIES = TIME_CATEGORIES;
 const BLANK_PROJECT = {
   name: "",
   clientName: "",
@@ -1207,7 +1192,7 @@ function ProjectDetail({
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <select value={quickAddTemplateId} onChange={(e) => setQuickAddTemplateId(e.target.value)} style={{ minWidth: 220 }}>
                 <option value="">Select a deliverable…</option>
-                {deliverableTemplates.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.standard_activities || []).length} activities)</option>)}
+                {deliverableTemplates.map((t) => <option key={t.id} value={t.id}>{t.name} ({wbsForDeliverable(t.code, t.standard_activities || []).length} activities)</option>)}
               </select>
               <input
                 type="text"
@@ -1390,13 +1375,27 @@ function ProjectDetail({
               {row.responseNote ? <small>Latest response: {row.responseNote}</small> : null}
               <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
               <label className="aps-check"><input type="checkbox" checked={row.milestone === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone (shown as a diamond on the Gantt)</label>
+              {row.status !== "completed" ? <button
+                type="button"
+                className="aps-secondary"
+                onClick={async () => {
+                  if (!row.id || !window.confirm(`Mark "${row.title || "this activity"}" complete? This retains the activity and its tracker history.`)) return;
+                  try {
+                    const res = await auth("PATCH", `/api/projects/${projectId}/activities/${row.id}`, { status: "completed" });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || "Could not complete this activity.");
+                    setActivities((current) => current.map((item, index) => index === i ? { ...item, status: "completed", progressPercent: 100 } : item));
+                    notify("Activity completed and linked schedule updated.");
+                  } catch (e) { fail(e); }
+                }}
+              ><Check size={13} /> Mark complete</button> : null}
             </div>
             </div>
             <button
               className="aps-remove"
               onClick={async () => {
                 if (row.id) {
-                  if (!window.confirm(`Delete "${row.title || "this activity"}"? This can't be undone.`)) return;
+                  if (!window.confirm(`Remove "${row.title || "this activity"}" from the active plan? Its unanswered assignment notification and standalone generated Gantt row will be withdrawn; retained history remains auditable.`)) return;
                   try {
                     const res = await auth("DELETE", `/api/projects/${projectId}/activities?id=${row.id}`);
                     const d = await res.json();

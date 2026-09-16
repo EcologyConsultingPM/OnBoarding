@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../../lib/serverAuth";
+import { activityDetail, activityHours, wbsForDeliverable } from "../../../../../lib/ecologicalWbs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,12 +73,21 @@ export async function POST(request, { params }) {
         .single();
       if (deliverableError) return jsonError(deliverableError.message);
 
-      const standardActivities = Array.isArray(template.standard_activities) ? template.standard_activities : [];
+      // The database template remains the fallback for custom or future service
+      // types.  The controlled ecological WBS adds activity detail and default
+      // hours for the core deliverables, while still leaving every generated row
+      // editable and removable by the project manager.
+      const standardActivities = wbsForDeliverable(
+        template.code,
+        Array.isArray(template.standard_activities) ? template.standard_activities : [],
+      );
       const activityRows = standardActivities.map((activity, index) => ({
         project_id: params.projectId,
         deliverable_id: deliverable.id,
         title: activity.title || activity.category || "Activity",
         task_category: activity.category || null,
+        detail: activityDetail(activity),
+        budget_hours: activityHours(activity),
         status: "not_commenced",
         acceptance_status: "awaiting_response",
         sort_order: index,
