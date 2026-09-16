@@ -11,10 +11,18 @@ function opt(v) { const t = typeof v === "string" ? v.trim() : ""; return t || n
 function num(v) { if (v === "" || v == null) return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
 function bool(v) { return v === true || v === "true"; }
 const ISSUED_QUOTE_WINDOW_DAYS = 30;
-
 function isoDateDaysAgo(days) {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
+  // Quote sent dates are business dates for Ecology Consulting in NSW/ACT.
+  // Vercel runs in UTC; using its calendar day hid a quote sent "today" until
+  // UTC reached midnight (late morning/afternoon in Sydney).
+  const fields = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type) => fields.find((part) => part.type === type)?.value;
+  const date = new Date(Date.UTC(Number(value("year")), Number(value("month")) - 1, Number(value("day"))));
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }

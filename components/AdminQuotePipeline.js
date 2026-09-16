@@ -25,11 +25,20 @@ const VIEWS = new Set(["pipeline", "drafts", "improvements", "governance"]);
 
 const QUOTE_WINDOW_DAYS = 30;
 const FOLLOW_UP_WARNING_DAY = 25;
+function sydneyToday() {
+  const fields = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type) => fields.find((part) => part.type === type)?.value;
+  return new Date(Date.UTC(Number(value("year")), Number(value("month")) - 1, Number(value("day"))));
+}
 function quoteAgeDays(quote) {
   if (!quote.sent_on) return null;
   const sentDate = new Date(`${quote.sent_on}T00:00:00.000Z`);
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const today = sydneyToday();
   if (Number.isNaN(sentDate.getTime())) return null;
   return Math.floor((today.getTime() - sentDate.getTime()) / 86400000);
 }
