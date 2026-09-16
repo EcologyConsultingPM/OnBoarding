@@ -1,4 +1,4 @@
-""use client";
+"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2, ListFilter, FilePlus2, Sparkles, ShieldCheck } from "lucide-react";
