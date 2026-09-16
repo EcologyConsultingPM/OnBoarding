@@ -1,4 +1,4 @@
-"use client";
+""use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { TrendingUp, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2, Link2, ListFilter, FilePlus2, Sparkles, ShieldCheck } from "lucide-react";
@@ -36,6 +36,26 @@ function quoteAgeDays(quote) {
 function followUpDue(quote) {
   const age = quoteAgeDays(quote);
   return quote.status === "pending" && !quote.superseded && age != null && age >= FOLLOW_UP_WARNING_DAY && age <= QUOTE_WINDOW_DAYS;
+}
+
+function EditRow({ f, set, canSeeFinancials }) {
+  const isSuperseded = f.superseded === true;
+  return <>
+    <input placeholder="Client" value={f.client} onChange={(e) => set({ ...f, client: e.target.value })} />
+    <input placeholder="Project" value={f.project} onChange={(e) => set({ ...f, project: e.target.value })} />
+    {canSeeFinancials ? <input placeholder="Quote total" value={f.quoteTotal} onChange={(e) => set({ ...f, quoteTotal: e.target.value })} /> : null}
+    <input placeholder="Project folder link (URL)" value={f.projectFolderLink} onChange={(e) => set({ ...f, projectFolderLink: e.target.value })} />
+    <input placeholder="Quote link (URL)" value={f.quoteLink} onChange={(e) => set({ ...f, quoteLink: e.target.value })} />
+    <input placeholder="Hyperlink (URL)" value={f.hyperlink} onChange={(e) => set({ ...f, hyperlink: e.target.value })} />
+    <label className="qp-check"><input type="checkbox" checked={f.initialSent} onChange={(e) => set({ ...f, initialSent: e.target.checked })} /> Sent</label>
+    <input type="date" value={f.sentOn} onChange={(e) => set({ ...f, sentOn: e.target.value })} title="Sent on (follow-up auto-sets to +7 days)" />
+    <input type="date" value={f.followUpOn} onChange={(e) => set({ ...f, followUpOn: e.target.value })} title="Follow-up" />
+    <select value={f.status} onChange={(e) => set({ ...f, status: e.target.value })}>{STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
+    <input placeholder="Comments" value={f.comments} onChange={(e) => set({ ...f, comments: e.target.value })} />
+    <label className="qp-check"><input type="checkbox" checked={f.fullyInvoiced} onChange={(e) => set({ ...f, fullyInvoiced: e.target.checked })} /> Invoiced</label>
+    <label className="qp-check qp-super"><input type="checkbox" checked={isSuperseded} onChange={(e) => set({ ...f, superseded: e.target.checked })} /> Superseded</label>
+    {isSuperseded ? <input placeholder="Superseded by / note" value={f.supersededNote} onChange={(e) => set({ ...f, supersededNote: e.target.value })} /> : null}
+  </>;
 }
 
 export default function AdminQuotePipeline() {
@@ -140,26 +160,6 @@ export default function AdminQuotePipeline() {
     return sortQuotes(quotes.filter(matchesFilters));
   }, [quotes, matchesFilters, sortQuotes]);
   const visibleQuotes = activeQuotes;
-
-  const EditRow = ({ f, set, canSeeFinancials }) => {
-    const isSuperseded = f.superseded === true;
-    return <>
-      <input placeholder="Client" value={f.client} onChange={(e) => set({ ...f, client: e.target.value })} />
-      <input placeholder="Project" value={f.project} onChange={(e) => set({ ...f, project: e.target.value })} />
-      {canSeeFinancials ? <input placeholder="Quote total" value={f.quoteTotal} onChange={(e) => set({ ...f, quoteTotal: e.target.value })} /> : null}
-      <input placeholder="Project folder link (URL)" value={f.projectFolderLink} onChange={(e) => set({ ...f, projectFolderLink: e.target.value })} />
-      <input placeholder="Quote link (URL)" value={f.quoteLink} onChange={(e) => set({ ...f, quoteLink: e.target.value })} />
-      <input placeholder="Hyperlink (URL)" value={f.hyperlink} onChange={(e) => set({ ...f, hyperlink: e.target.value })} />
-      <label className="qp-check"><input type="checkbox" checked={f.initialSent} onChange={(e) => set({ ...f, initialSent: e.target.checked })} /> Sent</label>
-      <input type="date" value={f.sentOn} onChange={(e) => set({ ...f, sentOn: e.target.value })} title="Sent on (follow-up auto-sets to +7 days)" />
-      <input type="date" value={f.followUpOn} onChange={(e) => set({ ...f, followUpOn: e.target.value })} title="Follow-up" />
-      <select value={f.status} onChange={(e) => set({ ...f, status: e.target.value })}>{STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
-      <input placeholder="Comments" value={f.comments} onChange={(e) => set({ ...f, comments: e.target.value })} />
-      <label className="qp-check"><input type="checkbox" checked={f.fullyInvoiced} onChange={(e) => set({ ...f, fullyInvoiced: e.target.checked })} /> Invoiced</label>
-      <label className="qp-check qp-super"><input type="checkbox" checked={isSuperseded} onChange={(e) => set({ ...f, superseded: e.target.checked })} /> Superseded</label>
-      {isSuperseded ? <input placeholder="Superseded by / note" value={f.supersededNote} onChange={(e) => set({ ...f, supersededNote: e.target.value })} /> : null}
-    </>;
-  };
 
   const renderRow = (q) => editingId === q.id ? (
     <tr key={q.id} className="qp-editing">
