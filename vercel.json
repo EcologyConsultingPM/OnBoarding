@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/jobs/legis-brief",
-      "schedule": "0 18 * * 0"
+      "schedule": "0 22 * * 0"
     }
   ]
 }
