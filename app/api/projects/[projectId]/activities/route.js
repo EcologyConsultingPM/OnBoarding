@@ -30,7 +30,7 @@ function percent(value) {
 }
 
 function validId(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(String(value || ""));
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
 function isConnectedSchemaError(error) {
@@ -89,13 +89,22 @@ function formatDueDate(value) {
 }
 
 async function loadProject(access, projectId) {
-  const { data, error } = await access.admin.from("projects").select("id, name, created_by").eq("id", projectId).maybeSingle();
+  const { data, error } = await access.admin.from("projects").select("id, name, created_by, status, activities_approval_status, deleted_at").eq("id", projectId).maybeSingle();
   if (error) throw new Error(error.message);
   return data || null;
 }
 
 async function canReadProject(access, projectId, staffWorkspace = false) {
   if (access.isAdmin && !staffWorkspace) return true;
+  const { data: liveProject, error: projectError } = await access.admin
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (projectError) throw new Error(projectError.message);
+  if (!liveProject) return false;
   const [allocationResult, activityResult] = await Promise.all([
     access.admin.from("project_allocations").select("id").eq("project_id", projectId).eq("staff_user_id", access.user.id).neq("active", false).limit(1),
     access.admin.from("project_activities").select("id").eq("project_id", projectId).eq("staff_user_id", access.user.id).eq("is_active", true).limit(1),
@@ -110,12 +119,9 @@ async function canReadProject(access, projectId, staffWorkspace = false) {
   return Boolean((allocationResult.data || []).length || (activityResult.data || []).length);
 }
 
-// DEAD CODE as of 3f4a0de ("Remove notifications on activity save"): this is
-// no longer called from anywhere. The approval endpoint has its own inline
-// emitter. Kept only because it documents the historical behaviour that
-// produced the duplicate notifications now being cleaned up — see
-// sql/2026-09-10-notification-integrity.sql. Safe to delete once that
-// migration has run in production.
+// This emitter is used only after the original approval gate has been passed:
+// later activity creation/reassignment must notify the new assignee without
+// asking administrators to approve the already-active project again.
 async function createAssignmentEvents(admin, project, activities) {
   const events = activities
     .filter((activity) => activity.staff_user_id)
@@ -123,8 +129,8 @@ async function createAssignmentEvents(admin, project, activities) {
       recipient_id: activity.staff_user_id,
       event_type: "project_activity_assigned",
       severity: "action_required",
-      title: "Project activity awaiting acceptance",
-      body: `${project.name}: ${activity.title}${formatDueDate(activity.due_date)}`,
+      title: `Work assignment: ${activity.title}`,
+      body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${formatDueDate(activity.due_date)}`,
       href: "/staff/notifications",
       source_table: "project_activities",
       source_id: activity.id,
@@ -359,11 +365,22 @@ export async function PUT(request, { params }) {
       if (updateScheduleError) return Response.json({ error: updateScheduleError.message }, { status: 400 });
     }
 
-    // Notifications no longer fire here. Saving activities is a draft step —
-    // staff are only notified once an admin explicitly records SE approval
-    // via POST .../activities/approval. See createAssignmentEvents below,
-    // now called from that endpoint instead of from every save.
-    return Response.json({ success: true, count: persisted.length, activities: persisted, notified: 0, event_warning: null });
+    // Draft setup remains behind the Senior Ecologist gate. Once the project is
+    // already approved and active, however, a newly created or reassigned item
+    // must reach the new assignee immediately; requiring an impossible second
+    // approval left later assignments permanently silent.
+    let eventWarning = null;
+    let notified = 0;
+    if (project.activities_approval_status === "approved" && project.status === "active" && !project.deleted_at && createdOrReassigned.length) {
+      eventWarning = await createAssignmentEvents(access.admin, project, createdOrReassigned);
+      if (!eventWarning) {
+        const notifiedIds = createdOrReassigned.map((activity) => activity.id);
+        const { error: markError } = await access.admin.from("project_activities").update({ notified_at: now }).in("id", notifiedIds);
+        eventWarning = markError?.message || null;
+        notified = markError ? 0 : notifiedIds.length;
+      }
+    }
+    return Response.json({ success: true, count: persisted.length, activities: persisted, notified, event_warning: eventWarning });
   } catch (error) {
     return serverError(error);
   }

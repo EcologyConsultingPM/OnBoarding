@@ -8,6 +8,26 @@ function jsonError(error, status = 400) {
   return Response.json({ error }, { status });
 }
 
+const ENTRY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
+function validId(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "")); }
+function text(value, maximum = 5000) { return typeof value === "string" ? value.trim().slice(0, maximum) : ""; }
+function validHours(value) { const result = Number(value); return Number.isFinite(result) && result >= 0 && result <= 24 ? result : null; }
+
+async function refreshAllocation(access, projectId, allocationId) {
+  const [{ data: rows, error: rowsError }, { data: rates }, { data: project }] = await Promise.all([
+    access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000),
+    access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
+    access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle(),
+  ]);
+  if (rowsError) throw new Error(rowsError.message);
+  const rateByStaff = new Map((rates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
+  const defaultRate = Number(project?.default_hourly_rate) || 0;
+  const hoursConsumed = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
+  const chargeOutSpend = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0) * (rateByStaff.get(row.staff_user_id) ?? defaultRate), 0);
+  const { error } = await access.admin.from("project_budget_allocations").update({ hours_consumed: hoursConsumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, updated_by: access.user.id, updated_at: new Date().toISOString() }).eq("id", allocationId).eq("project_id", projectId);
+  if (error) throw new Error(error.message);
+}
+
 // Staff eligible to have an entry logged on their behalf for this project:
 // anyone with an active allocation on it, regardless of whether they have
 // any tracker entries yet — that's the whole point, they're missing one.
@@ -66,6 +86,102 @@ export async function POST(request) {
     const result = await createTrackerEntry(access, body, staffUserId);
     if (result.error) return jsonError(result.error, result.status || 400);
     return Response.json(result, { status: 201 });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Admin access required.", 403);
+    const body = await request.json();
+    const id = String(body?.id || "");
+    if (!validId(id)) return jsonError("A valid tracker entry is required.");
+
+    const { data: current, error: currentError } = await access.admin
+      .from("project_tracker_entries")
+      .select("id, project_id, budget_allocation_id, activity_id, staff_user_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) return jsonError(currentError.message);
+    if (!current) return jsonError("Tracker entry not found.", 404);
+
+    const workDate = text(body.workDate, 10);
+    const activityCategory = text(body.activityCategory, 120);
+    const activityInformation = text(body.activityInformation, 5000);
+    const notableIssues = text(body.notableIssues, 5000);
+    const amount = validHours(body.hours);
+    const status = String(body.status || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !ENTRY_STATUSES.has(status)) {
+      return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
+    }
+    if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
+
+    const now = new Date().toISOString();
+    const { data: entry, error } = await access.admin.from("project_tracker_entries").update({
+      work_date: workDate,
+      activity_category: activityCategory,
+      activity_information: activityInformation,
+      hours: amount,
+      status,
+      notable_issues: notableIssues || null,
+      updated_at: now,
+    }).eq("id", id).select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, updated_at").single();
+    if (error) return jsonError(error.message);
+
+    await refreshAllocation(access, current.project_id, current.budget_allocation_id);
+    if (current.activity_id) {
+      await access.admin.from("project_activities").update({ status, progress_percent: status === "completed" ? 100 : undefined, updated_at: now }).eq("id", current.activity_id);
+    }
+    await access.admin.from("portal_events").insert({
+      recipient_id: current.staff_user_id,
+      event_type: "project_tracker_entry_updated",
+      severity: "information",
+      title: "Project Tracker entry updated",
+      body: `${activityCategory} · ${amount} hours · ${workDate}. An administrator corrected this entry.`,
+      href: "/?portal=staff&area=projecttracker",
+      source_table: "project_tracker_entries",
+      source_id: id,
+    });
+    return Response.json({ entry });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const access = await requireSession(request);
+    if (access.error) return access.error;
+    if (!access.isAdmin) return jsonError("Admin access required.", 403);
+    const id = String(new URL(request.url).searchParams.get("id") || "");
+    if (!validId(id)) return jsonError("A valid tracker entry is required.");
+
+    const { data: current, error: currentError } = await access.admin
+      .from("project_tracker_entries")
+      .select("id, project_id, budget_allocation_id, staff_user_id, activity_category, hours, work_date")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentError) return jsonError(currentError.message);
+    if (!current) return jsonError("Tracker entry not found.", 404);
+
+    const { error } = await access.admin.from("project_tracker_entries").delete().eq("id", id);
+    if (error) return jsonError(error.message);
+    await refreshAllocation(access, current.project_id, current.budget_allocation_id);
+    await access.admin.from("portal_events").update({ dismissed_at: new Date().toISOString() }).eq("source_table", "project_tracker_entries").eq("source_id", id).is("dismissed_at", null);
+    await access.admin.from("portal_events").insert({
+      recipient_id: current.staff_user_id,
+      event_type: "project_tracker_entry_deleted",
+      severity: "review",
+      title: "Project Tracker entry removed",
+      body: `${current.activity_category} · ${current.hours} hours · ${current.work_date}. An administrator removed this entry.`,
+      href: "/?portal=staff&area=projecttracker",
+      source_table: "project_tracker_entry_audit",
+      source_id: id,
+    });
+    return Response.json({ success: true, deleted: id });
   } catch (error) {
     return serverError(error);
   }

@@ -56,6 +56,7 @@ export async function PATCH(request, { params }) {
       if (staffUserId && staffUserId !== current.staff_user_id) {
         newlyAssignedTo = staffUserId;
         patch.acceptance_status = "awaiting_response";
+        patch.notified_at = null;
         patch.assigned_at = now;
         patch.assigned_by = access.user.id;
       }
@@ -101,13 +102,14 @@ export async function PATCH(request, { params }) {
         recipient_id: newlyAssignedTo,
         event_type: "project_activity_assigned",
         severity: "action_required",
-        title: "Project activity assigned",
-        body: `${project?.name || "A project"}: ${updated.title}${formatDueDate(updated.due_date)}`,
+        title: `Work assignment: ${updated.title}`,
+        body: `${project?.name || "A project"}${updated.task_category ? ` · ${updated.task_category}` : ""}${updated.budget_hours != null ? ` · ${updated.budget_hours} budgeted hours` : ""}${formatDueDate(updated.due_date)}`,
         href: "/staff/notifications",
         source_table: "project_activities",
         source_id: updated.id,
       });
       if (notifyError) notifyWarning = notifyError.message;
+      else await access.admin.from("project_activities").update({ notified_at: now }).eq("id", updated.id);
     }
 
     return Response.json({ activity: updated, notify_warning: notifyWarning });

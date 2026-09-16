@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
+import { normalisePreMobilisationDetails } from "../../../lib/preMobilisationChecklist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,13 +68,29 @@ export async function POST(request) {
     // submitting their own form from the staff-side forms page.
     const denied = await requirePortalResource(access, "staff.forms");
     if (denied) return denied;
-    const b = await request.json();
+    let b;
+    try {
+      b = await request.json();
+    } catch {
+      return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
     if (!FORM_TYPES.includes(b.form_type)) return Response.json({ error: "Invalid form type." }, { status: 400 });
-    const title = (b.title || "").toString().trim();
+    let title = (b.title || "").toString().trim();
     if (title.length < 2) return Response.json({ error: "A title is required." }, { status: 400 });
-    const site = (b.site || "").toString().trim() || null;
-    const formDate = b.form_date || null;
-    const details = b.details && typeof b.details === "object" ? b.details : {};
+    let site = (b.site || "").toString().trim() || null;
+    let formDate = b.form_date || null;
+    let details = b.details && typeof b.details === "object" ? b.details : {};
+    // EC-OPS-PMC-001 Rev 2 is a controlled document with a fixed row set and
+    // enumerations. Validate and reduce its stored JSON only for this form so
+    // established generic WHS form payloads remain backward compatible.
+    if (b.form_type === "pre_mobilisation") {
+      const checked = normalisePreMobilisationDetails(details);
+      if (checked.errors.length) return Response.json({ error: checked.errors.join(" ") }, { status: 400 });
+      details = checked.details;
+      title = `Pre-Mobilisation Checklist: ${details.metadata.project} — ${details.metadata.vehicleRegistration}`;
+      site = details.metadata.location;
+      formDate = details.metadata.date;
+    }
     const notifiableFlag = b.notifiable_flag === true;
     const submissionKey = makeSubmissionKey({
       createdBy: access.user.id,
@@ -103,6 +120,9 @@ export async function POST(request) {
       if (error.code === "23505" || String(error.message || "").includes("whs_forms_created_by_submission_key_uidx")) {
         const { data: existing } = await access.admin.from("whs_forms").select(COLUMNS).eq("created_by", access.user.id).eq("submission_key", submissionKey).maybeSingle();
         if (existing) return Response.json({ form: existing, duplicate: true }, { status: 200 });
+      }
+      if (b.form_type === "pre_mobilisation") {
+        return Response.json({ error: "The checklist could not be saved. Please try again or contact the Ecology Consulting Office." }, { status: 400 });
       }
       return Response.json({ error: error.message }, { status: 400 });
     }

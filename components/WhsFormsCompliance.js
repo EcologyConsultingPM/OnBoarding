@@ -23,6 +23,19 @@ const STATUS_STYLE = {
   archived: { bg: "#eef0e9", fg: "#6b755f", label: "Archived" },
 };
 
+function detailSummary(details) {
+  return Object.entries(details || {})
+    .filter(([key, value]) => value !== "" && value !== null && value !== undefined && !/signature/i.test(key))
+    .slice(0, 10)
+    .map(([key, value]) => {
+      if (Array.isArray(value)) return `${key.replaceAll("_", " ")}: ${value.length} record${value.length === 1 ? "" : "s"}`;
+      if (typeof value === "object") return `${key.replaceAll("_", " ")}: recorded`;
+      const safe = String(value).slice(0, 160);
+      return `${key.replaceAll("_", " ")}: ${safe}`;
+    })
+    .join(" · ");
+}
+
 export default function WhsFormsCompliance() {
   const { session } = useAuth();
   const [forms, setForms] = useState([]);
@@ -98,7 +111,7 @@ export default function WhsFormsCompliance() {
       <div className="wfc-list">
         {visible.length ? visible.map((f) => {
           const st = STATUS_STYLE[f.status] || STATUS_STYLE.submitted;
-          const details = Object.entries(f.details || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(" · ");
+          const details = detailSummary(f.details);
           return (
             <div key={f.id} className={`wfc-card ${f.notifiable_flag ? "notifiable" : ""}`}>
               <div className="wfc-card-top">

@@ -63,9 +63,14 @@ export async function GET(request) {
     const denied = await requirePortalResource(access, "staff.projects.activities");
     if (denied) return denied;
 
-    const { data: archivedProjects, error: archivedError } = await access.admin.from("projects").select("id").eq("status", "archived");
-    if (archivedError) return Response.json({ error: archivedError.message }, { status: 400 });
-    const archivedIds = new Set((archivedProjects || []).map((p) => p.id));
+    const { data: activeProjects, error: activeError } = await access.admin
+      .from("projects")
+      .select("id")
+      .eq("status", "active")
+      .is("deleted_at", null);
+    if (activeError) return Response.json({ error: activeError.message }, { status: 400 });
+    const activeIds = (activeProjects || []).map((project) => project.id);
+    if (!activeIds.length) return Response.json({ activities: [] });
 
     let query = access.admin
       .from("project_activities")
@@ -73,9 +78,9 @@ export async function GET(request) {
       .eq("staff_user_id", access.user.id)
       .eq("is_active", true)
       .neq("acceptance_status", "declined")
+      .in("project_id", activeIds)
       .order("due_date", { ascending: true, nullsFirst: false })
       .limit(200);
-    if (archivedIds.size) query = query.not("project_id", "in", `(${[...archivedIds].join(",")})`);
 
     const { data, error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -135,6 +140,17 @@ export async function PATCH(request) {
     }
     if (!access.isAdmin && existing.staff_user_id !== access.user.id) return Response.json({ error: "You can update only your own project activities." }, { status: 403 });
     if (existing.locked && !access.isAdmin) return Response.json({ error: "This activity is locked for project-lead review." }, { status: 409 });
+    if (!access.isAdmin) {
+      const { data: liveProject, error: projectError } = await access.admin
+        .from("projects")
+        .select("id")
+        .eq("id", existing.project_id)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (projectError) return Response.json({ error: projectError.message }, { status: 400 });
+      if (!liveProject) return Response.json({ error: "This project is no longer active." }, { status: 410 });
+    }
 
     const now = new Date().toISOString();
     const values = { updated_at: now };

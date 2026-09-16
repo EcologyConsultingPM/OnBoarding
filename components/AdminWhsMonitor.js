@@ -34,7 +34,7 @@ export default function AdminWhsMonitor() {
   const sortedPeople = [...people].sort((a, b) => {
     if (personSort === "name") return (a.email || "").localeCompare(b.email || "");
     if (personSort === "approved") return b.approved - a.approved;
-    return (b.drafts + b.talks + b.incidents) - (a.drafts + a.talks + a.incidents);
+    return (b.drafts + b.talks + b.incidents + (b.firstAid || 0)) - (a.drafts + a.talks + a.incidents + (a.firstAid || 0));
   });
 
   return (
@@ -49,6 +49,7 @@ export default function AdminWhsMonitor() {
         <div className="wm-sum"><div className="wm-sum-v">{summary.totalDrafts}</div><div className="wm-sum-l">Controlled drafts</div></div>
         <div className="wm-sum"><div className="wm-sum-v">{summary.totalTalks}</div><div className="wm-sum-l">Toolbox talks</div></div>
         <div className="wm-sum"><div className="wm-sum-v">{summary.totalIncidents}</div><div className="wm-sum-l">Incident reports</div></div>
+        <div className="wm-sum"><div className="wm-sum-v">{summary.totalFirstAid || 0}</div><div className="wm-sum-l">First aid checks</div></div>
         <div className="wm-sum"><div className="wm-sum-v" style={{ color: summary.awaitingReview ? "#b08948" : "#2c6a34" }}>{summary.awaitingReview}</div><div className="wm-sum-l">Awaiting review</div></div>
       </div>
 
@@ -103,7 +104,7 @@ export default function AdminWhsMonitor() {
         {people.length ? (
           <div className="wm-table-wrap">
             <table className="wm-table">
-              <thead><tr><th>Team member</th><th>Drafts</th><th>Toolbox talks</th><th>Incidents</th><th>Approved</th></tr></thead>
+              <thead><tr><th>Team member</th><th>Drafts</th><th>Toolbox talks</th><th>Incidents</th><th>First aid</th><th>Approved / clear</th></tr></thead>
               <tbody>
                 {people.map((p) => (
                   <tr key={p.email}>
@@ -111,6 +112,7 @@ export default function AdminWhsMonitor() {
                     <td>{p.drafts}</td>
                     <td>{p.talks}</td>
                     <td>{p.incidents}</td>
+                    <td>{p.firstAid || 0}</td>
                     <td><span className="wm-approved">{p.approved}</span></td>
                   </tr>
                 ))}

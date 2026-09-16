@@ -77,7 +77,7 @@ export async function POST(request, { params }) {
 
     const { data: pendingActivities, error: activitiesError } = await access.admin
       .from("project_activities")
-      .select("id, title, due_date, staff_user_id")
+      .select("id, title, detail, task_category, budget_hours, start_date, due_date, staff_user_id")
       .eq("project_id", projectId)
       .eq("is_active", true)
       .not("staff_user_id", "is", null)
@@ -88,12 +88,11 @@ export async function POST(request, { params }) {
       recipient_id: activity.staff_user_id,
       event_type: "project_activity_assigned",
       severity: "action_required",
-      title: "Project activity awaiting acceptance",
-      body: `${project.name}: ${activity.title}${formatDueDate(activity.due_date)}`,
-      // Was "/staff/notifications" — the page the card is already on, so
-      // clicking a notification hard-reloaded the same page and appeared to do
-      // nothing. Deep-link to the activity instead.
-      href: `/staff/projects?activity=${activity.id}`,
+      title: `Work assignment: ${activity.title}`,
+      body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${formatDueDate(activity.due_date)}`,
+      // A self-link intentionally expands the full assignment card in the
+      // Notifications portal (project, dates, hours, category and detail).
+      href: "/staff/notifications",
       source_table: "project_activities",
       source_id: activity.id,
     }));

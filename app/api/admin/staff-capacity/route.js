@@ -145,7 +145,11 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   // toward their workload — an assignment still sitting in
   // "awaiting_response" (SE-approved and notified, but not yet actioned by
   // the person) doesn't consume capacity or appear on the calendar yet.
-  const activities = (activitiesResult.data || []).filter((activity) => activity.staff_user_id && ["accepted", "actioned", "completed"].includes(activity.acceptance_status));
+  const activities = (activitiesResult.data || []).filter((activity) =>
+    activity.staff_user_id &&
+    projectById.has(activity.project_id) &&
+    ["accepted", "actioned", "completed"].includes(activity.acceptance_status),
+  );
   const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
   const leaves = (leavesResult.data || []).map((record) => ({
     ...record,

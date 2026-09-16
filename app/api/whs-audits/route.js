@@ -46,7 +46,7 @@ export async function POST(request) {
         severity: b.outcome === "fail" ? "action_required" : "information",
         title: b.outcome === "fail" ? "WHS audit failed — corrective action required" : "WHS audit completed with actions",
         body: hasCorrective ? `${updatedForm.title || "Your submission"}: ${(b.corrective_action || "").toString().trim()}` : `${updatedForm.title || "Your submission"} has been audited.`,
-        href: "/staff/whs-forms",
+        href: "/?portal=staff&area=forms",
         source_table: "whs_audits",
         source_id: data.id,
       });

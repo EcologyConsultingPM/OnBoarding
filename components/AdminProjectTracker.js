@@ -104,6 +104,8 @@ export default function AdminProjectTracker({
   const [missedEntryLoading, setMissedEntryLoading] = useState(false);
   const [missedEntrySaving, setMissedEntrySaving] = useState(false);
   const [missedEntryError, setMissedEntryError] = useState("");
+  const [entryEditor, setEntryEditor] = useState(null);
+  const [entryMutationBusy, setEntryMutationBusy] = useState("");
   const [missedEntryForm, setMissedEntryForm] = useState({
     staffUserId: "", sourceId: "", allocationId: "", activityId: "",
     workDate: "", activityCategory: "", activityInformation: "",
@@ -186,6 +188,59 @@ export default function AdminProjectTracker({
       setMissedEntryError(e.message || "Could not save this entry.");
     } finally {
       setMissedEntrySaving(false);
+    }
+  };
+
+  const editEntry = (entry) => {
+    setEntryEditor({
+      id: entry.id,
+      staffName: entry.staff_name,
+      workDate: entry.work_date || "",
+      activityCategory: entry.activity_category || "",
+      activityInformation: entry.activity_information || "",
+      hours: entry.hours ?? "",
+      status: entry.status || "active",
+      notableIssues: entry.notable_issues || "",
+    });
+  };
+
+  const saveEntryEdit = async () => {
+    if (!entryEditor) return;
+    setEntryMutationBusy(entryEditor.id);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/project-tracker-entries", {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify(entryEditor),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not update this tracker entry.");
+      setEntryEditor(null);
+      onToast?.("Tracker entry updated and the staff member notified.");
+      await load();
+    } catch (mutationError) {
+      setError(mutationError.message || "Could not update this tracker entry.");
+    } finally {
+      setEntryMutationBusy("");
+    }
+  };
+
+  const deleteEntry = async (entry) => {
+    if (!window.confirm(`Delete ${entry.staff_name}'s ${entry.activity_category} entry for ${entry.work_date}? This removes it from project totals and cannot be undone.`)) return;
+    setEntryMutationBusy(entry.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/project-tracker-entries?id=${entry.id}`, { method: "DELETE", headers: headers() });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not delete this tracker entry.");
+      if (entryEditor?.id === entry.id) setEntryEditor(null);
+      onToast?.("Tracker entry deleted, project totals recalculated and the staff member notified.");
+      await load();
+    } catch (mutationError) {
+      setError(mutationError.message || "Could not delete this tracker entry.");
+    } finally {
+      setEntryMutationBusy("");
     }
   };
 
@@ -951,6 +1006,27 @@ export default function AdminProjectTracker({
                             )}
                           </div>
                         ) : null}
+                        {entryEditor ? (
+                          <div className="apt-entry-editor" role="region" aria-label="Edit tracker entry">
+                            <div className="apt-entry-editor__head">
+                              <div><span className="apt-kicker">Administrator correction</span><h4>Edit {entryEditor.staffName}&apos;s entry</h4></div>
+                              <button type="button" className="aps-secondary" onClick={() => setEntryEditor(null)} disabled={Boolean(entryMutationBusy)}>Cancel</button>
+                            </div>
+                            <div className="apt-entry-editor__grid">
+                              <label>Work date<input type="date" value={entryEditor.workDate} onChange={(event) => setEntryEditor((current) => ({ ...current, workDate: event.target.value }))} /></label>
+                              <label>Activity category<input value={entryEditor.activityCategory} onChange={(event) => setEntryEditor((current) => ({ ...current, activityCategory: event.target.value }))} /></label>
+                              <label>Hours<input type="number" min="0" max="24" step="0.25" value={entryEditor.hours} onChange={(event) => setEntryEditor((current) => ({ ...current, hours: event.target.value }))} /></label>
+                              <label>Status<select value={entryEditor.status} onChange={(event) => setEntryEditor((current) => ({ ...current, status: event.target.value }))}>
+                                <option value="not_commenced">Not commenced</option><option value="active">Active</option><option value="need_info">Information required</option><option value="paused_other">Paused</option><option value="qa_review">QA review</option><option value="completed">Completed</option>
+                              </select></label>
+                              <label className="apt-entry-editor__wide">Description<textarea rows={3} value={entryEditor.activityInformation} onChange={(event) => setEntryEditor((current) => ({ ...current, activityInformation: event.target.value }))} /></label>
+                              <label className="apt-entry-editor__wide">Notable issues<textarea rows={2} value={entryEditor.notableIssues} onChange={(event) => setEntryEditor((current) => ({ ...current, notableIssues: event.target.value }))} /></label>
+                            </div>
+                            <button type="button" className="aps-primary" disabled={Boolean(entryMutationBusy) || !entryEditor.workDate || !entryEditor.activityCategory.trim() || !entryEditor.activityInformation.trim() || entryEditor.hours === ""} onClick={saveEntryEdit}>
+                              <CheckCircle2 size={14} /> {entryMutationBusy ? "Saving correction…" : "Save corrected entry"}
+                            </button>
+                          </div>
+                        ) : null}
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                           <select value={entryStaffFilter} onChange={(e) => setEntryStaffFilter(e.target.value)}>
                             <option value="all">All staff</option>
@@ -982,6 +1058,7 @@ export default function AdminProjectTracker({
                                   <th style={{ padding: "6px 8px" }}>Description</th>
                                   <th style={{ padding: "6px 8px" }}>Hours</th>
                                   <th style={{ padding: "6px 8px" }}>Status</th>
+                                  <th style={{ padding: "6px 8px" }}>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -997,6 +1074,12 @@ export default function AdminProjectTracker({
                                     <td style={{ padding: "6px 8px" }}>{number(entry.hours)}</td>
                                     <td style={{ padding: "6px 8px" }}>
                                       <em className={`apt-allocation-state ${entry.status === "completed" ? "on_track" : "watch"}`}>{entry.status.replaceAll("_", " ")}</em>
+                                    </td>
+                                    <td style={{ padding: "6px 8px" }}>
+                                      <div className="apt-entry-actions">
+                                        <button type="button" onClick={() => editEntry(entry)} disabled={Boolean(entryMutationBusy)} title="Edit tracker entry"><Pencil size={13} /> Edit</button>
+                                        <button type="button" className="danger" onClick={() => deleteEntry(entry)} disabled={Boolean(entryMutationBusy)} title="Delete tracker entry"><Trash2 size={13} /> Delete</button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}

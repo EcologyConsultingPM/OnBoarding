@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function PATCH(request, { params }) {
     // Admin review actions.
     if (["reviewed", "actioned", "archived"].includes(b.action)) {
       if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+      const denied = await requirePortalResource(access, "admin.whs_monitoring");
+      if (denied) return denied;
       const { data, error } = await access.admin.from("whs_forms").update({
         status: b.action,
         review_note: (b.review_note || "").toString().trim() || null,

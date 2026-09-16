@@ -17,11 +17,14 @@ function num(value) {
 }
 
 async function projectAccess(access, projectId, staffWorkspace = false) {
-  const { data: project, error } = await access.admin
+  let projectQuery = access.admin
     .from("projects")
     .select("id, created_by, name, status")
-    .eq("id", projectId)
-    .maybeSingle();
+    .eq("id", projectId);
+  if (!access.isAdmin || staffWorkspace) {
+    projectQuery = projectQuery.eq("status", "active").is("deleted_at", null);
+  }
+  const { data: project, error } = await projectQuery.maybeSingle();
   if (error || !project) return { response: Response.json({ error: "Project not found." }, { status: 404 }) };
   if (!access.isAdmin || staffWorkspace) {
     const [allocationResult, activityResult] = await Promise.all([
@@ -220,6 +223,26 @@ export async function DELETE(request, { params }) {
         .eq("source_table", "project_tracker_settings")
         .eq("source_id", params.projectId)
         .is("dismissed_at", null);
+
+      // Remove activity-assignment and tracker-entry cards for this project
+      // from every active inbox while preserving their underlying audit rows.
+      const [{ data: activityRows }, { data: entryRows }] = await Promise.all([
+        access.admin.from("project_activities").select("id").eq("project_id", params.projectId),
+        access.admin.from("project_tracker_entries").select("id").eq("project_id", params.projectId),
+      ]);
+      const activityIds = (activityRows || []).map((row) => row.id);
+      const entryIds = (entryRows || []).map((row) => row.id);
+      if (activityIds.length) {
+        await access.admin.from("portal_events").update({ dismissed_at: now })
+          .eq("source_table", "project_activities").in("source_id", activityIds).is("dismissed_at", null);
+      }
+      if (entryIds.length) {
+        await access.admin.from("portal_events").update({ dismissed_at: now })
+          .eq("source_table", "project_tracker_entries").in("source_id", entryIds).is("dismissed_at", null);
+      }
+      await access.admin.from("project_tracker_settings")
+        .update({ tracker_visible: false, updated_by: access.user.id, updated_at: now })
+        .eq("project_id", params.projectId);
 
       return Response.json({ success: true, deleted: "soft", restorable: true });
     }

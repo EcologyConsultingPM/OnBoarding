@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   HeartHandshake,
   Lock,
+  Printer,
   Send,
   ShieldAlert,
   Users,
@@ -21,398 +20,290 @@ const HAZARD_CATEGORIES = [
   "Violence and aggression", "Bullying", "Harassment (including sexual harassment)",
   "Conflict or poor workplace relationships",
 ];
-
-const LIKELIHOOD = ["Rare (1)", "Unlikely (2)", "Possible (3)", "Likely (4)", "Almost Certain (5)"];
-const CONSEQUENCE = ["Minor (1)", "Moderate (2)", "Major (3)", "Catastrophic (4)"];
-
-function ratingBand(likelihoodIndex, consequenceIndex) {
-  if (likelihoodIndex < 0 || consequenceIndex < 0) return null;
-  const score = (likelihoodIndex + 1) * (consequenceIndex + 1);
-  if (score >= 15) return { label: "Extreme", score, band: "extreme" };
-  if (score >= 8) return { label: "High", score, band: "high" };
-  if (score >= 4) return { label: "Medium", score, band: "medium" };
-  return { label: "Low", score, band: "low" };
-}
-const BAND_COLOR = { extreme: "#a5342a", high: "#c9702d", medium: "#c98a1e", low: "#2c6a34" };
-
-function blankRegisterRow() {
-  return { activity: "", hazard_category: "", hazard_detail: "", exposure: "", controls: "", effectiveness: "", likelihood: "", consequence: "" };
-}
-
-const STAGE_LABEL = {
-  draft: "Draft — not yet submitted",
-  submitted: "Submitted — awaiting WHS Officer review",
-  whs_review: "Reviewed — findings being prepared",
-  returned_to_worker: "Findings returned — awaiting your acknowledgement",
-  consultation_scheduled: "Consultation meeting recorded",
+const METHODS = ["Worker self-assessment", "Focus group / consultation", "Incident review", "Worksite observation", "Meeting / interview"];
+const LIKELIHOOD = [
+  { value: "1", label: "Rare (1)" }, { value: "2", label: "Unlikely (2)" }, { value: "3", label: "Possible (3)" },
+  { value: "4", label: "Likely (4)" }, { value: "5", label: "Almost certain (5)" },
+];
+const CONSEQUENCE = [
+  { value: "1", label: "Minor (1)" }, { value: "2", label: "Moderate (2)" }, { value: "3", label: "Major (3)" }, { value: "4", label: "Catastrophic (4)" },
+];
+const EXPOSURES = ["Rare", "Occasional", "Frequent", "Continuous"];
+const EFFECTIVENESS = ["Effective", "Partially effective", "Ineffective", "Not in place"];
+const STAGE_LABELS = {
+  draft: "Stage 1 · Draft worker assessment",
+  submitted: "Stage 2 · Awaiting WHS Officer review",
+  whs_review: "Stage 2 · Review complete — ready to return",
+  returned_to_worker: "Stage 3 · Worker acknowledgement required",
+  worker_acknowledged: "Stage 4 · Ready for consultation meeting",
+  consultation_completed: "Stage 5 · Worker final signature required",
   closed: "Closed",
 };
+const RATING_COLOURS = { Extreme: "#a5342a", High: "#c9702d", Medium: "#c98a1e", Low: "#2c6a34" };
+
+function blankActivity() {
+  return { activity: "", hazard_category: "", hazard_detail: "", exposure: "", controls: "", control_effectiveness: "", likelihood: "", consequence: "" };
+}
+
+function calculateRisk(activity) {
+  const likelihood = Number(activity.likelihood);
+  const consequence = Number(activity.consequence);
+  if (!likelihood || !consequence) return null;
+  const score = likelihood * consequence;
+  const risk_rating = score >= 15 ? "Extreme" : score >= 8 ? "High" : score >= 4 ? "Medium" : "Low";
+  return { score, risk_rating };
+}
+
+function emptyForm() {
+  return {
+    position: "", assessment_date: "", workplace_location: "", scope: "", assessment_methods: [],
+    hazard_categories: [], category_notes: {}, hazard_register: [blankActivity(), blankActivity(), blankActivity()],
+    additional_notes: "", discuss_in_person: false, worker_declaration_signature: "", worker_declaration_confirmed: false,
+  };
+}
+
+function reviewDefaults(record) {
+  const actions = Array.isArray(record?.corrective_action_plan) ? record.corrective_action_plan : [];
+  return {
+    root_cause_analysis: record?.root_cause_analysis || "", corrective_action_plan: actions,
+    risk_ratings_validated: record?.risk_ratings_validated || "", controls_reviewed_finding: record?.controls_reviewed_finding || "",
+    additional_actions_identified: record?.additional_actions_identified || "", individual_action_plan_required: record?.individual_action_plan_required || "",
+    highest_residual_risk: record?.highest_residual_risk || "",
+  };
+}
+
+function meetingDefaults(record) {
+  return {
+    meeting_date: record?.meeting_date || "", meeting_time: record?.meeting_time || "", meeting_format: record?.meeting_format || "",
+    meeting_location: record?.meeting_location || "", support_person: record?.support_person || "", meeting_attendees: (record?.meeting_attendees || []).join("\n"),
+    meeting_outcomes: record?.meeting_outcomes || "", matters_not_agreed: record?.matters_not_agreed || "", follow_up_review_date: record?.follow_up_review_date || "",
+    next_assessment_due: record?.next_assessment_due || "", escalation_status: record?.escalation_status || "", escalation_details: record?.escalation_details || "",
+  };
+}
 
 export default function PsychosocialSelfRiskAssessment({ assessmentId = null }) {
   const { session, isAdmin } = useAuth();
   const [assessment, setAssessment] = useState(null);
-  const [list, setList] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [form, setForm] = useState(emptyForm);
+  const [review, setReview] = useState(() => reviewDefaults(null));
+  const [meeting, setMeeting] = useState(() => meetingDefaults(null));
+  const [acknowledgement, setAcknowledgement] = useState({ signature: "", confirmed: false, response: "" });
+  const [finalSignature, setFinalSignature] = useState({ signature: "", confirmed: false });
+  const [closeOut, setCloseOut] = useState({ whs_officer_name: "", whs_officer_review_date: "", whs_officer_signature: "", project_manager_name: "", project_manager_signature: "" });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
 
-  const [form, setForm] = useState({
-    position: "", assessment_date: "", workplace_location: "", scope: "",
-    assessment_methods: [], hazard_categories: [], hazard_register: [blankRegisterRow()],
-    additional_notes: "", discuss_in_person: false, submitted_to: "Tony Webster — WHS Officer",
-    worker_declaration_signature: "",
-  });
-  const [reviewForm, setReviewForm] = useState({
-    root_cause_analysis: "", corrective_action_plan: [], risk_ratings_validated: "", controls_reviewed_finding: "",
-    additional_actions_identified: "", individual_action_plan_required: "", highest_residual_risk: "",
-  });
-  const [meetingForm, setMeetingForm] = useState({
-    meeting_date: "", meeting_time: "", meeting_format: "", meeting_location: "", support_person: "",
-    meeting_attendees: [], meeting_items: [], matters_not_agreed: "", follow_up_review_date: "",
-    next_assessment_due: "", escalated_to_leadership: "",
-  });
-  const [closeForm, setCloseForm] = useState({
-    worker_signature_final: "", whs_officer_name: "", whs_officer_review_date: "", project_manager_name: "",
-  });
+  const applyAssessment = useCallback((record) => {
+    setAssessment(record || null);
+    if (!record) return;
+    setForm({
+      position: record.position || "", assessment_date: record.assessment_date || "", workplace_location: record.workplace_location || "", scope: record.scope || "",
+      assessment_methods: record.assessment_methods || [], hazard_categories: record.hazard_categories || [], category_notes: record.category_notes || {},
+      hazard_register: Array.isArray(record.hazard_register) && record.hazard_register.length ? record.hazard_register.map((row) => ({ ...blankActivity(), ...row })) : [blankActivity(), blankActivity(), blankActivity()],
+      additional_notes: record.additional_notes || "", discuss_in_person: record.discuss_in_person === true,
+      worker_declaration_signature: record.worker_declaration_signature || "", worker_declaration_confirmed: record.worker_declaration_confirmed === true,
+    });
+    setReview(reviewDefaults(record));
+    setMeeting(meetingDefaults(record));
+    setAcknowledgement({ signature: record.worker_acknowledgement_signature || "", confirmed: record.worker_acknowledgement_confirmed === true, response: record.worker_response_before_meeting || "" });
+    setFinalSignature({ signature: record.worker_signature_final || "", confirmed: record.worker_final_signature_confirmed === true });
+  }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedId = assessmentId) => {
     if (!session?.access_token) return;
     setLoading(true);
+    setError("");
     try {
-      if (assessmentId) {
-        const res = await fetch(`/api/psychosocial-assessments?id=${assessmentId}`, { headers: headers() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setAssessment(data.assessment);
+      const url = requestedId ? `/api/psychosocial-assessments?id=${encodeURIComponent(requestedId)}` : "/api/psychosocial-assessments";
+      const response = await fetch(url, { headers: headers() });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to load the assessment.");
+      if (requestedId) {
+        applyAssessment(data.assessment);
       } else {
-        const res = await fetch("/api/psychosocial-assessments", { headers: headers() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setList(data.assessments || []);
-        const openOne = (data.assessments || []).find((a) => a.stage !== "closed");
-        setAssessment(openOne || null);
+        const list = data.assessments || [];
+        setAssessments(list);
+        applyAssessment(list.find((item) => item.stage !== "closed") || list[0] || null);
       }
-    } catch (e) {
-      setError(e.message);
+    } catch (cause) {
+      setError(cause.message || "Unable to load the assessment.");
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, headers, assessmentId]);
+  }, [applyAssessment, assessmentId, headers, session?.access_token]);
+
   useEffect(() => { load(); }, [load]);
 
-  const setRow = (index, patch) => setForm((f) => ({ ...f, hazard_register: f.hazard_register.map((r, i) => (i === index ? { ...r, ...patch } : r)) }));
-  const addRow = () => setForm((f) => ({ ...f, hazard_register: [...f.hazard_register, blankRegisterRow()] }));
-  const toggleMethod = (method) => setForm((f) => ({ ...f, assessment_methods: f.assessment_methods.includes(method) ? f.assessment_methods.filter((m) => m !== method) : [...f.assessment_methods, method] }));
-  const toggleCategory = (cat) => setForm((f) => ({ ...f, hazard_categories: f.hazard_categories.includes(cat) ? f.hazard_categories.filter((c) => c !== cat) : [...f.hazard_categories, cat] }));
+  const stage = assessment?.stage || "draft";
+  const mediumPlus = useMemo(() => form.hazard_register.map((row, index) => ({ index, row, risk: calculateRisk(row) })).filter(({ risk }) => risk && ["Medium", "High", "Extreme"].includes(risk.risk_rating)), [form.hazard_register]);
 
-  const registerWithRatings = () => form.hazard_register.map((r) => {
-    const band = ratingBand(LIKELIHOOD.indexOf(r.likelihood), CONSEQUENCE.indexOf(r.consequence));
-    return { ...r, rating_band: band?.band || null, rating_score: band?.score || null };
-  });
+  useEffect(() => {
+    if (stage !== "submitted" && stage !== "whs_review") return;
+    setReview((current) => {
+      const byIndex = new Map((current.corrective_action_plan || []).map((action) => [Number(action.activity_index), action]));
+      return {
+        ...current,
+        corrective_action_plan: mediumPlus.map(({ index, row, risk }) => ({
+          activity_index: index, activity: row.activity, risk_rating: risk.risk_rating, action: byIndex.get(index)?.action || "", owner: byIndex.get(index)?.owner || "", due_date: byIndex.get(index)?.due_date || "", status: byIndex.get(index)?.status || "Not started",
+        })),
+      };
+    });
+  }, [mediumPlus, stage]);
 
-  const saveDraft = async (submit) => {
+  const request = async (payload, successMessage) => {
     setSaving(true);
     setError("");
+    setNotice("");
     try {
-      const payload = { ...form, hazard_register: registerWithRatings() };
-      const body = assessment?.id
-        ? { id: assessment.id, action: submit ? "submit" : "save_draft", ...payload }
-        : { ...payload, submit };
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-    } catch (e) {
-      setError(e.message);
+      const response = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The assessment could not be saved.");
+      applyAssessment(data.assessment);
+      setNotice(data.duplicate ? "This step had already been recorded; the existing assessment was retained." : successMessage);
+      await load();
+      return data.assessment;
+    } catch (cause) {
+      setError(cause.message || "The assessment could not be saved.");
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const submitReview = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify({ id: assessment.id, action: "whs_review", ...reviewForm }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
-  };
+  const toggle = (key, value) => setForm((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value] }));
+  const updateActivity = (index, patch) => setForm((current) => ({ ...current, hazard_register: current.hazard_register.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) }));
+  const removeActivity = (index) => setForm((current) => ({ ...current, hazard_register: current.hazard_register.filter((_, rowIndex) => rowIndex !== index) }));
+  const updateAction = (index, patch) => setReview((current) => ({ ...current, corrective_action_plan: current.corrective_action_plan.map((action) => action.activity_index === index ? { ...action, ...patch } : action) }));
 
-  const returnToWorker = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify({ id: assessment.id, action: "return_to_worker", returned_by: reviewForm.whs_officer_name || "WHS Officer", return_method: "Portal notification" }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
-  };
+  const workerPayload = (action) => ({ id: assessment?.id, action, ...form });
+  const displayDate = (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString("en-AU") : "—";
 
-  const acknowledge = async (signature, response) => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify({ id: assessment.id, action: "worker_acknowledge", worker_acknowledgement_signature: signature, worker_response_before_meeting: response }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
-  };
-
-  const recordMeeting = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify({ id: assessment.id, action: "record_meeting", ...meetingForm }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
-  };
-
-  const closeOut = async () => {
-    if (!window.confirm("Close this assessment? This is the final step and cannot be undone.")) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/psychosocial-assessments", { method: "POST", headers: headers(), body: JSON.stringify({ id: assessment.id, action: "close_out", meeting_date: assessment.meeting_date, ...closeForm }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAssessment(data.assessment);
-      await load();
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
-  };
-
-  if (loading) return <p className="psa-loading">Loading…</p>;
-
-  const stage = assessment?.stage || "draft";
+  if (loading) return <p className="psa-loading" role="status">Loading confidential assessment…</p>;
 
   return (
-    <div className="psa">
+    <section className="psa" aria-labelledby="psa-title">
       <style>{`
-        .psa { max-width: 900px; }
-        .psa-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-        .psa-header h2 { margin: 0; font-size: 20px; }
-        .psa-stage { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: #eef6ea; color: #1f5a34; margin-bottom: 16px; }
-        .psa-critical { background: #fde2e1; color: #a5342a; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
-        .psa-restricted { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #6b7280; margin-bottom: 16px; }
-        .psa-section { border: 1px solid #e3ded2; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
-        .psa-section-head { background: #f7f8f2; padding: 10px 16px; font-weight: 700; font-size: 13.5px; border-bottom: 1px solid #e3ded2; }
-        .psa-section-body { padding: 14px 16px; }
-        .psa-field { margin-bottom: 12px; }
-        .psa-field label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
-        .psa-field input, .psa-field select, .psa-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #d9d3c6; border-radius: 6px; font-size: 13.5px; box-sizing: border-box; font-family: inherit; }
-        .psa-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .psa-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        .psa-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .psa-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 10px; border-radius: 6px; border: 1px solid #d9d3c6; cursor: pointer; }
-        .psa-check.active { background: #1f5a34; color: #fff; border-color: #1f5a34; }
-        .psa-register-row { border: 1px solid #e3ded2; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
-        .psa-rating { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px; color: #fff; }
-        .psa-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: none; background: #1f5a34; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
-        .psa-btn.secondary { background: #fff; color: #1f5a34; border: 1px solid #1f5a34; }
-        .psa-btn:disabled { opacity: .5; cursor: not-allowed; }
-        .psa-error { background: #fde2e1; color: #a5342a; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
-        .psa input[type=checkbox] { width: 20px; height: 20px; cursor: pointer; margin-right: 4px; vertical-align: middle; }
-        .psa-readonly { background: #f7f8f2; border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: #374151; margin-bottom: 10px; }
-        @media (max-width: 640px) {
-          .psa-row2 { grid-template-columns: 1fr; }
-          .psa-row3 { grid-template-columns: 1fr; }
-        }
+        .psa { max-width: 960px; color: #27342d; }
+        .psa * { box-sizing: border-box; } .psa-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+        .psa-header h2 { margin:0; font-size:21px; display:flex; align-items:center; gap:9px; } .psa-stage { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:5px 10px; background:#eef6ea; color:#1f5a34; font-size:12px; font-weight:700; }
+        .psa-restricted { display:flex; gap:7px; align-items:flex-start; color:#5c6560; font-size:12px; margin:0 0 14px; } .psa-alert { border-radius:8px; padding:11px 13px; margin:0 0 13px; font-size:13px; line-height:1.5; }
+        .psa-alert.critical { background:#fde2e1; color:#8a2f26; border-left:3px solid #a5342a; } .psa-alert.support { background:#fff1e9; color:#754018; border-left:3px solid #c9702d; }
+        .psa-section { border:1px solid #e3ded2; border-radius:10px; margin:0 0 14px; overflow:hidden; background:#fff; } .psa-section h3 { margin:0; padding:11px 15px; background:#f7f8f2; border-bottom:1px solid #e3ded2; font-size:14px; }
+        .psa-body { padding:14px 15px; } .psa-field { display:block; margin:0 0 12px; } .psa-field > span, .psa-field legend { display:block; font-size:11px; font-weight:700; color:#59645e; text-transform:uppercase; letter-spacing:.04em; margin:0 0 5px; }
+        .psa-field input, .psa-field select, .psa-field textarea { width:100%; border:1px solid #d9d3c6; border-radius:6px; background:#fff; color:#27342d; font:inherit; font-size:13px; padding:8px 10px; } .psa-field textarea { resize:vertical; }
+        .psa-row2, .psa-row3 { display:grid; gap:12px; } .psa-row2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .psa-row3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .psa-choice-set { border:0; padding:0; margin:0 0 12px; } .psa-choices { display:flex; gap:7px; flex-wrap:wrap; } .psa-choice { display:inline-flex; align-items:center; gap:6px; border:1px solid #d9d3c6; border-radius:6px; padding:6px 8px; font-size:12.5px; cursor:pointer; } .psa-choice.active { background:#1f5a34; border-color:#1f5a34; color:#fff; }
+        .psa-choice input { width:16px; height:16px; margin:0; accent-color:#1f5a34; } .psa-card { border:1px solid #e3ded2; border-radius:8px; padding:11px; margin:0 0 10px; } .psa-card h4 { margin:0 0 9px; font-size:13px; }
+        .psa-rating { display:inline-flex; align-items:center; border-radius:999px; color:#fff; padding:4px 9px; min-height:31px; font-size:12px; font-weight:700; } .psa-muted { color:#69756e; font-size:12.5px; line-height:1.5; }
+        .psa-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:40px; padding:8px 13px; margin:0 8px 0 0; border:1px solid #1f5a34; border-radius:7px; background:#1f5a34; color:#fff; font:inherit; font-weight:700; font-size:13px; cursor:pointer; } .psa-btn.secondary { background:#fff; color:#1f5a34; } .psa-btn.danger { background:#a5342a; border-color:#a5342a; } .psa-btn:disabled { cursor:not-allowed; opacity:.55; }
+        .psa-status { border-radius:7px; padding:9px 11px; margin:0 0 12px; font-size:13px; } .psa-error { background:#fde2e1; color:#8a2f26; } .psa-notice { background:#e8f4e9; color:#1f5a34; } .psa-readonly { background:#f7f8f2; border-radius:7px; padding:11px; font-size:13px; line-height:1.5; }
+        .psa-actions { margin-top:12px; } .psa-selection { max-width:500px; margin:0 0 13px; } .psa-inline-check { display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.4; margin:0 0 12px; } .psa-inline-check input { width:17px; height:17px; flex:0 0 auto; margin-top:1px; accent-color:#1f5a34; }
+        .psa-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 12px; } .psa-summary div { background:#f7f8f2; padding:8px; border-radius:6px; } .psa-summary b { display:block; font-size:11px; text-transform:uppercase; color:#59645e; } .psa-summary span { font-size:13px; }
+        @media (max-width:700px) { .psa-row2,.psa-row3,.psa-summary { grid-template-columns:1fr; } .psa-btn { width:100%; margin:0 0 8px; } }
+        @media print { .psa .psa-btn, .psa .psa-selection, .psa-alert.support { display:none !important; } .psa { max-width:none; } .psa-section { break-inside:avoid; } }
       `}</style>
 
-      <div className="psa-header"><HeartHandshake size={20} /><h2>Psychosocial Self Risk Assessment</h2></div>
-      <div className="psa-restricted"><Lock size={12} /> Restricted Psychosocial Register — visible only to you, the WHS Officer/Director, and the Project Manager.</div>
-      {assessment ? <div className="psa-stage"><ShieldAlert size={13} /> {STAGE_LABEL[stage]}</div> : null}
-      {assessment?.is_critical ? <div className="psa-critical"><AlertCircle size={16} /> Critical Psychosocial Risk flagged — the WHS Officer has been notified immediately.</div> : null}
-      {error ? <p className="psa-error">{error}</p> : null}
+      <header className="psa-header">
+        <h2 id="psa-title"><HeartHandshake size={21} aria-hidden="true" />Psychosocial Self Risk Assessment</h2>
+        <button type="button" className="psa-btn secondary" onClick={() => window.print()}><Printer size={15} aria-hidden="true" />Print assessment</button>
+      </header>
+      <p className="psa-restricted"><Lock size={13} aria-hidden="true" />Restricted psychosocial register. Your record is available only to you and authorised WHS administrators.</p>
+      {assessment && <p className="psa-stage"><ShieldAlert size={13} aria-hidden="true" />{STAGE_LABELS[stage] || stage}</p>}
+      <aside className="psa-alert support" aria-label="Immediate support information"><strong>Support is available.</strong> If this assessment brings up distress or you feel unsafe, contact your manager or WHS Officer, use your EAP if available, call <strong>Lifeline 13 11 14</strong> (24/7), or call <strong>000</strong> in an emergency.</aside>
+      {assessment?.is_critical && <aside className="psa-alert critical" role="alert"><AlertCircle size={16} aria-hidden="true" />A High or Extreme risk has been recorded. The WHS Officer has been notified for prompt review.</aside>}
+      {error && <p className="psa-status psa-error" role="alert">{error}</p>}
+      {notice && <p className="psa-status psa-notice" role="status">{notice}</p>}
 
-      {/* STAGE 1 — worker draft/submit */}
-      {(!assessment || stage === "draft") ? (
+      {assessments.length > 1 && (
+        <label className="psa-field psa-selection"><span>{isAdmin ? "Open assessment" : "Your assessment history"}</span>
+          <select value={assessment?.id || ""} onChange={(event) => load(event.target.value)} aria-label="Choose assessment record">
+            <option value="">Choose an assessment…</option>
+            {assessments.map((item) => <option key={item.id} value={item.id}>{displayDate(item.assessment_date)} · {STAGE_LABELS[item.stage] || item.stage}</option>)}
+          </select>
+        </label>
+      )}
+
+      {(!assessment || stage === "draft") && (
         <>
-          <div className="psa-section">
-            <div className="psa-section-head">2. Assessment details</div>
-            <div className="psa-section-body">
-              <div className="psa-row3">
-                <label className="psa-field"><span>Position / role</span>
-                  <select value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })}>
-                    <option value="">Select…</option>
-                    <option>Ecologist</option><option>GIS Lead</option><option>Senior Ecologist</option>
-                    <option>Administration</option><option>Project Manager</option><option>Managing Director</option>
-                  </select>
-                </label>
-                <label className="psa-field"><span>Assessment date</span><input type="date" value={form.assessment_date} onChange={(e) => setForm({ ...form, assessment_date: e.target.value })} /></label>
-                <label className="psa-field"><span>Main workplace / location</span><input value={form.workplace_location} onChange={(e) => setForm({ ...form, workplace_location: e.target.value })} placeholder="Office, site, home-based or hybrid" /></label>
-              </div>
-              <label className="psa-field"><span>Scope of assessment</span><input value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="e.g. Psychosocial hazard and risk assessment — Q3 2026" /></label>
-              <label className="psa-field"><span>Assessment method — select all that apply</span></label>
-              <div className="psa-checks">
-                {["Worker self-assessment", "Focus group / consultation", "Incident review", "Worksite observation", "Meeting / interview"].map((m) => (
-                  <div key={m} className={`psa-check ${form.assessment_methods.includes(m) ? "active" : ""}`} onClick={() => toggleMethod(m)}>{m}</div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="psa-section">
-            <div className="psa-section-head">3. Psychosocial hazard categories present</div>
-            <div className="psa-section-body">
-              <div className="psa-checks">
-                {HAZARD_CATEGORIES.map((c) => (
-                  <div key={c} className={`psa-check ${form.hazard_categories.includes(c) ? "active" : ""}`} onClick={() => toggleCategory(c)}>{c}</div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="psa-section">
-            <div className="psa-section-head">5. Hazard identification and risk assessment register</div>
-            <div className="psa-section-body">
-              <p style={{ fontSize: 12.5, color: "#6b7280", marginBottom: 10 }}>Assess at least three to five work activities.</p>
-              {form.hazard_register.map((row, i) => {
-                const band = ratingBand(LIKELIHOOD.indexOf(row.likelihood), CONSEQUENCE.indexOf(row.consequence));
-                return (
-                  <div key={i} className="psa-register-row">
-                    <div className="psa-row2">
-                      <label className="psa-field"><span>Activity / task</span><input value={row.activity} onChange={(e) => setRow(i, { activity: e.target.value })} placeholder="e.g. Remote reporting" /></label>
-                      <label className="psa-field"><span>Hazard category</span>
-                        <select value={row.hazard_category} onChange={(e) => setRow(i, { hazard_category: e.target.value })}>
-                          <option value="">Select hazard…</option>
-                          {HAZARD_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                        </select>
-                      </label>
-                    </div>
-                    <label className="psa-field"><span>Specific hazard &amp; source</span><textarea rows={2} value={row.hazard_detail} onChange={(e) => setRow(i, { hazard_detail: e.target.value })} /></label>
-                    <label className="psa-field"><span>Existing controls — are they working?</span><textarea rows={2} value={row.controls} onChange={(e) => setRow(i, { controls: e.target.value })} /></label>
-                    <div className="psa-row3">
-                      <label className="psa-field"><span>Likelihood</span>
-                        <select value={row.likelihood} onChange={(e) => setRow(i, { likelihood: e.target.value })}>
-                          <option value="">Select…</option>{LIKELIHOOD.map((l) => <option key={l}>{l}</option>)}
-                        </select>
-                      </label>
-                      <label className="psa-field"><span>Consequence</span>
-                        <select value={row.consequence} onChange={(e) => setRow(i, { consequence: e.target.value })}>
-                          <option value="">Select…</option>{CONSEQUENCE.map((c) => <option key={c}>{c}</option>)}
-                        </select>
-                      </label>
-                      <label className="psa-field"><span>Rating</span>
-                        {band ? <span className="psa-rating" style={{ background: BAND_COLOR[band.band] }}>{band.score} {band.label}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-              <button type="button" className="psa-btn secondary" onClick={addRow}>+ Add activity</button>
-            </div>
-          </div>
-
-          <div className="psa-section">
-            <div className="psa-section-head">5B. Submit to the WHS Officer</div>
-            <div className="psa-section-body">
-              <label className="psa-field"><span>Anything else you want the WHS Officer to know</span><textarea rows={3} value={form.additional_notes} onChange={(e) => setForm({ ...form, additional_notes: e.target.value })} /></label>
-              <div className="psa-check" style={{ display: "inline-flex", marginBottom: 12 }} onClick={() => setForm({ ...form, discuss_in_person: !form.discuss_in_person })}>
-                <input type="checkbox" checked={form.discuss_in_person} readOnly /> Please contact me before reviewing this assessment
-              </div>
-              <br />
-              <button type="button" className="psa-btn secondary" onClick={() => saveDraft(false)} disabled={saving} style={{ marginRight: 8 }}>Save draft</button>
-              <button type="button" className="psa-btn" onClick={() => saveDraft(true)} disabled={saving}><Send size={14} /> {saving ? "Submitting…" : "Submit to WHS Officer"}</button>
-            </div>
-          </div>
-        </>
-      ) : null}
-
-      {/* Read-only recap once submitted, for the worker */}
-      {assessment && stage !== "draft" && !isAdmin ? (
-        <div className="psa-readonly">
-          Submitted {assessment.submitted_at ? new Date(assessment.submitted_at).toLocaleDateString("en-AU") : ""} to {assessment.submitted_to}.
-          {stage === "returned_to_worker" ? " The WHS Officer has completed their review — read the findings below and acknowledge before your consultation meeting." : " You'll be notified once the WHS Officer has reviewed this."}
-        </div>
-      ) : null}
-
-      {/* STAGE 2 — WHS review (admin) */}
-      {assessment && stage === "submitted" && isAdmin ? (
-        <div className="psa-section">
-          <div className="psa-section-head">7–8. WHS Officer review</div>
-          <div className="psa-section-body">
-            <label className="psa-field"><span>Root cause analysis</span><textarea rows={3} value={reviewForm.root_cause_analysis} onChange={(e) => setReviewForm({ ...reviewForm, root_cause_analysis: e.target.value })} /></label>
-            <div className="psa-row2">
-              <label className="psa-field"><span>Risk ratings validated</span>
-                <select value={reviewForm.risk_ratings_validated} onChange={(e) => setReviewForm({ ...reviewForm, risk_ratings_validated: e.target.value })}>
-                  <option value="">Select outcome…</option><option>Confirmed as submitted</option><option>Amended — raised</option><option>Amended — lowered</option>
-                </select>
-              </label>
-              <label className="psa-field"><span>Highest residual risk after controls</span>
-                <select value={reviewForm.highest_residual_risk} onChange={(e) => setReviewForm({ ...reviewForm, highest_residual_risk: e.target.value })}>
-                  <option value="">Select…</option><option>Low</option><option>Medium</option><option>High</option><option>Extreme</option>
-                </select>
-              </label>
-            </div>
-            <button type="button" className="psa-btn" onClick={submitReview} disabled={saving}>Save review</button>
-            <button type="button" className="psa-btn secondary" style={{ marginLeft: 8 }} onClick={returnToWorker} disabled={saving || !reviewForm.root_cause_analysis}>Return findings to worker</button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Worker acknowledgement */}
-      {assessment && stage === "returned_to_worker" && !isAdmin ? (
-        <div className="psa-section">
-          <div className="psa-section-head">Acknowledge findings</div>
-          <div className="psa-section-body">
-            <p style={{ fontSize: 13, marginBottom: 10 }}>{assessment.root_cause_analysis}</p>
-            <label className="psa-field"><span>Anything you disagree with or want raised at the meeting (optional)</span><textarea rows={2} onChange={(e) => setForm({ ...form, worker_response_before_meeting: e.target.value })} /></label>
-            <button type="button" className="psa-btn" onClick={() => acknowledge("acknowledged", form.worker_response_before_meeting)} disabled={saving}><CheckCircle2 size={14} /> Acknowledge receipt</button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* STAGE 4 — consultation meeting (admin) */}
-      {assessment && (stage === "returned_to_worker" || stage === "consultation_scheduled") && isAdmin ? (
-        <div className="psa-section">
-          <div className="psa-section-head"><Users size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />9. Consultation meeting</div>
-          <div className="psa-section-body">
+          <section className="psa-section" aria-labelledby="psa-worker-details"><h3 id="psa-worker-details">Stage 1 · Worker self assessment</h3><div className="psa-body">
             <div className="psa-row3">
-              <label className="psa-field"><span>Meeting date</span><input type="date" value={meetingForm.meeting_date} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_date: e.target.value })} /></label>
-              <label className="psa-field"><span>Meeting time</span><input type="time" value={meetingForm.meeting_time} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_time: e.target.value })} /></label>
-              <label className="psa-field"><span>Format</span>
-                <select value={meetingForm.meeting_format} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_format: e.target.value })}>
-                  <option value="">Select…</option><option>In person</option><option>Video call</option><option>Telephone</option>
-                </select>
-              </label>
+              <label className="psa-field"><span>Position / role</span><input value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} autoComplete="organization-title" /></label>
+              <label className="psa-field"><span>Assessment date</span><input type="date" value={form.assessment_date} onChange={(event) => setForm({ ...form, assessment_date: event.target.value })} /></label>
+              <label className="psa-field"><span>Workplace / location</span><input value={form.workplace_location} onChange={(event) => setForm({ ...form, workplace_location: event.target.value })} placeholder="Office, site, home-based or hybrid" /></label>
             </div>
-            <label className="psa-field"><span>Matters not agreed, and how they will be resolved</span><textarea rows={2} value={meetingForm.matters_not_agreed} onChange={(e) => setMeetingForm({ ...meetingForm, matters_not_agreed: e.target.value })} /></label>
-            <div className="psa-row2">
-              <label className="psa-field"><span>Follow-up review date</span><input type="date" value={meetingForm.follow_up_review_date} onChange={(e) => setMeetingForm({ ...meetingForm, follow_up_review_date: e.target.value })} /></label>
-              <label className="psa-field"><span>Next assessment due</span><input type="date" value={meetingForm.next_assessment_due} onChange={(e) => setMeetingForm({ ...meetingForm, next_assessment_due: e.target.value })} /></label>
-            </div>
-            <button type="button" className="psa-btn" onClick={recordMeeting} disabled={saving || !meetingForm.meeting_date}>Record meeting</button>
-          </div>
-        </div>
-      ) : null}
+            <label className="psa-field"><span>Scope of assessment</span><input value={form.scope} onChange={(event) => setForm({ ...form, scope: event.target.value })} placeholder="For example: quarterly assessment of current field and office work" /></label>
+            <fieldset className="psa-choice-set"><legend className="psa-field"><span>Assessment methods used (select all that apply)</span></legend><div className="psa-choices">
+              {METHODS.map((method) => <label key={method} className={`psa-choice ${form.assessment_methods.includes(method) ? "active" : ""}`}><input type="checkbox" checked={form.assessment_methods.includes(method)} onChange={() => toggle("assessment_methods", method)} />{method}</label>)}
+            </div></fieldset>
+          </div></section>
 
-      {/* STAGE 5 — close-out (admin) */}
-      {assessment && stage === "consultation_scheduled" && isAdmin ? (
-        <div className="psa-section">
-          <div className="psa-section-head">10. Declaration and close-out</div>
-          <div className="psa-section-body">
-            <div className="psa-row2">
-              <label className="psa-field"><span>WHS Officer name</span><input value={closeForm.whs_officer_name} onChange={(e) => setCloseForm({ ...closeForm, whs_officer_name: e.target.value })} /></label>
-              <label className="psa-field"><span>Review date</span><input type="date" value={closeForm.whs_officer_review_date} onChange={(e) => setCloseForm({ ...closeForm, whs_officer_review_date: e.target.value })} /></label>
-            </div>
-            <label className="psa-field"><span>Project Manager (root cause analysis)</span><input value={closeForm.project_manager_name} onChange={(e) => setCloseForm({ ...closeForm, project_manager_name: e.target.value })} /></label>
-            <button type="button" className="psa-btn" onClick={closeOut} disabled={saving}>Close assessment</button>
-          </div>
-        </div>
-      ) : null}
+          <section className="psa-section" aria-labelledby="psa-categories"><h3 id="psa-categories">Hazard categories and category notes</h3><div className="psa-body">
+            <p className="psa-muted">Select each category present and record a short note for every selected category. Notes help WHS understand the context without requiring sensitive personal detail.</p>
+            <fieldset className="psa-choice-set"><legend className="psa-field"><span>Categories present</span></legend><div className="psa-choices">
+              {HAZARD_CATEGORIES.map((category) => <label key={category} className={`psa-choice ${form.hazard_categories.includes(category) ? "active" : ""}`}><input type="checkbox" checked={form.hazard_categories.includes(category)} onChange={() => toggle("hazard_categories", category)} />{category}</label>)}
+            </div></fieldset>
+            {form.hazard_categories.map((category) => <label className="psa-field" key={category}><span>Category note · {category}</span><textarea rows={2} value={form.category_notes[category] || ""} onChange={(event) => setForm({ ...form, category_notes: { ...form.category_notes, [category]: event.target.value } })} placeholder="What is occurring, where or when?" /></label>)}
+          </div></section>
 
-      {assessment && stage === "closed" ? <div className="psa-readonly"><CheckCircle2 size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />Closed {assessment.closed_at ? new Date(assessment.closed_at).toLocaleDateString("en-AU") : ""}.</div> : null}
+          <section className="psa-section" aria-labelledby="psa-activities"><h3 id="psa-activities">Work activities and risk assessment</h3><div className="psa-body">
+            <p className="psa-muted">Record <strong>three to five complete work activities</strong>. Risk ratings displayed here are a guide; the server derives and records the final rating when you submit.</p>
+            {form.hazard_register.map((activity, index) => {
+              const rating = calculateRisk(activity);
+              return <article className="psa-card" key={index} aria-labelledby={`activity-${index}`}><h4 id={`activity-${index}`}>Activity {index + 1}</h4>
+                <div className="psa-row2">
+                  <label className="psa-field"><span>Activity / task</span><input value={activity.activity} onChange={(event) => updateActivity(index, { activity: event.target.value })} placeholder="For example: Remote field reporting" /></label>
+                  <label className="psa-field"><span>Hazard category</span><select value={activity.hazard_category} onChange={(event) => updateActivity(index, { hazard_category: event.target.value })}><option value="">Select…</option>{HAZARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                </div>
+                <label className="psa-field"><span>Specific hazard and source</span><textarea rows={2} value={activity.hazard_detail} onChange={(event) => updateActivity(index, { hazard_detail: event.target.value })} /></label>
+                <div className="psa-row2"><label className="psa-field"><span>Exposure</span><select value={activity.exposure} onChange={(event) => updateActivity(index, { exposure: event.target.value })}><option value="">Select…</option>{EXPOSURES.map((value) => <option key={value}>{value}</option>)}</select></label><label className="psa-field"><span>Existing controls</span><textarea rows={2} value={activity.controls} onChange={(event) => updateActivity(index, { controls: event.target.value })} /></label></div>
+                <div className="psa-row3"><label className="psa-field"><span>Control effectiveness</span><select value={activity.control_effectiveness} onChange={(event) => updateActivity(index, { control_effectiveness: event.target.value })}><option value="">Select…</option>{EFFECTIVENESS.map((value) => <option key={value}>{value}</option>)}</select></label><label className="psa-field"><span>Likelihood</span><select value={activity.likelihood} onChange={(event) => updateActivity(index, { likelihood: event.target.value })}><option value="">Select…</option>{LIKELIHOOD.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="psa-field"><span>Consequence</span><select value={activity.consequence} onChange={(event) => updateActivity(index, { consequence: event.target.value })}><option value="">Select…</option>{CONSEQUENCE.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label></div>
+                <div className="psa-row2"><p className="psa-muted">Derived rating</p>{rating ? <span className="psa-rating" style={{ background: RATING_COLOURS[rating.risk_rating] }}>{rating.score} · {rating.risk_rating}</span> : <span className="psa-muted">Complete likelihood and consequence to calculate.</span>}</div>
+                {form.hazard_register.length > 3 && <button type="button" className="psa-btn secondary" onClick={() => removeActivity(index)}>Remove activity</button>}
+              </article>;
+            })}
+            {form.hazard_register.length < 5 && <button type="button" className="psa-btn secondary" onClick={() => setForm({ ...form, hazard_register: [...form.hazard_register, blankActivity()] })}>Add activity</button>}
+          </div></section>
 
-      {!isAdmin && list.length > 1 ? (
-        <button type="button" className="psa-btn secondary" onClick={() => setExpanded(!expanded)} style={{ marginTop: 10 }}>
-          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Previous assessments ({list.length - 1})
-        </button>
-      ) : null}
-    </div>
+          <section className="psa-section" aria-labelledby="psa-submit"><h3 id="psa-submit">Worker declaration and submission</h3><div className="psa-body">
+            <label className="psa-field"><span>Additional notes for the WHS Officer</span><textarea rows={3} value={form.additional_notes} onChange={(event) => setForm({ ...form, additional_notes: event.target.value })} /></label>
+            <label className="psa-inline-check"><input type="checkbox" checked={form.discuss_in_person} onChange={(event) => setForm({ ...form, discuss_in_person: event.target.checked })} />Please contact me before reviewing this assessment.</label>
+            <label className="psa-inline-check"><input type="checkbox" checked={form.worker_declaration_confirmed} onChange={(event) => setForm({ ...form, worker_declaration_confirmed: event.target.checked })} />I confirm this is an honest assessment of my current work conditions and I understand support is available.</label>
+            <label className="psa-field"><span>Worker signature (type full name)</span><input value={form.worker_declaration_signature} onChange={(event) => setForm({ ...form, worker_declaration_signature: event.target.value })} autoComplete="name" /></label>
+            <div className="psa-actions"><button type="button" className="psa-btn secondary" disabled={saving} onClick={() => request(workerPayload("save_draft"), "Draft saved.")}>Save draft</button><button type="button" className="psa-btn" disabled={saving} onClick={() => request(workerPayload("submit"), "Assessment submitted to the WHS Officer.")}><Send size={15} aria-hidden="true" />{saving ? "Submitting…" : "Submit to WHS Officer"}</button></div>
+          </div></section>
+        </>
+      )}
+
+      {assessment && stage !== "draft" && <section className="psa-section"><h3>Assessment record</h3><div className="psa-body"><div className="psa-summary"><div><b>Submitted</b><span>{displayDate(assessment.submitted_at?.slice(0, 10) || assessment.assessment_date)}</span></div><div><b>Location</b><span>{assessment.workplace_location || "—"}</span></div><div><b>Activities</b><span>{assessment.hazard_register?.length || 0}</span></div><div><b>Highest recorded risk</b><span>{assessment.hazard_register?.reduce((highest, row) => ({ Low: 1, Medium: 2, High: 3, Extreme: 4 }[row.risk_rating] > ({ Low: 1, Medium: 2, High: 3, Extreme: 4 }[highest] || 0) ? row.risk_rating : highest), "Low")}</span></div></div><p className="psa-readonly">This assessment has moved beyond the editable draft stage. The server controls all remaining stage transitions and close-out gates.</p></div></section>}
+
+      {assessment && stage === "submitted" && isAdmin && <section className="psa-section" aria-labelledby="psa-review"><h3 id="psa-review">Stage 2 · WHS Officer review</h3><div className="psa-body">
+        <label className="psa-field"><span>Root cause analysis</span><textarea rows={4} value={review.root_cause_analysis} onChange={(event) => setReview({ ...review, root_cause_analysis: event.target.value })} /></label>
+        <div className="psa-row2"><label className="psa-field"><span>Risk ratings validated</span><select value={review.risk_ratings_validated} onChange={(event) => setReview({ ...review, risk_ratings_validated: event.target.value })}><option value="">Select…</option><option>Confirmed as submitted</option><option>Amended — raised</option><option>Amended — lowered</option></select></label><label className="psa-field"><span>Highest residual risk</span><select value={review.highest_residual_risk} onChange={(event) => setReview({ ...review, highest_residual_risk: event.target.value })}><option value="">Select…</option><option>Low</option><option>Medium</option><option>High</option><option>Extreme</option></select></label></div>
+        <label className="psa-field"><span>Controls review finding</span><textarea rows={3} value={review.controls_reviewed_finding} onChange={(event) => setReview({ ...review, controls_reviewed_finding: event.target.value })} /></label>
+        <label className="psa-field"><span>Additional actions identified</span><textarea rows={2} value={review.additional_actions_identified} onChange={(event) => setReview({ ...review, additional_actions_identified: event.target.value })} /></label>
+        <label className="psa-field"><span>Individual action plan required</span><select value={review.individual_action_plan_required} onChange={(event) => setReview({ ...review, individual_action_plan_required: event.target.value })}><option value="">Select…</option><option>Yes</option><option>No</option></select></label>
+        {review.corrective_action_plan.length > 0 && <><h4>Corrective action plan — required for every Medium, High or Extreme activity</h4>{review.corrective_action_plan.map((action) => <article className="psa-card" key={action.activity_index}><h4>{action.activity || `Activity ${action.activity_index + 1}`} · {action.risk_rating}</h4><label className="psa-field"><span>Corrective action</span><textarea rows={2} value={action.action} onChange={(event) => updateAction(action.activity_index, { action: event.target.value })} /></label><div className="psa-row3"><label className="psa-field"><span>Owner</span><input value={action.owner} onChange={(event) => updateAction(action.activity_index, { owner: event.target.value })} /></label><label className="psa-field"><span>Due date</span><input type="date" value={action.due_date} onChange={(event) => updateAction(action.activity_index, { due_date: event.target.value })} /></label><label className="psa-field"><span>Status</span><select value={action.status} onChange={(event) => updateAction(action.activity_index, { status: event.target.value })}><option>Not started</option><option>In progress</option><option>Completed</option></select></label></div></article>)}</>}
+        <button type="button" className="psa-btn" disabled={saving} onClick={() => request({ id: assessment.id, action: "whs_review", ...review }, "WHS review recorded. Return the findings to the worker when ready.")}>Save WHS review</button>
+      </div></section>}
+
+      {assessment && stage === "whs_review" && isAdmin && <section className="psa-section"><h3>Return reviewed findings to worker</h3><div className="psa-body"><p className="psa-muted">Returning findings creates the worker acknowledgement task and notification. This is a separate audit step.</p><button type="button" className="psa-btn" disabled={saving} onClick={() => request({ id: assessment.id, action: "return_to_worker" }, "Findings returned to the worker.")}>Return findings to worker</button></div></section>}
+
+      {assessment && stage === "returned_to_worker" && !isAdmin && <section className="psa-section" aria-labelledby="psa-ack"><h3 id="psa-ack">Stage 3 · Acknowledge WHS findings</h3><div className="psa-body"><div className="psa-readonly"><strong>Root cause analysis</strong><br />{assessment.root_cause_analysis || "The WHS Officer has returned findings for your review."}<br /><br /><strong>Controls review</strong><br />{assessment.controls_reviewed_finding || "—"}</div><label className="psa-field"><span>Questions or matters to raise at consultation (optional)</span><textarea rows={3} value={acknowledgement.response} onChange={(event) => setAcknowledgement({ ...acknowledgement, response: event.target.value })} /></label><label className="psa-inline-check"><input type="checkbox" checked={acknowledgement.confirmed} onChange={(event) => setAcknowledgement({ ...acknowledgement, confirmed: event.target.checked })} />I confirm that I have read the WHS findings. I understand acknowledgement does not mean I agree with every finding.</label><label className="psa-field"><span>Acknowledgement signature (type full name)</span><input value={acknowledgement.signature} onChange={(event) => setAcknowledgement({ ...acknowledgement, signature: event.target.value })} autoComplete="name" /></label><button type="button" className="psa-btn" disabled={saving} onClick={() => request({ id: assessment.id, action: "worker_acknowledge", worker_acknowledgement_signature: acknowledgement.signature, worker_acknowledgement_confirmed: acknowledgement.confirmed, worker_response_before_meeting: acknowledgement.response }, "Acknowledgement recorded. The WHS Officer can now record the consultation meeting.")}><CheckCircle2 size={15} aria-hidden="true" />Acknowledge findings</button></div></section>}
+
+      {assessment && stage === "worker_acknowledged" && !isAdmin && <section className="psa-section"><h3>Consultation meeting</h3><div className="psa-body"><p className="psa-readonly">Your acknowledgement has been recorded. The WHS Officer will arrange and record the consultation meeting. You may bring a support person.</p></div></section>}
+
+      {assessment && stage === "worker_acknowledged" && isAdmin && <section className="psa-section" aria-labelledby="psa-meeting"><h3 id="psa-meeting"><Users size={15} aria-hidden="true" /> Stage 4 · Consultation meeting</h3><div className="psa-body"><div className="psa-row3"><label className="psa-field"><span>Meeting date</span><input type="date" value={meeting.meeting_date} onChange={(event) => setMeeting({ ...meeting, meeting_date: event.target.value })} /></label><label className="psa-field"><span>Meeting time</span><input type="time" value={meeting.meeting_time} onChange={(event) => setMeeting({ ...meeting, meeting_time: event.target.value })} /></label><label className="psa-field"><span>Format</span><select value={meeting.meeting_format} onChange={(event) => setMeeting({ ...meeting, meeting_format: event.target.value })}><option value="">Select…</option><option>In person</option><option>Video call</option><option>Telephone</option></select></label></div><div className="psa-row2"><label className="psa-field"><span>Meeting location / connection</span><input value={meeting.meeting_location} onChange={(event) => setMeeting({ ...meeting, meeting_location: event.target.value })} /></label><label className="psa-field"><span>Support person arrangement</span><input value={meeting.support_person} onChange={(event) => setMeeting({ ...meeting, support_person: event.target.value })} placeholder="Name, offered/declined, or other arrangement" /></label></div><label className="psa-field"><span>Attendees (one name per line)</span><textarea rows={3} value={meeting.meeting_attendees} onChange={(event) => setMeeting({ ...meeting, meeting_attendees: event.target.value })} /></label><label className="psa-field"><span>Meeting outcomes and agreed actions</span><textarea rows={4} value={meeting.meeting_outcomes} onChange={(event) => setMeeting({ ...meeting, meeting_outcomes: event.target.value })} /></label><label className="psa-field"><span>Matters not agreed and resolution path</span><textarea rows={2} value={meeting.matters_not_agreed} onChange={(event) => setMeeting({ ...meeting, matters_not_agreed: event.target.value })} /></label><div className="psa-row2"><label className="psa-field"><span>Follow-up review date</span><input type="date" value={meeting.follow_up_review_date} onChange={(event) => setMeeting({ ...meeting, follow_up_review_date: event.target.value })} /></label><label className="psa-field"><span>Next assessment due</span><input type="date" value={meeting.next_assessment_due} onChange={(event) => setMeeting({ ...meeting, next_assessment_due: event.target.value })} /></label></div><div className="psa-row2"><label className="psa-field"><span>Escalation outcome</span><select value={meeting.escalation_status} onChange={(event) => setMeeting({ ...meeting, escalation_status: event.target.value })}><option value="">Select…</option><option>Not required</option><option>Escalated to leadership</option><option>External support / referral</option></select></label><label className="psa-field"><span>Escalation / referral details</span><textarea rows={2} value={meeting.escalation_details} onChange={(event) => setMeeting({ ...meeting, escalation_details: event.target.value })} /></label></div><button type="button" className="psa-btn" disabled={saving} onClick={() => request({ id: assessment.id, action: "record_meeting", ...meeting, meeting_attendees: meeting.meeting_attendees.split("\n").map((value) => value.trim()).filter(Boolean) }, "Consultation meeting recorded. The worker can now provide their final signature.")}>Record completed meeting</button></div></section>}
+
+      {assessment && stage === "consultation_completed" && !isAdmin && <section className="psa-section" aria-labelledby="psa-final-worker"><h3 id="psa-final-worker">Stage 5 · Final worker signature</h3><div className="psa-body"><div className="psa-readonly"><strong>Meeting held:</strong> {displayDate(assessment.meeting_date)} · {assessment.meeting_location}<br /><strong>Outcomes:</strong> {assessment.meeting_outcomes}</div><label className="psa-inline-check"><input type="checkbox" checked={finalSignature.confirmed} onChange={(event) => setFinalSignature({ ...finalSignature, confirmed: event.target.checked })} />I confirm that I have participated in, or had the opportunity to participate in, the consultation and have received the recorded outcomes.</label><label className="psa-field"><span>Final worker signature (type full name)</span><input value={finalSignature.signature} onChange={(event) => setFinalSignature({ ...finalSignature, signature: event.target.value })} autoComplete="name" /></label><button type="button" className="psa-btn" disabled={saving} onClick={() => request({ id: assessment.id, action: "worker_final_sign", worker_signature_final: finalSignature.signature, worker_final_signature_confirmed: finalSignature.confirmed }, "Final worker signature recorded. The WHS Officer can now close the assessment.")}><CheckCircle2 size={15} aria-hidden="true" />Record final signature</button></div></section>}
+
+      {assessment && stage === "consultation_completed" && isAdmin && <section className="psa-section" aria-labelledby="psa-close"><h3 id="psa-close">Stage 5 · Declaration and close-out</h3><div className="psa-body"><p className="psa-muted">Close-out remains unavailable until the persisted meeting, corrective actions, worker acknowledgement and worker final signature gates are complete.</p><div className="psa-row2"><label className="psa-field"><span>WHS Officer name</span><input value={closeOut.whs_officer_name} onChange={(event) => setCloseOut({ ...closeOut, whs_officer_name: event.target.value })} /></label><label className="psa-field"><span>WHS Officer review date</span><input type="date" value={closeOut.whs_officer_review_date} onChange={(event) => setCloseOut({ ...closeOut, whs_officer_review_date: event.target.value })} /></label></div><div className="psa-row2"><label className="psa-field"><span>WHS Officer signature (type full name)</span><input value={closeOut.whs_officer_signature} onChange={(event) => setCloseOut({ ...closeOut, whs_officer_signature: event.target.value })} /></label><label className="psa-field"><span>Project Manager name</span><input value={closeOut.project_manager_name} onChange={(event) => setCloseOut({ ...closeOut, project_manager_name: event.target.value })} /></label></div><label className="psa-field"><span>Project Manager signature (type full name)</span><input value={closeOut.project_manager_signature} onChange={(event) => setCloseOut({ ...closeOut, project_manager_signature: event.target.value })} /></label><button type="button" className="psa-btn danger" disabled={saving} onClick={() => request({ id: assessment.id, action: "close_out", ...closeOut }, "Assessment closed.")}>Close assessment</button></div></section>}
+
+      {assessment && stage === "closed" && <section className="psa-section"><h3>Assessment closed</h3><div className="psa-body"><p className="psa-readonly"><CheckCircle2 size={15} aria-hidden="true" /> Closed on {displayDate(assessment.closed_at?.slice(0, 10))}. Follow-up remains due on {displayDate(assessment.follow_up_review_date)}.</p></div></section>}
+    </section>
   );
 }

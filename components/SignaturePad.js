@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useId, useState } from "react";
 import { Eraser } from "lucide-react";
 
 // Finger/mouse signature capture. Stores the drawn signature as a PNG data URL
 // via onChange. Works on touch and pointer devices.
 export default function SignaturePad({ value, onChange, label }) {
+  const labelId = useId();
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef({ x: 0, y: 0 });
@@ -33,10 +34,14 @@ export default function SignaturePad({ value, onChange, label }) {
 
   const pos = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
-    const p = e.touches ? e.touches[0] : e;
-    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
-  const start = (e) => { e.preventDefault(); drawing.current = true; last.current = pos(e); };
+  const start = (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    drawing.current = true;
+    last.current = pos(e);
+  };
   const move = (e) => {
     if (!drawing.current) return;
     e.preventDefault();
@@ -64,16 +69,20 @@ export default function SignaturePad({ value, onChange, label }) {
 
   return (
     <div className="sig">
-      {label ? <span className="sig-label">{label}</span> : null}
+      {label ? <span className="sig-label" id={labelId}>{label}</span> : null}
       <div className="sig-wrap">
         <canvas
           ref={canvasRef}
           className="sig-canvas"
-          onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-          onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+          role="img"
+          tabIndex={0}
+          aria-labelledby={label ? labelId : undefined}
+          aria-label={label ? undefined : "Signature drawing area"}
+          style={{ touchAction: "none" }}
+          onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onPointerLeave={end}
         />
         {!hasInk ? <span className="sig-hint">Sign with your finger or mouse</span> : null}
-        <button type="button" className="sig-clear" onClick={clear} title="Clear"><Eraser size={13} /></button>
+        <button type="button" className="sig-clear" onClick={clear} title="Clear signature" aria-label={`Clear ${label || "signature"}`}><Eraser size={13} /></button>
       </div>
     </div>
   );

@@ -1,303 +1,63 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { CheckCircle2, ClipboardCheck, Package } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, ClipboardCheck, FileDown, Package, Plus, Send, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import SignaturePad from "./SignaturePad";
 
+// EC-WHS-FAK-001 Rev 1 controlled inventory. Each selected kit must submit all
+// rows below; refs are validated again by the API so a client cannot alter them.
 const KIT_A = [
-  { ref: "A1", name: 'AEROPLAST Plastic Fabric Plasters 72mm × 19mm', qty: "25" },
-  { ref: "A2", name: 'AEROPLAST Plastic Plasters 72mm × 19mm', qty: "25" },
-  { ref: "A3", name: 'AEROAID Antiseptic Spray 50ml', qty: "1" },
-  { ref: "A4", name: 'AEROWIPE Cleansing Wipe', qty: "10" },
-  { ref: "A5", name: 'AEROSWAB Gauze Swabs 7.5cm × 7.5cm, 3s', qty: "10" },
-  { ref: "A6", name: 'AEROPAD™ Low Adherent Dressings 5cm × 5cm', qty: "1" },
-  { ref: "A7", name: 'AEROPAD™ Low Adherent Dressings 10cm × 10cm', qty: "1" },
-  { ref: "A8", name: 'AEROFORM Conforming Bandage 7.5cm × 4M', qty: "1" },
-  { ref: "A9", name: 'AEROPORE Microporous Tape 2.5cm × 5M', qty: "1" },
-  { ref: "A10", name: 'AEROGLOVE Nitrile Examination Gloves', qty: "1 pair" },
-  { ref: "A11", name: 'AEROINSTRUMENTS Scissor 10cm', qty: "1" },
-  { ref: "A12", name: 'AEROINSTRUMENTS Tweezer 12cm', qty: "1" },
-  { ref: "A13", name: 'AEROPROBE Splinter Probes 3.7cm', qty: "1" },
-  { ref: "A14", name: 'AEROPINS Safety Pins', qty: "12" },
-  { ref: "A15", name: 'AEROSUPPLIES Notebook & Pen', qty: "1" },
-  { ref: "A16", name: 'First Aid Leaflet', qty: "1" },
-  { ref: "A17", name: 'AEROFORM™ Heavyweight Conforming Bandage 10cm × 4m', qty: "1 roll" },
-  { ref: "A18", name: 'AEROBAND™ Triangular Bandage 110 × 110 × 155cm', qty: "1" },
-  { ref: "A19", name: 'AEROPAD™ Low Adherent Dressings 5cm × 5cm', qty: "3" },
-  { ref: "A20", name: 'AEROWOUND™ BPC Wound Dressing #15', qty: "1" },
-  { ref: "A21", name: 'AEROWOUND™ Combine Dressing 10cm × 20cm', qty: "1" },
-  { ref: "A22", name: 'AEROSWAB™ Gauze Swabs 7.5 × 7.5cm, 3s', qty: "1" },
-  { ref: "A23", name: 'AERORESCUE™ Emergency Rescue Blanket (silver)', qty: "1" },
-  { ref: "A24", name: 'AEROPLAST™ Instant Ice Pack 80g', qty: "1" },
-  { ref: "A25", name: 'AEROPLAST™ Amputated Parts Bag', qty: "1" },
-  { ref: "A26", name: 'AEROSHIELD™ CPR Face Shield', qty: "1" },
-  { ref: "A27", name: 'AEROGLOVE™ Nitrile Examination Gloves', qty: "1 pair" },
-  { ref: "A28", name: 'AEROBURN™ Burn Gel Sachets 3.5g', qty: "8" },
-  { ref: "A29", name: 'AEROBURN™ Burn Dressing 10cm × 10cm', qty: "1" },
-  { ref: "A30", name: 'AEROBURN™ PE Burn Sheet 10cm × 10cm', qty: "1" },
-  { ref: "A31", name: 'AEROBURN™ PE Burn Sheet 20cm × 20cm', qty: "1" },
-  { ref: "A32", name: 'AEROBURN™ PE Burn Sheet 60cm × 90cm', qty: "1" },
-  { ref: "A33", name: 'AEROFORM™ Conforming Bandage 7.5cm × 4m', qty: "1" },
-  { ref: "A34", name: 'AEROGLOVE™ Nitrile Examination Gloves', qty: "1 pair" },
-  { ref: "A35", name: 'AEROGUIDE Burns First Aid Card', qty: "1" },
-  { ref: "A36", name: 'AEROWASH™ Eye Wash Ampoule', qty: "10" },
-  { ref: "A37", name: 'AEROPAD™ Eye Pads', qty: "6" },
-  { ref: "A38", name: 'AEROFORM™ Conforming Bandage', qty: "1 roll" },
-  { ref: "A39", name: 'AEROPORE™ Microporous Tape', qty: "1" },
-  { ref: "A40", name: 'AEROGLOVE™ Nitrile Examination Gloves', qty: "1 pair" },
-  { ref: "A41", name: 'Eye Wound Treatment Card', qty: "1" },
-  { ref: "A42", name: 'AEROFORM Indicator Bandage', qty: "1 roll" },
-  { ref: "A43", name: 'AEROBAND™ Triangular Bandage 110 × 110 × 155cm', qty: "1" },
-  { ref: "A44", name: 'AEROPAD™ Low Adherent Dressings 5cm × 5cm', qty: "1" },
-  { ref: "A45", name: 'AEROPAD™ Low Adherent Dressings 7.5cm × 10cm', qty: "1" },
-  { ref: "A46", name: 'AEROGLOVE™ Nitrile Examination Gloves', qty: "1 pair" },
-  { ref: "A47", name: 'Snake Bite Treatment Leaflet', qty: "1" },
-  { ref: "A48", name: 'AEROFORM™ Conforming Bandage', qty: "2 rolls" },
-  { ref: "A49", name: 'AEROFORM™ Conforming Bandage', qty: "1 roll" },
-  { ref: "A50", name: 'AEROPAD™ Low Adherent Dressings', qty: "2" },
-  { ref: "A51", name: 'AEROPAD™ Low Adherent Dressings', qty: "3" },
-  { ref: "A52", name: 'AEROPAD™ Low Adherent Dressings', qty: "1" },
-  { ref: "A53", name: 'AEROSWAB™ Gauze Swabs 7.5 × 7.5cm', qty: "3" },
-  { ref: "A54", name: 'AEROWOUND™ BPC Wound Dressing', qty: "1" },
-];
+  ["AEROPLAST Plastic Fabric Plasters 72mm × 19mm", "25"], ["AEROPLAST Plastic Plasters 72mm × 19mm", "25"], ["AEROAID Antiseptic Spray 50ml", "1"], ["AEROWIPE Cleansing Wipe", "10"], ["AEROSWAB Gauze Swabs 7.5cm × 7.5cm, 3s", "10"], ["AEROPAD™ Low Adherent Dressings 5cm × 5cm", "1"], ["AEROPAD™ Low Adherent Dressings 10cm × 10cm", "1"], ["AEROFORM Conforming Bandage 7.5cm × 4M", "1"], ["AEROPORE Microporous Tape 2.5cm × 5M", "1"], ["AEROGLOVE Nitrile Examination Gloves", "1 pair"], ["AEROINSTRUMENTS Scissor 10cm", "1"], ["AEROINSTRUMENTS Tweezer 12cm", "1"], ["AEROPROBE Splinter Probes 3.7cm", "1"], ["AEROPINS Safety Pins", "12"], ["AEROSUPPLIES Notebook & Pen", "1"], ["First Aid Leaflet", "1"],
+  ["AEROFORM™ Heavyweight Conforming Bandage 10cm × 4m", "1 roll"], ["AEROBAND™ Triangular Bandage 110 × 110 × 155cm", "1"], ["AEROPAD™ Low Adherent Dressings 5cm × 5cm", "3"], ["AEROWOUND™ BPC Wound Dressing #15", "1"], ["AEROWOUND™ Combine Dressing 10cm × 20cm", "1"], ["AEROSWAB™ Gauze Swabs 7.5 × 7.5cm, 3s", "1"], ["AERORESCUE™ Emergency Rescue Blanket (silver)", "1"], ["AEROPLAST™ Instant Ice Pack 80g", "1"], ["AEROPLAST™ Amputated Parts Bag", "1"], ["AEROSHIELD™ CPR Face Shield", "1"], ["AEROGLOVE™ Nitrile Examination Gloves", "1 pair"],
+  ["AEROBURN™ Burn Gel Sachets 3.5g", "8"], ["AEROBURN™ Burn Dressing 10cm × 10cm", "1"], ["AEROBURN™ PE Burn Sheet 10cm × 10cm", "1"], ["AEROBURN™ PE Burn Sheet 20cm × 20cm", "1"], ["AEROBURN™ PE Burn Sheet 60cm × 90cm", "1"], ["AEROFORM™ Conforming Bandage 7.5cm × 4m", "1"], ["AEROGLOVE™ Nitrile Examination Gloves", "1 pair"], ["AEROGUIDE Burns First Aid Card", "1"],
+  ["AEROWASH™ Eye Wash Ampoule", "10"], ["AEROPAD™ Eye Pads", "6"], ["AEROFORM™ Conforming Bandage", "1 roll"], ["AEROPORE™ Microporous Tape", "1"], ["AEROGLOVE™ Nitrile Examination Gloves", "1 pair"], ["Eye Wound Treatment Card", "1"], ["AEROFORM Indicator Bandage", "1 roll"], ["AEROBAND™ Triangular Bandage 110 × 110 × 155cm", "1"], ["AEROPAD™ Low Adherent Dressings 5cm × 5cm", "1"], ["AEROPAD™ Low Adherent Dressings 7.5cm × 10cm", "1"], ["AEROGLOVE™ Nitrile Examination Gloves", "1 pair"], ["Snake Bite Treatment Leaflet", "1"], ["AEROFORM™ Conforming Bandage", "2 rolls"], ["AEROFORM™ Conforming Bandage", "1 roll"], ["AEROPAD™ Low Adherent Dressings", "2"], ["AEROPAD™ Low Adherent Dressings", "3"], ["AEROPAD™ Low Adherent Dressings", "1"], ["AEROSWAB™ Gauze Swabs 7.5 × 7.5cm", "3"], ["AEROWOUND™ BPC Wound Dressing", "1"],
+].map(([name, qty], index) => ({ ref: `A${index + 1}`, name, qty }));
 const KIT_B = [
-  { ref: "B1", name: 'Adhesive Plasters, plastic, 72 × 19mm', qty: "50" },
-  { ref: "B2", name: 'Wound Wipe, alcohol swab', qty: "6" },
-  { ref: "B3", name: 'Wound Wipe, povidone iodine swab', qty: "6" },
-  { ref: "B4", name: 'Wound Wipe, non-sting wipe', qty: "2" },
-  { ref: "B5", name: 'Gauze Swabs, 7.5 × 7.5cm, 5pk', qty: "1" },
-  { ref: "B6", name: 'Non-Adherent Dressing, 5 × 5cm', qty: "2" },
-  { ref: "B7", name: 'Wound Dressing, No.13', qty: "1" },
-  { ref: "B8", name: 'Conforming Bandage, 7.5cm', qty: "1" },
-  { ref: "B9", name: 'Triangular Bandage, disposable', qty: "1" },
-  { ref: "B10", name: 'Paper Tape, hypoallergenic, 1.25cm', qty: "1" },
-  { ref: "B11", name: 'Assorted Safety Pins', qty: "12" },
-  { ref: "B12", name: 'Eye Pads, non-adherent', qty: "2" },
-  { ref: "B13", name: 'Eye Wash, 15ml ampoule', qty: "2" },
-  { ref: "B14", name: 'Hydrogel Burn Gel, 3.5g sachet', qty: "1" },
-  { ref: "B15", name: 'Cotton Tip Applicators', qty: "20" },
-  { ref: "B16", name: 'Disposable Splinter Probes', qty: "10" },
-  { ref: "B17", name: 'Tweezers, 9cm steel', qty: "1" },
-  { ref: "B18", name: 'Scissors, 9cm steel', qty: "1" },
-  { ref: "B19", name: 'Nitrile Disposable Gloves, large', qty: "1 pair" },
-  { ref: "B20", name: 'Resuscitation Face Shield, disposable, with valve', qty: "1" },
-  { ref: "B21", name: 'Plastic Bag, resealable, medium', qty: "1" },
-  { ref: "B22", name: 'Plastic Bag, resealable, small', qty: "1" },
-  { ref: "B23", name: 'Emergency First Aid Information Booklet', qty: "1" },
-];
-const KIT_C = [
-  { ref: "C1", name: 'Heavy Crepe Bandage, 10cm', qty: "2" },
-  { ref: "C2", name: 'Triangular Bandage, cotton', qty: "1" },
-  { ref: "C3", name: 'Instant Cold Pack, small', qty: "1" },
-  { ref: "C4", name: 'Emergency First Aid Information Booklet', qty: "1" },
-  { ref: "C5", name: 'Snake and Spider Bite Guide', qty: "1" },
-];
+  ["Adhesive Plasters, plastic, 72 × 19mm", "50"], ["Wound Wipe, alcohol swab", "6"], ["Wound Wipe, povidone iodine swab", "6"], ["Wound Wipe, non-sting wipe", "2"], ["Gauze Swabs, 7.5 × 7.5cm, 5pk", "1"], ["Non-Adherent Dressing, 5 × 5cm", "2"], ["Wound Dressing, No.13", "1"], ["Conforming Bandage, 7.5cm", "1"], ["Triangular Bandage, disposable", "1"], ["Paper Tape, hypoallergenic, 1.25cm", "1"], ["Assorted Safety Pins", "12"], ["Eye Pads, non-adherent", "2"], ["Eye Wash, 15ml ampoule", "2"], ["Hydrogel Burn Gel, 3.5g sachet", "1"], ["Cotton Tip Applicators", "20"], ["Disposable Splinter Probes", "10"], ["Tweezers, 9cm steel", "1"], ["Scissors, 9cm steel", "1"], ["Nitrile Disposable Gloves, large", "1 pair"], ["Resuscitation Face Shield, disposable, with valve", "1"], ["Plastic Bag, resealable, medium", "1"], ["Plastic Bag, resealable, small", "1"], ["Emergency First Aid Information Booklet", "1"],
+].map(([name, qty], index) => ({ ref: `B${index + 1}`, name, qty }));
+const KIT_C = [["Heavy Crepe Bandage, 10cm", "2"], ["Triangular Bandage, cotton", "1"], ["Instant Cold Pack, small", "1"], ["Emergency First Aid Information Booklet", "1"], ["Snake and Spider Bite Guide", "1"]].map(([name, qty], index) => ({ ref: `C${index + 1}`, name, qty }));
+const INVENTORIES = { A: KIT_A, B: KIT_B, C: KIT_C };
+const KIT_LABELS = { A: "Modulator First Aid Kit", B: "FastAid Family Soft Pack", C: "FastAid Compact Snake Bite Kit" };
+const OUTCOMES = ["Pass — no action", "Restocked on the spot", "Items ordered — kit still serviceable", "Failed — kit removed from service"];
+const CHECK_TYPES = ["Scheduled monthly check", "Post-use restock", "Pre-mobilisation spot check", "Annual audit"];
+const ISSUES = ["expired", "missing", "used", "damaged", "other"];
+const ACTIONS = ["restocked_on_spot", "restock_ordered", "removed_from_service"];
+const ACTION_LABELS = { restocked_on_spot: "Restocked on the spot", restock_ordered: "Restock ordered", removed_from_service: "Removed from service" };
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_YEAR = /^(0[1-9]|1[0-2])\/\d{4}$/;
+const clean = (value) => String(value || "").trim();
+const blankItems = (items) => items.map(({ ref }) => ({ ref, qty_in_kit: "", batch_no: "", expiry_date: "", ok: false }));
+const initialDetails = () => Object.fromEntries(Object.entries(INVENTORIES).map(([code, items]) => [code, { kit_number: "", outcome: "", items: blankItems(items) }]));
+const newKey = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const realDate = (value) => { if (!DATE.test(value || "")) return false; const [year, month, day] = value.split("-").map(Number); const d = new Date(Date.UTC(year, month - 1, day)); return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day; };
+const blankAction = (seed = {}) => ({ kit: "", item_ref: "", item: "", issue: "", action: "", qty_needed: "", action_owner: "", date_required: "", ...seed });
 
-const OUTCOME_OPTIONS = ["Pass — no action", "Restocked on the spot", "Items ordered — kit still serviceable", "Failed — kit removed from service"];
-
-function blankItemState(items) {
-  return items.map((item) => ({ ref: item.ref, qty_in_kit: "", batch_no: "", expiry_date: "", ok: false }));
-}
-function blankRestockRow() {
-  return { kit: "", item: "", issue: "", qty_needed: "", ordered_by: "", date_required: "" };
-}
-
-function KitTable({ title, hint, items, values, onChange }) {
-  return (
-    <div className="fak-kit-table">
-      <div className="fak-kit-hint"><b>How to complete</b>{hint}</div>
-      <div className="fak-table-scroll">
-        <table>
-          <thead><tr><th>Ref</th><th>Kit contents</th><th>Qty required</th><th>Qty in kit</th><th>Batch no</th><th>Expiry</th><th>OK</th></tr></thead>
-          <tbody>
-            {items.map((item, i) => (
-              <tr key={item.ref} className={i % 2 ? "alt" : ""}>
-                <td className="ref">{item.ref}</td>
-                <td className="desc">{item.name}</td>
-                <td className="desc" style={{ textAlign: "center" }}>{item.qty}</td>
-                <td><input type="text" value={values[i]?.qty_in_kit || ""} onChange={(e) => onChange(i, { qty_in_kit: e.target.value })} /></td>
-                <td><input type="text" placeholder="If applicable" value={values[i]?.batch_no || ""} onChange={(e) => onChange(i, { batch_no: e.target.value })} /></td>
-                <td><input type="text" placeholder="mm/yyyy" value={values[i]?.expiry_date || ""} onChange={(e) => onChange(i, { expiry_date: e.target.value })} /></td>
-                <td className="c"><input type="checkbox" checked={values[i]?.ok || false} onChange={(e) => onChange(i, { ok: e.target.checked })} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function InventoryTable({ code, details, onChange }) {
+  return <div className="fak-scroll" tabIndex={0} aria-label={`Kit ${code} inventory`}><table><thead><tr><th>Ref</th><th>Kit contents</th><th>Required</th><th>Qty in kit</th><th>Batch no.</th><th>Expiry</th><th>OK</th></tr></thead><tbody>{INVENTORIES[code].map((item, index) => { const value = details.items[index]; const id = `fak-${code}-${item.ref}`; return <tr key={item.ref}><th scope="row">{item.ref}</th><td>{item.name}</td><td>{item.qty}</td><td><label className="fak-sr" htmlFor={`${id}-quantity`}>{item.ref} quantity</label><input id={`${id}-quantity`} maxLength={30} value={value.qty_in_kit} onChange={(event) => onChange(index, { qty_in_kit: event.target.value })} /></td><td><label className="fak-sr" htmlFor={`${id}-batch`}>{item.ref} batch</label><input id={`${id}-batch`} maxLength={80} value={value.batch_no} onChange={(event) => onChange(index, { batch_no: event.target.value })} /></td><td><label className="fak-sr" htmlFor={`${id}-expiry`}>{item.ref} expiry MM/YYYY</label><input id={`${id}-expiry`} maxLength={7} value={value.expiry_date} placeholder="MM/YYYY" onChange={(event) => onChange(index, { expiry_date: event.target.value })} /></td><td className="fak-ok"><label htmlFor={`${id}-ok`}><span className="fak-sr">{item.ref} present, in date and serviceable</span><input id={`${id}-ok`} type="checkbox" checked={value.ok} onChange={(event) => onChange(index, { ok: event.target.checked })} /></label></td></tr>; })}</tbody></table></div>;
 }
 
 export default function FirstAidKitChecks() {
   const { session } = useAuth();
-  const [kitA, setKitA] = useState(blankItemState(KIT_A));
-  const [kitB, setKitB] = useState(blankItemState(KIT_B));
-  const [kitC, setKitC] = useState(blankItemState(KIT_C));
-  const [outcomeA, setOutcomeA] = useState("");
-  const [outcomeB, setOutcomeB] = useState("");
-  const [outcomeBNotes, setOutcomeBNotes] = useState("");
-  const [outcomeC, setOutcomeC] = useState("");
-  const [restock, setRestock] = useState([blankRestockRow()]);
-  const [usageNotes, setUsageNotes] = useState("");
-  const [checkedBy, setCheckedBy] = useState("");
-  const [checkDate, setCheckDate] = useState("");
-  const [signature, setSignature] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
-
-  const patchItem = (setFn) => (index, patch) => setFn((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  const patchRestock = (index, patch) => setRestock((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-
-  const submit = async () => {
-    if (!checkDate) { setError("Check date is required."); return; }
-    if (!signature.trim()) { setError("Sign to confirm you physically checked each kit."); return; }
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/first-aid-kit-checks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer \${session?.access_token || ""}` },
-        body: JSON.stringify({
-          check_date: checkDate,
-          kit_a_items: kitA, kit_a_outcome: outcomeA,
-          kit_b_items: kitB, kit_b_outcome: outcomeB, kit_b_notes: outcomeBNotes,
-          kit_c_items: kitC, kit_c_outcome: outcomeC,
-          restock_register: restock.filter((r) => r.item.trim()),
-          usage_notes: usageNotes,
-          signature: signature.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setDone(true);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
+  const [selected, setSelected] = useState([]); const [kits, setKits] = useState(initialDetails);
+  const [checkDate, setCheckDate] = useState(""); const [nextDue, setNextDue] = useState(""); const [checkType, setCheckType] = useState("");
+  const [checkerName, setCheckerName] = useState(""); const [checkerPosition, setCheckerPosition] = useState(""); const [actions, setActions] = useState([]); const [notes, setNotes] = useState(""); const [signature, setSignature] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(newKey); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [saved, setSaved] = useState(null);
+  const nonOk = useMemo(() => selected.flatMap((code) => kits[code].items.filter((item) => !item.ok).map((item) => ({ code, item }))), [kits, selected]);
+  const setKit = (code, patch) => setKits((current) => ({ ...current, [code]: { ...current[code], ...patch } }));
+  const setItem = (code, index, patch) => { setKits((current) => ({ ...current, [code]: { ...current[code], items: current[code].items.map((item, i) => i === index ? { ...item, ...patch } : item) } })); if (patch.ok === false) { const item = INVENTORIES[code][index]; setActions((current) => current.some((row) => row.kit === code && row.item_ref === item.ref) ? current : [...current, blankAction({ kit: code, item_ref: item.ref, item: item.name })]); } };
+  const updateAction = (index, patch) => setActions((current) => current.map((row, i) => i === index ? { ...row, ...patch } : row));
+  const toggle = (code) => { setError(""); setSelected((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]); };
+  const validation = () => {
+    if (!session?.access_token) return "Your session has expired. Sign in again before submitting.";
+    if (!selected.length) return "Select at least one kit to check."; if (!realDate(checkDate)) return "Enter a valid date of check."; if (!realDate(nextDue) || nextDue <= checkDate) return "Enter a next check due date after the check date."; if (!CHECK_TYPES.includes(checkType)) return "Select a check type.";
+    if (clean(checkerName).length < 2 || clean(checkerName).length > 100) return "Enter the checker’s full name."; if (clean(checkerPosition).length < 2 || clean(checkerPosition).length > 100) return "Enter the checker’s position."; if (!signature.startsWith("data:image/png;base64,") || signature.length < 100 || signature.length > 360000) return "Sign with your finger or mouse before submitting.";
+    for (const code of selected) { const kit = kits[code]; if (clean(kit.kit_number).length < 2 || clean(kit.kit_number).length > 80) return `Enter the kit number for Kit ${code}.`; if (!OUTCOMES.includes(kit.outcome)) return `Select an outcome for Kit ${code}.`; for (const item of kit.items) { if (!clean(item.qty_in_kit) || clean(item.qty_in_kit).length > 30) return `Enter quantity in kit for ${item.ref}.`; if (clean(item.batch_no).length > 80 || (clean(item.expiry_date) && !MONTH_YEAR.test(clean(item.expiry_date)))) return `Use a valid batch / MM/YYYY expiry for ${item.ref}.`; if (!item.ok && !actions.some((row) => row.kit === code && row.item_ref === item.ref && ISSUES.includes(row.issue) && ACTIONS.includes(row.action) && clean(row.qty_needed) && clean(row.action_owner).length >= 2 && realDate(row.date_required))) return `${item.ref} is not OK. Complete its restock or removal action.`; } if (kit.outcome === OUTCOMES[3] && !actions.some((row) => row.kit === code && row.item_ref === "KIT" && row.action === "removed_from_service")) return `Kit ${code} failed. Add a Kit-level removal-from-service action.`; }
+    for (const row of actions) { if (!selected.includes(row.kit) || !clean(row.item_ref) || (row.item_ref !== "KIT" && !(INVENTORIES[row.kit] || []).some((item) => item.ref === row.item_ref)) || !clean(row.item) || !ISSUES.includes(row.issue) || !ACTIONS.includes(row.action) || !clean(row.qty_needed) || clean(row.qty_needed).length > 30 || clean(row.action_owner).length < 2 || clean(row.action_owner).length > 100 || !realDate(row.date_required)) return "Complete every restock or removal action, or remove the incomplete row."; }
+    for (const code of selected) { if (kits[code].outcome === OUTCOMES[2] && !actions.some((row) => row.kit === code && row.action === "restock_ordered")) return `Kit ${code} has items ordered. Record its restock-order action.`; }
+    if (notes.length > 2000) return "Notes must be 2,000 characters or fewer."; return "";
   };
-
-  if (done) {
-    return (
-      <div className="fak-done">
-        <CheckCircle2 size={28} />
-        <h3>First aid kit check submitted</h3>
-        <p>Thank you — recorded {checkDate}.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fak">
-      <style>{`
-        .fak { max-width: 950px; }
-        .fak-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-        .fak-header h2 { margin: 0; font-size: 20px; }
-        .fak-section { border: 1px solid #e3ded2; border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
-        .fak-section-head { background: #f7f8f2; padding: 10px 16px; font-weight: 700; font-size: 13.5px; border-bottom: 1px solid #e3ded2; }
-        .fak-kit-table { padding: 14px 16px; }
-        .fak-kit-hint { background: #fbf6e6; border: 1px solid #ece0bc; border-left: 3px solid #c9962a; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: #6e5e33; }
-        .fak-kit-hint b { display: block; font-size: 10px; text-transform: uppercase; color: #8a6a1c; margin-bottom: 2px; }
-        .fak-table-scroll { overflow-x: auto; border: 1px solid #e3ded2; border-radius: 6px; }
-        .fak table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-        .fak th { background: #14261a; color: #fff; padding: 8px 9px; font-size: 11.5px; text-align: left; white-space: nowrap; }
-        .fak td { border: 1px solid #eaeff5; padding: 3px; }
-        .fak td.ref { font-weight: 700; color: #1f5a34; padding: 7px 8px; white-space: nowrap; }
-        .fak td.desc { padding: 7px 8px; }
-        .fak td.c { text-align: center; padding: 6px 10px; }
-        .fak input[type=checkbox] { width: 22px; height: 22px; cursor: pointer; }
-        .fak td input[type=text] { border: none; padding: 6px 8px; font-size: 11.5px; width: 100%; box-sizing: border-box; }
-        .fak tr.alt td { background: #faf7f0; }
-        .fak-outcome-row { padding: 0 16px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .fak-field { margin-bottom: 12px; }
-        .fak-field label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 4px; }
-        .fak-field input, .fak-field select, .fak-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #d9d3c6; border-radius: 6px; font-size: 13.5px; box-sizing: border-box; font-family: inherit; }
-        .fak-restock-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 8px; }
-        .fak-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: none; background: #1f5a34; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
-        .fak-btn.secondary { background: #fff; color: #1f5a34; border: 1px solid #1f5a34; }
-        .fak-btn:disabled { opacity: .5; }
-        .fak-error { background: #fde2e1; color: #a5342a; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
-        .fak-done { text-align: center; padding: 40px 20px; color: #1f5a34; }
-        @media (max-width: 640px) {
-          .fak-outcome-row { grid-template-columns: 1fr; }
-          .fak-restock-row { grid-template-columns: 1fr; }
-        }
-      `}</style>
-
-      <div className="fak-header"><Package size={20} /><h2>First Aid Kit Checks</h2></div>
-      {error ? <p className="fak-error">{error}</p> : null}
-
-      <div className="fak-section">
-        <div className="fak-section-head">2. Kit A — Modulator First Aid Kit</div>
-        <KitTable hint="Six modules — cuts &amp; grazes, trauma, burns, eye wound, snake bite, dressing &amp; bandage. Check every module. Record the batch number where the item carries one." items={KIT_A} values={kitA} onChange={patchItem(setKitA)} />
-        <div className="fak-outcome-row">
-          <label className="fak-field"><span>Kit A outcome</span>
-            <select value={outcomeA} onChange={(e) => setOutcomeA(e.target.value)}>
-              <option value="">Select…</option>{OUTCOME_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="fak-section">
-        <div className="fak-section-head">3. Kit B — FastAid Family Soft Pack</div>
-        <KitTable hint="Soft-pack kit carried with the crew. 23 line items — record quantity held, batch number where applicable, and the earliest expiry." items={KIT_B} values={kitB} onChange={patchItem(setKitB)} />
-        <div className="fak-outcome-row">
-          <label className="fak-field"><span>Kit B outcome</span>
-            <select value={outcomeB} onChange={(e) => setOutcomeB(e.target.value)}>
-              <option value="">Select…</option>{OUTCOME_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-          <label className="fak-field"><span>Notes</span><input value={outcomeBNotes} onChange={(e) => setOutcomeBNotes(e.target.value)} placeholder="Anything the Administration Officer needs to replenish" /></label>
-        </div>
-      </div>
-
-      <div className="fak-section">
-        <div className="fak-section-head">4. Kit C — FastAid Compact Snake Bite Kit</div>
-        <KitTable hint="Compact pressure-immobilisation kit. Five line items — small, but the bandage expiry is the one that matters." items={KIT_C} values={kitC} onChange={patchItem(setKitC)} />
-        <div className="fak-outcome-row">
-          <label className="fak-field"><span>Kit C outcome</span>
-            <select value={outcomeC} onChange={(e) => setOutcomeC(e.target.value)}>
-              <option value="">Select…</option>{OUTCOME_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="fak-section">
-        <div className="fak-section-head">5. Items expired, missing or used</div>
-        <div style={{ padding: "14px 16px" }}>
-          <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>Anything ticked off above without an OK goes here, with who is replacing it and by when.</p>
-          {restock.map((row, i) => (
-            <div key={i} className="fak-restock-row">
-              <input placeholder="Kit" value={row.kit} onChange={(e) => patchRestock(i, { kit: e.target.value })} />
-              <input placeholder="Item" value={row.item} onChange={(e) => patchRestock(i, { item: e.target.value })} />
-              <input placeholder="Issue" value={row.issue} onChange={(e) => patchRestock(i, { issue: e.target.value })} />
-              <input placeholder="Qty needed" value={row.qty_needed} onChange={(e) => patchRestock(i, { qty_needed: e.target.value })} />
-              <input placeholder="Ordered by" value={row.ordered_by} onChange={(e) => patchRestock(i, { ordered_by: e.target.value })} />
-              <input placeholder="Date required" value={row.date_required} onChange={(e) => patchRestock(i, { date_required: e.target.value })} />
-            </div>
-          ))}
-          <button type="button" className="fak-btn secondary" onClick={() => setRestock([...restock, blankRestockRow()])}>+ Add row</button>
-          <div className="fak-field" style={{ marginTop: 12 }}>
-            <label>Notes — recent first aid use, incidents linked to these kits</label>
-            <textarea rows={2} value={usageNotes} onChange={(e) => setUsageNotes(e.target.value)} placeholder="If an item was used, cross-reference the incident report number." />
-          </div>
-        </div>
-      </div>
-
-      <div className="fak-section">
-        <div className="fak-section-head"><ClipboardCheck size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />6. Sign-off</div>
-        <div style={{ padding: "14px 16px" }}>
-          <div className="fak-outcome-row">
-            <label className="fak-field"><span>Checked by — name</span><input value={checkedBy} onChange={(e) => setCheckedBy(e.target.value)} placeholder="Full name" /></label>
-            <label className="fak-field"><span>Date</span><input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} /></label>
-          </div>
-          <label className="fak-field"><span>Signature</span><input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Type your name to sign" /></label>
-          <button type="button" className="fak-btn" onClick={submit} disabled={saving}>{saving ? "Submitting…" : "Submit check"}</button>
-        </div>
-      </div>
-    </div>
-  );
+  const submit = async () => { const message = validation(); if (message) { setError(message); return; } setSaving(true); setError(""); try { const selected_kits = selected.map((code) => ({ kit: code, kit_number: clean(kits[code].kit_number), outcome: kits[code].outcome, items: kits[code].items.map((item) => ({ ...item, qty_in_kit: clean(item.qty_in_kit), batch_no: clean(item.batch_no), expiry_date: clean(item.expiry_date) })) })); const response = await fetch("/api/first-aid-kit-checks", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}`, "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ check_date: checkDate, next_check_due: nextDue, check_type: checkType, checked_by_name: clean(checkerName), checked_by_position: clean(checkerPosition), selected_kits, restock_register: actions.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, clean(value)]))), usage_notes: clean(notes), signature }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "The check could not be saved."); setSaved(data.check || { check_date: checkDate }); setIdempotencyKey(newKey()); } catch (submitError) { setError(submitError.message || "The check could not be saved."); } finally { setSaving(false); } };
+  if (saved) return <section className="fak fak-complete" aria-live="polite"><CheckCircle2 size={34} /><h2>First aid kit check submitted</h2><p>EC-WHS-FAK-001 Rev 1 record saved for {saved.check_date || checkDate}. Notifications, if required, do not delay the saved record.</p><button className="fak-button fak-secondary" type="button" onClick={() => window.print()}><FileDown size={17} /> Print / Save PDF receipt</button></section>;
+  return <section className="fak" aria-labelledby="fak-title"><style>{`.fak{max-width:1100px;color:#183021}.fak *{box-sizing:border-box}.fak h2{margin:0}.fak-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.fak-title{display:flex;gap:9px;align-items:center}.fak-sub{margin:4px 0 0;color:#526057;font-size:13px}.fak-section{border:1px solid #d5dfd4;border-radius:10px;margin-bottom:15px;overflow:hidden;background:#fff}.fak-section h3{margin:0;padding:12px 15px;background:#eff5ef;border-bottom:1px solid #d5dfd4;font-size:15px}.fak-body{padding:15px}.fak-help,.fak-alert,.fak-error{padding:10px 12px;border-radius:7px;font-size:13px;line-height:1.45}.fak-help{margin:0 0 13px;background:#f5faf5;border-left:4px solid #1f7042}.fak-alert{margin:12px 0;background:#fff6e9;border-left:4px solid #ae5a1f;color:#683816}.fak-error{margin-bottom:14px;background:#fff0ef;border-left:4px solid #a72f27;color:#7c251f}.fak-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.fak-grid.two{grid-template-columns:repeat(2,1fr)}.fak-field{display:block}.fak-field>span{display:block;margin-bottom:5px;font-size:11px;font-weight:800;letter-spacing:.04em;color:#415447}.fak input:not([type=checkbox]),.fak select,.fak textarea{width:100%;min-height:44px;border:1px solid #aab8ad;border-radius:7px;padding:9px;font:inherit;font-size:14px}.fak textarea{min-height:76px}.fak input:focus-visible,.fak select:focus-visible,.fak textarea:focus-visible,.fak button:focus-visible,.fak-scroll:focus-visible{outline:3px solid #207247;outline-offset:2px}.fak-picker{border:1px solid #d5dfd4;border-radius:7px;margin-top:14px}.fak-picker legend{padding:10px;font-size:12px;font-weight:800}.fak-kit-toggle{display:flex;align-items:center;gap:11px;min-height:52px;padding:8px 11px;border-top:1px solid #e0e7df;cursor:pointer}.fak-kit-toggle input{width:28px;height:28px;accent-color:#1f7042}.fak-kit-toggle b{display:block}.fak-kit-toggle small{display:block;color:#59675e}.fak-scroll{overflow:auto;border:1px solid #d5dfd4;border-radius:7px}.fak table{border-collapse:collapse;min-width:850px;width:100%;font-size:12px}.fak thead th{background:#173d26;color:#fff;text-align:left;padding:9px}.fak td,.fak tbody th{border-top:1px solid #e1e8e0;padding:4px;text-align:left}.fak tbody tr:nth-child(even){background:#f8faf7}.fak td input:not([type=checkbox]){min-width:92px;min-height:39px;padding:6px;font-size:12px}.fak-ok{padding:0!important;width:54px}.fak-ok label{display:flex;min-width:52px;min-height:52px;align-items:center;justify-content:center;cursor:pointer}.fak-ok input{width:28px;height:28px;accent-color:#1f7042}.fak-outcome{margin-top:12px}.fak-action{display:grid;grid-template-columns:65px 75px 1.4fr 1fr 1.2fr 90px 1fr 130px 44px;gap:7px;align-items:end;margin:8px 0;padding:9px;border:1px solid #dce5dc;border-radius:7px}.fak-action .fak-field>span{font-size:9px}.fak-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:9px 13px;border:1px solid #1d6c41;border-radius:7px;background:#1d6c41;color:#fff;font:700 14px inherit;cursor:pointer}.fak-button:disabled{opacity:.55}.fak-secondary{background:#fff;color:#175536}.fak-danger{background:#fff;color:#962c23;border-color:#b85148;min-width:44px;padding:8px}.fak-actions{display:flex;justify-content:space-between;gap:10px;align-items:center}.fak-actions p{margin:0;color:#55645a;font-size:13px}.fak-submit{display:flex;justify-content:flex-end;gap:10px;margin-top:15px}.fak-complete{text-align:center;padding:38px;color:#1d673e}.fak-complete p{max-width:620px;margin:12px auto 18px;color:#46564b}.fak-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}@media(max-width:850px){.fak-action{grid-template-columns:repeat(2,1fr)}.fak-danger{justify-self:start}}@media(max-width:600px){.fak-head,.fak-actions,.fak-submit{flex-direction:column;align-items:stretch}.fak-grid,.fak-grid.two,.fak-action{grid-template-columns:1fr}.fak-button{width:100%}}@media print{.fak .no-print,.fak button,.fak-alert{display:none!important}.fak-scroll{overflow:visible}.fak table{min-width:0;font-size:9pt}.fak-section{break-inside:avoid}}`}</style><header className="fak-head"><div><div className="fak-title"><Package size={23} /><h2 id="fak-title">First Aid Kit Checks</h2></div><p className="fak-sub">EC-WHS-FAK-001 · Rev 1 · controlled monthly kit check.</p></div><button className="fak-button fak-secondary no-print" type="button" onClick={() => window.print()}><FileDown size={17} /> Print / Save PDF</button></header>{error && <div className="fak-error" role="alert">{error}</div>}<section className="fak-section"><h3>1. Check details</h3><div className="fak-body"><p className="fak-help">Complete one record for every kit physically opened and checked. A missing, used, damaged or expired item needs a restock or removal action.</p><div className="fak-grid"><label className="fak-field"><span>Date of check</span><input type="date" value={checkDate} onChange={(event) => setCheckDate(event.target.value)} /></label><label className="fak-field"><span>Checked by — full name</span><input maxLength={100} value={checkerName} onChange={(event) => setCheckerName(event.target.value)} /></label><label className="fak-field"><span>Position</span><input maxLength={100} value={checkerPosition} onChange={(event) => setCheckerPosition(event.target.value)} /></label></div><fieldset className="fak-picker"><legend>1.1 Identify every kit being checked</legend>{Object.entries(KIT_LABELS).map(([code, label]) => <label key={code} className="fak-kit-toggle"><input type="checkbox" checked={selected.includes(code)} onChange={() => toggle(code)} /><span><b>Kit {code} — {label}</b><small>Show this kit’s controlled contents and kit number.</small></span></label>)}</fieldset>{selected.length === 0 && <p className="fak-alert" role="status">No kit selected yet. Select at least one kit to generate its inventory.</p>}{selected.length > 0 && <div className="fak-grid" style={{ marginTop: 12 }}>{selected.map((code) => <label className="fak-field" key={code}><span>Kit number (Kit {code})</span><input maxLength={80} value={kits[code].kit_number} onChange={(event) => setKit(code, { kit_number: event.target.value })} /></label>)}</div>}<div className="fak-grid two" style={{ marginTop: 12 }}><label className="fak-field"><span>Check type</span><select value={checkType} onChange={(event) => setCheckType(event.target.value)}><option value="">Select…</option>{CHECK_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label><label className="fak-field"><span>Next check due</span><input type="date" value={nextDue} onChange={(event) => setNextDue(event.target.value)} /></label></div></div></section>{selected.map((code, index) => <section className="fak-section" key={code}><h3>{index + 2}. Kit {code} — {KIT_LABELS[code]}</h3><div className="fak-body"><p className="fak-help">Record quantity, batch and expiry where applicable, then mark every item OK or record its action below.</p><InventoryTable code={code} details={kits[code]} onChange={(itemIndex, patch) => setItem(code, itemIndex, patch)} /><label className="fak-field fak-outcome"><span>Kit {code} outcome</span><select value={kits[code].outcome} onChange={(event) => setKit(code, { outcome: event.target.value })}><option value="">Select…</option>{OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}</select></label></div></section>)}<section className="fak-section"><h3>5. Items expired, missing, used or failed</h3><div className="fak-body"><div className="fak-actions"><p>Every item not marked OK must be paired with a restock / removal action below.</p><button className="fak-button fak-secondary no-print" type="button" onClick={() => setActions((rows) => [...rows, blankAction({ kit: selected[0] || "" })])}><Plus size={16} /> Add action</button></div>{nonOk.length > 0 && <p className="fak-alert" role="status">{nonOk.length} inventory item{nonOk.length === 1 ? " is" : "s are"} not marked OK. Complete each action row before submitting.</p>}{actions.map((row, index) => <div className="fak-action" key={`${row.kit}-${row.item_ref}-${index}`}><label className="fak-field"><span>Kit</span><select value={row.kit} onChange={(event) => updateAction(index, { kit: event.target.value })}><option value="">Kit</option>{selected.map((code) => <option key={code}>{code}</option>)}</select></label><label className="fak-field"><span>Ref</span><input value={row.item_ref} maxLength={12} onChange={(event) => updateAction(index, { item_ref: event.target.value })} placeholder="A1 / KIT" /></label><label className="fak-field"><span>Item</span><input value={row.item} maxLength={160} onChange={(event) => updateAction(index, { item: event.target.value })} /></label><label className="fak-field"><span>Issue</span><select value={row.issue} onChange={(event) => updateAction(index, { issue: event.target.value })}><option value="">Select…</option>{ISSUES.map((issue) => <option key={issue}>{issue}</option>)}</select></label><label className="fak-field"><span>Action</span><select value={row.action} onChange={(event) => updateAction(index, { action: event.target.value })}><option value="">Select…</option>{ACTIONS.map((action) => <option key={action} value={action}>{ACTION_LABELS[action]}</option>)}</select></label><label className="fak-field"><span>Qty</span><input value={row.qty_needed} maxLength={30} onChange={(event) => updateAction(index, { qty_needed: event.target.value })} /></label><label className="fak-field"><span>Action owner</span><input value={row.action_owner} maxLength={100} onChange={(event) => updateAction(index, { action_owner: event.target.value })} /></label><label className="fak-field"><span>Required date</span><input type="date" value={row.date_required} onChange={(event) => updateAction(index, { date_required: event.target.value })} /></label><button className="fak-button fak-danger no-print" type="button" aria-label={`Remove action ${index + 1}`} onClick={() => setActions((rows) => rows.filter((_, i) => i !== index))}><Trash2 size={16} /></button></div>)}<label className="fak-field"><span>Notes — recent first aid use or linked incidents</span><textarea value={notes} maxLength={2000} onChange={(event) => setNotes(event.target.value)} placeholder="Cross-reference the incident report number if applicable." /></label></div></section><section className="fak-section"><h3>6. Sign-off</h3><div className="fak-body"><p className="fak-help">Sign with your finger or mouse to confirm you physically opened and checked every selected kit.</p><SignaturePad value={signature} onChange={setSignature} label="Signature — sign with your finger or mouse" /><p className="fak-alert">Kit removed from service? Tag it and remove it from the vehicle or wall station immediately. A vehicle cannot mobilise without a serviceable kit.</p><div className="fak-submit no-print"><button className="fak-button fak-secondary" type="button" onClick={() => window.print()}><FileDown size={17} /> Print / Save PDF</button><button className="fak-button" type="button" disabled={saving} onClick={submit}>{saving ? "Submitting…" : <><Send size={17} /> Submit check</>}</button></div></div></section></section>;
 }

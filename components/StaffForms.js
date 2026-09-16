@@ -27,6 +27,7 @@ import { FORM_SCHEMAS, FORM_GROUPS } from "../lib/formSchemas";
 import { CARD_META } from "../lib/formCardMeta";
 import SignaturePad from "./SignaturePad";
 import DailyRiskAssessmentForm from "./DailyRiskAssessmentForm";
+import PreMobilisationChecklistForm from "./PreMobilisationChecklistForm";
 import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
 import FirstAidKitChecks from "./FirstAidKitChecks";
 import WorkspaceNav from "./WorkspaceNav";
@@ -76,18 +77,18 @@ const FORM_REFERENCE_DOCS = {
 const FORM_DRAFT_PREFIX = "ecology-consulting:whs-form:";
 const FORM_DRAFT_TTL = 1000 * 60 * 60 * 24 * 14;
 
-function formDraftKey(formKey) {
-  return `${FORM_DRAFT_PREFIX}${formKey}`;
+function formDraftKey(formKey, userId) {
+  return `${FORM_DRAFT_PREFIX}${userId || "anonymous"}:${formKey}`;
 }
 
-function readFormDraft(formKey) {
+function readFormDraft(formKey, userId) {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(formDraftKey(formKey));
+    const raw = window.localStorage.getItem(formDraftKey(formKey, userId));
     if (!raw) return {};
     const saved = JSON.parse(raw);
     if (!saved || Date.now() - Number(saved.savedAt || 0) > FORM_DRAFT_TTL) {
-      window.localStorage.removeItem(formDraftKey(formKey));
+      window.localStorage.removeItem(formDraftKey(formKey, userId));
       return {};
     }
     return saved.form && typeof saved.form === "object" ? saved.form : {};
@@ -96,19 +97,19 @@ function readFormDraft(formKey) {
   }
 }
 
-function writeFormDraft(formKey, value) {
+function writeFormDraft(formKey, userId, value) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(formDraftKey(formKey), JSON.stringify({ savedAt: Date.now(), form: value }));
+    window.localStorage.setItem(formDraftKey(formKey, userId), JSON.stringify({ savedAt: Date.now(), form: value }));
   } catch {
     // Storage can be unavailable in private browsing; the in-memory form still works.
   }
 }
 
-function clearFormDraft(formKey) {
+function clearFormDraft(formKey, userId) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(formDraftKey(formKey));
+    window.localStorage.removeItem(formDraftKey(formKey, userId));
   } catch {
     // Ignore unavailable storage.
   }
@@ -184,8 +185,8 @@ export default function StaffForms() {
 
   useEffect(() => {
     if (view !== "form" || !activeKey) return;
-    writeFormDraft(activeKey, form);
-  }, [activeKey, form, view]);
+    writeFormDraft(activeKey, session?.user?.id, form);
+  }, [activeKey, form, view, session?.user?.id]);
 
   const notify = (m) => {
     setMessage(m);
@@ -193,7 +194,7 @@ export default function StaffForms() {
     setTimeout(() => setMessage(""), 2600);
   };
   const openForm = (key) => {
-    const savedDraft = readFormDraft(key);
+    const savedDraft = readFormDraft(key, session?.user?.id);
     setActiveKey(key);
     setForm(savedDraft);
     setError("");
@@ -233,7 +234,7 @@ export default function StaffForms() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      clearFormDraft(activeKey);
+      clearFormDraft(activeKey, session?.user?.id);
       backToHub();
       await loadHistory();
       notify(
@@ -468,6 +469,19 @@ export default function StaffForms() {
     return (
       <DailyRiskAssessmentForm
         authFetch={authFetch}
+        onBack={backToHub}
+        onSubmitted={loadHistory}
+        onToast={notify}
+      />
+    );
+  }
+
+  // ---------- Psychosocial Self Risk Assessment (bespoke form) ----------
+  if (view === "form" && activeKey === "pre_mobilisation") {
+    return (
+      <PreMobilisationChecklistForm
+        authFetch={authFetch}
+        userId={session?.user?.id}
         onBack={backToHub}
         onSubmitted={loadHistory}
         onToast={notify}
