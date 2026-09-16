@@ -154,6 +154,10 @@ export async function PATCH(request, { params }) {
     }
 
     if (action === "transfer") {
+      if (!current.client_contacted) return jsonError("Save the direct client contact confirmation before transferring an issued quote.", 409);
+      if (!current.project_number || !current.quote_number || !current.quote_pdf_path || !current.quote_sent || !current.quote_sent_on || !current.quote_recipient_email) {
+        return jsonError("Save the project number, quote number, final quote PDF, sent date, recipient email and Quote sent confirmation before transferring.", 409);
+      }
       const { data, error } = await access.admin.rpc("transfer_quote_draft_to_pipeline", {
         p_draft_id: current.id,
         p_actor_id: access.user.id,
@@ -167,6 +171,14 @@ export async function PATCH(request, { params }) {
     const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
     const values = toValues(body, directory, current);
     if (!values.client_name && !values.company) return jsonError("Enter a client name or company for the enquiry.");
+    const hasIssuedQuoteData = Boolean(
+      values.project_number || values.quote_number || values.quote_draft_link ||
+      values.quote_sent || values.quote_sent_on || values.quote_recipient_email ||
+      values.quote_sent_by || values.deliverables,
+    );
+    if (!values.client_contacted && hasIssuedQuoteData) {
+      return jsonError("Save the direct client contact confirmation before recording issued-quote details.", 409);
+    }
     const wasAssigned = current.assigned_to;
     const { data: draft, error } = await access.admin
       .from("quote_drafts")

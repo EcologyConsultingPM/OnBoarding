@@ -63,7 +63,12 @@ function FormInput({ label, children, wide = false }) {
 function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, onTransfer, onUpload, onOpenAttachment }) {
   const quotePdfInput = useRef(null);
   const status = draft?.status || (value.assignedTo ? "awaiting_contact" : "awaiting_review");
-  const canTransfer = value.clientContacted && value.projectNumber.trim() && value.quoteNumber.trim() && value.quoteSent && value.quoteSentOn && value.quoteRecipientEmail && draft?.quote_pdf_path;
+  // The contact check is a saved compliance gate, not a client-only toggle.
+  // Quote preparation unlocks only after the enquiry is saved with the direct
+  // client conversation recorded.
+  const contactRecorded = draft?.client_contacted === true;
+  const canPrepareQuote = contactRecorded && status !== "transferred";
+  const canTransfer = contactRecorded && value.projectNumber.trim() && value.quoteNumber.trim() && value.quoteSent && value.quoteSentOn && value.quoteRecipientEmail && draft?.quote_pdf_path;
   const set = (key, next) => setValue({ ...value, [key]: next });
   const uploadFiles = async (event, quotePdf) => {
     const files = [...(event.target.files || [])];
@@ -101,13 +106,17 @@ function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, on
         <section className="qdw-gate">
           <div className="qdw-gate__heading"><ContactRound size={18} /><div><strong>Client-contact gate</strong><small>Confirm a direct client conversation has taken place before preparing the quote.</small></div></div>
           <label className="qdw-check"><input type="checkbox" checked={value.clientContacted} onChange={(event) => set("clientContacted", event.target.checked)} /> Client contacted prior to quote preparation</label>
+          <button type="button" className="qdw-action qdw-action--forest" disabled={busy || (contactRecorded && value.clientContacted)} onClick={onSave}>
+            {busy ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />} {contactRecorded && value.clientContacted ? "Client contact saved" : "Save client contact & continue"}
+          </button>
+          {!contactRecorded ? <small className="qdw-hint">Tick the confirmation, then save this gate. The issued-quote section unlocks only after it has been saved.</small> : null}
         </section>
 
-        <section className="qdw-files">
+        <fieldset className="qdw-files" disabled={!canPrepareQuote}>
           <div className="qdw-gate__heading"><Paperclip size={18} /><div><strong>Issued quote</strong><small>The final quote PDF, stored as a restricted attachment.</small></div></div>
           <div className="qdw-files__actions">
             <input ref={quotePdfInput} type="file" accept="application/pdf" hidden onChange={(event) => uploadFiles(event, true)} />
-            <button type="button" className="qdw-action qdw-action--secondary" disabled={busy || status !== "quote_drafting" || status === "transferred"} onClick={() => quotePdfInput.current?.click()}><FilePlus2 size={16} /> Attach issued quote PDF</button>
+            <button type="button" className="qdw-action qdw-action--secondary" disabled={busy || !canPrepareQuote} onClick={() => quotePdfInput.current?.click()}><FilePlus2 size={16} /> Attach issued quote PDF</button>
           </div>
           <div className="qdw-attachments">{(draft.attachments || []).length ? draft.attachments.map((attachment) => <button type="button" onClick={() => onOpenAttachment(attachment.path)} key={attachment.path}><FileText size={14} />{attachment.name}</button>) : <span>No quote attached yet.</span>}</div>
           <div className="qdw-form-grid qdw-issue-grid">
@@ -121,8 +130,8 @@ function DraftEditor({ value, setValue, staff, draft, onSave, onCancel, busy, on
           </div>
           <label className="qdw-check"><input type="checkbox" checked={value.quoteSent} onChange={(event) => set("quoteSent", event.target.checked)} /> Quote sent to client</label>
           <button type="button" className="qdw-action qdw-action--forest" disabled={busy || !canTransfer} onClick={onTransfer}><Send size={16} /> Transfer issued quote to Pipeline</button>
-          {!canTransfer ? <small className="qdw-hint">Record the client-contact tick, project number, quote number, attached quote PDF, sent date and recipient email, then tick Quote sent to transfer it into the issued Quote Pipeline as Pending.</small> : null}
-        </section>
+          {!canPrepareQuote ? <small className="qdw-hint">Save the client-contact gate above to unlock this stage.</small> : !canTransfer ? <small className="qdw-hint">Save the issued-quote details, then record the project number, quote number, attached quote PDF, sent date and recipient email and tick Quote sent to transfer it into the formal Pipeline as Pending.</small> : null}
+        </fieldset>
       </> : null}
 
       <div className="qdw-editor__actions">
@@ -185,30 +194,17 @@ export default function QuoteDraftWorkspace({ onPipelineChanged }) {
       setEditing(data.draft);
       setEditForm(fromDraft(data.draft));
       await load();
-      // Auto-offer transfer the moment saving leaves this quote fully ready
-      // (client contacted, both numbers, PDF attached, sent date, recipient,
-      // and the Quote sent tick) — no separate button click needed to
-      // complete what's really one action: finish the worksheet, send it,
-      // save. Still asks first, since transfer is a one-way, locking move.
-      const readyToTransfer = data.draft.client_contacted && data.draft.project_number?.trim() && data.draft.quote_number?.trim() && data.draft.quote_sent && data.draft.quote_sent_on && data.draft.quote_recipient_email && data.draft.quote_pdf_path && data.draft.status !== "transferred";
-      if (readyToTransfer && window.confirm("This quote is ready — move it to the issued Quote Pipeline now? The enquiry will remain as a read-only audit record.")) {
-        const transferred = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "transfer" });
-        setEditing(transferred.draft);
-        setEditForm(fromDraft(transferred.draft));
-        await load();
-        onPipelineChanged?.();
-        notify("Issued quote transferred to the formal Quote Pipeline as Pending.");
-      } else {
-        notify("Successfully saved.");
-        setEditing(null);
-      }
+      // A save never closes the worksheet or silently moves data to the
+      // pipeline. This makes the client-contact gate and the issue stage
+      // deliberate, recoverable steps.
+      notify(data.draft.client_contacted ? "Saved. The issued-quote stage is ready to complete." : "Enquiry details saved.");
     }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const transfer = async () => {
     if (!editing || !window.confirm("Transfer this issued quote to the formal Quote Pipeline as Pending? The enquiry will remain as a read-only audit record.")) return;
     setBusy(true);
-    try { await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm }); const data = await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "transfer" }); setEditing(data.draft); setEditForm(fromDraft(data.draft)); await load(); onPipelineChanged?.(); notify("Issued quote transferred to the formal Quote Pipeline as Pending."); }
+    try { await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "save", ...editForm }); await api("PATCH", `/api/quote-drafts/${editing.id}`, { action: "transfer" }); setEditing(null); setEditForm(EMPTY); await load(); onPipelineChanged?.(); notify("Issued quote transferred to the formal Quote Pipeline as Pending and removed from active drafting work."); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const upload = async (file, quotePdf) => {
