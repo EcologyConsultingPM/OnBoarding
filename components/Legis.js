@@ -177,11 +177,19 @@ export default function Legis({ compact = false }) {
   const headers = useCallback(() => ({ Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
 
   useEffect(() => {
-    if (!session?.access_token) return;
+    if (!session?.access_token) {
+      setError("You must be signed in to load the Legis brief.");
+      setLoading(false);
+      return;
+    }
     fetch("/api/legis", { headers: headers() })
-      .then((response) => response.json())
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Legis request failed (${response.status}).`);
+        return data;
+      })
       .then((data) => setBrief(data.brief || null))
-      .catch(() => setError("Could not load this week's Legis brief."))
+      .catch((requestError) => setError(requestError.message || "Could not load this week's Legis brief."))
       .finally(() => setLoading(false));
   }, [session?.access_token, headers]);
 
@@ -190,8 +198,13 @@ export default function Legis({ compact = false }) {
     setShowHistory(true);
     if (history.length) return;
     fetch("/api/legis?history=true", { headers: headers() })
-      .then((response) => response.json())
-      .then((data) => setHistory(data.briefs || []));
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Legis history failed (${response.status}).`);
+        return data;
+      })
+      .then((data) => setHistory(data.briefs || []))
+      .catch((requestError) => setError(requestError.message || "Could not load Legis history."));
   };
 
   if (loading) return <div className="lg-loading"><Loader2 size={16} className="spin" /> Loading Legis…</div>;
