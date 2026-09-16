@@ -17487,8 +17487,11 @@ main {
 .scp-calendar-staff--shared { color: #e7c979; cursor: default; }
 .scp-calendar-cell { display: flex; min-height: 68px; flex-direction: column; gap: 4px; padding: 6px; background: rgba(4, 43, 27, .48); }
 .scp-calendar-cell:has(.scp-calendar-event) { background: rgba(17, 72, 45, .68); }
+.scp-calendar-cell--drop-target { outline: 2px dashed rgba(231, 201, 121, .8); outline-offset: -4px; background: rgba(63, 126, 78, .46); }
 .scp-calendar-event { display: flex; min-width: 0; align-items: flex-start; gap: 5px; border: 1px solid rgba(224, 237, 222, .16); border-radius: 5px; padding: 5px; color: #f2f6eb; background: rgba(9, 48, 31, .9); font: inherit; font-size: 9.5px; line-height: 1.25; text-align: left; cursor: pointer; }
 .scp-calendar-event:hover { border-color: rgba(231, 201, 121, .55); background: rgba(21, 87, 53, .95); }
+.scp-calendar-event--draggable { cursor: grab; }
+.scp-calendar-event--draggable:active { cursor: grabbing; }
 .scp-calendar-event i { flex: 0 0 6px; width: 6px; height: 6px; margin-top: 2px; border-radius: 50%; }
 .scp-calendar-event span { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 @media (max-width: 760px) {

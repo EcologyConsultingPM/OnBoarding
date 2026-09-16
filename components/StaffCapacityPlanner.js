@@ -148,6 +148,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [unassignedModal, setUnassignedModal] = useState(null); // admin: { activityId, projectId, title, taskCategory, budgetHours, startDate, dueDate, staffUserId }
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [draggedActivity, setDraggedActivity] = useState(null);
   const [claimRequest, setClaimRequest] = useState(null); // staff: the event being confirmed for a service request
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimMessage, setClaimMessage] = useState("");
@@ -266,6 +267,34 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       setModalError(deleteError.message || "Could not delete this activity.");
     } finally {
       setModalBusy(false);
+    }
+  };
+
+  // Dragging is the fast planning path: move an activity to a person's row
+  // and a new date in one gesture. The click/double-click editor remains the
+  // detailed path for reviewing hours, category and activity instructions.
+  const dropActivity = async (activity, staffUserId, startDate) => {
+    if (!activity || mode === "staff" || !data?.canEdit || !activity.projectId) return;
+    const activityId = String(activity.id || "").replace(/^activity-/, "");
+    const priorStart = activity.startDate || activity.endDate || startDate;
+    const priorEnd = activity.endDate || priorStart;
+    const durationDays = Math.max(0, Math.round((new Date(`${priorEnd}T00:00:00Z`) - new Date(`${priorStart}T00:00:00Z`)) / DAY));
+    const dueDate = shiftDate(startDate, durationDays);
+    setModalError("");
+    setError("");
+    try {
+      const response = await fetch(`/api/projects/${activity.projectId}/activities/${activityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ staffUserId, startDate, dueDate }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not move the activity.");
+      await load();
+    } catch (moveError) {
+      setError(moveError.message || "Could not move the activity.");
+    } finally {
+      setDraggedActivity(null);
     }
   };
 
@@ -444,7 +473,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           )}
 
               <div className="scp-calendar-section">
-            <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Staff names stay frozen on the left while the selected period scrolls horizontally. Administrators can click any blue or green project activity to assign it, move dates or correct its details; moving an activity also updates its linked generated schedule item.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
+              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click an activity for its full details; administrators can also drag any blue or green activity onto a staff member and date to allocate and reschedule it. Changes update the linked generated schedule item.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
               <>
@@ -456,8 +485,9 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     <div className="scp-calendar-staff" role="rowheader" onClick={() => onSelectStaff?.(person)}><strong>{person.name || person.email}</strong><small>{person.weeklyCapacityHours} h/wk</small></div>
                     {calendarDays.map((day) => {
                       const events = day.events.filter((event) => event.staffUserId === person.id);
-                      return <div className="scp-calendar-cell" role="gridcell" key={`${person.id}-${day.date}`}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" className="scp-calendar-event" key={event.id} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} title={manageable ? `${event.title} — click to assign or reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
+                      const canReceiveDrop = mode !== "staff" && data.canEdit;
+                      return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop && draggedActivity) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(draggedActivity, person.id, day.date); }}>
+                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (!manageable) return; dragEvent.dataTransfer.effectAllowed = "move"; setDraggedActivity(event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
@@ -469,9 +499,13 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                       return (
                         <button
                           type="button"
-                          className="scp-calendar-event"
+                          className={`scp-calendar-event${manageable && mode !== "staff" && data.canEdit ? " scp-calendar-event--draggable" : ""}`}
                           key={event.id}
-                          title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — click to assign or reschedule`) : event.title}
+                          draggable={manageable && mode !== "staff" && data.canEdit}
+                          title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — click for details, or drag onto a staff member and date`) : event.title}
+                          onDragStart={(dragEvent) => { if (!(manageable && mode !== "staff" && data.canEdit)) return; dragEvent.dataTransfer.effectAllowed = "move"; setDraggedActivity(event); }}
+                          onDragEnd={() => setDraggedActivity(null)}
+                          onDoubleClick={() => manageable && mode !== "staff" && openUnassignedModal(event)}
                           onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); else if (manageable && mode !== "staff") openUnassignedModal(event); }}
                           style={{ cursor: manageable ? "pointer" : "default" }}
                         >

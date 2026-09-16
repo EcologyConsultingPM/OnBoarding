@@ -147,14 +147,13 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const activeActivities = (activitiesResult.data || []).filter((activity) =>
     projectById.has(activity.project_id),
   );
-  // Only activities the assigned staff member has actually accepted count
-  // toward their workload — an assignment still sitting in
-  // "awaiting_response" (SE-approved and notified, but not yet actioned by
-  // the person) doesn't consume capacity or appear on the calendar yet.
+  // Capacity is a forward planning tool, so every saved, active assignment
+  // shown in the workload calendar must consume capacity immediately. Waiting
+  // for a worker acknowledgement hid 45 planned activities from the planner
+  // even though the administrator had already allocated their dates/hours.
+  // acceptance_status remains in the event payload for visual context only.
   const activities = activeActivities.filter((activity) =>
-    activity.staff_user_id &&
-    projectById.has(activity.project_id) &&
-    ["accepted", "actioned", "completed"].includes(activity.acceptance_status),
+    activity.staff_user_id && projectById.has(activity.project_id),
   );
   const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
   const leaves = (leavesResult.data || []).map((record) => ({

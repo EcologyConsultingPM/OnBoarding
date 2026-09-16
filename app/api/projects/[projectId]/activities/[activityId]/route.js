@@ -91,19 +91,48 @@ export async function PATCH(request, { params }) {
       patch.progress_percent = Math.round(progress * 100) / 100;
     }
 
-    const { data: updated, error: updateError } = await access.admin
+    let { data: updated, error: updateError } = await access.admin
       .from("project_activities")
       .update(patch)
       .eq("id", activityId)
-      .select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, progress_percent, acceptance_status, schedule_item_id")
+      .select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, progress_percent, acceptance_status, schedule_item_id, sort_order")
       .single();
     if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
+
+    const affectsSchedule = body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined || body?.detail !== undefined || body?.milestone !== undefined || body?.status !== undefined || body?.progressPercent !== undefined;
+    // An activity added outside Project Setup can legitimately pre-date the
+    // Gantt link. Its first dated calendar edit creates a source-owned schedule
+    // row, so later calendar moves always remain visible in the project plan.
+    if (affectsSchedule && !updated.schedule_item_id && (updated.start_date || updated.due_date)) {
+      const { data: generatedSchedule, error: generatedScheduleError } = await access.admin
+        .from("project_schedule_items")
+        .insert({
+          project_id: projectId,
+          sort_order: updated.sort_order || 0,
+          title: updated.title,
+          detail: updated.detail,
+          start_date: updated.start_date || updated.due_date,
+          end_date: updated.due_date || updated.start_date,
+          milestone: updated.milestone === true,
+          status: updated.status,
+          progress_percent: updated.progress_percent,
+          generated_from_activity_id: updated.id,
+          is_active: true,
+          updated_at: now,
+        })
+        .select("id")
+        .single();
+      if (generatedScheduleError) return Response.json({ error: generatedScheduleError.message }, { status: 400 });
+      const { error: linkError } = await access.admin.from("project_activities").update({ schedule_item_id: generatedSchedule.id, updated_at: now }).eq("id", updated.id);
+      if (linkError) return Response.json({ error: linkError.message }, { status: 400 });
+      updated = { ...updated, schedule_item_id: generatedSchedule.id };
+    }
 
     // Keep an activity-created schedule line in sync with a calendar edit.
     // A manual Gantt phase may intentionally group several activities, so it
     // retains its independent title/dates and only activity-generated rows
     // receive the source activity's details.
-    if (updated.schedule_item_id && (body?.startDate !== undefined || body?.dueDate !== undefined || body?.title !== undefined || body?.detail !== undefined || body?.milestone !== undefined || body?.status !== undefined || body?.progressPercent !== undefined)) {
+    if (updated.schedule_item_id && affectsSchedule) {
       const { data: linkedSchedule, error: scheduleLookupError } = await access.admin
         .from("project_schedule_items")
         .select("id, generated_from_activity_id")
