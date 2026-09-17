@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COLS = [
-  "id", "created_by", "assigned_to", "project", "task", "due_date", "budget_hours",
+  "id", "created_by", "assigned_to", "project", "task", "start_date", "due_date", "budget_hours",
   "deliverable", "resources", "notes", "status", "staff_note", "review_note",
   "accepted_at", "declined_at", "decline_reason", "submitted_at", "completed_at",
   "withdrawn_at", "seen_by_staff", "created_at", "updated_at",
@@ -85,6 +85,10 @@ export async function POST(request) {
     if (!directory.some((person) => person.id === body.assigned_to)) return badRequest("Choose an available staff member from the Staff List.");
     if (!body.project || !body.project.trim()) return badRequest("Project is required.");
     if (!body.task || !body.task.trim()) return badRequest("Task description is required.");
+    const startDate = body.start_date ? String(body.start_date).slice(0, 10) : null;
+    const dueDate = body.due_date ? String(body.due_date).slice(0, 10) : null;
+    if ((startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) return badRequest("Use valid planned start and due dates.");
+    if (startDate && dueDate && startDate > dueDate) return badRequest("The planned start date must be on or before the due date.");
 
     const { data, error } = await access.admin
       .from("remote_tasks")
@@ -93,7 +97,8 @@ export async function POST(request) {
         assigned_to: body.assigned_to,
         project: body.project.trim(),
         task: body.task.trim(),
-        due_date: body.due_date || null,
+        start_date: startDate,
+        due_date: dueDate,
         budget_hours: body.budget_hours ? Number(body.budget_hours) : null,
         deliverable: (body.deliverable || "").trim() || null,
         resources: (body.resources || "").trim() || null,

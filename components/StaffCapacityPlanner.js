@@ -146,6 +146,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   useUnsavedGuard(capacityDirty, "A capacity change has not been saved.");
   const [saving, setSaving] = useState(false);
   const [unassignedModal, setUnassignedModal] = useState(null); // admin: { activityId, projectId, title, taskCategory, budgetHours, startDate, dueDate, staffUserId }
+  const [manualTaskModal, setManualTaskModal] = useState(null);
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState("");
   const [draggedActivity, setDraggedActivity] = useState(null);
@@ -202,11 +203,13 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   // --- Admin: manage any project activity from the calendar ---
   const openUnassignedModal = (event) => {
     if (mode === "staff" || !data?.canEdit) return;
-    if (!["activity", "field_survey"].includes(event.type) || !event.projectId) return;
-    const activityId = event.id.replace(/^activity-/, "");
+    if (!["activity", "field_survey", "schedule", "milestone"].includes(event.type) || !event.projectId) return;
+    const isScheduleItem = ["schedule", "milestone"].includes(event.type);
+    const activityId = isScheduleItem ? "" : event.id.replace(/^activity-/, "");
     setModalError("");
     setUnassignedModal({
       activityId,
+      scheduleItemId: isScheduleItem ? event.id.replace(/^schedule-/, "") : "",
       projectId: event.projectId,
       projectName: event.projectName,
       title: event.title,
@@ -225,10 +228,22 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     setModalBusy(true);
     setModalError("");
     try {
-      const response = await fetch(`/api/projects/${unassignedModal.projectId}/activities/${unassignedModal.activityId}`, {
-        method: "PATCH",
+      const scheduleAssignment = Boolean(unassignedModal.scheduleItemId);
+      const response = await fetch(scheduleAssignment ? endpoint : `/api/projects/${unassignedModal.projectId}/activities/${unassignedModal.activityId}`, {
+        method: scheduleAssignment ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
+        body: JSON.stringify(scheduleAssignment ? {
+          action: "assign_schedule_item",
+          scheduleItemId: unassignedModal.scheduleItemId,
+          staffUserId: unassignedModal.staffUserId,
+          title: unassignedModal.title,
+          startDate: unassignedModal.startDate || undefined,
+          dueDate: unassignedModal.dueDate || undefined,
+          taskCategory: unassignedModal.taskCategory || undefined,
+          detail: unassignedModal.detail || undefined,
+          budgetHours: unassignedModal.budgetHours,
+          milestone: unassignedModal.milestone,
+        } : {
           staffUserId: unassignedModal.staffUserId,
           title: unassignedModal.title,
           startDate: unassignedModal.startDate || undefined,
@@ -245,6 +260,52 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       await load();
     } catch (assignError) {
       setModalError(assignError.message || "Could not assign this activity.");
+    } finally {
+      setModalBusy(false);
+    }
+  };
+
+  const openManualTaskModal = () => {
+    if (mode === "staff" || !data?.canEdit) return;
+    setModalError("");
+    setManualTaskModal({
+      assignedTo: "",
+      project: "Internal / non-project work",
+      task: "",
+      startDate: period.start,
+      dueDate: period.start,
+      budgetHours: "",
+      deliverable: "",
+      notes: "",
+    });
+  };
+  const saveManualTask = async () => {
+    if (!manualTaskModal) return;
+    if (!manualTaskModal.assignedTo) { setModalError("Choose the staff member who will receive this assignment."); return; }
+    if (!manualTaskModal.task.trim()) { setModalError("Enter a short task description."); return; }
+    setModalBusy(true);
+    setModalError("");
+    try {
+      const response = await fetch("/api/remote-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          assigned_to: manualTaskModal.assignedTo,
+          project: manualTaskModal.project.trim() || "Internal / non-project work",
+          task: manualTaskModal.task.trim(),
+          start_date: manualTaskModal.startDate || null,
+          due_date: manualTaskModal.dueDate || null,
+          budget_hours: manualTaskModal.budgetHours,
+          deliverable: manualTaskModal.deliverable,
+          notes: manualTaskModal.notes,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not create the manual assignment.");
+      setManualTaskModal(null);
+      await load();
+    } catch (saveError) {
+      setModalError(saveError.message || "Could not create the manual assignment.");
     } finally {
       setModalBusy(false);
     }
@@ -295,6 +356,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   // detailed path for reviewing hours, category and activity instructions.
   const dropActivity = async (activity, staffUserId, startDate) => {
     if (!activity || mode === "staff" || !data?.canEdit || !activity.projectId) return;
+    const scheduleAssignment = ["schedule", "milestone"].includes(activity.type);
     const activityId = String(activity.id || "").replace(/^activity-/, "");
     const priorStart = activity.startDate || activity.endDate || startDate;
     const priorEnd = activity.endDate || priorStart;
@@ -303,10 +365,21 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     setModalError("");
     setError("");
     try {
-      const response = await fetch(`/api/projects/${activity.projectId}/activities/${activityId}`, {
-        method: "PATCH",
+      const response = await fetch(scheduleAssignment ? endpoint : `/api/projects/${activity.projectId}/activities/${activityId}`, {
+        method: scheduleAssignment ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ staffUserId, startDate, dueDate }),
+        body: JSON.stringify(scheduleAssignment ? {
+          action: "assign_schedule_item",
+          scheduleItemId: String(activity.id || "").replace(/^schedule-/, ""),
+          staffUserId,
+          title: activity.title,
+          detail: activity.detail || "",
+          taskCategory: activity.taskCategory || "",
+          budgetHours: activity.budgetHours ?? "",
+          startDate,
+          dueDate,
+          milestone: activity.type === "milestone",
+        } : { staffUserId, startDate, dueDate }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not move the activity.");
@@ -498,7 +571,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           )}
 
               <div className="scp-calendar-section">
-              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click an activity for its full details; administrators can also drag any blue or green activity onto a staff member and date to allocate and reschedule it. Changes update the linked generated schedule item.</p></div><span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div>
+              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click any project item to see its project, activity and client context. Administrators can drag an activity or unassigned schedule item to a staff member and date; the linked delivery schedule updates automatically.</p></div><div className="scp-calendar-heading-actions">{mode !== "staff" && data.canEdit ? <button type="button" className="scp-manual-task" onClick={openManualTaskModal}><UserPlus size={14} /> Add manual assignment</button> : null}<span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
               <>
@@ -512,15 +585,15 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                       const events = day.events.filter((event) => event.staffUserId === person.id);
                       const canReceiveDrop = mode !== "staff" && data.canEdit;
                       return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(activityFromDrop(event), person.id, day.date); }}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
+                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
                   {calendarDays.some((day) => day.events.some((event) => !event.staffUserId)) ? <div className="scp-calendar-person-row" role="row" key="calendar-shared">
                     <div className="scp-calendar-staff scp-calendar-staff--shared" role="rowheader"><strong>Shared / unassigned</strong><small>Project-wide items</small></div>
-                    {calendarDays.map((day) => <div className="scp-calendar-cell" role="gridcell" key={`shared-${day.date}`}>{day.events.filter((event) => !event.staffUserId).map((event) => {
+                    {calendarDays.map((day) => <div className={`scp-calendar-cell${draggedActivity && mode !== "staff" && data.canEdit ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`shared-${day.date}`} onDragOver={(event) => { if (mode !== "staff" && data.canEdit) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); const activity = activityFromDrop(event); if (activity) openUnassignedModal({ ...activity, startDate: day.date, endDate: day.date, staffUserId: "" }); }}>{day.events.filter((event) => !event.staffUserId).map((event) => {
                       const style = EVENT[event.type] || EVENT.schedule;
-                      const manageable = ["activity", "field_survey"].includes(event.type) && event.projectId;
+                      const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId;
                       return (
                         <button
                           type="button"
@@ -581,11 +654,28 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                     </div>
                     <label className="scp-modal-field">Activity details<textarea rows={3} value={unassignedModal.detail} onChange={(event) => setUnassignedModal({ ...unassignedModal, detail: event.target.value })} placeholder="Scope, fieldwork instructions, handover requirements or dependencies" /></label>
                     <div className="scp-modal-actions">
-                      <button type="button" className="scp-modal-delete" disabled={modalBusy} onClick={deleteUnassignedActivity}><Trash2 size={14} /> Delete</button>
+                      {!unassignedModal.scheduleItemId ? <button type="button" className="scp-modal-delete" disabled={modalBusy} onClick={deleteUnassignedActivity}><Trash2 size={14} /> Delete</button> : null}
                       <button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveUnassignedAssignment}>
                         {modalBusy ? <Loader2 size={14} className="spin" /> : <UserPlus size={14} />} {modalBusy ? "Saving…" : unassignedModal.staffUserId ? "Save activity & notify" : "Assign & notify"}
                       </button>
                     </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {manualTaskModal ? (
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Add manual staff assignment" onClick={() => !modalBusy && setManualTaskModal(null)}>
+                  <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
+                    <div className="scp-modal-head"><div><span>Operational work allocation</span><h3>Add manual assignment</h3></div><button type="button" onClick={() => !modalBusy && setManualTaskModal(null)}><X size={16} /></button></div>
+                    {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
+                    <p>Use this for policy reviews, operational work and other non-project tasks. The assignee receives a Staff Portal notification and the task appears in the workload calendar immediately.</p>
+                    <label className="scp-modal-field">Assign to<select value={manualTaskModal.assignedTo} onChange={(event) => setManualTaskModal({ ...manualTaskModal, assignedTo: event.target.value })}><option value="">Select a staff member…</option>{(data.people || []).map((person) => <option key={person.id} value={person.id}>{person.name || person.email}</option>)}</select></label>
+                    <label className="scp-modal-field">Workstream or project<input value={manualTaskModal.project} onChange={(event) => setManualTaskModal({ ...manualTaskModal, project: event.target.value })} placeholder="e.g. Internal / non-project work" /></label>
+                    <label className="scp-modal-field">Task description<input value={manualTaskModal.task} onChange={(event) => setManualTaskModal({ ...manualTaskModal, task: event.target.value })} placeholder="e.g. Review biodiversity policy update" /></label>
+                    <div className="scp-modal-row"><label className="scp-modal-field">Start date<input type="date" value={manualTaskModal.startDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, startDate: event.target.value })} /></label><label className="scp-modal-field">Due date<input type="date" value={manualTaskModal.dueDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, dueDate: event.target.value })} /></label></div>
+                    <div className="scp-modal-row"><label className="scp-modal-field">Planned hours<input type="number" min="0" step="0.25" value={manualTaskModal.budgetHours} onChange={(event) => setManualTaskModal({ ...manualTaskModal, budgetHours: event.target.value })} /></label><label className="scp-modal-field">Deliverable / outcome<input value={manualTaskModal.deliverable} onChange={(event) => setManualTaskModal({ ...manualTaskModal, deliverable: event.target.value })} placeholder="Optional" /></label></div>
+                    <label className="scp-modal-field">Instructions or links<textarea rows={3} value={manualTaskModal.notes} onChange={(event) => setManualTaskModal({ ...manualTaskModal, notes: event.target.value })} placeholder="Brief, context and any handover requirements" /></label>
+                    <div className="scp-modal-actions"><button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveManualTask}>{modalBusy ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {modalBusy ? "Assigning…" : "Assign & notify"}</button></div>
                   </div>
                 </div>
               ) : null}

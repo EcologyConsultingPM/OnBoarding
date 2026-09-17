@@ -18945,3 +18945,9 @@ main {
   font-weight: 800;
   line-height: 1.3;
 }
+
+/* Capacity planner: direct manual operational work assignments. */
+.scp-calendar-heading-actions { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+.scp-manual-task { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid rgba(231, 201, 121, .7); border-radius: 7px; padding: 6px 9px; color: #fff6d1; background: rgba(26, 83, 49, .92); font: 700 11px/1.15 "IBM Plex Mono", monospace; cursor: pointer; }
+.scp-manual-task:hover, .scp-manual-task:focus-visible { background: #2b7546; outline: 2px solid #f0d775; outline-offset: 2px; }
+@media (max-width: 760px) { .scp-calendar-heading-actions { width: 100%; justify-content: space-between; } }

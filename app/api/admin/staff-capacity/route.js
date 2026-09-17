@@ -12,6 +12,10 @@ function dateOnly(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 }
 
+function validId(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
 function asDate(value) {
   const normalised = dateOnly(value);
   if (!normalised) return null;
@@ -76,13 +80,14 @@ function activitySpan(activity) {
     : { start: effectiveEnd, end: effectiveStart };
 }
 
-// Task Briefs (remote_tasks) have no start_date column — the work is
-// understood to run from the moment the staff member accepted it through to
-// the due date, so that's the span used both for calendar placement and
-// hour-proration, matching the same shape as activitySpan.
+// Task Briefs can now be planned before acceptance. Start and due dates give
+// them the same calendar span and capacity proration as project activities.
 function taskSpan(task) {
   const due = dateOnly(task.due_date);
-  const start = dateOnly(task.accepted_at) || due;
+  // An administrator may allocate non-project work before the assignee accepts
+  // it. Its planned start date must be visible immediately in the workload
+  // calendar rather than appearing only after acceptance.
+  const start = dateOnly(task.start_date) || dateOnly(task.accepted_at) || due;
   if (!start && !due) return null;
   const effectiveStart = start || due;
   const effectiveEnd = due || start;
@@ -121,9 +126,9 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     // picture entirely, so someone could be booked onto fieldwork on a day
     // their course had already been signed off.
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "training").eq("status", "approved"),
-    access.admin.from("project_schedule_items").select("id, project_id, title, start_date, end_date, milestone, progress_percent, status, generated_from_activity_id, is_active").eq("is_active", true),
+    access.admin.from("project_schedule_items").select("id, project_id, title, detail, start_date, end_date, milestone, progress_percent, status, generated_from_activity_id, is_active").eq("is_active", true),
     access.admin.from("projects").select("id, name, client_name, status").is("deleted_at", null).neq("status", "archived"),
-    access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, budget_hours, status, accepted_at, completed_at, declined_at, withdrawn_at").not("accepted_at", "is", null).is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
+    access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, start_date, budget_hours, deliverable, resources, notes, status, accepted_at, completed_at, declined_at, withdrawn_at").is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
     // Assigned policy and procedure reviews are real committed work with a due
     // date, so they belong in the workload picture alongside activities and
     // task briefs. Tolerates the columns being absent until
@@ -292,6 +297,8 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         title: task.task,
         staffUserId: task.assigned_to,
         projectName: task.project || "Task Brief",
+        detail: task.notes || task.deliverable || task.resources || "",
+        budgetHours: number(task.budget_hours),
         status: task.status,
       };
     }),
@@ -304,7 +311,10 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       startDate: item.start_date || item.end_date,
       endDate: item.end_date || item.start_date,
       title: item.title,
+      detail: item.detail || "",
+      projectId: item.project_id,
       projectName: projectById.get(item.project_id)?.name || "Project",
+      milestone: item.milestone === true,
       progressPercent: number(item.progress_percent),
       status: item.status,
     })),
@@ -341,7 +351,77 @@ export async function POST(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return Response.json({ error: "Administrators only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.staff_capacity");
+    if (denied) return denied;
     const body = await request.json();
+
+    // A project-wide Gantt row has no assignee until an administrator places it
+    // in a staff row. Materialise one linked activity, preserving the original
+    // schedule item, so future drags and edits update one source of truth.
+    if (body?.action === "assign_schedule_item") {
+      const scheduleItemId = String(body.scheduleItemId || "");
+      const staffUserId = String(body.staffUserId || "");
+      if (!validId(scheduleItemId) || !validId(staffUserId)) return Response.json({ error: "Choose a schedule item and staff member." }, { status: 400 });
+      const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+      if (!directory.some((person) => person.id === staffUserId)) return Response.json({ error: "Choose an available staff member from the Staff List." }, { status: 400 });
+
+      const { data: item, error: itemError } = await access.admin
+        .from("project_schedule_items")
+        .select("id, project_id, title, detail, start_date, end_date, milestone, status, progress_percent, generated_from_activity_id, is_active")
+        .eq("id", scheduleItemId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (itemError) return Response.json({ error: itemError.message }, { status: 400 });
+      if (!item) return Response.json({ error: "Schedule item not found." }, { status: 404 });
+
+      const { data: project, error: projectError } = await access.admin
+        .from("projects")
+        .select("id, name, status, deleted_at")
+        .eq("id", item.project_id)
+        .is("deleted_at", null)
+        .eq("status", "active")
+        .maybeSingle();
+      if (projectError) return Response.json({ error: projectError.message }, { status: 400 });
+      if (!project) return Response.json({ error: "Only an active project can be allocated from the workload calendar." }, { status: 409 });
+
+      const startDate = dateOnly(body.startDate) || dateOnly(item.start_date) || dateOnly(item.end_date);
+      const dueDate = dateOnly(body.dueDate) || dateOnly(item.end_date) || startDate;
+      if (!startDate || !dueDate) return Response.json({ error: "Give the scheduled work a valid start and due date." }, { status: 400 });
+      const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 500) : item.title;
+      const detail = typeof body.detail === "string" ? body.detail.trim().slice(0, 5000) || null : item.detail;
+      const taskCategory = typeof body.taskCategory === "string" ? body.taskCategory.trim().slice(0, 200) || null : null;
+      const budgetHours = body.budgetHours === "" || body.budgetHours == null ? null : number(body.budgetHours);
+      const now = new Date().toISOString();
+      let activity = null;
+      if (item.generated_from_activity_id) {
+        const { data: existing } = await access.admin.from("project_activities")
+          .select("id, staff_user_id")
+          .eq("id", item.generated_from_activity_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (existing) {
+          const { data, error } = await access.admin.from("project_activities")
+            .update({ staff_user_id: staffUserId, title, detail, task_category: taskCategory, budget_hours: budgetHours, start_date: startDate, due_date: dueDate, milestone: body.milestone === true || item.milestone === true, acceptance_status: existing.staff_user_id === staffUserId ? undefined : "awaiting_response", assigned_at: now, assigned_by: access.user.id, notified_at: existing.staff_user_id === staffUserId ? undefined : null, updated_at: now })
+            .eq("id", existing.id).select("id, staff_user_id, title, task_category, budget_hours, due_date").single();
+          if (error) return Response.json({ error: error.message }, { status: 400 });
+          activity = data;
+        }
+      }
+      if (!activity) {
+        const { data, error } = await access.admin.from("project_activities")
+          .insert({ project_id: project.id, created_by: access.user.id, staff_user_id: staffUserId, title, detail, task_category: taskCategory, budget_hours: budgetHours, start_date: startDate, due_date: dueDate, milestone: body.milestone === true || item.milestone === true, status: item.status || "not_commenced", progress_percent: number(item.progress_percent), schedule_item_id: item.id, acceptance_status: "awaiting_response", assigned_at: now, assigned_by: access.user.id, notified_at: null, sort_order: 0, is_active: true, updated_at: now })
+          .select("id, staff_user_id, title, task_category, budget_hours, due_date").single();
+        if (error) return Response.json({ error: error.message }, { status: 400 });
+        activity = data;
+      }
+      const { error: scheduleError } = await access.admin.from("project_schedule_items")
+        .update({ title, detail, start_date: startDate, end_date: dueDate, generated_from_activity_id: activity.id, updated_at: now })
+        .eq("id", item.id);
+      if (scheduleError) return Response.json({ error: scheduleError.message }, { status: 400 });
+      const { error: eventError } = await access.admin.from("portal_events").insert({ recipient_id: staffUserId, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${activity.title}`, body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${activity.due_date ? ` · Due ${activity.due_date}` : ""}`, href: "/staff/notifications", source_table: "project_activities", source_id: activity.id });
+      if (!eventError) await access.admin.from("project_activities").update({ notified_at: now }).eq("id", activity.id);
+      return Response.json({ activity, event_warning: eventError?.message || null });
+    }
     const userId = String(body?.userId || "");
     const weeklyCapacityHours = Number(body?.weeklyCapacityHours);
     const notes = typeof body?.notes === "string" ? body.notes.trim().slice(0, 2000) : "";
