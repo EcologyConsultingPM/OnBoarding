@@ -4488,7 +4488,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
                 Staff noticeboard
               </h2>
               <a
-                href="/staff/noticeboard"
+                href="/staff/noticeboard?workspace=staffhome"
                 style={{
                   fontFamily: MONO,
                   fontSize: 10.5,
@@ -5097,7 +5097,9 @@ export default function OnboardingWorkbook() {
                     key={key}
                     onClick={() => {
                       if (href) {
-                        window.location.href = href;
+                        const target = new URL(href, window.location.origin);
+                        target.searchParams.set("workspace", mode);
+                        window.location.href = `${target.pathname}${target.search}${target.hash}`;
                         return;
                       }
                       setMode(key);

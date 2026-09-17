@@ -624,7 +624,7 @@ export default function StaffForms() {
         </p>
       ) : null}
       <div className="sf-hub-actions">
-        <a className="sf-service-request-link" href="/staff/service-requests">
+        <a className="sf-service-request-link" href="/staff/service-requests?workspace=staffforms">
           <CalendarDays size={15} /> Leave, training and equipment requests
         </a>
         <button className="sf-history-btn" onClick={() => setView("history")}>

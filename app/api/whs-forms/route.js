@@ -80,7 +80,7 @@ export async function POST(request) {
     let site = (b.site || "").toString().trim() || null;
     let formDate = b.form_date || null;
     let details = b.details && typeof b.details === "object" ? b.details : {};
-    // EC-OPS-PMC-001 Rev 2 is a controlled document with a fixed row set and
+    // EC-OPS-PMC-001 Rev 3 is a controlled document with a fixed row set and
     // enumerations. Validate and reduce its stored JSON only for this form so
     // established generic WHS form payloads remain backward compatible.
     if (b.form_type === "pre_mobilisation") {

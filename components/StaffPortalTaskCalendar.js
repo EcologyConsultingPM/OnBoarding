@@ -82,7 +82,7 @@ export default function StaffPortalTaskCalendar() {
           dueDate: event.endDate || event.startDate,
           project: event.projectName || "",
           title: event.title,
-          href: event.type === "task_brief" ? "/staff/notifications" : "/staff/projects",
+          href: event.type === "task_brief" ? "/staff/notifications?workspace=staffhome" : "/staff/projects?workspace=staffhome",
         }));
 
         setEntries(mapped);

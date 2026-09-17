@@ -29,7 +29,7 @@ async function importChecklistContract() {
 const contract = await importChecklistContract();
 const component = read("components/PreMobilisationChecklistForm.js");
 const route = read("app/api/whs-forms/route.js");
-const sql = read("sql/2026-09-16-pre-mobilisation-checklist-integrity.sql");
+const sql = read("sql/2026-09-17-pre-mobilisation-rev3-conditions.sql");
 
 const expectedIds = [
   ...Array.from({ length: 13 }, (_, index) => `V${index + 1}`),
@@ -38,9 +38,9 @@ const expectedIds = [
   ...Array.from({ length: 8 }, (_, index) => `P${index + 1}`),
 ];
 
-check("controlled document identity is EC-OPS-PMC-001 Rev 2", () => {
+check("controlled document identity is EC-OPS-PMC-001 Rev 3", () => {
   assert.equal(contract.PRE_MOBILISATION_DOCUMENT_CODE, "EC-OPS-PMC-001");
-  assert.equal(contract.PRE_MOBILISATION_DOCUMENT_REVISION, 2);
+  assert.equal(contract.PRE_MOBILISATION_DOCUMENT_REVISION, 3);
 });
 
 check("all required V1-V13, E1-E9, T1-T10 and P1-P8 rows are fixed and ordered", () => {
@@ -66,9 +66,9 @@ function validForm() {
   };
   form.checks = form.checks.map((row) => ({ ...row, outcome: "pass" }));
   form.conditions = {
-    weatherConditions: "Fine, light winds", comments: "", fireDangerRating: "Moderate — Illawarra",
-    airQualityRating: "Good — Illawarra", lightningStormActivity: "No activity within 30 km",
-    liveTrafficRouteStatus: "No closures", mobileCoverage: "Telstra with known gaps",
+    weatherConditions: "Sunny / Clear", comments: "", fireDangerRating: "Moderate",
+    lightningStormActivity: "No activity within 30 km", liveTrafficHazardsChecked: true,
+    mobileCoverage: "Full",
   };
   form.approval = {
     name: "Alex Example", position: "Field Ecologist", signedAt: "2026-09-16T07:15",
@@ -99,7 +99,7 @@ check("a failed row requires a row action and approval summary and is stored as 
 });
 
 check("revision, unexpected fields, invalid enums and reordered rows are rejected", () => {
-  const revision = validForm(); revision.documentRevision = 1;
+  const revision = validForm(); revision.documentRevision = 2;
   assert.ok(contract.normalisePreMobilisationDetails(revision).errors.length);
   const extra = validForm(); extra.untrusted = "no";
   assert.ok(contract.normalisePreMobilisationDetails(extra).errors.length);
@@ -107,6 +107,10 @@ check("revision, unexpected fields, invalid enums and reordered rows are rejecte
   assert.ok(contract.normalisePreMobilisationDetails(enumValue).errors.length);
   const reordered = validForm(); [reordered.checks[0], reordered.checks[1]] = [reordered.checks[1], reordered.checks[0]];
   assert.ok(contract.normalisePreMobilisationDetails(reordered).errors.length);
+  const invalidCoverage = validForm(); invalidCoverage.conditions.mobileCoverage = "Inconsistent";
+  assert.ok(contract.normalisePreMobilisationDetails(invalidCoverage).errors.length);
+  const uncheckedTraffic = validForm(); uncheckedTraffic.conditions.liveTrafficHazardsChecked = false;
+  assert.ok(contract.normalisePreMobilisationDetails(uncheckedTraffic).errors.length);
 });
 
 check("client form provides per-row actions, signature capture, source links and native print", () => {
@@ -116,6 +120,8 @@ check("client form provides per-row actions, signature capture, source links and
   assert.match(component, /PRE_MOBILISATION_SOURCE_LINKS/);
   assert.match(component, /PROCEEDING BLOCKED/);
   assert.match(component, /fieldset className="pmc-outcomes"/);
+  assert.match(component, /Live Traffic and Hazards Near Me checked/);
+  assert.match(component, /MOBILE_COVERAGE_OPTIONS/);
   assert.match(component, /PRE_MOBILISATION_SECTIONS\.map/);
   assert.match(component, /section\.rows\.map/);
 });
@@ -130,6 +136,7 @@ check("generic WHS API scopes strict validation to pre_mobilisation and retains 
 check("database integrity check is limited to pre_mobilisation and preserves idempotency index", () => {
   assert.match(sql, /form_type <> 'pre_mobilisation'/);
   assert.match(sql, /EC-OPS-PMC-001/);
+  assert.match(sql, /'2', '3'/);
   assert.match(sql, /jsonb_array_length\(details -> 'checks'\) = 40/);
   assert.match(sql, /whs_forms_created_by_submission_key_uidx/);
 });

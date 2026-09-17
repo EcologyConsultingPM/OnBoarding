@@ -14,7 +14,7 @@ export default function WorkspaceNav({
 }) {
   // "/admin" is not a route — the admin dashboard is served from "/" with
   // ?portal=admin. Linking to /admin produced a hard 404 for every admin.
-  const baseHomeHref = audience === "admin" ? "/?portal=admin" : "/";
+  const baseHomeHref = audience === "admin" ? "/?portal=admin" : "/?portal=staff";
   const [homeHref, setHomeHref] = useState(baseHomeHref);
 
   // A physical subdomain page (for example service requests) must not erase

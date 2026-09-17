@@ -41,6 +41,41 @@ const STAGE_LABELS = {
 };
 const RATING_COLOURS = { Extreme: "#a5342a", High: "#c9702d", Medium: "#c98a1e", Low: "#2c6a34" };
 
+const PSA_STYLE_ENHANCEMENTS = `
+  .psa { max-width: 1040px !important; padding: clamp(14px, 2vw, 26px); border: 1px solid #ccd8cf; border-radius: 15px; background: #fbfcf8; box-shadow: 0 12px 30px rgba(18, 50, 32, .09); color: #1e3026 !important; font-family: Inter, Arial, sans-serif; }
+  .psa-header { margin: -1px -1px 16px !important; padding: 20px 22px; border: 1px solid #1f5a34; border-radius: 11px; background: linear-gradient(125deg, #113c27, #246840); color: #fffdf4; }
+  .psa-header h2 { color: #fffdf4; font-family: Georgia, serif; font-size: clamp(24px, 3vw, 31px) !important; }
+  .psa-header .psa-btn.secondary { border-color: #d9bc59; background: #fff8dd; color: #173c29; }
+  .psa-restricted { padding: 10px 12px; border: 1px solid #bdcdbf; border-radius: 8px; background: #f0f6ef; color: #314a3a !important; font-size: 13px !important; line-height: 1.45; }
+  .psa-stage { margin: 0 0 14px; border: 1px solid #a9c5ad; background: #e8f4e9 !important; color: #184a2a !important; }
+  .psa-section { border-color: #c8d4ca !important; border-radius: 11px !important; box-shadow: 0 2px 8px rgba(18, 50, 32, .035); }
+  .psa-section h3 { padding: 13px 16px !important; background: #edf4ed !important; color: #214c33; font-size: 15px !important; letter-spacing: .015em; }
+  .psa-body { padding: 18px !important; }
+  .psa-field > span, .psa-field legend { color: #455c4d !important; font-size: 11px !important; letter-spacing: .065em !important; }
+  .psa-field input, .psa-field select, .psa-field textarea { min-height: 42px; border-color: #acbeb0 !important; border-radius: 7px !important; color: #1d3025 !important; font-size: 14px !important; line-height: 1.45; }
+  .psa-field textarea { min-height: 82px; }
+  .psa-field input:focus, .psa-field select:focus, .psa-field textarea:focus { outline: 3px solid rgba(59, 129, 77, .22); outline-offset: 1px; border-color: #2b7442 !important; }
+  .psa-muted { color: #4e6255 !important; font-size: 13px !important; }
+  .psa-choice { min-height: 38px; border-color: #afc0b1 !important; padding: 8px 10px !important; color: #2d4435; font-size: 13px !important; }
+  .psa-choice.active { background: #215f37 !important; border-color: #215f37 !important; color: #fff !important; }
+  .psa-card { border-color: #c8d4ca !important; padding: 15px !important; background: #fff !important; }
+  .psa-card h4 { color: #244c34; font-size: 14px !important; }
+  .psa-rating { min-height: 34px; padding: 6px 11px !important; }
+  .psa-btn { min-height: 42px; border-color: #1e6137 !important; background: #1e6137 !important; border-radius: 8px !important; }
+  .psa-btn.secondary { background: #fff !important; color: #195a32 !important; }
+  .psa-btn:focus-visible, .psa-choice:has(input:focus-visible) { outline: 3px solid #d4b04d; outline-offset: 2px; }
+  .psa-summary div, .psa-readonly { background: #f0f5ed !important; border: 1px solid #d4ded2; }
+  .psa-alert { font-size: 13px !important; line-height: 1.5 !important; }
+  @media (max-width: 700px) {
+    .psa { padding: 12px; border-radius: 10px; }
+    .psa-header { padding: 16px; align-items: stretch; }
+    .psa-header .psa-btn { width: 100%; margin: 4px 0 0; }
+    .psa-body { padding: 14px !important; }
+    .psa-choices { display: grid; grid-template-columns: 1fr; }
+    .psa-choice { width: 100%; }
+  }
+`;
+
 function blankActivity() {
   return { activity: "", hazard_category: "", hazard_detail: "", exposure: "", controls: "", control_effectiveness: "", likelihood: "", consequence: "" };
 }
@@ -187,7 +222,7 @@ export default function PsychosocialSelfRiskAssessment({ assessmentId = null }) 
 
   return (
     <section className="psa" aria-labelledby="psa-title">
-      <style>{`
+      <style>{PSA_STYLE_ENHANCEMENTS + `
         .psa { max-width: 960px; color: #27342d; }
         .psa * { box-sizing: border-box; } .psa-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
         .psa-header h2 { margin:0; font-size:21px; display:flex; align-items:center; gap:9px; } .psa-stage { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:5px 10px; background:#eef6ea; color:#1f5a34; font-size:12px; font-weight:700; }

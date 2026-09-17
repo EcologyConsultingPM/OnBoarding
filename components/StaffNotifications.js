@@ -117,9 +117,9 @@ export default function StaffNotifications() {
             </div>
           </section>
 
-          <a className="sn-open-remote" href="/staff/remote-operations">
+          <a className="sn-open-remote" href="/?portal=staff&workspace=staffprojects">
             <span>
-              <ClipboardList size={16} /> Open Remote Operations
+              <ClipboardList size={16} /> Open my project work
             </span>
             <ExternalLink size={15} />
           </a>
