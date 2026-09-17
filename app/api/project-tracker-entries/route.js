@@ -254,7 +254,11 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
       return sum + Number(row.hours || 0) * rate;
     }, 0);
 
-    const { error: allocationError } = await access.admin.from("project_budget_allocations").update({ hours_consumed: consumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, updated_by: access.user.id, updated_at: now }).eq("id", allocationId).eq("project_id", projectId);
+    // The Health Report uses two intentionally different measures: quote-rate
+    // spend for budget remaining, and a 60%-of-quote-rate delivery cost for
+    // estimated profitability. Recalculate both on every tracker submission.
+    const internalCost = chargeOutSpend * 0.6;
+    const { error: allocationError } = await access.admin.from("project_budget_allocations").update({ hours_consumed: consumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, internal_cost: Math.round(internalCost * 100) / 100, updated_by: access.user.id, updated_at: now }).eq("id", allocationId).eq("project_id", projectId);
     if (allocationError) return { error: `Entry was saved, but allocation consumption could not be updated: ${allocationError.message}`, status: 500 };
 
     if (linkedActivity) {

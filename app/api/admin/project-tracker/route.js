@@ -65,15 +65,26 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const projectSources = sources.filter((source) => source.project_id === project.id);
   const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
   const original = projectSources.filter((source) => source.source_type === "original");
+  // A project can retain earlier original-source rows and allocations for audit
+  // history. Only the approved source and its active allocations belong in live
+  // "remaining" figures; otherwise a closed setup baseline is counted a second
+  // time alongside the current controlled tracker baseline.
+  const approvedOriginal = original.filter((source) => sourceStatus(source) === "approved");
   const variations = projectSources.filter((source) => source.source_type === "variation" && sourceStatus(source) === "approved");
-  const originalBudget = original.length ? original.reduce((sum, source) => sum + number(source.approved_value), 0) : number(project.budget_dollars);
+  const approvedSourceIds = new Set([...approvedOriginal, ...variations].map((source) => source.id));
+  const liveAllocations = projectAllocations.filter((allocation) => allocation.status === "active" && approvedSourceIds.has(allocation.budget_source_id));
+  const originalBudget = approvedOriginal.length ? approvedOriginal.reduce((sum, source) => sum + number(source.approved_value), 0) : number(project.budget_dollars);
   const variationBudget = variations.reduce((sum, source) => sum + number(source.approved_value), 0);
   const overallBudget = originalBudget + variationBudget;
-  const chargeOutSpend = projectAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0);
-  const internalCost = projectAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0);
-  const estimatedProfit = chargeOutSpend - internalCost;
-  const budgetHours = projectSources.length ? projectSources.filter((source) => sourceStatus(source) === "approved").reduce((sum, source) => sum + number(source.approved_hours), 0) : number(project.budget_hours);
-  const usedHours = projectAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  const chargeOutSpend = liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0);
+  const internalCost = liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0);
+  // Budget position is measured against the quoted/charge-out rate. Profit is
+  // separate: it is the accepted contract value less the actual delivery cost.
+  // The delivery cost is maintained at 60% of each recorded person's quote
+  // rate (the agreed "minus 40%" cost basis), not a markup on spend.
+  const estimatedProfit = overallBudget - internalCost;
+  const budgetHours = approvedSourceIds.size ? [...approvedOriginal, ...variations].reduce((sum, source) => sum + number(source.approved_hours), 0) : number(project.budget_hours);
+  const usedHours = liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
   const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
   const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
   const completedActivities = relevantActivities.filter((activity) => activity.status === "completed").length;
@@ -97,8 +108,8 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const forecastHours = usedHours > 0 && taskCompletion > 5 ? Math.round((usedHours / (taskCompletion / 100)) * 10) / 10 : null;
   const hoursVariance = forecastHours !== null && budgetHours > 0 ? Math.round((forecastHours - budgetHours) * 10) / 10 : null;
   const profitabilityPercent = overallBudget > 0 ? Math.round((estimatedProfit / overallBudget) * 1000) / 10 : null;
-  const atRiskAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
-  const watchAllocations = projectAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
+  const atRiskAllocations = liveAllocations.filter((allocation) => healthForAllocation(allocation) === "at_risk").length;
+  const watchAllocations = liveAllocations.filter((allocation) => healthForAllocation(allocation) === "watch").length;
   // 90% consumed = "10% remaining", matching atRiskAllocations' own threshold
   // above — previously this only fired once fully over-budget (100%+).
   const budgetNearlyGone = overallBudget > 0 && chargeOutSpend >= overallBudget * 0.9;
@@ -280,12 +291,14 @@ export async function POST(request) {
       const allocationHours = optionalNumber(body.allocationHours);
       const hoursConsumed = optionalNumber(body.hoursConsumed);
       const chargeOutSpend = optionalNumber(body.chargeOutSpend);
-      const internalCost = optionalNumber(body.internalCost);
       if (!validId(sourceId) || !allocationCode || !allocationName || allocationValue === null || allocationHours === null) return jsonError("Source, allocation code, name, value and hours are required.");
       const { data: source, error: sourceError } = await auth.access.admin.from("project_budget_sources").select("id, project_id").eq("id", sourceId).eq("project_id", projectId).maybeSingle();
       if (sourceError) return jsonError(sourceError.message);
       if (!source) return jsonError("Budget source not found for this project.", 404);
-      const payload = { project_id: projectId, budget_source_id: sourceId, allocation_code: allocationCode, allocation_name: allocationName, allocation_value: allocationValue, allocation_hours: allocationHours, hours_consumed: hoursConsumed || 0, charge_out_spend: chargeOutSpend || 0, internal_cost: internalCost || 0, threshold_percent: Math.min(100, Math.max(1, Number(body.thresholdPercent) || 80)), status: ["draft", "active", "closed"].includes(body.status) ? body.status : "draft", staff_visible: body.staffVisible === true, updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
+      const calculatedSpend = chargeOutSpend || 0;
+      // Cost is a controlled 60% of quoted spend. This prevents a browser
+      // field or direct request from changing the profitability basis.
+      const payload = { project_id: projectId, budget_source_id: sourceId, allocation_code: allocationCode, allocation_name: allocationName, allocation_value: allocationValue, allocation_hours: allocationHours, hours_consumed: hoursConsumed || 0, charge_out_spend: calculatedSpend, internal_cost: Math.round(calculatedSpend * 0.6 * 100) / 100, threshold_percent: Math.min(100, Math.max(1, Number(body.thresholdPercent) || 80)), status: ["draft", "active", "closed"].includes(body.status) ? body.status : "draft", staff_visible: body.staffVisible === true, updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
       if (body.id && validId(body.id)) {
         const { data, error } = await auth.access.admin.from("project_budget_allocations").update(payload).eq("id", body.id).eq("project_id", projectId).select(ALLOCATION_COLUMNS).single();
         if (error) return jsonError(error.message);

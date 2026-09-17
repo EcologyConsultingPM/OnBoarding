@@ -581,12 +581,12 @@ export default function AdminProjectTracker({
                     value={money(selected.financials.overallBudget)}
                   />
                   <Metric
-                    label="Charge-out spend"
+                    label="Quote-rate spend"
                     value={money(selected.financials.chargeOutSpend)}
                     tone="moss"
                   />
                   <Metric
-                    label="Internal cost"
+                    label="Delivery cost (60% rate)"
                     value={money(selected.financials.internalCost)}
                   />
                   <Metric
@@ -1401,19 +1401,21 @@ function AllocationEditor({
             />
           </label>
           <label>
-            Charge-out spend
+            Quote-rate spend (calculated from tracker entries)
             <input
               inputMode="decimal"
               value={allocation.chargeOutSpend}
-              onChange={(event) => update("chargeOutSpend", event.target.value)}
+              readOnly
+              aria-readonly="true"
             />
           </label>
           <label>
-            Internal cost
+            Delivery cost (60% of quote-rate spend)
             <input
               inputMode="decimal"
               value={allocation.internalCost}
-              onChange={(event) => update("internalCost", event.target.value)}
+              readOnly
+              aria-readonly="true"
             />
           </label>
           <label>
