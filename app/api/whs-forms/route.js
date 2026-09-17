@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
 import { normalisePreMobilisationDetails } from "../../../lib/preMobilisationChecklist";
+import { OFFICE_RISK_ITEM_IDS } from "../../../lib/officeRiskChecklist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,45 @@ const FORM_TYPES = [
   "site_erp", "journey_plan", "pre_mobilisation", "toolbox_talk", "hazard_report",
   "job_safety_analysis", "first_aid_kit",
 ];
+
+function normaliseOfficeRiskDetails(value) {
+  const details = value && typeof value === "object" ? value : {};
+  const area = String(details.area || "").trim();
+  const assessedBy = String(details.assessedBy || "").trim();
+  const date = String(details.date || "").trim();
+  const checks = details.checks && typeof details.checks === "object" ? details.checks : {};
+  if (details.version !== 2) return { error: "This Office Risk Assessment is out of date. Refresh the form and try again." };
+  if (!area || !assessedBy || !date) return { error: "Enter the office area, assessor and assessment date." };
+
+  const cleanedChecks = {};
+  for (const id of OFFICE_RISK_ITEM_IDS) {
+    const check = checks[id] && typeof checks[id] === "object" ? checks[id] : {};
+    if (!["yes", "no"].includes(check.injuryRisk) || !["yes", "no"].includes(check.actionRequired)) {
+      return { error: `Complete both Yes or No choices for check ${id}.` };
+    }
+    const notes = String(check.notes || "").trim();
+    if (notes.length > 2000) return { error: `The note for check ${id} is too long.` };
+    cleanedChecks[id] = { injuryRisk: check.injuryRisk, actionRequired: check.actionRequired, notes };
+  }
+  const signature = String(details.signature || "");
+  if (!signature.startsWith("data:image/png;base64,") || signature.length < 100 || signature.length > 360000) {
+    return { error: "Sign the Office Risk Assessment before submitting." };
+  }
+  return {
+    details: {
+      version: 2,
+      area,
+      assessedBy,
+      date,
+      reviewDate: String(details.reviewDate || "").trim(),
+      manager: String(details.manager || "").trim(),
+      workersConsulted: String(details.workersConsulted || "").trim(),
+      checks: cleanedChecks,
+      signature,
+      signedAt: String(details.signedAt || "").trim(),
+    },
+  };
+}
 
 export async function GET(request) {
   try {
@@ -90,6 +130,14 @@ export async function POST(request) {
       title = `Pre-Mobilisation Checklist: ${details.metadata.project} — ${details.metadata.vehicleRegistration}`;
       site = details.metadata.location;
       formDate = details.metadata.date;
+    }
+    if (b.form_type === "office_risk_assessment") {
+      const checked = normaliseOfficeRiskDetails(details);
+      if (checked.error) return Response.json({ error: checked.error }, { status: 400 });
+      details = checked.details;
+      title = `Office Risk Assessment: ${details.area}`;
+      site = details.area;
+      formDate = details.date;
     }
     const notifiableFlag = b.notifiable_flag === true;
     const submissionKey = makeSubmissionKey({

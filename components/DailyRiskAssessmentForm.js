@@ -139,7 +139,6 @@ function initialForm() {
     emergencyMeetingPoint: "", firstAidOfficer: "", firstAidKitLocation: "", nearestHospital: "",
     commsDevice: "", checkInPerson: "", plbId: "", checkInInterval: "", overdueEscalationTime: "", emergencyDecisions: "",
     crew: [emptyCrewRow(), emptyCrewRow()],
-    fieldLeadSignOffName: "", fieldLeadSignOffDate: "", fieldLeadSignature: "",
   };
 }
 
@@ -265,7 +264,8 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
     if (!user?.id) return;
     const draft = readDraft(user?.id);
     if (draft) {
-      setForm({ ...initialForm(), ...draft });
+      const { fieldLeadSignOffName, fieldLeadSignOffDate, fieldLeadSignature, ...currentDraft } = draft;
+      setForm({ ...initialForm(), ...currentDraft });
       setRestoredDraft(true);
     }
   }, [user?.id]);
@@ -302,13 +302,11 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
     if (uncheckedToolbox) next.toolboxChecklist = "Every line needs Yes, No or N/A before this can be submitted.";
     const crewComplete = form.crew.filter((r) => r.name.trim() && r.signature);
     if (!crewComplete.length) next.crew = "At least one crew member needs a name and signature.";
-    if (!form.fieldLeadSignOffName) next.fieldLeadSignOffName = "Required";
-    if (!form.fieldLeadSignature) next.fieldLeadSignature = "The Field Lead needs to sign before this can be submitted.";
     return next;
   };
 
   const scrollToFirstError = (errs) => {
-    const order = ["date", "startTime", "fieldLead", "projectNumber", "site", "weather", "fireDanger", "groundConditions", "toolboxChecklist", "crew", "fieldLeadSignOffName", "fieldLeadSignature"];
+    const order = ["date", "startTime", "fieldLead", "projectNumber", "site", "weather", "fireDanger", "groundConditions", "toolboxChecklist", "crew"];
     const firstKey = order.find((k) => errs[k]);
     const el = firstKey && fieldRefs.current[firstKey];
     if (el && el.scrollIntoView) {
@@ -485,6 +483,15 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
             </Field>
             <Field label="Distance to nearest hospital"><input type="text" placeholder="km / minutes" value={form.distanceToHospital} onChange={(e) => set("distanceToHospital", e.target.value)} /></Field>
           </div>
+          <Field label="Applicable Standard Operating Procedures (SOPs) — select all that apply" full>
+            <div className="dra-ppe-grid" style={{ marginTop: 6 }}>
+              {SOP_LIST.map((item) => (
+                <label key={item} className="dra-tick" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "'Archivo', sans-serif", color: "#3a4740" }}>
+                  <input type="checkbox" checked={!!form.swmsRef[item]} onChange={(e) => setSwmsRef(item, e.target.checked)} /> {item}
+                </label>
+              ))}
+            </div>
+          </Field>
           <div className="dra-alert dra-alert-warn"><b>Stop-work triggers —</b> Catastrophic fire danger, active storm cell, floodwater over access track, lone worker with no comms, or any crew member unfit for field work. Do not proceed. Call the project manager and record the decision in Section 12.</div>
         </div>
       </section>
@@ -558,15 +565,6 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
               </select>
             </Field>
           </div>
-          <Field label="Applicable SOPs in force today — select all that apply" full>
-            <div className="dra-ppe-grid" style={{ marginTop: 6 }}>
-              {SOP_LIST.map((item) => (
-                <label key={item} className="dra-tick" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "'Archivo', sans-serif", color: "#3a4740" }}>
-                  <input type="checkbox" checked={!!form.swmsRef[item]} onChange={(e) => setSwmsRef(item, e.target.checked)} /> {item}
-                </label>
-              ))}
-            </div>
-          </Field>
           <Field label="Additional JSA, SWMS or SOP references applied today" full>
             <textarea placeholder="List every controlling document the crew has read and signed." value={form.additionalRefs} onChange={(e) => set("additionalRefs", e.target.value)} />
           </Field>
@@ -717,15 +715,6 @@ export default function DailyRiskAssessmentForm({ authFetch, onBack, onSubmitted
           </div>
           <button type="button" className="dra-add-row" onClick={() => setForm((f) => ({ ...f, crew: [...f.crew, emptyCrewRow()] }))}><Plus size={13} /> Add crew member</button>
 
-          <div className="dra-row2" style={{ marginTop: 18 }}>
-            <Field label="Field Lead name" error={errors.fieldLeadSignOffName}><input ref={(el) => (fieldRefs.current.fieldLeadSignOffName = el)} type="text" placeholder="Full name" value={form.fieldLeadSignOffName} onChange={(e) => set("fieldLeadSignOffName", e.target.value)} /></Field>
-            <Field label="Date and time"><input type="date" value={form.fieldLeadSignOffDate} onChange={(e) => set("fieldLeadSignOffDate", e.target.value)} /></Field>
-          </div>
-          <div ref={(el) => (fieldRefs.current.fieldLeadSignature = el)}>
-            <Field label="Field Lead signature — sign with your finger" error={errors.fieldLeadSignature} full>
-              <SignaturePad label="Sign here with your finger" value={form.fieldLeadSignature} onChange={(sig) => set("fieldLeadSignature", sig)} />
-            </Field>
-          </div>
         </div>
       </section>
 

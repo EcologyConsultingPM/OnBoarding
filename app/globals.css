@@ -19285,3 +19285,69 @@ main {
   .st-work-controls > * { flex: 1 1 100%; }
   .st-work-controls button { width: 100%; }
 }
+
+/* WHS & EC forms: accessibility and controlled-form visual consistency. */
+.sf-theme-dark .sf-doc-control {
+  background: #193d2a;
+  border-color: #7da788;
+  border-left-color: #f0c96c;
+}
+.sf-theme-dark .sf-doc-control-label { color: #ffe4a5; }
+.sf-theme-dark .sf-doc-control p { color: #f4faf2; }
+.sf-theme-dark .sf-doc-control strong { color: #fff4d1; }
+
+/* First Aid Kit: use an emergency-services colour rather than the old purple module. */
+.fak-module-hidden { display: none; }
+.fak-module--cuts-grazes th {
+  padding: 8px 11px !important;
+  color: #5e291f;
+  background: #ffe7dd !important;
+  border-top: 2px solid #c15e45 !important;
+  border-bottom: 1px solid #e7ae9d !important;
+  font: 800 11px/1.2 Arial, Helvetica, sans-serif;
+  letter-spacing: .06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+/* Incident reporting: same calm, legible content rhythm as the controlled forms. */
+.incident-workspace .incident-hero { border-radius: 14px 14px 0 0; }
+.incident-workspace .incident-form {
+  display: grid;
+  gap: 13px;
+  padding: 20px;
+  border: 1px solid #c7dac9;
+  border-radius: 0 0 14px 14px;
+  background: #fffefa;
+  box-shadow: 0 10px 30px -26px rgba(5, 48, 30, .7);
+}
+.incident-workspace .tt-section-label {
+  margin: 8px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #cadfcd;
+  border-left: 4px solid #1f7147;
+  border-radius: 8px;
+  color: #19422c;
+  background: #eff7f0;
+  font: 800 11px/1.2 "IBM Plex Mono", monospace;
+}
+.incident-workspace label { color: #385540; font-size: 12px; font-weight: 700; }
+.incident-workspace input,
+.incident-workspace select,
+.incident-workspace textarea {
+  margin-top: 5px;
+  color: #183325;
+  background: #fff;
+  border: 1px solid #aabfae;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.incident-workspace input:focus-visible,
+.incident-workspace select:focus-visible,
+.incident-workspace textarea:focus-visible,
+.incident-workspace button:focus-visible { outline: 3px solid rgba(211, 165, 55, .65); outline-offset: 2px; }
+.incident-workspace .incident-chips { padding: 10px; border: 1px solid #d1ded1; border-radius: 9px; background: #f9fcf8; }
+@media (max-width: 640px) {
+  .incident-workspace .incident-form { padding: 14px; }
+  .incident-workspace .swms-two-fields { grid-template-columns: 1fr; }
+}

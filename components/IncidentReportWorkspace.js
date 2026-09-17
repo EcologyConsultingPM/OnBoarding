@@ -124,8 +124,8 @@ export default function IncidentReportWorkspace() {
   if (loading) return <main className="swms-page"><p>Loading your workspace…</p></main>;
 
   return (
-    <main className="swms-page">
-      <header className="swms-hero">
+    <main className="swms-page incident-workspace">
+      <header className="swms-hero incident-hero">
         {/* This workspace had no route back to the portal at all — a staff
             member who opened it could only leave via the browser back button. */}
         <WorkspaceNav audience="staff" />
@@ -136,7 +136,7 @@ export default function IncidentReportWorkspace() {
 
       <div className="incident-notifiable"><AlertTriangle size={20} /><p><strong>Notifiable incident?</strong> If this involved a death, serious injury/illness, or dangerous incident, notify SafeWork NSW immediately on <strong>13 10 50</strong> and preserve the scene. Do not move equipment until advised.</p></div>
 
-      <form className="swms-form" onSubmit={save}>
+      <form className="swms-form incident-form" onSubmit={save}>
         <p className="tt-section-label">1. Incident details</p>
         <div className="swms-two-fields">
           <label>Organisation / PCBU<input value={form.organisation} onChange={(e) => setField("organisation", e.target.value)} /></label>

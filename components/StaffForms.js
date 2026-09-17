@@ -30,6 +30,7 @@ import DailyRiskAssessmentForm from "./DailyRiskAssessmentForm";
 import PreMobilisationChecklistForm from "./PreMobilisationChecklistForm";
 import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
 import FirstAidKitChecks from "./FirstAidKitChecks";
+import OfficeRiskAssessmentForm from "./OfficeRiskAssessmentForm";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -509,6 +510,19 @@ export default function StaffForms() {
     );
   }
 
+  // ---------- Office Risk Assessment (dedicated plain-language checklist) ----------
+  if (view === "form" && activeKey === "office_risk_assessment") {
+    return (
+      <OfficeRiskAssessmentForm
+        authFetch={authFetch}
+        userId={session?.user?.id}
+        onBack={backToHub}
+        onSubmitted={loadHistory}
+        onToast={notify}
+      />
+    );
+  }
+
   // ---------- A FORM ----------
   if (view === "form" && schema) {
     const def = WHS_DEFINITIONS[activeKey];
@@ -528,7 +542,7 @@ export default function StaffForms() {
         <button className="sf-back" onClick={backToHub}>
           <ChevronLeft size={15} /> Back to forms
         </button>
-        {sourceDocuments.length ? (
+        {sourceDocuments.length && activeKey !== "job_safety_analysis" ? (
           <div className="sf-legis sf-reference-links">
             <ListChecks size={16} />
             <div>
@@ -542,7 +556,7 @@ export default function StaffForms() {
             </div>
           </div>
         ) : null}
-        {def ? (
+        {def && activeKey !== "job_safety_analysis" ? (
           <div className="sf-legis">
             <ShieldAlert size={16} />
             <div>
