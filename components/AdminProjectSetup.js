@@ -1538,7 +1538,7 @@ function ProjectDetail({
           ) : project.activities_approval_status === "approved" ? (
             <>
               {onOpenTracker ? <button type="button" className="aps-primary" onClick={onOpenTracker}><ClipboardList size={14} /> Open live tracker</button> : null}
-              {onOpenCloseOut ? <button type="button" className="aps-secondary" onClick={() => onOpenCloseOut(project.name)}><ClipboardCheck size={14} /> Project close-out</button> : null}
+              {onOpenCloseOut ? <button type="button" className="aps-secondary" onClick={() => onOpenCloseOut(projectId, project.name)}><ClipboardCheck size={14} /> Project close-out</button> : null}
             </>
           ) : project.activities_approval_status === "pending_se_review" ? (
             <>

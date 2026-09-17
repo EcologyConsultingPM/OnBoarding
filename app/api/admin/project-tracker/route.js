@@ -22,6 +22,12 @@ function number(value) {
   return Number.isFinite(result) ? result : 0;
 }
 
+function roundCurrency(value) {
+  // Small floating-point residues from quarter-hour records must not leak into
+  // a user-facing AUD balance or create a one-cent disagreement between cards.
+  return Math.round((number(value) + Number.EPSILON) * 100) / 100;
+}
+
 function optionalNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
@@ -75,14 +81,14 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const liveAllocations = projectAllocations.filter((allocation) => allocation.status === "active" && approvedSourceIds.has(allocation.budget_source_id));
   const originalBudget = approvedOriginal.length ? approvedOriginal.reduce((sum, source) => sum + number(source.approved_value), 0) : number(project.budget_dollars);
   const variationBudget = variations.reduce((sum, source) => sum + number(source.approved_value), 0);
-  const overallBudget = originalBudget + variationBudget;
-  const chargeOutSpend = liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0);
-  const internalCost = liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0);
+  const overallBudget = roundCurrency(originalBudget + variationBudget);
+  const chargeOutSpend = roundCurrency(liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
+  const internalCost = roundCurrency(liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0));
   // Budget position is measured against the quoted/charge-out rate. Profit is
   // separate: it is the accepted contract value less the actual delivery cost.
   // The delivery cost is maintained at 60% of each recorded person's quote
   // rate (the agreed "minus 40%" cost basis), not a markup on spend.
-  const estimatedProfit = overallBudget - internalCost;
+  const estimatedProfit = roundCurrency(overallBudget - internalCost);
   const budgetHours = approvedSourceIds.size ? [...approvedOriginal, ...variations].reduce((sum, source) => sum + number(source.approved_hours), 0) : number(project.budget_hours);
   const usedHours = liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
   const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
@@ -144,7 +150,7 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     healthOverridden,
     manualHealthStatus: project.manual_health_status || null,
     manualHealthNote: project.manual_health_note || null,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: overallBudget - chargeOutSpend, remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: roundCurrency(overallBudget - chargeOutSpend), remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
     entrySummary: {

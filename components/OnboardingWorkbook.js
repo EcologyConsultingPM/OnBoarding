@@ -4679,10 +4679,47 @@ export default function OnboardingWorkbook() {
   }, []);
   // Projects & Operations intentionally contains delivery setup and portfolio
   // health only. Quote Pipeline is its own Commercial Control domain card.
-  const [projectsSubview, setProjectsSubview] = useState("setup"); // "setup" | "tracker" | "health"
-  const [projectTrackerTargetId, setProjectTrackerTargetId] = useState("");
-  const [projectSetupTargetId, setProjectSetupTargetId] = useState(null);
-  const [projectCloseOutTarget, setProjectCloseOutTarget] = useState({ id: "", name: "" });
+  const initialProjectLocation = (() => {
+    if (typeof window === "undefined") return { view: "setup", id: "", name: "" };
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("projectView");
+      return {
+        view: ["setup", "tracker", "health", "closeout"].includes(view) ? view : "setup",
+        id: params.get("projectId") || "",
+        name: params.get("projectName") || "",
+      };
+    } catch {
+      return { view: "setup", id: "", name: "" };
+    }
+  })();
+  const [projectsSubview, setProjectsSubview] = useState(initialProjectLocation.view); // "setup" | "tracker" | "health" | "closeout"
+  const [projectTrackerTargetId, setProjectTrackerTargetId] = useState(initialProjectLocation.id);
+  const [projectSetupTargetId, setProjectSetupTargetId] = useState(initialProjectLocation.id || null);
+  const [projectCloseOutTarget, setProjectCloseOutTarget] = useState({ id: initialProjectLocation.id, name: initialProjectLocation.name });
+
+  // The main workspace persists above. Preserve the selected Project &
+  // Operations subview and project too, so opening a separate file/page and
+  // returning never drops someone back at the project-domain landing page.
+  useEffect(() => {
+    if (mode !== "adminprojects" || typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("projectView", projectsSubview);
+      const projectId = projectsSubview === "tracker"
+        ? projectTrackerTargetId
+        : projectsSubview === "setup"
+          ? projectSetupTargetId
+          : projectsSubview === "closeout"
+            ? projectCloseOutTarget.id
+            : "";
+      if (projectId) url.searchParams.set("projectId", projectId);
+      else url.searchParams.delete("projectId");
+      if (projectsSubview === "closeout" && projectCloseOutTarget.name) url.searchParams.set("projectName", projectCloseOutTarget.name);
+      else url.searchParams.delete("projectName");
+      window.history.replaceState(window.history.state, "", url.toString());
+    } catch {}
+  }, [mode, projectsSubview, projectTrackerTargetId, projectSetupTargetId, projectCloseOutTarget]);
 
   // Compatibility for the retired standalone Health Report route. Quote
   // Pipeline and Remote Operations remain first-class administrator domains.

@@ -40,10 +40,6 @@ function formatDate(value) {
         year: "numeric",
       });
 }
-function money(n) {
-  if (n == null || n === "") return "—";
-  return Number(n).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
-}
 function blankForm(project) {
   const source = project?.sources?.[0];
   const allocation = source?.allocations?.[0];
@@ -168,7 +164,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   };
   const setField = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
-  // The shared per-project board: live budget position plus every team member's
+  // The shared per-project board: live hours position plus every team member's
   // entries for THIS project only. Fetched separately from `load` so switching
   // project does not re-pull the whole workspace, and so a board failure can
   // never blank the entry form.
@@ -307,11 +303,11 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
         <>
         {selected ? (
           <>
-          <section className="st-entry-card" aria-label="Project budget and hours — visible to the whole assigned team">
+          <section className="st-entry-card" aria-label="Project hours and work progress — visible to the whole assigned team">
             <div className="st-card-head">
               <div>
                 <span className="st-kicker"><TrendingUp size={13} /> Whole-team visibility · live</span>
-                <h2>Budget &amp; hours — {selected.name}</h2>
+                <h2>Hours &amp; work progress — {selected.name}</h2>
                 <p>
                   Shared with everyone allocated to {selected.name}. Consumed hours
                   include every team member&apos;s entries, not just your own.
@@ -337,7 +333,6 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                     budgetHours: Number(allocation.allocation_hours || 0),
                     hoursConsumed: Number(allocation.hours_consumed || 0),
                     hoursRemaining: Number(allocation.allocation_hours || 0) - Number(allocation.hours_consumed || 0),
-                    budgetValue: allocation.allocation_value,
                   }));
               const totalBudget = rows.reduce((sum, row) => sum + row.budgetHours, 0);
               const totalConsumed = rows.reduce((sum, row) => sum + row.hoursConsumed, 0);
@@ -347,7 +342,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 <>
                   {rows.length ? (
                     <div className="st-budget-summary">
-                      <div><span>Budget</span><strong>{totalBudget.toFixed(1)} h</strong></div>
+                      <div><span>Planned</span><strong>{totalBudget.toFixed(1)} h</strong></div>
                       <div><span>Consumed</span><strong>{totalConsumed.toFixed(1)} h</strong></div>
                       <div className={totalRemaining < 0 ? "st-over" : ""}><span>Remaining</span><strong>{totalRemaining.toFixed(1)} h</strong></div>
                       <div><span>Used</span><strong>{totalPct}%</strong></div>
@@ -355,7 +350,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                   ) : null}
                   <div className="st-table-wrap">
                     <table>
-                      <thead><tr><th>Allocation</th><th>Budget hours</th><th>Consumed</th><th>Remaining</th><th>Budget $</th></tr></thead>
+                      <thead><tr><th>Allocation</th><th>Budget hours</th><th>Consumed</th><th>Remaining</th></tr></thead>
                       <tbody>
                         {rows.map((row) => {
                           const pct = row.budgetHours ? Math.min(100, Math.round((row.hoursConsumed / row.budgetHours) * 100)) : 0;
@@ -368,12 +363,11 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                                 {row.hoursConsumed} h ({pct}%)
                               </td>
                               <td style={{ color: row.hoursRemaining < 0 ? "#c0392b" : undefined }}>{row.hoursRemaining.toFixed(1)} h</td>
-                              <td>{row.budgetValue === null || row.budgetValue === undefined ? "—" : money(row.budgetValue)}</td>
                             </tr>
                           );
                         })}
                         {!rows.length ? (
-                          <tr><td colSpan={5} style={{ textAlign: "center", color: "#8a927c" }}>No budget allocations configured for this project yet.</td></tr>
+                          <tr><td colSpan={4} style={{ textAlign: "center", color: "#8a927c" }}>No hour allocations configured for this project yet.</td></tr>
                         ) : null}
                       </tbody>
                     </table>

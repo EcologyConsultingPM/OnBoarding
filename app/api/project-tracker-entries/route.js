@@ -24,7 +24,9 @@ export async function eligibleProjects(access, staffUserId = access.user.id) {
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", ids),
     access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status").in("project_id", ids).eq("approval_status", "approved"),
-    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_value, allocation_hours, hours_consumed, charge_out_spend").in("project_id", ids).eq("status", "active").eq("staff_visible", true),
+    // Staff receive allocation names and hours only. Commercial values, quote
+    // rates, spend, delivery costs and profitability remain administrator-only.
+    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed").in("project_id", ids).eq("status", "active").eq("staff_visible", true),
   ]);
   if ([settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].some((result) => result.error && unavailable(result.error))) return { available: false, projects: [] };
   const failed = [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].find((result) => result.error);
@@ -47,7 +49,7 @@ async function ownEntries(access) {
 }
 
 // Every person allocated to a project needs to see the same picture: the live
-// budget position AND what their colleagues have already logged against it.
+  // shared hours position and what their colleagues have already logged.
 // `ownEntries` is deliberately self-scoped, so this adds a sibling that is
 // scoped to a SINGLE project and gated on the caller being allocated to that
 // project (or an admin). It never returns rows for projects the caller is not
@@ -89,7 +91,9 @@ async function teamEntries(access, projectId, eligible) {
   } catch { nameById = new Map(); }
 
   const [allocationsResult, activitiesResult] = await Promise.all([
-    access.admin.from("project_budget_allocations").select("id, allocation_code, allocation_name, allocation_hours, hours_consumed, allocation_value, staff_visible, status").eq("project_id", projectId),
+    // This is a staff-portal route, including when an administrator temporarily
+    // uses the Staff Portal. Never select financial values from this endpoint.
+    access.admin.from("project_budget_allocations").select("id, allocation_code, allocation_name, allocation_hours, hours_consumed, staff_visible, status").eq("project_id", projectId),
     access.admin.from("project_activities").select("id, title, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours").eq("project_id", projectId).eq("is_active", true),
   ]);
 
@@ -98,11 +102,11 @@ async function teamEntries(access, projectId, eligible) {
     hoursByStaff.set(row.staff_user_id, (hoursByStaff.get(row.staff_user_id) || 0) + Number(row.hours || 0));
   });
 
-  // Only allocations an admin has explicitly marked staff_visible are exposed,
-  // and dollar values are withheld from non-admins so the board can be shown to
-  // the whole team without leaking commercial figures.
+  // Only allocations an admin has explicitly marked staff-visible are exposed.
+  // Commercial values never leave this staff-portal endpoint, even if an admin
+  // happens to be viewing it in the Staff Portal.
   const allocations = (allocationsResult.error ? [] : allocationsResult.data || [])
-    .filter((allocation) => access.isAdmin || (allocation.staff_visible === true && allocation.status === "active"))
+    .filter((allocation) => allocation.staff_visible === true && allocation.status === "active")
     .map((allocation) => ({
       id: allocation.id,
       code: allocation.allocation_code,
@@ -110,7 +114,6 @@ async function teamEntries(access, projectId, eligible) {
       budgetHours: Number(allocation.allocation_hours || 0),
       hoursConsumed: Number(allocation.hours_consumed || 0),
       hoursRemaining: Number(allocation.allocation_hours || 0) - Number(allocation.hours_consumed || 0),
-      budgetValue: access.isAdmin ? Number(allocation.allocation_value || 0) : null,
     }));
 
   const activities = (activitiesResult.error ? [] : activitiesResult.data || []).map((activity) => ({
