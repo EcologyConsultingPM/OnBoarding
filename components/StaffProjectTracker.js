@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -34,6 +34,28 @@ const TABS = [
   { id: "history", label: "Timesheet history", Icon: FileClock },
   { id: "activities", label: "Work activities", Icon: ListChecks },
 ];
+
+const TRACKER_LOCATION_KEY = "ec-staff-project-tracker-location";
+
+function readTrackerLocation() {
+  if (typeof window === "undefined") return { projectId: "", activeTab: "overview" };
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(TRACKER_LOCATION_KEY) || "null");
+    const activeTab = TABS.some((tab) => tab.id === saved?.activeTab) ? saved.activeTab : "overview";
+    const legacyProjectId = window.localStorage.getItem("ec-staff-tracker-selected-id") || "";
+    return { projectId: saved?.projectId || legacyProjectId, activeTab };
+  } catch {
+    return { projectId: "", activeTab: "overview" };
+  }
+}
+
+function writeTrackerLocation(projectId, activeTab) {
+  if (typeof window === "undefined" || !projectId) return;
+  try {
+    window.sessionStorage.setItem(TRACKER_LOCATION_KEY, JSON.stringify({ projectId, activeTab }));
+    window.localStorage.setItem("ec-staff-tracker-selected-id", projectId);
+  } catch {}
+}
 
 function localToday() {
   const now = new Date();
@@ -123,12 +145,17 @@ function projectDeliveryStatus(activities) {
 
 export default function StaffProjectTracker({ embedded = false, initialProjectId = "" }) {
   const { session } = useAuth();
+  const sessionUserId = session?.user?.id || "";
+  const accessTokenRef = useRef(session?.access_token || "");
+  useEffect(() => {
+    accessTokenRef.current = session?.access_token || "";
+  }, [session?.access_token]);
   const [projects, setProjects] = useState([]);
   const [entries, setEntries] = useState([]);
   const [assignedActivities, setAssignedActivities] = useState([]);
   const [form, setForm] = useState(() => blankForm(null));
   const [board, setBoard] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => readTrackerLocation().activeTab);
   const [activityDrafts, setActivityDrafts] = useState({});
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -138,9 +165,12 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Supabase refreshes the access token when a hidden browser tab becomes
+  // visible. Keep the latest token in a ref so authentication stays current,
+  // without changing the loading callbacks and blanking the tracker on return.
   const headers = useCallback(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }),
-    [session?.access_token],
+    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${accessTokenRef.current}` }),
+    [],
   );
 
   const selected = useMemo(
@@ -158,7 +188,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const staffName = session?.user?.user_metadata?.full_name || session?.user?.email || "Signed-in staff member";
 
   const loadBoard = useCallback(async (projectId) => {
-    if (!session?.access_token || !projectId) {
+    if (!accessTokenRef.current || !projectId) {
       setBoard(null);
       return;
     }
@@ -172,10 +202,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     } finally {
       setBoardLoading(false);
     }
-  }, [headers, session?.access_token]);
+  }, [headers, sessionUserId]);
 
   const load = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!accessTokenRef.current || !sessionUserId) return;
     setLoading(true);
     setError("");
     try {
@@ -196,26 +226,29 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       setForm((current) => {
         const initial = nextProjects.find((project) => project.id === initialProjectId);
         const stillSelected = nextProjects.find((project) => project.id === current.projectId);
-        return blankForm(stillSelected || initial || nextProjects[0]);
+        const savedProjectId = readTrackerLocation().projectId;
+        const saved = nextProjects.find((project) => project.id === savedProjectId);
+        return blankForm(stillSelected || initial || saved || nextProjects[0]);
       });
     } catch (loadError) {
       setError(loadError.message || "Could not load your Project Tracker.");
     } finally {
       setLoading(false);
     }
-  }, [headers, initialProjectId, session?.access_token]);
+  }, [headers, initialProjectId, sessionUserId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadBoard(form.projectId); }, [loadBoard, form.projectId]);
+  useEffect(() => {
+    writeTrackerLocation(form.projectId, activeTab);
+  }, [form.projectId, activeTab]);
 
   const setProject = (projectId) => {
     const project = projects.find((item) => item.id === projectId);
     setForm(blankForm(project));
     setActiveTab("overview");
     setActivityDrafts({});
-    if (typeof window !== "undefined") {
-      try { window.localStorage.setItem("ec-staff-tracker-selected-id", projectId); } catch {}
-    }
+    writeTrackerLocation(projectId, "overview");
   };
 
   const setField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
