@@ -19373,3 +19373,18 @@ main {
     grid-column: span 2;
   }
 }
+
+/* Native status menus use a light system surface: keep every option legible. */
+.st-work-controls select.st-status-select {
+  color-scheme: light;
+}
+.st-work-controls select.st-status-select option {
+  color: #173522 !important;
+  background: #fffdf8 !important;
+  font-family: "Archivo", Arial, sans-serif;
+  font-weight: 700;
+}
+.st-work-controls select.st-status-select option:checked {
+  color: #fffdf8 !important;
+  background: #1c6c42 !important;
+}
