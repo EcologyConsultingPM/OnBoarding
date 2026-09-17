@@ -19389,40 +19389,41 @@ main {
   background: #1c6c42 !important;
 }
 
-/* Project Health Report: the compact table is displayed on the dark portfolio
-   surface, so prevent legacy light-table rules from reducing text contrast. */
+/* Project Health Report: use an intentionally high-contrast table surface so
+   portfolio figures remain readable against the dark portal workspace. */
 .phr .phr-table-wrap {
-  background: #092415;
-  border-color: rgba(231, 201, 121, 0.24);
+  background: #f8f7f0;
+  border-color: #b8c9b4;
 }
 .phr .phr-table {
-  background: #092415;
-  color: #edf6e9;
+  background: #f8f7f0;
+  color: #173522;
 }
 .phr .phr-table thead th {
-  color: #e7efdf;
-  background: #1b5130;
-  border-bottom-color: rgba(231, 201, 121, 0.25);
+  color: #ffffff;
+  background: #174a2b;
+  border-bottom-color: #0f351d;
 }
 .phr .phr-table tbody td {
-  color: #edf6e9;
-  background: #092415;
-  border-bottom-color: rgba(231, 201, 121, 0.16);
+  color: #173522;
+  background: #f8f7f0;
+  border-bottom-color: #d7dfd2;
 }
 .phr .phr-table tbody tr:nth-child(even) td {
-  background: #0d2d1a;
+  background: #edf3e9;
 }
 .phr .phr-table .phr-proj strong {
-  color: #ffffff;
+  color: #102e1b;
 }
 .phr .phr-table .phr-proj small,
 .phr .phr-table .phr-pct {
-  color: #cce0c6;
+  color: #45634d;
 }
 .phr .phr-table .phr-bar {
-  background: #456650;
+  background: #cbd8c7;
 }
 .phr .phr-table .phr-actions button {
-  color: #f5dc8b;
-  border-color: rgba(245, 220, 139, 0.55);
+  color: #174a2b;
+  background: #ffffff;
+  border-color: #6e9a72;
 }
