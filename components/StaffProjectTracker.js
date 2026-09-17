@@ -48,6 +48,14 @@ function formatDate(value) {
     : date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
 function normaliseActivity(row) {
   return {
     id: row?.id || "",
@@ -61,6 +69,9 @@ function normaliseActivity(row) {
     acceptanceStatus: row?.acceptanceStatus || row?.acceptance_status || "",
     progressPercent: Number(row?.progressPercent ?? row?.progress_percent ?? 0),
     pauseReason: row?.pauseReason || row?.pause_reason || "",
+    staffName: row?.staffName || row?.staff_name || "Unassigned",
+    staffUserId: row?.staffUserId || row?.staff_user_id || "",
+    isMine: row?.isMine === true || row?.is_mine === true,
     locked: row?.locked === true,
   };
 }
@@ -216,13 +227,18 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     () => (board?.activities || []).map(normaliseActivity),
     [board?.activities],
   );
+  const visibleProjectActivities = allProjectActivities.length
+    ? allProjectActivities
+    : projectActivities.map((activity) => ({ ...activity, isMine: true }));
   const allProjectCompletion = completionFor(allProjectActivities);
   const mineCompletion = completionFor(projectActivities);
   const rows = useMemo(() => allocationRows(selected, board), [selected, board]);
-  const totalBudgetHours = rows.reduce((total, row) => total + Number(row.budgetHours || 0), 0);
-  const totalConsumedHours = rows.reduce((total, row) => total + Number(row.hoursConsumed || 0), 0);
+  const totalBudgetHours = Number(board?.totals?.budgetHours ?? rows.reduce((total, row) => total + Number(row.budgetHours || 0), 0));
+  const totalConsumedHours = Number(board?.totals?.hoursConsumed ?? rows.reduce((total, row) => total + Number(row.hoursConsumed || 0), 0));
   const totalRemainingHours = totalBudgetHours - totalConsumedHours;
   const myHistory = entries.filter((entry) => entry.projectId === form.projectId);
+  const projectFinancials = selected?.financials || {};
+  const projectDeliverables = (selected?.sources || []).map((source) => source.source_name).filter(Boolean);
 
   const submit = async () => {
     if (!selected || !selectedSource || !selectedAllocation) {
@@ -361,11 +377,16 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
 
                 {activeTab === "overview" ? (
                   <>
-                    <section className="st-overview-metrics" aria-label="Project delivery overview">
+                    <section className="st-overview-metrics st-overview-financials" aria-label="Project delivery overview">
                       <div><span>Project delivery status</span><strong className={`st-delivery-status ${projectDeliveryStatus(allProjectActivities).toLowerCase().replaceAll(" ", "-")}`}>{projectDeliveryStatus(allProjectActivities)}</strong></div>
-                      <div><span>My work complete</span><strong>{mineCompletion}%</strong></div>
-                      <div><span>Project completion</span><strong>{allProjectCompletion}%</strong></div>
+                      <div className="st-deliverable-summary"><span>Deliverable{projectDeliverables.length === 1 ? "" : "s"}</span><strong>{projectDeliverables.length ? projectDeliverables.join(" · ") : "Not recorded"}</strong></div>
+                      <div><span>Accepted budget</span><strong>{formatCurrency(projectFinancials.budget)}</strong></div>
+                      <div><span>Actual spend</span><strong>{formatCurrency(projectFinancials.actualSpend)}</strong></div>
+                      <div className={Number(projectFinancials.remainingBudget || 0) < 0 ? "st-over" : ""}><span>Budget remaining</span><strong>{formatCurrency(projectFinancials.remainingBudget)}</strong></div>
+                      <div><span>Budget hours</span><strong>{Number(projectFinancials.budgetHours || totalBudgetHours).toFixed(1)} h</strong></div>
+                      <div><span>Actual hours</span><strong>{totalConsumedHours.toFixed(1)} h</strong></div>
                       <div className={totalRemainingHours < 0 ? "st-over" : ""}><span>Hours remaining</span><strong>{totalRemainingHours.toFixed(1)} h</strong></div>
+                      <div><span>Project completion</span><strong>{allProjectCompletion}%</strong></div>
                     </section>
                     <section className="st-section-card st-overview-card">
                       <div className="st-section-head"><div><span className="st-kicker"><TrendingUp size={13} /> Live delivery position</span><h3>Overview</h3></div>{boardLoading ? <Loader2 size={16} className="spin" /> : null}</div>
@@ -435,12 +456,12 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
 
                 {activeTab === "activities" ? (
                   <section className="st-section-card st-work-activities">
-                    <div className="st-section-head"><div><span className="st-kicker"><ListChecks size={13} /> Assigned delivery</span><h3>Work activities</h3><p>Update your work status here. Saving changes updates the live project completion figure, the administrator’s Gantt chart and the linked project schedule.</p></div></div>
-                    {projectActivities.length ? <div className="st-work-list">{projectActivities.map((activity) => {
+                    <div className="st-section-head"><div><span className="st-kicker"><ListChecks size={13} /> Project delivery plan</span><h3>Work activities</h3><p>View all project activities and team assignments. You can update only work allocated to you; saved changes refresh project completion, the administrator’s Gantt chart and the linked schedule.</p></div></div>
+                    {visibleProjectActivities.length ? <div className="st-work-list">{visibleProjectActivities.map((activity) => {
                       const draft = draftFor(activity);
                       const status = STATUS[draft.status] || STATUS.not_commenced;
-                      return <article key={activity.id} className={`st-work-item ${status.tone}`}><header><div><h4>{activity.title}</h4>{activity.taskCategory ? <small>{activity.taskCategory}</small> : null}</div><StatusPill status={draft.status} /></header>{activity.detail ? <p>{activity.detail}</p> : null}<div className="st-work-meta"><span>{activity.budgetHours != null ? `${activity.budgetHours} planned hours` : "Hours not set"}</span><span>{activity.dueDate ? `Due ${formatDate(activity.dueDate)}` : "No due date"}</span></div><div className="st-work-controls"><label>Status<select value={draft.status} disabled={activity.locked || activitySavingId === activity.id} className={`st-status-select ${status.tone}`} onChange={(event) => setActivityDraft(activity, "status", event.target.value)}>{Object.entries(STATUS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></label><label>Completion<input type="number" min="0" max="100" step="5" value={draft.status === "completed" ? 100 : draft.progressPercent} disabled={activity.locked || draft.status === "completed" || activitySavingId === activity.id} onChange={(event) => setActivityDraft(activity, "progressPercent", event.target.value)} /><small>% complete</small></label>{draft.status === "paused_other" ? <label className="st-work-note">Pause reason<input value={draft.note} disabled={activity.locked || activitySavingId === activity.id} onChange={(event) => setActivityDraft(activity, "note", event.target.value)} placeholder="Reason required" /></label> : null}<button type="button" disabled={activity.locked || activitySavingId === activity.id} onClick={() => saveActivityStatus(activity)}>{activitySavingId === activity.id ? <><Loader2 size={14} className="spin" /> Saving…</> : <><CheckCircle2 size={14} /> Save status</>}</button></div>{activity.locked ? <small className="st-locked-note">This activity is locked for project-lead review.</small> : null}</article>;
-                    })}</div> : <div className="st-empty small"><ListChecks size={18} /><span>No accepted work activities are allocated to you for this project.</span></div>}
+                      return <article key={activity.id} className={`st-work-item ${status.tone}`}><header><div><h4>{activity.title}</h4>{activity.taskCategory ? <small>{activity.taskCategory}</small> : null}</div><StatusPill status={draft.status} /></header>{activity.detail ? <p>{activity.detail}</p> : null}<div className="st-work-meta"><span>Assigned to {activity.staffName || "Unassigned"}</span><span>{activity.budgetHours != null ? `${activity.budgetHours} planned hours` : "Hours not set"}</span><span>{activity.dueDate ? `Due ${formatDate(activity.dueDate)}` : "No due date"}</span></div>{activity.isMine ? <div className="st-work-controls"><label>Status<select value={draft.status} disabled={activity.locked || activitySavingId === activity.id} className={`st-status-select ${status.tone}`} onChange={(event) => setActivityDraft(activity, "status", event.target.value)}>{Object.entries(STATUS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></label><label>Completion<input type="number" min="0" max="100" step="5" value={draft.status === "completed" ? 100 : draft.progressPercent} disabled={activity.locked || draft.status === "completed" || activitySavingId === activity.id} onChange={(event) => setActivityDraft(activity, "progressPercent", event.target.value)} /><small>% complete</small></label>{draft.status === "paused_other" ? <label className="st-work-note">Pause reason<input value={draft.note} disabled={activity.locked || activitySavingId === activity.id} onChange={(event) => setActivityDraft(activity, "note", event.target.value)} placeholder="Reason required" /></label> : null}<button type="button" disabled={activity.locked || activitySavingId === activity.id} onClick={() => saveActivityStatus(activity)}>{activitySavingId === activity.id ? <><Loader2 size={14} className="spin" /> Saving…</> : <><CheckCircle2 size={14} /> Save status</>}</button></div> : <p className="st-team-activity-note">Assigned to another project team member. View-only in the Staff Portal.</p>}{activity.locked && activity.isMine ? <small className="st-locked-note">This activity is locked for project-lead review.</small> : null}</article>;
+                    })}</div> : <div className="st-empty small"><ListChecks size={18} /><span>No work activities are visible for this project yet.</span></div>}
                   </section>
                 ) : null}
               </>

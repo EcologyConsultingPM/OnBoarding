@@ -23,10 +23,12 @@ export async function eligibleProjects(access, staffUserId = access.user.id) {
     access.admin.from("projects").select("id, name, client_name, status").in("id", ids).is("deleted_at", null).eq("status", "active"),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", ids),
-    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status").in("project_id", ids).eq("approval_status", "approved"),
-    // Staff receive allocation names and hours only. Commercial values, quote
-    // rates, spend, delivery costs and profitability remain administrator-only.
-    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed").in("project_id", ids).eq("status", "active").eq("staff_visible", true),
+    // Staff receive a single project-level budget position in the Overview.
+    // Itemised allocation dollars, rates, delivery costs and profitability stay
+    // administrator-only; only the approved total, actual spend and balance are
+    // calculated for an allocated project's tracker summary.
+    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status, approved_value, approved_hours").in("project_id", ids).eq("approval_status", "approved"),
+    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed, charge_out_spend").in("project_id", ids).eq("status", "active"),
   ]);
   if ([settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].some((result) => result.error && unavailable(result.error))) return { available: false, projects: [] };
   const failed = [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].find((result) => result.error);
@@ -36,7 +38,47 @@ export async function eligibleProjects(access, staffUserId = access.user.id) {
   const sources = sourcesResult.data || [];
   const allocationBySource = new Map();
   (trackerAllocationsResult.data || []).forEach((allocation) => { if (!allocationBySource.has(allocation.budget_source_id)) allocationBySource.set(allocation.budget_source_id, []); allocationBySource.get(allocation.budget_source_id).push(allocation); });
-  return { available: true, projects: (projectsResult.data || []).filter((project) => visible.has(project.id) && templateByProject.has(project.id)).map((project) => ({ id: project.id, name: project.name, clientName: project.client_name || "Client not recorded", template: templateByProject.get(project.id), sources: sources.filter((source) => source.project_id === project.id).map((source) => ({ ...source, allocations: allocationBySource.get(source.id) || [] })) })) };
+  return {
+    available: true,
+    projects: (projectsResult.data || [])
+      .filter((project) => visible.has(project.id) && templateByProject.has(project.id))
+      .map((project) => {
+        const projectSources = sources.filter((source) => source.project_id === project.id);
+        const sourceIds = new Set(projectSources.map((source) => source.id));
+        const projectAllocations = (trackerAllocationsResult.data || []).filter((allocation) => allocation.project_id === project.id && sourceIds.has(allocation.budget_source_id));
+        const budget = projectSources.reduce((sum, source) => sum + Number(source.approved_value || 0), 0);
+        const actualSpend = projectAllocations.reduce((sum, allocation) => sum + Number(allocation.charge_out_spend || 0), 0);
+        return {
+          id: project.id,
+          name: project.name,
+          clientName: project.client_name || "Client not recorded",
+          template: templateByProject.get(project.id),
+          financials: {
+            budget,
+            actualSpend,
+            remainingBudget: budget - actualSpend,
+            budgetHours: projectSources.reduce((sum, source) => sum + Number(source.approved_hours || 0), 0),
+          },
+          sources: projectSources.map((source) => ({
+            id: source.id,
+            source_code: source.source_code,
+            source_name: source.source_name,
+            approval_status: source.approval_status,
+            allocations: (allocationBySource.get(source.id) || []).filter((allocation) => allocation.staff_visible === true).map((allocation) => ({
+              id: allocation.id,
+              project_id: allocation.project_id,
+              budget_source_id: allocation.budget_source_id,
+              allocation_code: allocation.allocation_code,
+              allocation_name: allocation.allocation_name,
+              status: allocation.status,
+              staff_visible: allocation.staff_visible,
+              allocation_hours: allocation.allocation_hours,
+              hours_consumed: allocation.hours_consumed,
+            })),
+          })),
+        };
+      }),
+  };
 }
 
 async function ownEntries(access) {
@@ -91,22 +133,21 @@ async function teamEntries(access, projectId, eligible) {
   } catch { nameById = new Map(); }
 
   const [allocationsResult, activitiesResult] = await Promise.all([
-    // This is a staff-portal route, including when an administrator temporarily
-    // uses the Staff Portal. Never select financial values from this endpoint.
+    // This staff route never returns itemised allocation dollar values, rates,
+    // costs or profitability. Those stay in the administrator tracker.
     access.admin.from("project_budget_allocations").select("id, allocation_code, allocation_name, allocation_hours, hours_consumed, staff_visible, status").eq("project_id", projectId),
-    access.admin.from("project_activities").select("id, title, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours").eq("project_id", projectId).eq("is_active", true),
+    access.admin.from("project_activities").select("id, title, detail, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours").eq("project_id", projectId).eq("is_active", true),
   ]);
-
   const hoursByStaff = new Map();
   rows.forEach((row) => {
     hoursByStaff.set(row.staff_user_id, (hoursByStaff.get(row.staff_user_id) || 0) + Number(row.hours || 0));
   });
 
-  // Only allocations an admin has explicitly marked staff-visible are exposed.
-  // Commercial values never leave this staff-portal endpoint, even if an admin
-  // happens to be viewing it in the Staff Portal.
-  const allocations = (allocationsResult.error ? [] : allocationsResult.data || [])
-    .filter((allocation) => allocation.staff_visible === true && allocation.status === "active")
+  const allActiveAllocations = (allocationsResult.error ? [] : allocationsResult.data || [])
+    .filter((allocation) => allocation.status === "active");
+  // The allocation table shows only items the Project Manager marked visible.
+  const allocations = allActiveAllocations
+    .filter((allocation) => allocation.staff_visible === true)
     .map((allocation) => ({
       id: allocation.id,
       code: allocation.allocation_code,
@@ -119,6 +160,7 @@ async function teamEntries(access, projectId, eligible) {
   const activities = (activitiesResult.error ? [] : activitiesResult.data || []).map((activity) => ({
     id: activity.id,
     title: activity.title,
+    detail: activity.detail || "",
     taskCategory: activity.task_category || "",
     staffUserId: activity.staff_user_id,
     staffName: nameById.get(activity.staff_user_id) || "Unassigned",
@@ -136,9 +178,9 @@ async function teamEntries(access, projectId, eligible) {
     allocations,
     activities,
     totals: {
-      budgetHours: allocations.reduce((sum, a) => sum + a.budgetHours, 0),
-      hoursConsumed: allocations.reduce((sum, a) => sum + a.hoursConsumed, 0),
-      hoursRemaining: allocations.reduce((sum, a) => sum + a.hoursRemaining, 0),
+      budgetHours: allActiveAllocations.reduce((sum, allocation) => sum + Number(allocation.allocation_hours || 0), 0),
+      hoursConsumed: allActiveAllocations.reduce((sum, allocation) => sum + Number(allocation.hours_consumed || 0), 0),
+      hoursRemaining: allActiveAllocations.reduce((sum, allocation) => sum + Number(allocation.allocation_hours || 0) - Number(allocation.hours_consumed || 0), 0),
       entryCount: rows.length,
       contributorCount: hoursByStaff.size,
     },

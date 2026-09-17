@@ -13,7 +13,7 @@ const checks = [
   ["staff home filters locked domain cards", "components/OnboardingWorkbook.js", "visibility[domain.resourceKey] !== false"],
   ["admin home hides commercial card by default", "components/OnboardingWorkbook.js", 'resourceKey === "admin.quote_pipeline"'],
   ["admin cards provide eye controls", "components/OnboardingWorkbook.js", "portal-visibility-eye"],
-  ["staff project tabs filter locked sub-domains", "components/StaffMyProjects.js", "visibleTabs"],
+  ["staff projects opens the protected tracker workspace", "components/StaffMyProjects.js", "<StaffProjectTracker embedded />"],
   ["quote list is server-protected", "app/api/quote-pipeline/route.js", 'requirePortalResource(access, "admin.quote_pipeline")'],
   ["quote edits are server-protected", "app/api/quote-pipeline/[quoteId]/route.js", 'requirePortalResource(access, "admin.quote_pipeline")'],
   ["remote operations is server-protected", "app/api/remote-ops/route.js", '"staff.remote_operations"'],
