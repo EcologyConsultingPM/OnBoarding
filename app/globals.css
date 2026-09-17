@@ -19388,3 +19388,41 @@ main {
   color: #fffdf8 !important;
   background: #1c6c42 !important;
 }
+
+/* Project Health Report: the compact table is displayed on the dark portfolio
+   surface, so prevent legacy light-table rules from reducing text contrast. */
+.phr .phr-table-wrap {
+  background: #092415;
+  border-color: rgba(231, 201, 121, 0.24);
+}
+.phr .phr-table {
+  background: #092415;
+  color: #edf6e9;
+}
+.phr .phr-table thead th {
+  color: #e7efdf;
+  background: #1b5130;
+  border-bottom-color: rgba(231, 201, 121, 0.25);
+}
+.phr .phr-table tbody td {
+  color: #edf6e9;
+  background: #092415;
+  border-bottom-color: rgba(231, 201, 121, 0.16);
+}
+.phr .phr-table tbody tr:nth-child(even) td {
+  background: #0d2d1a;
+}
+.phr .phr-table .phr-proj strong {
+  color: #ffffff;
+}
+.phr .phr-table .phr-proj small,
+.phr .phr-table .phr-pct {
+  color: #cce0c6;
+}
+.phr .phr-table .phr-bar {
+  background: #456650;
+}
+.phr .phr-table .phr-actions button {
+  color: #f5dc8b;
+  border-color: rgba(245, 220, 139, 0.55);
+}

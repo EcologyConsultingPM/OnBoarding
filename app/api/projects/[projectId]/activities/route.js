@@ -193,6 +193,14 @@ export async function PUT(request, { params }) {
       return Response.json({ error: existingResult.error.message }, { status: 400 });
     }
     const existingById = new Map((existingResult.data || []).map((activity) => [activity.id, activity]));
+    const activeActivityCountByScheduleId = new Map();
+    for (const activity of existingResult.data || []) {
+      if (!validId(activity.schedule_item_id)) continue;
+      activeActivityCountByScheduleId.set(
+        activity.schedule_item_id,
+        (activeActivityCountByScheduleId.get(activity.schedule_item_id) || 0) + 1,
+      );
+    }
     const existingBySignature = new Map();
     for (const activity of existingResult.data || []) {
       const sig = contentSignature(activity);
@@ -262,6 +270,7 @@ export async function PUT(request, { params }) {
 
     const createdOrReassigned = [];
     const persisted = [];
+    const retiredSharedScheduleCandidates = new Set();
     for (const input of inputRows) {
       const matchedBySignature = !validId(input.id) ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
       const previous = validId(input.id) ? existingById.get(input.id) : matchedBySignature;
@@ -269,6 +278,15 @@ export async function PUT(request, { params }) {
       const changedAssignee = Boolean(previous && previous.staff_user_id !== assignedTo);
       const requestedStatus = ACTIVITY_STATUSES.has(input.status) ? input.status : (previous?.status || "not_commenced");
       let scheduleItemId = validId(input.scheduleItemId) ? input.scheduleItemId : (previous?.schedule_item_id || null);
+      // Each Step 4 work activity needs its own source-owned Gantt row. Older
+      // data sometimes linked several activities to a single schedule row, so
+      // editing one activity appeared to leave the other activity's dates in
+      // Step 5. Split that legacy shared link on the next activity save.
+      const retainsExistingLink = previous?.schedule_item_id === scheduleItemId;
+      if (retainsExistingLink && (activeActivityCountByScheduleId.get(scheduleItemId) || 0) > 1) {
+        retiredSharedScheduleCandidates.add(scheduleItemId);
+        scheduleItemId = null;
+      }
       let createdScheduleItem = false;
       // Each delivery activity must be visible in the project Gantt. Where an
       // administrator has not selected an existing phase, create a dedicated
@@ -362,6 +380,25 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // Shared legacy rows are retired only after every active activity has been
+    // moved onto its own schedule row. This keeps the Gantt clear without
+    // deleting history or ever retiring a deliberately shared phase early.
+    for (const scheduleItemId of retiredSharedScheduleCandidates) {
+      const { count, error: remainingLinksError } = await access.admin
+        .from("project_activities")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_item_id", scheduleItemId)
+        .eq("is_active", true);
+      if (remainingLinksError) return Response.json({ error: remainingLinksError.message }, { status: 400 });
+      if (!count) {
+        const { error: retireScheduleError } = await access.admin
+          .from("project_schedule_items")
+          .update({ is_active: false, updated_at: now })
+          .eq("id", scheduleItemId);
+        if (retireScheduleError) return Response.json({ error: retireScheduleError.message }, { status: 400 });
+      }
+    }
+
     const linkedScheduleIds = [...new Set(persisted.map((activity) => activity.schedule_item_id).filter(validId))];
     for (const scheduleItemId of linkedScheduleIds) {
       const { data: scheduleActivities, error: scheduleActivitiesError } = await access.admin
@@ -380,15 +417,19 @@ export async function PUT(request, { params }) {
         .eq("id", scheduleItemId)
         .maybeSingle();
       if (scheduleItemError) return Response.json({ error: scheduleItemError.message }, { status: 400 });
-      const sourceActivity = linked.find((activity) => activity.id === scheduleItem?.generated_from_activity_id);
-      // Only a row explicitly marked as generated is rewritten. A manually
-      // created Gantt phase can group several activities and retains its own
-      // title, dates and milestone; its progress/status still aggregate here.
+      // Step 4 is the source of truth for every one-to-one activity/Gantt
+      // link. Older projects pre-date generated_from_activity_id, so adopt a
+      // single linked activity on save. Shared Gantt phases remain manual:
+      // their title and dates are not overwritten, but their delivery state
+      // still aggregates from the linked activities below.
+      const sourceActivity = linked.find((activity) => activity.id === scheduleItem?.generated_from_activity_id)
+        || (linked.length === 1 ? linked[0] : null);
       const scheduleUpdate = {
         progress_percent: progressPercent,
         status,
         updated_at: now,
         ...(sourceActivity ? {
+          generated_from_activity_id: sourceActivity.id,
           title: sourceActivity.title,
           detail: opt(sourceActivity.detail),
           start_date: dueDate(sourceActivity.start_date) || dueDate(sourceActivity.due_date),

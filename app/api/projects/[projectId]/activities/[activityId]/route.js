@@ -130,8 +130,8 @@ export async function PATCH(request, { params }) {
 
     // Keep an activity-created schedule line in sync with a calendar edit.
     // A manual Gantt phase may intentionally group several activities, so it
-    // retains its independent title/dates and only activity-generated rows
-    // receive the source activity's details.
+    // retains its independent title/dates. A legacy one-to-one link is safely
+    // adopted here, making the activity the source of truth from this edit on.
     if (updated.schedule_item_id && affectsSchedule) {
       const { data: linkedSchedule, error: scheduleLookupError } = await access.admin
         .from("project_schedule_items")
@@ -139,8 +139,17 @@ export async function PATCH(request, { params }) {
         .eq("id", updated.schedule_item_id)
         .maybeSingle();
       if (scheduleLookupError) return Response.json({ error: scheduleLookupError.message }, { status: 400 });
-      if (linkedSchedule?.generated_from_activity_id === updated.id) {
+      const { data: linkedActivities, error: linkedActivitiesError } = await access.admin
+        .from("project_activities")
+        .select("id")
+        .eq("schedule_item_id", updated.schedule_item_id)
+        .eq("is_active", true);
+      if (linkedActivitiesError) return Response.json({ error: linkedActivitiesError.message }, { status: 400 });
+      const activityOwnsSchedule = linkedSchedule?.generated_from_activity_id === updated.id
+        || (!linkedSchedule?.generated_from_activity_id && (linkedActivities || []).length === 1 && linkedActivities[0]?.id === updated.id);
+      if (activityOwnsSchedule) {
         const { error: scheduleUpdateError } = await access.admin.from("project_schedule_items").update({
+          generated_from_activity_id: updated.id,
           title: updated.title,
           detail: updated.detail,
           start_date: updated.start_date || updated.due_date,
