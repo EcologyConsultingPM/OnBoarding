@@ -139,6 +139,7 @@ export default function StaffForms() {
   const [activeKey, setActiveKey] = useState(null);
   const [form, setForm] = useState({});
   const [whsHistory, setWhsHistory] = useState([]);
+  const [firstAidHistory, setFirstAidHistory] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -159,11 +160,22 @@ export default function StaffForms() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const wRes = await authFetch("GET", "/api/whs-forms");
-      const wData = await wRes.json();
-      if (wRes.ok) setWhsHistory(wData.forms || []);
+      // `scope=mine` is intentional. Some staff are also administrators, but
+      // this is their personal history—not the administrative monitoring feed.
+      const [wRes, firstAidRes] = await Promise.all([
+        authFetch("GET", "/api/whs-forms?scope=mine"),
+        authFetch("GET", "/api/first-aid-kit-checks?scope=mine"),
+      ]);
+      const [wData, firstAidData] = await Promise.all([
+        wRes.json().catch(() => ({})),
+        firstAidRes.json().catch(() => ({})),
+      ]);
+      if (!wRes.ok) throw new Error(wData.error || "Could not load your WHS submission history.");
+      if (!firstAidRes.ok) throw new Error(firstAidData.error || "Could not load your first-aid check history.");
+      setWhsHistory(wData.forms || []);
+      setFirstAidHistory(firstAidData.checks || []);
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Could not load your submission history.");
     }
   }, [authFetch]);
 
@@ -416,6 +428,14 @@ export default function StaffForms() {
         status: w.status,
         note: w.review_note,
       })),
+      ...firstAidHistory.map((check) => ({
+        id: `first-aid-${check.id}`,
+        when: check.created_at,
+        title: `First Aid Kit Check${check.check_type ? `: ${check.check_type}` : ""}`,
+        kind: "first aid kit check",
+        status: "submitted",
+        note: check.check_date ? `Check date: ${new Date(`${check.check_date}T00:00:00`).toLocaleDateString("en-AU")}` : "",
+      })),
     ].sort((a, b) => new Date(b.when) - new Date(a.when));
     return (
       <div className={`sf sf-theme-${theme}`}>
@@ -505,7 +525,7 @@ export default function StaffForms() {
     return (
       <div>
         <button type="button" className="sf-back" onClick={backToHub}>← Back</button>
-        <FirstAidKitChecks />
+        <FirstAidKitChecks onSubmitted={loadHistory} />
       </div>
     );
   }

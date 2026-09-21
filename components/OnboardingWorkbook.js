@@ -5159,7 +5159,10 @@ export default function OnboardingWorkbook() {
       <div
         className="wb-layout"
         style={{
-          maxWidth: 1280,
+          // The Project Tracker's timesheet tab carries seven operational
+          // columns. On a wide desktop, give this focused admin workspace a
+          // wider canvas so entries remain readable without horizontal sliding.
+          maxWidth: inAdminPortal && mode === "adminprojects" && projectsSubview === "tracker" ? 1600 : 1280,
           margin: "0 auto",
           padding: "40px 32px 80px",
           display: "flex",

@@ -70,16 +70,21 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    const url = new URL(request.url);
+    // A person can be both an administrator and a staff member. The staff
+    // history screen must always return that person's own forms, rather than
+    // switching to the administrative monitoring feed (or its permissions)
+    // merely because their account is an administrator account.
+    const personalHistory = url.searchParams.get("scope") === "mine";
     const denied = await requirePortalResource(
       access,
-      access.isAdmin ? "admin.whs_monitoring" : "staff.forms",
+      personalHistory || !access.isAdmin ? "staff.forms" : "admin.whs_monitoring",
     );
     if (denied) return denied;
-    const url = new URL(request.url);
     const typeFilter = url.searchParams.get("type");
 
     let query = access.admin.from("whs_forms").select(COLUMNS).order("created_at", { ascending: false });
-    if (!access.isAdmin) query = query.eq("created_by", access.user.id);
+    if (personalHistory || !access.isAdmin) query = query.eq("created_by", access.user.id);
     if (typeFilter && FORM_TYPES.includes(typeFilter)) query = query.eq("form_type", typeFilter);
     const { data, error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -91,7 +96,7 @@ export async function GET(request) {
       const emailById = new Map((usersData?.users || []).map((u) => [u.id, u.email]));
       rows = rows.map((r) => ({ ...r, author: emailById.get(r.created_by) || null }));
     }
-    return Response.json({ forms: rows, isAdmin: access.isAdmin });
+    return Response.json({ forms: rows, isAdmin: access.isAdmin, personalHistory });
   } catch (error) {
     return serverError(error);
   }

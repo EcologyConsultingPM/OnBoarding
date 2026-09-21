@@ -157,13 +157,14 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(access, access.isAdmin ? "admin.whs" : "staff.forms");
+    const personalHistory = new URL(request.url).searchParams.get("scope") === "mine";
+    const denied = await requirePortalResource(access, personalHistory || !access.isAdmin ? "staff.forms" : "admin.whs");
     if (denied) return denied;
     let query = access.admin.from("first_aid_kit_checks").select(SELECT_COLUMNS).order("created_at", { ascending: false }).limit(100);
-    if (!access.isAdmin) query = query.eq("checked_by", access.user.id);
+    if (personalHistory || !access.isAdmin) query = query.eq("checked_by", access.user.id);
     const { data, error } = await query;
     if (error) return jsonError("Unable to load first aid kit checks.", 500);
-    return Response.json({ checks: data || [], isAdmin: access.isAdmin });
+    return Response.json({ checks: data || [], isAdmin: access.isAdmin, personalHistory });
   } catch (error) {
     return serverError(error);
   }

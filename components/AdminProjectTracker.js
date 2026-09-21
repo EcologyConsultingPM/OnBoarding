@@ -1015,10 +1015,11 @@ export default function AdminProjectTracker({
                               </select></label>
                               <label className="apt-entry-editor__wide">Description<textarea rows={3} value={entryEditor.activityInformation} onChange={(event) => setEntryEditor((current) => ({ ...current, activityInformation: event.target.value }))} /></label>
                               <label className="apt-entry-editor__wide">Notable issues<textarea rows={2} value={entryEditor.notableIssues} onChange={(event) => setEntryEditor((current) => ({ ...current, notableIssues: event.target.value }))} /></label>
-                              <label className="apt-entry-editor__wide">Correction reason <textarea rows={2} value={entryEditor.correctionReason} placeholder="Explain why this entry is being corrected (retained in the audit trail)." onChange={(event) => setEntryEditor((current) => ({ ...current, correctionReason: event.target.value }))} /></label>
+                              <label className="apt-entry-editor__wide">Correction reason <span className="apt-entry-editor__requirement">Required for the audit trail — {entryEditor.correctionReason.trim().length}/10 characters</span><textarea rows={2} value={entryEditor.correctionReason} aria-describedby="tracker-correction-reason-help" placeholder="Explain why this entry is being corrected (minimum 10 characters; retained in the audit trail)." onChange={(event) => setEntryEditor((current) => ({ ...current, correctionReason: event.target.value }))} /></label>
                             </div>
+                            <p id="tracker-correction-reason-help" className="apt-entry-editor__help">A correction is saved only with a clear reason, so the original entry and the change remain traceable.</p>
                             <button type="button" className="aps-primary" disabled={Boolean(entryMutationBusy) || !entryEditor.workDate || !entryEditor.activityCategory.trim() || !entryEditor.activityInformation.trim() || entryEditor.hours === "" || entryEditor.correctionReason.trim().length < 10} onClick={saveEntryEdit}>
-                              <CheckCircle2 size={14} /> {entryMutationBusy ? "Saving correction…" : "Save corrected entry"}
+                              <CheckCircle2 size={14} /> {entryMutationBusy ? "Saving correction…" : entryEditor.correctionReason.trim().length < 10 ? "Add correction reason to save" : "Save corrected entry"}
                             </button>
                           </div>
                         ) : null}
@@ -1043,8 +1044,8 @@ export default function AdminProjectTracker({
                           ) : null}
                         </div>
                         {filteredEntries.length ? (
-                          <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                          <div className="apt-timesheet-table-wrap">
+                            <table className="apt-timesheet-table">
                               <thead>
                                 <tr style={{ textAlign: "left", borderBottom: "1px solid #3a4a3a" }}>
                                   <th style={{ padding: "6px 8px" }}>Date</th>

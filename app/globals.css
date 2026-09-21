@@ -18906,11 +18906,25 @@ main {
 .apt-entry-editor__grid select,
 .apt-entry-editor__grid textarea { width: 100%; box-sizing: border-box; border: 1px solid #8ea690; border-radius: 7px; padding: 8px 9px; background: #fff; color: #173e2c; font: inherit; text-transform: none; letter-spacing: normal; }
 .apt-entry-editor__wide { grid-column: 1 / -1; }
+.apt-entry-editor__requirement { color: #e7c979; font-size: 10px; font-weight: 700; letter-spacing: normal; text-transform: none; }
+.apt-entry-editor__help { margin: -2px 0 10px; color: #b9cdb4; font-size: 11px; line-height: 1.45; }
 .apt-entry-actions { display: flex; gap: 6px; }
 .apt-entry-actions button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #66806b; border-radius: 6px; padding: 5px 7px; background: transparent; color: #dce9d8; font: inherit; font-size: 10.5px; font-weight: 750; cursor: pointer; }
 .apt-entry-actions button:hover { border-color: #e7c979; color: #fff; }
 .apt-entry-actions button.danger { border-color: rgba(218, 111, 101, .52); color: #ffb7ae; }
 .apt-entry-actions button:disabled { cursor: wait; opacity: .55; }
+.apt-timesheet-table-wrap { width: 100%; overflow-x: auto; }
+.apt-timesheet-table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.apt-timesheet-table th,
+.apt-timesheet-table td { padding: 9px 10px !important; vertical-align: top; }
+.apt-timesheet-table th { color: #b9cdb4; font-size: 10.5px; letter-spacing: .02em; }
+.apt-timesheet-table th:nth-child(1), .apt-timesheet-table td:nth-child(1) { width: 9%; }
+.apt-timesheet-table th:nth-child(2), .apt-timesheet-table td:nth-child(2) { width: 15%; }
+.apt-timesheet-table th:nth-child(3), .apt-timesheet-table td:nth-child(3) { width: 16%; }
+.apt-timesheet-table th:nth-child(4), .apt-timesheet-table td:nth-child(4) { width: 34%; overflow-wrap: anywhere; }
+.apt-timesheet-table th:nth-child(5), .apt-timesheet-table td:nth-child(5) { width: 7%; white-space: nowrap; }
+.apt-timesheet-table th:nth-child(6), .apt-timesheet-table td:nth-child(6) { width: 11%; }
+.apt-timesheet-table th:nth-child(7), .apt-timesheet-table td:nth-child(7) { width: 8%; }
 @media (max-width: 760px) {
   .apt-entry-editor__grid { grid-template-columns: 1fr; }
   .apt-entry-editor__wide { grid-column: auto; }
