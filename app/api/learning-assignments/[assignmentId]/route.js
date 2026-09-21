@@ -4,7 +4,7 @@ import { compactAuditRecord, recordAudit } from "../../../../lib/auditLog";
 
 const COLUMNS = "id, node_id, user_id, assigned_by, status, due_date, started_at, submitted_at, assessed_at, verified_at, reviewer_id, remediation_note, locked, archived_at, created_at, updated_at, ld_nodes(id,title)";
 const text = (value, maximum = 3000) => { const clean = String(value || "").trim(); return clean ? clean.slice(0, maximum) : null; };
-async function event(admin, recipientId, assignment, title, body, severity = "information") { if (!recipientId) return; try { await admin.from("portal_events").insert({ recipient_id: recipientId, event_type: "learning_assignment_status", severity, title, body, href: "/?workspace=learning", source_table: "learning_assignments", source_id: assignment.id }); } catch (error) { console.warn("Learning event failed", error.message); } }
+async function event(admin, recipientId, assignment, title, body, severity = "information") { if (!recipientId) return; try { await admin.from("portal_events").insert({ recipient_id: recipientId, event_type: "learning_assignment_status", severity, title, body, href: "/?workspace=ldlibrary", source_table: "learning_assignments", source_id: assignment.id }); } catch (error) { console.warn("Learning event failed", error.message); } }
 
 export async function PATCH(request, { params }) {
   try {

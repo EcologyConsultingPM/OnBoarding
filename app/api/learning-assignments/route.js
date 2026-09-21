@@ -8,7 +8,7 @@ const text = (value, maximum = 3000) => { const clean = String(value || "").trim
 
 async function notify(admin, recipientId, assignment, title, body, severity = "information") {
   if (!recipientId) return;
-  try { await admin.from("portal_events").insert({ recipient_id: recipientId, event_type: "learning_assignment", severity, title, body, href: "/?workspace=learning", source_table: "learning_assignments", source_id: assignment.id }); } catch (error) { console.warn("Learning assignment notification failed", error.message); }
+  try { await admin.from("portal_events").insert({ recipient_id: recipientId, event_type: "learning_assignment", severity, title, body, href: "/?workspace=ldlibrary", source_table: "learning_assignments", source_id: assignment.id }); } catch (error) { console.warn("Learning assignment notification failed", error.message); }
 }
 
 export async function GET(request) {
