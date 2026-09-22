@@ -114,13 +114,16 @@ export async function PATCH(request) {
     const activityInformation = text(body.activityInformation, 5000);
     const notableIssues = text(body.notableIssues, 5000);
     const correctionReason = text(body.correctionReason, 1000);
+    // The database audit schema requires a meaningful reason. A correction
+    // should not be blocked merely because the administrator has no extra
+    // note to add, so retain a clear system reason in that case.
+    const auditReason = correctionReason || "Administrative correction recorded without an additional note.";
     const amount = validHours(body.hours);
     const status = String(body.status || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !ENTRY_STATUSES.has(status)) {
       return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
     }
     if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
-    if (correctionReason.length < 10) return jsonError("Enter a clear correction reason (at least 10 characters).", 400);
 
     const now = new Date().toISOString();
     const { data: entry, error } = await access.admin.from("project_tracker_entries").update({
@@ -138,7 +141,7 @@ export async function PATCH(request) {
       project_id: current.project_id,
       tracker_entry_id: id,
       action: "corrected",
-      reason: correctionReason,
+      reason: auditReason,
       before_data: current,
       after_data: entry,
       performed_by: access.user.id,

@@ -24,9 +24,12 @@ assert.match(staffForms, /<FirstAidKitChecks onSubmitted=\{loadHistory\}/, "Subm
 assert.match(firstAidComponent, /export default function FirstAidKitChecks\(\{ onSubmitted \}\)/, "The first-aid form must accept a history-refresh callback.");
 assert.match(firstAidComponent, /setSaved\(data\.check \|\| \{ check_date: checkDate \}\); onSubmitted\?\.\(\);/, "A saved first-aid check must refresh the form-history source.");
 
-assert.match(trackerRoute, /if \(correctionReason\.length < 10\)/, "Timesheet corrections must retain an audit reason.");
-assert.match(tracker, /Required for the audit trail/, "The tracker editor must explain the correction-reason requirement.");
-assert.match(tracker, /Add correction reason to save/, "The disabled tracker-save control must explain why it is unavailable.");
+assert.match(trackerRoute, /const auditReason = correctionReason \|\| "Administrative correction recorded without an additional note\.";/, "Timesheet corrections without a note must retain automatic audit provenance.");
+assert.match(trackerRoute, /reason: auditReason/, "The automatic or supplied correction reason must be written to the audit record.");
+assert.doesNotMatch(trackerRoute, /if \(correctionReason\.length < 10\)/, "Timesheet corrections must not be blocked by a typed-note requirement.");
+assert.match(tracker, /Correction note/, "The tracker editor must label the optional note accurately.");
+assert.match(tracker, /Optional — recorded in the audit trail if supplied/, "The tracker editor must explain how optional notes are retained.");
+assert.match(tracker, /Saving correction…" : "Save corrected entry"/, "The correction save action must remain available without an optional note.");
 assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must use the responsive timesheet table wrapper.");
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");
 assert.match(styles, /\.apt-timesheet-table \{ width: 100%; min-width: 1040px;/, "The timesheet table must reserve readable column width.");
