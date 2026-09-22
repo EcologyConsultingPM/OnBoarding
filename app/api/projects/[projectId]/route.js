@@ -334,6 +334,7 @@ export async function PUT(request, { params }) {
     }
 
     const saved = [];
+    let linkedActivityUpdates = 0;
     for (const item of incoming) {
       const existing = validId(item.id) ? existingById.get(item.id) : null;
       const row = {
@@ -350,21 +351,69 @@ export async function PUT(request, { params }) {
         is_active: true,
         updated_at: now,
       };
+      let savedItem;
       if (existing) {
         if (existing.locked && item.locked !== false) {
           row.locked = true;
         }
         const { data, error } = await access.admin.from("project_schedule_items").update(row).eq("id", existing.id).select("id, sort_order, title, detail, start_date, end_date, milestone, progress_percent, status, locked, is_active").single();
         if (error) return Response.json({ error: error.message }, { status: 400 });
-        saved.push(data);
+        savedItem = data;
       } else {
         const { data, error } = await access.admin.from("project_schedule_items").insert(row).select("id, sort_order, title, detail, start_date, end_date, milestone, progress_percent, status, locked, is_active").single();
         if (error) return Response.json({ error: error.message }, { status: 400 });
-        saved.push(data);
+        savedItem = data;
+      }
+      saved.push(savedItem);
+
+      // The Schedule stage is the administrative source of truth for a linked
+      // delivery line's status, completion percentage and staff-update lock.
+      // Keeping these values in sync means Work Activities is for defining
+      // assigned work, while Schedule is the single place an administrator
+      // records project delivery progress.
+      const { data: linkedActivities, error: linkedActivitiesError } = await access.admin
+        .from("project_activities")
+        .select("id, project_id, staff_user_id, status, progress_percent, started_at, completed_at")
+        .eq("schedule_item_id", savedItem.id)
+        .eq("is_active", true);
+      if (linkedActivitiesError) return Response.json({ error: linkedActivitiesError.message }, { status: 400 });
+      for (const activity of linkedActivities || []) {
+        const activityStatus = savedItem.status;
+        const activityProgress = activityStatus === "completed" ? 100 : savedItem.progress_percent;
+        const activityUpdate = {
+          status: activityStatus,
+          progress_percent: activityProgress,
+          locked: savedItem.locked === true,
+          pause_reason: activityStatus === "paused_other" ? "Updated from the project Schedule." : null,
+          ...(activityStatus === "active" && !activity.started_at ? { started_at: now } : {}),
+          ...(activityStatus === "completed" && !activity.completed_at ? { completed_at: now } : {}),
+          updated_at: now,
+        };
+        const changed = activity.status !== activityStatus
+          || Number(activity.progress_percent || 0) !== Number(activityProgress || 0);
+        const { error: activityUpdateError } = await access.admin
+          .from("project_activities")
+          .update(activityUpdate)
+          .eq("id", activity.id);
+        if (activityUpdateError) return Response.json({ error: activityUpdateError.message }, { status: 400 });
+        if (changed && activity.staff_user_id) {
+          const { error: historyError } = await access.admin.from("project_activity_history").insert({
+            activity_id: activity.id,
+            project_id: activity.project_id,
+            staff_user_id: activity.staff_user_id,
+            previous_status: activity.status,
+            new_status: activityStatus,
+            note: `Status and completion updated from the project Schedule (${Number(activityProgress || 0)}%).`,
+            changed_by: access.user.id,
+            changed_at: now,
+          });
+          if (historyError) return Response.json({ error: `Schedule saved, but linked activity history could not be recorded: ${historyError.message}` }, { status: 500 });
+        }
+        if (changed) linkedActivityUpdates += 1;
       }
     }
 
-    return Response.json({ success: true, count: saved.length, schedule: saved });
+    return Response.json({ success: true, count: saved.length, schedule: saved, linkedActivityUpdates });
   } catch (error) {
     return serverError(error);
   }

@@ -54,8 +54,8 @@ const PROJECT_SETUP_STAGES = [
   { key: "details", label: "Initiation", help: "Confirm the accepted project, client, scope, dates, manager and approved budget." },
   { key: "team", label: "PMP team", help: "Allocate the project team, roles, hours and rates." },
   { key: "deliverables", label: "Deliverables", help: "Define the outputs the project must produce." },
-  { key: "activities", label: "Work activities", help: "Break deliverables into assigned, budgeted and dated activities." },
-  { key: "schedule", label: "Schedule", help: "Review the delivery sequence, milestones and completion measures." },
+  { key: "activities", label: "Work activities", help: "Break deliverables into assigned, budgeted and dated activities. Set delivery status and completion in the next Schedule step." },
+  { key: "schedule", label: "Schedule", help: "Review the delivery sequence, milestones, status and completion measures for linked work activities." },
   { key: "review", label: "Review & activate", help: "Complete readiness checks and record the Senior Ecologist approval gate." },
 ];
 
@@ -764,12 +764,28 @@ function ProjectDetail({
           locked: s.locked === true,
         })));
       }
-      notify("Schedule saved without breaking linked delivery activities.");
+      await load();
+      notify(d.linkedActivityUpdates ? `Schedule saved and ${d.linkedActivityUpdates} linked work activit${d.linkedActivityUpdates === 1 ? "y" : "ies"} updated.` : "Schedule saved without breaking linked delivery activities.");
       return true;
     } catch (e) {
       fail(e);
       return false;
     }
+  };
+  const updateScheduleStatus = (index, status) => {
+    setSchedule(schedule.map((row, current) => current === index ? {
+      ...row,
+      status,
+      progressPercent: status === "completed" ? 100 : (status === "not_commenced" ? 0 : row.progressPercent),
+    } : row));
+  };
+  const updateScheduleProgress = (index, value) => {
+    const progressPercent = Math.max(0, Math.min(100, Number(value) || 0));
+    setSchedule(schedule.map((row, current) => current === index ? {
+      ...row,
+      progressPercent,
+      status: progressPercent === 100 ? "completed" : (row.status === "completed" ? "active" : row.status),
+    } : row));
   };
   const deleteProject = async () => {
     if (
@@ -1373,22 +1389,9 @@ function ProjectDetail({
                 Delivery: {(row.status || "not_commenced").replaceAll("_", " ")} · {row.progressPercent ?? 0}%
               </span>
               {row.responseNote ? <small>Latest response: {row.responseNote}</small> : null}
+              <small>Set delivery status and completion in the next <strong>Schedule</strong> step.</small>
               <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
               <label className="aps-check"><input type="checkbox" checked={row.milestone === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone (shown as a diamond on the Gantt)</label>
-              {row.status !== "completed" ? <button
-                type="button"
-                className="aps-secondary"
-                onClick={async () => {
-                  if (!row.id || !window.confirm(`Mark "${row.title || "this activity"}" complete? This retains the activity and its tracker history.`)) return;
-                  try {
-                    const res = await auth("PATCH", `/api/projects/${projectId}/activities/${row.id}`, { status: "completed" });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error || "Could not complete this activity.");
-                    setActivities((current) => current.map((item, index) => index === i ? { ...item, status: "completed", progressPercent: 100 } : item));
-                    notify("Activity completed and linked schedule updated.");
-                  } catch (e) { fail(e); }
-                }}
-              ><Check size={13} /> Mark complete</button> : null}
             </div>
             </div>
             <button
@@ -1461,8 +1464,8 @@ function ProjectDetail({
                 <label className="aps-field">Delivery detail<input placeholder="Key deliverable or date context" value={row.detail} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, detail: e.target.value } : r))} /></label>
                 <label className="aps-field">Start date<input type="date" value={row.startDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, startDate: e.target.value } : r))} /></label>
                 <label className="aps-field">Key / due date<input type="date" value={row.endDate} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, endDate: e.target.value } : r))} /></label>
-                <label className="aps-field">Status<select value={row.status || "not_commenced"} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, status: e.target.value } : r))}>{Object.entries(ACTIVITY_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></label>
-                <label className="aps-field">Completion %<input type="number" min="0" max="100" step="5" value={row.progressPercent ?? 0} onChange={(e) => setSchedule(schedule.map((r, j) => j === i ? { ...r, progressPercent: e.target.value } : r))} /></label>
+                <label className="aps-field">Status<select value={row.status || "not_commenced"} onChange={(e) => updateScheduleStatus(i, e.target.value)}>{Object.entries(ACTIVITY_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></label>
+                <label className="aps-field">Completion %<input type="number" min="0" max="100" step="5" value={row.progressPercent ?? 0} onChange={(e) => updateScheduleProgress(i, e.target.value)} /></label>
               </div>
               <div className="aps-schedule-assignment"><Users size={14} /><span><strong>Assigned staff:</strong> {linkedStaff.length ? linkedStaff.join(", ") : "No linked work activity yet"}</span></div>
               <div className="aps-schedule-actions">
@@ -1532,7 +1535,7 @@ function ProjectDetail({
                 <Save size={14} /> {stageSaving ? "Saving…" : "Save progress"}
               </button>
               <button type="button" className="aps-primary" disabled={stageSaving || savingActivities} onClick={() => saveStage(true)}>
-                <CheckCircle2 size={14} /> {stageSaving ? "Saving…" : `Complete stage${nextStage ? " & continue" : ""}`}
+                <CheckCircle2 size={14} /> {stageSaving ? "Saving…" : activeStage === "activities" ? "Save activities & continue to Schedule" : `Complete stage${nextStage ? " & continue" : ""}`}
               </button>
             </>
           ) : project.activities_approval_status === "approved" ? (
