@@ -295,7 +295,9 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
     const rateByStaff = new Map((projectRates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
     const defaultRate = Number(projectDefault?.default_hourly_rate) || 0;
     const chargeOutSpend = (entryRows || []).reduce((sum, row) => {
-      const rate = rateByStaff.has(row.staff_user_id) ? rateByStaff.get(row.staff_user_id) : defaultRate;
+      // New project team members without a specific rate are charged at the
+      // project's Ecologist default instead of silently recording $0 spend.
+      const rate = rateByStaff.get(row.staff_user_id) || defaultRate;
       return sum + Number(row.hours || 0) * rate;
     }, 0);
 

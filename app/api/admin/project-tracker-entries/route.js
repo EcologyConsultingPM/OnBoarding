@@ -23,7 +23,9 @@ async function refreshAllocation(access, projectId, allocationId) {
   const rateByStaff = new Map((rates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
   const defaultRate = Number(project?.default_hourly_rate) || 0;
   const hoursConsumed = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  const chargeOutSpend = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0) * (rateByStaff.get(row.staff_user_id) ?? defaultRate), 0);
+  // A future team member may be allocated before their individual rate is set.
+  // Their tracker corrections must still be charged at the project default.
+  const chargeOutSpend = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0) * (rateByStaff.get(row.staff_user_id) || defaultRate), 0);
   const internalCost = chargeOutSpend * 0.6;
   const { error } = await access.admin.from("project_budget_allocations").update({ hours_consumed: hoursConsumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, internal_cost: Math.round(internalCost * 100) / 100, updated_by: access.user.id, updated_at: new Date().toISOString() }).eq("id", allocationId).eq("project_id", projectId);
   if (error) throw new Error(error.message);

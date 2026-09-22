@@ -10,6 +10,7 @@ const firstAidRoute = await read("app/api/first-aid-kit-checks/route.js");
 const firstAidComponent = await read("components/FirstAidKitChecks.js");
 const tracker = await read("components/AdminProjectTracker.js");
 const trackerRoute = await read("app/api/admin/project-tracker-entries/route.js");
+const staffTrackerRoute = await read("app/api/project-tracker-entries/route.js");
 const workbook = await read("components/OnboardingWorkbook.js");
 const styles = await read("app/globals.css");
 
@@ -30,6 +31,8 @@ assert.doesNotMatch(trackerRoute, /if \(correctionReason\.length < 10\)/, "Times
 assert.match(tracker, /Correction note/, "The tracker editor must label the optional note accurately.");
 assert.match(tracker, /Optional — recorded in the audit trail if supplied/, "The tracker editor must explain how optional notes are retained.");
 assert.match(tracker, /Saving correction…" : "Save corrected entry"/, "The correction save action must remain available without an optional note.");
+assert.match(staffTrackerRoute, /const rate = rateByStaff\.get\(row\.staff_user_id\) \|\| defaultRate;/, "Staff tracker entries must charge unpriced future team members at the project default rate.");
+assert.match(trackerRoute, /rateByStaff\.get\(row\.staff_user_id\) \|\| defaultRate/, "Administrator corrections must preserve the project default-rate fallback.");
 assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must use the responsive timesheet table wrapper.");
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");
 assert.match(styles, /\.apt-timesheet-table \{ width: 100%; min-width: 1040px;/, "The timesheet table must reserve readable column width.");
