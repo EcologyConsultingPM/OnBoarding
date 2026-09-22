@@ -12282,8 +12282,9 @@ main {
 
 /* ── Project Tracker: project-first commercial control workspace ─────────── */
 .admin-project-tracker {
-  max-width: 1480px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   color: #eaf4e7;
 }
 .apt-tabs {
@@ -12427,18 +12428,22 @@ main {
 .apt-detail-tabs {
   margin: 0 0 16px;
 }
-.apt-grid--budget {
+/* These rules deliberately carry the root grid class as well. The generic
+   .apt-grid declaration appears later in this stylesheet; without the extra
+   specificity it silently restores the empty right-hand sidebar on Budget,
+   Timesheets and Work activities. */
+.apt-grid.apt-grid--budget {
   grid-template-columns: minmax(0, 1fr);
 }
-.apt-grid--budget .apt-side:empty {
+.apt-grid.apt-grid--budget .apt-side:empty {
   display: none;
 }
-.apt-grid--timesheets,
-.apt-grid--activities {
+.apt-grid.apt-grid--timesheets,
+.apt-grid.apt-grid--activities {
   grid-template-columns: minmax(0, 1fr);
 }
-.apt-grid--timesheets .apt-side,
-.apt-grid--activities .apt-side {
+.apt-grid.apt-grid--timesheets .apt-side,
+.apt-grid.apt-grid--activities .apt-side {
   display: block;
 }
 .apt-project-list,
@@ -18868,7 +18873,7 @@ main {
 }
 .aps-stage-actions__right { display: flex; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
 .aps-activity-detail { width: 100%; box-sizing: border-box; min-height: 6rem; }
-.admin-project-tracker { border-radius: 18px; padding: 18px; background: linear-gradient(135deg, #092e22, #0d3d2a); }
+.admin-project-tracker { box-sizing: border-box; border-radius: 18px; padding: 18px; background: linear-gradient(135deg, #092e22, #0d3d2a); }
 
 @media (max-width: 1050px) {
   .aps-stage-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }

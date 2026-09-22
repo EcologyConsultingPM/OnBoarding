@@ -31,5 +31,9 @@ assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must 
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");
 assert.match(styles, /\.apt-timesheet-table \{ width: 100%; min-width: 1040px;/, "The timesheet table must reserve readable column width.");
 assert.match(workbook, /mode === "adminprojects" && projectsSubview === "tracker" \? 1600 : 1280/, "The admin tracker workspace must use a wider desktop canvas.");
+assert.match(styles, /\.admin-project-tracker \{\s*width: 100%;\s*max-width: none;/, "The tracker root must fill its available desktop workspace.");
+assert.match(styles, /\.admin-project-tracker \{ box-sizing: border-box; border-radius: 18px; padding: 18px;/, "The padded tracker root must not overflow the full-width workspace.");
+assert.match(styles, /\.apt-grid\.apt-grid--budget \{\s*grid-template-columns: minmax\(0, 1fr\);/, "The Budget tab must override the generic two-column grid and fill the workspace.");
+assert.match(styles, /\.apt-grid\.apt-grid--timesheets,\s*\.apt-grid\.apt-grid--activities \{\s*grid-template-columns: minmax\(0, 1fr\);/, "Timesheets and Work activities must override the generic two-column grid and fill the workspace.");
 
-console.log("Tracker and forms-history contract passed: personal submission history is scoped correctly, specialised first-aid records are included, and audited timesheet corrections are clear and readable.");
+console.log("Tracker and forms-history contract passed: personal submission history is scoped correctly, specialised first-aid records are included, and tracker detail tabs use their full desktop workspace.");
