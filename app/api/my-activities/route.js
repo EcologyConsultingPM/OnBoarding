@@ -109,13 +109,21 @@ export async function PATCH(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
-    const denied = await requirePortalResource(access, "staff.projects.activities");
+    const body = await request.json();
+    const adminOverride = access.isAdmin && body?.administratorOverride === true;
+    if (body?.administratorOverride === true && !access.isAdmin) {
+      return Response.json({ error: "Only administrators can override a work activity status." }, { status: 403 });
+    }
+    const denied = await requirePortalResource(
+      access,
+      adminOverride ? "admin.projects.tracker" : "staff.projects.activities",
+    );
     if (denied) return denied;
 
-    const body = await request.json();
     const id = body.id || new URL(request.url).searchParams.get("id");
     const action = String(body.action || "");
     if (!id) return Response.json({ error: "Activity id is required." }, { status: 400 });
+    if (adminOverride && action) return Response.json({ error: "An administrator override can update delivery status only." }, { status: 400 });
 
     const { data: existing, error: readError } = await access.admin
       .from("project_activities")
@@ -138,6 +146,7 @@ export async function PATCH(request) {
         ? Response.json({ error: "This activity was withdrawn or replaced by the project lead. No action is needed.", withdrawn: true }, { status: 410 })
         : Response.json({ error: "Activity not found." }, { status: 404 });
     }
+    if (adminOverride && !existing.staff_user_id) return Response.json({ error: "Assign this activity to a staff member before recording an administrator status override." }, { status: 409 });
     if (!access.isAdmin && existing.staff_user_id !== access.user.id) return Response.json({ error: "You can update only your own project activities." }, { status: 403 });
     if (existing.locked && !access.isAdmin) return Response.json({ error: "This activity is locked for project-lead review." }, { status: 409 });
     if (!access.isAdmin) {
@@ -155,6 +164,7 @@ export async function PATCH(request) {
     const now = new Date().toISOString();
     const values = { updated_at: now };
     const responseNote = text(body.responseNote ?? body.pauseReason);
+    const overrideReason = adminOverride ? text(body.overrideReason) : "";
     let event = null;
     let recordHistory = false;
     let previousStatus = existing.status;
@@ -182,17 +192,21 @@ export async function PATCH(request) {
       if (!["accepted", "actioned"].includes(existing.acceptance_status) && !access.isAdmin) return Response.json({ error: "Accept this activity before updating its delivery status." }, { status: 409 });
       const status = String(body.status || "");
       if (!ALLOWED_STATUSES.has(status)) return Response.json({ error: "Choose a valid activity status." }, { status: 400 });
-      if (status === "paused_other" && !responseNote) return Response.json({ error: "A reason is required when an activity is paused." }, { status: 400 });
+      if (adminOverride && overrideReason.length < 10) return Response.json({ error: "Enter a clear administrator override reason (at least 10 characters)." }, { status: 400 });
+      if (status === "paused_other" && !(adminOverride ? overrideReason : responseNote)) return Response.json({ error: "A reason is required when an activity is paused." }, { status: 400 });
       const requestedProgress = progress(body.progressPercent);
+      const auditNote = adminOverride ? `Administrator override: ${overrideReason}` : responseNote;
       values.status = status;
-      values.pause_reason = status === "paused_other" ? responseNote : null;
+      values.pause_reason = status === "paused_other" ? auditNote : null;
       values.progress_percent = status === "completed" ? 100 : requestedProgress ?? Number(existing.progress_percent || 0);
-      values.response_note = responseNote || existing.response_note || null;
+      values.response_note = auditNote || existing.response_note || null;
       if (status === "active" && !existing.started_at) values.started_at = now;
       if (status === "completed") values.completed_at = now;
-      recordHistory = existing.status !== status || (existing.pause_reason || null) !== values.pause_reason;
+      recordHistory = adminOverride || existing.status !== status || (existing.pause_reason || null) !== values.pause_reason;
       if (recordHistory) {
-        event = { type: "project_activity_status", severity: status === "paused_other" || status === "need_info" ? "action_required" : "information", title: `Project activity ${status.replaceAll("_", " ")}`, body: `${existing.title} · ${values.progress_percent}%${responseNote ? ` · ${responseNote}` : ""}` };
+        event = adminOverride
+          ? { type: "project_activity_administrator_override", severity: status === "paused_other" || status === "need_info" ? "action_required" : "information", title: "Work activity status updated by an administrator", body: `${existing.title} · ${status.replaceAll("_", " ")} · ${overrideReason}` }
+          : { type: "project_activity_status", severity: status === "paused_other" || status === "need_info" ? "action_required" : "information", title: `Project activity ${status.replaceAll("_", " ")}`, body: `${existing.title} · ${values.progress_percent}%${responseNote ? ` · ${responseNote}` : ""}` };
       }
     }
 
@@ -229,7 +243,7 @@ export async function PATCH(request) {
         .is("read_at", null);
     }
 
-    const recipientId = existing.assigned_by || null;
+    const recipientId = adminOverride ? existing.staff_user_id : existing.assigned_by || null;
     const eventWarning = event && recipientId && recipientId !== access.user.id
       ? await createEvent(access.admin, {
           recipient_id: recipientId,
@@ -237,7 +251,7 @@ export async function PATCH(request) {
           severity: event.severity,
           title: event.title,
           body: event.body,
-          href: `/?portal=admin&area=adminprojects&project=${activity.project_id}`,
+          href: adminOverride ? "/staff/project-tracker" : `/?portal=admin&area=adminprojects&project=${activity.project_id}`,
           source_table: "project_activities",
           source_id: activity.id,
         })

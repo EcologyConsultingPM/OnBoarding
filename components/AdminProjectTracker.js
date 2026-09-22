@@ -128,6 +128,44 @@ export default function AdminProjectTracker({
   const [overrideStatus, setOverrideStatus] = useState("On Track");
   const [overrideNote, setOverrideNote] = useState("");
   const [overrideBusy, setOverrideBusy] = useState(false);
+  const [activityOverride, setActivityOverride] = useState(null);
+  const [activityOverrideBusy, setActivityOverrideBusy] = useState(false);
+
+  const openActivityOverride = (activity) => {
+    setActivityOverride({
+      ...activity,
+      status: activity.status || "not_commenced",
+      progressPercent: String(activity.progressPercent ?? 0),
+      reason: "",
+    });
+  };
+
+  const saveActivityOverride = async () => {
+    if (!activityOverride) return;
+    setActivityOverrideBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/my-activities?id=${activityOverride.id}`, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({
+          administratorOverride: true,
+          status: activityOverride.status,
+          progressPercent: activityOverride.status === "completed" ? 100 : activityOverride.progressPercent,
+          overrideReason: activityOverride.reason,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not override this work activity status.");
+      setActivityOverride(null);
+      onToast?.("Work activity status overridden, audit record saved and assigned staff notified.");
+      await load();
+    } catch (overrideError) {
+      setError(overrideError.message || "Could not override this work activity status.");
+    } finally {
+      setActivityOverrideBusy(false);
+    }
+  };
 
   const submitHealthOverride = async (status, note) => {
     setOverrideBusy(true);
@@ -1093,6 +1131,25 @@ export default function AdminProjectTracker({
                     <section className="apt-card">
                       <span className="apt-kicker">Activity position</span>
                       <h3>What's allocated, who owns it, what's left</h3>
+                      <p className="apt-activity-override-intro">Staff update their own assigned activities in My Projects → Work activities. Use an administrator override only when an authorised correction is needed; the reason is retained in the activity audit trail and the assigned staff member is notified.</p>
+                      {activityOverride ? (
+                        <div className="apt-activity-override" role="region" aria-label="Administrator activity status override">
+                          <div className="apt-entry-editor__head">
+                            <div><span className="apt-kicker">Administrator override</span><h4>{activityOverride.title}</h4><p>{activityOverride.assignedTo || "Unassigned"}</p></div>
+                            <button type="button" className="aps-secondary" onClick={() => setActivityOverride(null)} disabled={activityOverrideBusy}>Cancel</button>
+                          </div>
+                          <div className="apt-activity-override__grid">
+                            <label>Delivery status<select value={activityOverride.status} onChange={(event) => setActivityOverride((current) => ({ ...current, status: event.target.value }))}>
+                              <option value="not_commenced">Not commenced</option><option value="active">Active</option><option value="need_info">Information required</option><option value="paused_other">Paused</option><option value="qa_review">QA review</option><option value="completed">Completed</option>
+                            </select></label>
+                            <label>Completion (%)<input type="number" min="0" max="100" step="5" value={activityOverride.status === "completed" ? 100 : activityOverride.progressPercent} disabled={activityOverride.status === "completed"} onChange={(event) => setActivityOverride((current) => ({ ...current, progressPercent: event.target.value }))} /></label>
+                            <label className="apt-entry-editor__wide">Override reason <span className="apt-entry-editor__requirement">Required for the audit trail — {activityOverride.reason.trim().length}/10 characters</span><textarea rows={2} value={activityOverride.reason} placeholder="Explain the authorised reason for overriding this staff work activity." onChange={(event) => setActivityOverride((current) => ({ ...current, reason: event.target.value }))} /></label>
+                          </div>
+                          <button type="button" className="aps-primary" disabled={activityOverrideBusy || activityOverride.reason.trim().length < 10} onClick={saveActivityOverride}>
+                            <CheckCircle2 size={14} /> {activityOverrideBusy ? "Saving override…" : activityOverride.reason.trim().length < 10 ? "Add override reason to save" : "Save status override"}
+                          </button>
+                        </div>
+                      ) : null}
                       <div style={{ overflowX: "auto" }}>
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                           <thead>
@@ -1103,6 +1160,7 @@ export default function AdminProjectTracker({
                               <th style={{ padding: "6px 8px" }}>Actual hrs</th>
                               <th style={{ padding: "6px 8px" }}>Remaining hrs</th>
                               <th style={{ padding: "6px 8px" }}>Status</th>
+                              <th style={{ padding: "6px 8px" }}>Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1114,6 +1172,7 @@ export default function AdminProjectTracker({
                                 <td style={{ padding: "6px 8px" }}>{row.actualHours}</td>
                                 <td style={{ padding: "6px 8px", color: row.remainingHours !== null && row.remainingHours < 0 ? "#a5342a" : "inherit" }}>{row.remainingHours ?? "—"}</td>
                                 <td style={{ padding: "6px 8px" }}><em className={`apt-allocation-state ${row.status === "completed" ? "on_track" : "watch"}`}>{(row.status || "").replaceAll("_", " ")}</em></td>
+                                <td style={{ padding: "6px 8px" }}><button type="button" className="apt-activity-override-button" onClick={() => openActivityOverride(row)} disabled={activityOverrideBusy || !row.staffUserId} title={row.staffUserId ? `Override ${row.title} delivery status` : "Assign a staff member before overriding an activity status"}><Pencil size={13} /> Override</button></td>
                               </tr>
                             ))}
                           </tbody>

@@ -1010,23 +1010,23 @@ function ProjectDetail({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <select
-              value={project.project_lead_user_id || ""}
-              onChange={(e) =>
-                setProject({ ...project, project_lead_user_id: e.target.value || null })
-              }
-            >
-              <option value="">Select Project Lead</option>
-              {staff.map((person) => (
-                <option key={person.id} value={person.id}>{person.name || person.email}</option>
-              ))}
-            </select>
-            <select
               value={project.overseeing_senior_ecologist_user_id || ""}
               onChange={(e) =>
                 setProject({ ...project, overseeing_senior_ecologist_user_id: e.target.value || null })
               }
             >
               <option value="">Select Overseeing Senior Ecologist</option>
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>{person.name || person.email}</option>
+              ))}
+            </select>
+            <select
+              value={project.project_lead_user_id || ""}
+              onChange={(e) =>
+                setProject({ ...project, project_lead_user_id: e.target.value || null })
+              }
+            >
+              <option value="">Select Project Lead</option>
               {staff.map((person) => (
                 <option key={person.id} value={person.id}>{person.name || person.email}</option>
               ))}

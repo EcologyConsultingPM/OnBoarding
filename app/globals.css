@@ -18925,10 +18925,20 @@ main {
 .apt-timesheet-table th:nth-child(5), .apt-timesheet-table td:nth-child(5) { width: 7%; white-space: nowrap; }
 .apt-timesheet-table th:nth-child(6), .apt-timesheet-table td:nth-child(6) { width: 11%; }
 .apt-timesheet-table th:nth-child(7), .apt-timesheet-table td:nth-child(7) { width: 8%; }
+.apt-activity-override-intro { max-width: 850px; margin: 8px 0 13px !important; color: #b9cdb4; font-size: 11.5px; line-height: 1.5; }
+.apt-activity-override { margin: 0 0 14px; border: 1px solid rgba(231, 201, 121, .42); border-radius: 11px; padding: 14px; background: rgba(4, 24, 14, .48); }
+.apt-activity-override .apt-entry-editor__head p { margin: 4px 0 0; color: #b9cdb4; font-size: 11px; }
+.apt-activity-override__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 10px; }
+.apt-activity-override__grid label { display: grid; gap: 4px; color: #b9cdb4; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+.apt-activity-override__grid input, .apt-activity-override__grid select, .apt-activity-override__grid textarea { width: 100%; box-sizing: border-box; border: 1px solid #8ea690; border-radius: 7px; padding: 8px 9px; background: #fff; color: #173e2c; font: inherit; text-transform: none; letter-spacing: normal; }
+.apt-activity-override-button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(231, 201, 121, .52); border-radius: 6px; padding: 5px 7px; color: #e7c979; background: rgba(8, 35, 18, .58); font: inherit; font-size: 10.5px; font-weight: 750; cursor: pointer; }
+.apt-activity-override-button:hover { color: #143522; background: #e7c979; }
+.apt-activity-override-button:disabled { cursor: wait; opacity: .55; }
 @media (max-width: 760px) {
   .apt-entry-editor__grid { grid-template-columns: 1fr; }
   .apt-entry-editor__wide { grid-column: auto; }
   .apt-entry-actions { flex-direction: column; }
+  .apt-activity-override__grid { grid-template-columns: 1fr; }
 }
 
 /* Issued Quote Pipeline: rolling 30-day cohort and proactive day-25 follow-up. */

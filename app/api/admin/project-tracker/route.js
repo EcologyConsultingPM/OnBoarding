@@ -172,10 +172,12 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
         title: activity.title,
         category: activity.task_category,
         assignedTo: staffNames?.get(activity.staff_user_id) || "Unassigned",
+        staffUserId: activity.staff_user_id || null,
         allocatedHours,
         actualHours,
         remainingHours: allocatedHours ? Math.round((allocatedHours - actualHours) * 10) / 10 : null,
         status: activity.status,
+        progressPercent: number(activity.progress_percent),
       };
     }),
   };
