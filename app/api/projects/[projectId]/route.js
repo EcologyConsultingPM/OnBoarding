@@ -373,37 +373,54 @@ export async function PUT(request, { params }) {
       // records project delivery progress.
       const { data: linkedActivities, error: linkedActivitiesError } = await access.admin
         .from("project_activities")
-        .select("id, project_id, staff_user_id, status, progress_percent, started_at, completed_at")
+        .select("id, project_id, staff_user_id, status, progress_percent, start_date, due_date, locked, started_at, completed_at")
         .eq("schedule_item_id", savedItem.id)
         .eq("is_active", true);
       if (linkedActivitiesError) return Response.json({ error: linkedActivitiesError.message }, { status: 400 });
       for (const activity of linkedActivities || []) {
         const activityStatus = savedItem.status;
         const activityProgress = activityStatus === "completed" ? 100 : savedItem.progress_percent;
+        // Staff Capacity intentionally renders project_activities rather than
+        // the Gantt row, because it needs the assigned staff member and planned
+        // hours. Schedule is the admin source of truth, so its new dates must
+        // travel with its status/progress update or staff keep seeing the old
+        // calendar span after the Schedule stage is saved.
+        const activityStartDate = opt(savedItem.start_date) || opt(savedItem.end_date);
+        const activityDueDate = opt(savedItem.end_date) || opt(savedItem.start_date);
         const activityUpdate = {
           status: activityStatus,
           progress_percent: activityProgress,
+          start_date: activityStartDate,
+          due_date: activityDueDate,
           locked: savedItem.locked === true,
           pause_reason: activityStatus === "paused_other" ? "Updated from the project Schedule." : null,
           ...(activityStatus === "active" && !activity.started_at ? { started_at: now } : {}),
           ...(activityStatus === "completed" && !activity.completed_at ? { completed_at: now } : {}),
           updated_at: now,
         };
-        const changed = activity.status !== activityStatus
+        const statusOrProgressChanged = activity.status !== activityStatus
           || Number(activity.progress_percent || 0) !== Number(activityProgress || 0);
+        const datesChanged = activity.start_date !== activityStartDate
+          || activity.due_date !== activityDueDate;
+        const changed = statusOrProgressChanged
+          || datesChanged
+          || Boolean(activity.locked) !== Boolean(savedItem.locked);
         const { error: activityUpdateError } = await access.admin
           .from("project_activities")
           .update(activityUpdate)
           .eq("id", activity.id);
         if (activityUpdateError) return Response.json({ error: activityUpdateError.message }, { status: 400 });
-        if (changed && activity.staff_user_id) {
+        if ((statusOrProgressChanged || datesChanged) && activity.staff_user_id) {
+          const dateNote = datesChanged
+            ? ` Dates synchronised to ${activityStartDate || "no start date"} – ${activityDueDate || "no due date"}.`
+            : "";
           const { error: historyError } = await access.admin.from("project_activity_history").insert({
             activity_id: activity.id,
             project_id: activity.project_id,
             staff_user_id: activity.staff_user_id,
             previous_status: activity.status,
             new_status: activityStatus,
-            note: `Status and completion updated from the project Schedule (${Number(activityProgress || 0)}%).`,
+            note: `Status and completion updated from the project Schedule (${Number(activityProgress || 0)}%).${dateNote}`,
             changed_by: access.user.id,
             changed_at: now,
           });

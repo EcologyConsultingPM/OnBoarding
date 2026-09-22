@@ -17471,6 +17471,9 @@ main {
 
 .scp-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, auto); gap: 18px; align-items: end; }
 .scp-controls { display: flex; align-items: end; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.scp-refresh { display: inline-flex; min-height: 31px; align-items: center; gap: 6px; border: 1px solid rgba(231, 196, 94, .5); border-radius: 6px; padding: 5px 9px; color: #f1e7b4; background: rgba(6, 44, 27, .72); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.scp-refresh:hover:not(:disabled) { border-color: #e7c45e; background: rgba(24, 87, 51, .84); }
+.scp-refresh:disabled { opacity: .65; cursor: wait; }
 .scp-view-select, .scp-period-input, .scp-range-fields label { display: grid; gap: 4px; color: #bcd0bd; font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
 .scp-view-select select, .scp-period-input input, .scp-range-fields input { min-height: 31px; border: 1px solid rgba(231, 196, 94, .5); border-radius: 6px; padding: 5px 8px; color: #193b2b; background: #fbfdf8; font: inherit; font-size: 11px; font-weight: 750; text-transform: none; }
 .scp-range-fields { display: flex; gap: 7px; }

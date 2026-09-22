@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, Send, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, RefreshCw, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import useUnsavedGuard from "../lib/useUnsavedGuard";
 
@@ -125,6 +125,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const lastReturnRefreshRef = useRef(0);
   const [editing, setEditing] = useState("");
   const [draft, setDraft] = useState({});
 
@@ -178,6 +179,27 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   }, [session?.access_token, period.start, period.end, endpoint]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Staff Capacity is a read-only live view. An administrator can revise a
+  // Schedule in another window while the staff calendar remains open, so
+  // refetch whenever the staff member returns to this window/tab. The short
+  // throttle coalesces the focus and visibility events browsers fire together.
+  useEffect(() => {
+    if (mode !== "staff") return undefined;
+    const refreshAfterReturn = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastReturnRefreshRef.current < 750) return;
+      lastReturnRefreshRef.current = now;
+      load();
+    };
+    window.addEventListener("focus", refreshAfterReturn);
+    document.addEventListener("visibilitychange", refreshAfterReturn);
+    return () => {
+      window.removeEventListener("focus", refreshAfterReturn);
+      document.removeEventListener("visibilitychange", refreshAfterReturn);
+    };
+  }, [mode, load]);
 
   const saveProfile = async (person) => {
     if (mode === "staff") return;
@@ -502,7 +524,10 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           <h2>Staff Capacity Planner</h2>
           <p>{mode === "staff" ? "See the team's planned work, approved leave and project deadlines on the calendar below." : "Review allocated activity hours, approved leave, project deadlines and available capacity before creating or reassigning work."}</p>
         </div>
-        <div className="scp-controls">
+          <div className="scp-controls">
+          <button type="button" className="scp-refresh" onClick={load} disabled={loading} title="Reload the latest workload dates">
+            <RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh
+          </button>
           <label className="scp-view-select">
             <span>Workload period</span>
             <select value={viewMode} onChange={(event) => selectViewMode(event.target.value)} aria-label="Workload period">

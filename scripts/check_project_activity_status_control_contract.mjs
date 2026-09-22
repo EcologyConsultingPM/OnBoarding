@@ -10,6 +10,7 @@ const statusRoute = await read("app/api/my-activities/route.js");
 const adminTrackerRoute = await read("app/api/admin/project-tracker/route.js");
 const setup = await read("components/AdminProjectSetup.js");
 const projectRoute = await read("app/api/projects/[projectId]/route.js");
+const staffCapacity = await read("components/StaffCapacityPlanner.js");
 const styles = await read("app/globals.css");
 
 assert.match(staffTracker, /id: "activities", label: "Work activities"/, "Staff Project Tracker must expose a Work activities tab.");
@@ -52,8 +53,18 @@ assert.match(setup, /status === "completed" \? 100/, "Completing a Schedule line
 
 assert.match(projectRoute, /let linkedActivityUpdates = 0/, "Schedule saves must track linked Work Activity updates.");
 assert.match(projectRoute, /\.eq\("schedule_item_id", savedItem\.id\)/, "Schedule saves must locate linked Work Activities by schedule item.");
+assert.match(projectRoute, /start_date: activityStartDate,\s*due_date: activityDueDate/, "Schedule saves must copy revised Schedule dates to linked Work Activities.");
+assert.match(projectRoute, /const datesChanged = activity\.start_date !== activityStartDate/, "Schedule saves must detect linked Work Activity date changes.");
+assert.match(projectRoute, /Dates synchronised to/, "Schedule-driven date changes must be auditable in Work Activity history.");
 assert.match(projectRoute, /locked: savedItem\.locked === true/, "The Schedule lock must apply to linked staff work activities.");
 assert.match(projectRoute, /project_activity_history/, "Schedule-driven Work Activity changes must remain auditable.");
 assert.match(projectRoute, /linkedActivityUpdates/, "Schedule saves must return the number of linked Work Activities updated.");
 
-console.log("Project activity status contract passed: staff own-status updates, audited administrator overrides, Schedule-led setup progress, staff notices and requested project-team selector order are verified.");
+assert.match(staffCapacity, /endpoint = mode === "staff" \? "\/api\/staff\/capacity" : "\/api\/admin\/staff-capacity"/, "Staff Capacity must use the read-only staff capacity endpoint.");
+assert.match(staffCapacity, /if \(mode !== "staff"\) return undefined;/, "Only the read-only staff capacity view should refresh on return.");
+assert.match(staffCapacity, /window\.addEventListener\("focus", refreshAfterReturn\)/, "Staff Capacity must reload when the staff window receives focus.");
+assert.match(staffCapacity, /document\.addEventListener\("visibilitychange", refreshAfterReturn\)/, "Staff Capacity must reload when the staff tab becomes visible.");
+assert.match(staffCapacity, /className="scp-refresh"/, "Staff Capacity must offer a visible manual refresh fallback.");
+assert.match(styles, /\.scp-refresh \{/, "The Staff Capacity refresh control must have dedicated styling.");
+
+console.log("Project activity status contract passed: staff own-status updates, audited administrator overrides, Schedule-led dates and progress, capacity refresh, staff notices and requested project-team selector order are verified.");
