@@ -10,6 +10,7 @@ const statusRoute = await read("app/api/my-activities/route.js");
 const adminTrackerRoute = await read("app/api/admin/project-tracker/route.js");
 const setup = await read("components/AdminProjectSetup.js");
 const projectRoute = await read("app/api/projects/[projectId]/route.js");
+const activitiesRoute = await read("app/api/projects/[projectId]/activities/route.js");
 const staffCapacity = await read("components/StaffCapacityPlanner.js");
 const styles = await read("app/globals.css");
 
@@ -60,6 +61,15 @@ assert.match(projectRoute, /locked: savedItem\.locked === true/, "The Schedule l
 assert.match(projectRoute, /project_activity_history/, "Schedule-driven Work Activity changes must remain auditable.");
 assert.match(projectRoute, /linkedActivityUpdates/, "Schedule saves must return the number of linked Work Activities updated.");
 
+assert.match(activitiesRoute, /function planIdentity\(row\)/, "Activity saves must define a stable plan identity for stale local drafts.");
+assert.match(activitiesRoute, /existingByPlanIdentity/, "Activity saves must index existing planned activities for safe retry recovery.");
+assert.match(activitiesRoute, /generatedScheduleByActivityId/, "Activity saves must index existing generated Schedule rows by activity.");
+assert.match(activitiesRoute, /recoveredGeneratedScheduleId/, "Activity saves must re-adopt a Schedule row left by an interrupted prior save.");
+assert.match(activitiesRoute, /project_schedule_generated_activity_unique/, "Activity save recovery must document protection against duplicate generated Schedule rows.");
+assert.match(activitiesRoute, /const existingForInputId = validId\(input\.id\) \? existingById\.get\(input\.id\) : null;/, "A stale draft ID must be resolved against the current project before a duplicate row is created.");
+assert.match(activitiesRoute, /const invalidScheduleSelection = inputRows\.find\(/, "A stale Schedule ID must be checked before rejecting a recoverable activity draft.");
+assert.match(activitiesRoute, /If the activity itself can be recovered/, "Stale Schedule validation must permit recovery to the current generated row.");
+
 assert.match(staffCapacity, /endpoint = mode === "staff" \? "\/api\/staff\/capacity" : "\/api\/admin\/staff-capacity"/, "Staff Capacity must use the read-only staff capacity endpoint.");
 assert.match(staffCapacity, /if \(mode !== "staff"\) return undefined;/, "Only the read-only staff capacity view should refresh on return.");
 assert.match(staffCapacity, /window\.addEventListener\("focus", refreshAfterReturn\)/, "Staff Capacity must reload when the staff window receives focus.");
@@ -67,4 +77,4 @@ assert.match(staffCapacity, /document\.addEventListener\("visibilitychange", ref
 assert.match(staffCapacity, /className="scp-refresh"/, "Staff Capacity must offer a visible manual refresh fallback.");
 assert.match(styles, /\.scp-refresh \{/, "The Staff Capacity refresh control must have dedicated styling.");
 
-console.log("Project activity status contract passed: staff own-status updates, audited administrator overrides, Schedule-led dates and progress, capacity refresh, staff notices and requested project-team selector order are verified.");
+console.log("Project activity status contract passed: staff own-status updates, audited administrator overrides, Schedule-led dates and progress, interrupted activity-save recovery, capacity refresh, staff notices and requested project-team selector order are verified.");

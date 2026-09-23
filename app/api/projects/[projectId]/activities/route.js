@@ -82,6 +82,23 @@ function contentSignature(row) {
   ].join("|");
 }
 
+// Dates are deliberately omitted from this fallback identity. A local activity
+// draft can be retained while an administrator adds dates in a later session;
+// that must update the same planned row rather than create a duplicate row
+// simply because its original saved dates were blank. sort_order keeps repeated
+// otherwise-identical activities (for example two report packages) distinct.
+function planIdentity(row) {
+  return [
+    Number(row.sort_order ?? row.sortOrder) || 0,
+    (row.staff_user_id ?? row.staffUserId) || "",
+    String(row.title || "").trim().toLowerCase(),
+    String(row.detail || "").trim().toLowerCase(),
+    String(row.task_category ?? row.taskCategory ?? "").trim().toLowerCase(),
+    num(row.budget_hours ?? row.budgetHours) ?? "",
+    row.milestone === true ? "1" : "0",
+  ].join("|");
+}
+
 function formatDueDate(value) {
   if (!value) return "";
   const date = new Date(`${value}T00:00:00`);
@@ -202,9 +219,12 @@ export async function PUT(request, { params }) {
       );
     }
     const existingBySignature = new Map();
+    const existingByPlanIdentity = new Map();
     for (const activity of existingResult.data || []) {
       const sig = contentSignature(activity);
       if (!existingBySignature.has(sig)) existingBySignature.set(sig, activity);
+      const stablePlanSig = planIdentity(activity);
+      if (!existingByPlanIdentity.has(stablePlanSig)) existingByPlanIdentity.set(stablePlanSig, activity);
     }
 
     const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
@@ -251,10 +271,25 @@ export async function PUT(request, { params }) {
       }, { status: 409 });
     }
 
-    const scheduleResult = await access.admin.from("project_schedule_items").select("id").eq("project_id", params.projectId).eq("is_active", true);
+    const scheduleResult = await access.admin.from("project_schedule_items").select("id, generated_from_activity_id").eq("project_id", params.projectId).eq("is_active", true);
     if (scheduleResult.error) return Response.json({ error: scheduleResult.error.message }, { status: 400 });
     const scheduleIds = new Set((scheduleResult.data || []).map((item) => item.id));
-    if (inputRows.some((row) => row.scheduleItemId && !scheduleIds.has(row.scheduleItemId))) return Response.json({ error: "Choose a Gantt schedule item from this project." }, { status: 400 });
+    const generatedScheduleByActivityId = new Map(
+      (scheduleResult.data || [])
+        .filter((item) => validId(item.generated_from_activity_id))
+        .map((item) => [item.generated_from_activity_id, item.id]),
+    );
+    const invalidScheduleSelection = inputRows.find((row) => {
+      if (!row.scheduleItemId || scheduleIds.has(row.scheduleItemId)) return false;
+      // A browser draft can retain a Schedule UUID that was retired during an
+      // interrupted prior save. If the activity itself can be recovered, the
+      // current generated Schedule row will be adopted inside the upsert loop.
+      const recoveredActivity = (validId(row.id) ? existingById.get(row.id) : null)
+        || existingBySignature.get(contentSignature({ staffUserId: row.staffUserId, title: row.title, detail: row.detail, dueDate: row.dueDate, startDate: row.startDate }))
+        || existingByPlanIdentity.get(planIdentity(row));
+      return !recoveredActivity;
+    });
+    if (invalidScheduleSelection) return Response.json({ error: "Choose a Gantt schedule item from this project." }, { status: 400 });
 
     const now = new Date().toISOString();
     let nextScheduleSort = (scheduleResult.data || []).length + 1;
@@ -272,12 +307,22 @@ export async function PUT(request, { params }) {
     const persisted = [];
     const retiredSharedScheduleCandidates = new Set();
     for (const input of inputRows) {
-      const matchedBySignature = !validId(input.id) ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
-      const previous = validId(input.id) ? existingById.get(input.id) : matchedBySignature;
+      // A browser draft can carry a UUID from an earlier partial save. Treat an
+      // ID that no longer exists in this project exactly like a new row, then
+      // recover the current activity by its stable plan identity below.
+      const existingForInputId = validId(input.id) ? existingById.get(input.id) : null;
+      const matchedBySignature = !existingForInputId ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
+      const matchedByPlanIdentity = !existingForInputId ? existingByPlanIdentity.get(planIdentity(input)) : null;
+      const previous = existingForInputId || matchedBySignature || matchedByPlanIdentity;
       const assignedTo = opt(input.staffUserId);
       const changedAssignee = Boolean(previous && previous.staff_user_id !== assignedTo);
       const requestedStatus = ACTIVITY_STATUSES.has(input.status) ? input.status : (previous?.status || "not_commenced");
-      let scheduleItemId = validId(input.scheduleItemId) ? input.scheduleItemId : (previous?.schedule_item_id || null);
+      // A source-owned generated Schedule row is authoritative. It may already
+      // exist after an interrupted earlier save, even where the activity link
+      // itself was never persisted. Re-adopting it makes retries idempotent and
+      // avoids a second row violating project_schedule_generated_activity_unique.
+      const recoveredGeneratedScheduleId = previous ? generatedScheduleByActivityId.get(previous.id) : null;
+      let scheduleItemId = recoveredGeneratedScheduleId || (validId(input.scheduleItemId) ? input.scheduleItemId : (previous?.schedule_item_id || null));
       // Each Step 4 work activity needs its own source-owned Gantt row. Older
       // data sometimes linked several activities to a single schedule row, so
       // editing one activity appeared to leave the other activity's dates in
