@@ -28,6 +28,18 @@ export const dynamic = "force-dynamic";
 
 const VALID_KINDS = ["daily", "weekly", "project", "capacity", "compliance", "program"];
 
+function sourceSummary(snapshot) {
+  return Object.values(snapshot.feeds).map((feed) => ({
+    feed: feed.feed,
+    table: feed.table,
+    rowCount: feed.rows?.length || 0,
+    dataCurrentTo: feed.dataCurrentTo,
+    state: feed.gap?.reason === "stale" ? "stale" : feed.gap ? "attention" : feed.rows?.length ? "current" : "no_records",
+    detail: feed.gap?.detail || (feed.rows?.length ? "Read successfully." : "Read successfully; no current records."),
+    requiredFor: feed.gap?.requiredFor || [],
+  }));
+}
+
 async function narrate(kind, findings, snapshot, subjectRef) {
   const model = process.env.ECADO_MODEL || "claude-sonnet-5";
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -39,7 +51,6 @@ async function narrate(kind, findings, snapshot, subjectRef) {
       body: JSON.stringify({
         model,
         max_tokens: 1200,
-        temperature: 0,
         system: ECADO_SYSTEM_PROMPT,
         messages: [{ role: "user", content: buildNarrationPrompt(kind, findings, snapshot, subjectRef) }],
       }),
@@ -110,6 +121,7 @@ export async function POST(request) {
     }
 
     const counts = countByRating(findings);
+    const refreshedSources = sourceSummary(snapshot);
 
     await writer.from("ecado_briefs").insert({
       kind,
@@ -141,7 +153,7 @@ export async function POST(request) {
       }
     }
 
-    await auditEcado(viewer.email, "brief.generate", { kind, counts, gaps: snapshot.gaps.length, escalations: { opened, updated, failed: escalationFailures?.length || 0 }, escalationFailures, narrationNote, emailSent: emailResult?.sent ?? null, emailReason: emailResult?.reason ?? null }, sourcesRead(snapshot));
+    await auditEcado(viewer.email, "brief.generate", { kind, counts, gaps: snapshot.gaps.length, sources: refreshedSources.map((source) => ({ feed: source.feed, state: source.state, rowCount: source.rowCount })), escalations: { opened, updated, failed: escalationFailures?.length || 0 }, escalationFailures, narrationNote, emailSent: emailResult?.sent ?? null, emailReason: emailResult?.reason ?? null }, sourcesRead(snapshot));
 
     return Response.json({
       kind,
@@ -151,6 +163,7 @@ export async function POST(request) {
       findings,
       gaps: snapshot.gaps,
       dataCurrentTo: snapshot.dataCurrentTo,
+      sources: refreshedSources,
       staleEscalations: stale,
       escalationFailures: escalationFailures?.length ? escalationFailures : undefined,
       markdown,

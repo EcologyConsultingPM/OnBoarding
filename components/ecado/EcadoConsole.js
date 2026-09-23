@@ -58,22 +58,29 @@ export default function EcadoConsole({ initialEscalations }) {
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
 
-  const run = useCallback(async (kind) => {
+  const run = useCallback(async (kind, refreshOnly = false) => {
     if (kind === "project" && !projectRef.trim()) {
       setError("Enter a project name first.");
       return;
     }
-    setLoading(kind);
+    setLoading(refreshOnly ? "refresh" : kind);
     setError(null);
     try {
       const res = await fetch("/api/ecado/brief", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ kind, projectRef: projectRef.trim() || undefined }),
+        // Refresh is intentionally deterministic and does not send email or
+        // narrate. It reads the live source tables, updates Ecado's own
+        // escalation register and reports exactly which feeds were collated;
+        // it never writes to operational project, staff or WHS records.
+        body: JSON.stringify({ kind, projectRef: projectRef.trim() || undefined, narrate: refreshOnly ? false : undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Brief generation failed.");
       setBrief(data);
+      const escalationResponse = await fetch("/api/ecado/escalations/close", { headers: headers(), cache: "no-store" });
+      const escalationData = await escalationResponse.json().catch(() => ({}));
+      if (escalationResponse.ok) setEscalations(escalationData.escalations || []);
     } catch (e) {
       setError(e.message || "Brief generation failed.");
     } finally {
@@ -116,6 +123,25 @@ export default function EcadoConsole({ initialEscalations }) {
       <style>{`
         .ec-console { display: flex; flex-direction: column; gap: 26px; font-family: "Archivo", "Nunito Sans", system-ui, sans-serif; color: #23301f; }
         .ec-section-title { margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: #7a877d; }
+        .ec-refresh { border: 1px solid #cdd8c6; border-radius: 14px; background: #f7f9f3; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .ec-refresh strong { display: block; font-size: 13px; color: #173920; }
+        .ec-refresh span { display: block; margin-top: 3px; font-size: 11.5px; color: #5c6b58; line-height: 1.45; }
+        .ec-refresh button { flex: 0 0 auto; border: none; background: #1f5a34; color: #fffdf8; border-radius: 999px; padding: 9px 14px; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit; }
+        .ec-refresh button:hover { background: #173920; }
+        .ec-refresh button:disabled { opacity: .5; cursor: not-allowed; }
+        .ec-source-summary { margin-top: 11px; border: 1px solid #e3e6d8; border-radius: 12px; background: #fffdf8; overflow: hidden; }
+        .ec-source-summary-head { padding: 10px 13px; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e3e6d8; font-size: 11.5px; color: #5c6b58; }
+        .ec-source-summary-head strong { color: #173920; }
+        .ec-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+        .ec-source { padding: 11px 13px; border-right: 1px solid #e3e6d8; border-bottom: 1px solid #e3e6d8; }
+        .ec-source strong { display: block; color: #173920; font-size: 12px; text-transform: capitalize; }
+        .ec-source code { display: block; margin-top: 2px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: #5c6b58; overflow-wrap: anywhere; }
+        .ec-source span { display: block; margin-top: 5px; font-size: 11px; line-height: 1.35; color: #5c6b58; }
+        .ec-source .ec-source-state { font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; }
+        .ec-source.current .ec-source-state { color: #2c6a34; }
+        .ec-source.no-records .ec-source-state { color: #7a877d; }
+        .ec-source.stale .ec-source-state, .ec-source.attention .ec-source-state { color: #a5342a; }
+        @media (max-width: 620px) { .ec-refresh { align-items: flex-start; flex-direction: column; } .ec-refresh button { width: 100%; } .ec-source { border-right: 0; } }
         .ec-commands { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; }
         .ec-command { border: 1px solid #cdd8c6; background: #fffdf8; border-radius: 14px; padding: 13px 15px; text-align: left; cursor: pointer; font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease; }
         .ec-command:hover { border-color: #1f5a34; box-shadow: 0 2px 8px rgba(31,90,52,.10); }
@@ -171,6 +197,21 @@ export default function EcadoConsole({ initialEscalations }) {
 
       <section>
         <h2 className="ec-section-title">Commands</h2>
+        <div className="ec-refresh">
+          <div>
+            <strong>Live data collation</strong>
+            <span>Read current project, delivery, capacity, WHS, regulatory, certification and quote records. This does not change source records.</span>
+          </div>
+          <button type="button" onClick={() => run("program", true)} disabled={loading !== null}>{loading === "refresh" ? "Collating…" : "Refresh & collate data"}</button>
+        </div>
+        {brief?.sources?.length ? (
+          <div className="ec-source-summary" aria-live="polite">
+            <div className="ec-source-summary-head"><strong>Latest source check</strong><span>{new Date(brief.generatedAt).toLocaleString("en-AU")}</span></div>
+            <div className="ec-source-grid">
+              {brief.sources.map((source) => <div key={source.feed} className={`ec-source ${source.state.replace("_", "-")}`}><strong>{source.feed.replace(/([A-Z])/g, " $1")}</strong><code>{source.table}</code><span className="ec-source-state">{source.state === "no_records" ? "Live · no records" : source.state}</span><span>{source.rowCount} record{source.rowCount === 1 ? "" : "s"}{source.dataCurrentTo ? ` · updated ${new Date(source.dataCurrentTo).toLocaleString("en-AU")}` : ""}</span>{source.state === "attention" || source.state === "stale" ? <span>{source.detail}</span> : null}</div>)}
+            </div>
+          </div>
+        ) : null}
         <div className="ec-commands">
           {COMMANDS.map((c) => (
             <button key={c.kind} type="button" className="ec-command" onClick={() => run(c.kind)} disabled={loading !== null}>

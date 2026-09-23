@@ -31,7 +31,8 @@ const TABS = [
   { id: "overview", label: "Overview", Icon: TrendingUp },
   { id: "budget", label: "Budget allocation", Icon: ClipboardList },
   { id: "entry", label: "Add timesheet entry", Icon: Plus },
-  { id: "history", label: "Timesheet history", Icon: FileClock },
+  { id: "history", label: "Your timesheets", Icon: FileClock },
+  { id: "projectHistory", label: "Project timesheet history", Icon: FileClock },
   { id: "activities", label: "Work activities", Icon: ListChecks },
 ];
 
@@ -270,6 +271,12 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const totalConsumedHours = Number(board?.totals?.hoursConsumed ?? rows.reduce((total, row) => total + Number(row.hoursConsumed || 0), 0));
   const totalRemainingHours = totalBudgetHours - totalConsumedHours;
   const myHistory = entries.filter((entry) => entry.projectId === form.projectId);
+  // `board.entries` is separately server-authorised for the selected project:
+  // it includes the team’s time records but never editable controls, rates,
+  // allocation dollars, costs, or any project the signed-in staff member is not
+  // allocated to. Staff can therefore see delivery context without gaining an
+  // administrator editing path or broader timesheet access.
+  const projectTimesheetHistory = board?.entries || [];
   const projectFinancials = selected?.financials || {};
   const projectDeliverables = (selected?.sources || []).map((source) => source.source_name).filter(Boolean);
 
@@ -484,6 +491,13 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                   <section className="st-section-card st-history">
                     <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Your audit history</span><h3>Timesheet history</h3><p>Your saved Project Tracker entries for this project. These are your own records and do not expose commercial project information.</p></div></div>
                     {myHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th></tr></thead><tbody>{myHistory.slice(0, 100).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>You have not recorded a timesheet entry for this project yet.</span></div>}
+                  </section>
+                ) : null}
+
+                {activeTab === "projectHistory" ? (
+                  <section className="st-section-card st-history st-project-history">
+                    <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Read-only project record</span><h3>Project timesheet history</h3><p>Timesheets entered by everyone assigned to this project. This view is for delivery coordination only: entries cannot be edited here, and commercial rates, costs and profitability remain administrator-only.</p></div>{boardLoading ? <Loader2 size={16} className="spin" /> : null}</div>
+                    {projectTimesheetHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Staff member</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th></tr></thead><tbody>{projectTimesheetHistory.slice(0, 250).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td><strong>{entry.staffName || "Team member"}</strong>{entry.isMine ? <small>Your entry</small> : null}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.activityTitle || entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>No team timesheet entries have been recorded for this project yet.</span></div>}
                   </section>
                 ) : null}
 

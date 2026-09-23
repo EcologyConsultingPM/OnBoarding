@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node scripts/ecado_evals.mjs && node scripts/check_portal_visibility_contract.mjs && node scripts/check_core_training_quiz_contract.mjs && node scripts/check_responsive_portal_contract.mjs && node scripts/check_pre_mobilisation_contract.mjs && node scripts/check_psychosocial_assessment_contract.mjs && node scripts/check_first_aid_kit_checks_contract.mjs && node scripts/check_office_risk_contract.mjs && node scripts/check_project_tracker_tab_persistence_contract.mjs && node scripts/check_portal_navigation_persistence_contract.mjs && node scripts/check_tracker_and_forms_history_contract.mjs && node scripts/check_project_activity_status_control_contract.mjs",
+    "test": "node scripts/ecado_evals.mjs && node scripts/check_ecado_refresh_contract.mjs && node scripts/check_portal_visibility_contract.mjs && node scripts/check_core_training_quiz_contract.mjs && node scripts/check_responsive_portal_contract.mjs && node scripts/check_pre_mobilisation_contract.mjs && node scripts/check_psychosocial_assessment_contract.mjs && node scripts/check_first_aid_kit_checks_contract.mjs && node scripts/check_office_risk_contract.mjs && node scripts/check_project_tracker_tab_persistence_contract.mjs && node scripts/check_portal_navigation_persistence_contract.mjs && node scripts/check_tracker_and_forms_history_contract.mjs && node scripts/check_project_activity_status_control_contract.mjs",
     "test:ecado": "node scripts/ecado_evals.mjs"
   },
   "dependencies": {

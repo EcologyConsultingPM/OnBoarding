@@ -127,6 +127,32 @@ const byRule = (findings, ruleId) => findings.filter((f) => f.ruleId === ruleId)
   check("service request 1d overdue is inside tolerance", !ids(notYet).includes("service_request.overdue"));
 }
 
+// -------------------------------------------------------------- capacity
+{
+  const week = "2026-09-07";
+  const overloaded = run({ capacity: [{ staffEmail: "planner@ecologyconsulting.au", weekStarting: week, allocatedHours: 46, capacityHours: 38 }] });
+  check("capacity above the critical threshold is raised", byRule(overloaded, "allocation.over")[0]?.rating === "critical");
+  check("critical capacity is treated as a wellbeing signal", byRule(overloaded, "allocation.over")[0]?.domain === "wellbeing");
+
+  const spare = run({ capacity: [{ staffEmail: "planner@ecologyconsulting.au", weekStarting: week, allocatedHours: 20, capacityHours: 38 }] });
+  check("material spare capacity is raised as low priority", byRule(spare, "allocation.under")[0]?.rating === "low");
+}
+
+// ---------------------------------------------------------- quote deadlines
+{
+  const dueSoon = run({ quotes: [{ id: "q1", ref: "Q-100", name: "Habitat assessment", status: "quote_drafting", dueDate: day(4), urgency: "normal", quoteSent: false }] });
+  check("an open quote near its client deadline is raised", byRule(dueSoon, "quote.deadline_due")[0]?.rating === "medium");
+
+  const overdue = run({ quotes: [{ id: "q2", ref: "Q-101", status: "ready_to_generate", dueDate: day(-2), quoteSent: false }] });
+  check("an overdue quote deadline is high", byRule(overdue, "quote.deadline_overdue")[0]?.rating === "high");
+
+  const sent = run({ quotes: [{ id: "q3", ref: "Q-102", status: "quote_drafting", dueDate: day(-2), quoteSent: true }] });
+  check("a sent quote is not raised as an open deadline", byRule(sent, "quote.deadline_overdue").length === 0);
+
+  const transferred = run({ quotes: [{ id: "q4", ref: "Q-103", status: "transferred", dueDate: day(-2), quoteSent: false, transferredAt: day(-1) }] });
+  check("a transferred quote is not raised as an open deadline", byRule(transferred, "quote.deadline_overdue").length === 0);
+}
+
 // -------------------------------------------------- regulatory unassessed
 {
   // Note: this rule does not filter on status itself — SOURCES.regulatoryChanges
@@ -202,13 +228,17 @@ const byRule = (findings, ruleId) => findings.filter((f) => f.ruleId === ruleId)
   const live = Object.entries(SOURCES).filter(([, spec]) => spec.enabled).map(([name]) => name);
   const dormant = Object.entries(SOURCES).filter(([, spec]) => !spec.enabled).map(([name]) => name);
 
-  const EXPECTED_LIVE = ["projects", "activities", "incidents", "serviceRequests", "regulatoryChanges"];
-  const EXPECTED_DORMANT = ["deliverables", "allocations", "leave", "correctiveActions", "certifications", "quotes"];
+  const EXPECTED_LIVE = ["projects", "activities", "incidents", "serviceRequests", "regulatoryChanges", "deliverables", "allocations", "capacity", "certifications", "quotes"];
+  const EXPECTED_DORMANT = ["leave", "correctiveActions"];
 
   check("live feeds match the recorded expectation", JSON.stringify(live.sort()) === JSON.stringify([...EXPECTED_LIVE].sort()),
     `live=[${live.sort()}]`);
   check("dormant feeds match the recorded expectation", JSON.stringify(dormant.sort()) === JSON.stringify([...EXPECTED_DORMANT].sort()),
     `dormant=[${dormant.sort()}]`);
+  check("activities map the current staff assignment column", SOURCES.activities.fields.assignedTo === "staff_user_id");
+  check("activities no longer reference the retired assigned_to column", SOURCES.activities.fields.assignedTo !== "assigned_to");
+  check("capacity is an explicit derived feed", SOURCES.capacity.derived === true);
+  check("quotes map the live quote_drafts table", SOURCES.quotes.table === "quote_drafts");
 
   console.log(`\n  Feed coverage: ${live.length}/${live.length + dormant.length} connected.`);
   console.log(`  Dormant (rules cannot fire): ${dormant.join(", ")}`);
