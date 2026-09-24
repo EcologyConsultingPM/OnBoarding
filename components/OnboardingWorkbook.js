@@ -3547,6 +3547,17 @@ function AdminHome({ onNavigate }) {
   // centre is recognisable at a glance, rather than a collection of flat panels.
   const domains = [
     {
+      eyebrow: "Platform guidance",
+      title: "SaaS Domain Videos",
+      desc: "Role-specific Admin Portal walkthroughs for navigating operational domains and controlled workflows.",
+      accent: "#e7c979",
+      accent2: "#243a31",
+      Icon: PlayCircle,
+      mode: "adminvideos",
+      resourceKey: "admin.domain_videos",
+      photo: "everlastings.png",
+    },
+    {
       eyebrow: "Project control",
       title: "Projects & Operations",
       desc: "Project setup, allocations, schedules, client records and the portfolio health report.",
@@ -3626,17 +3637,6 @@ function AdminHome({ onNavigate }) {
       mode: "ldlibrary",
       resourceKey: "admin.learning",
       photo: "lorikeet.png",
-    },
-    {
-      eyebrow: "Platform guidance",
-      title: "SaaS Domain Videos",
-      desc: "Role-specific Admin Portal walkthroughs for navigating operational domains and controlled workflows.",
-      accent: "#e7c979",
-      accent2: "#243a31",
-      Icon: PlayCircle,
-      mode: "adminvideos",
-      resourceKey: "admin.domain_videos",
-      photo: "everlastings.png",
     },
     {
       eyebrow: "Species reference",
@@ -4012,9 +4012,22 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
   // appearing for staff who have not been given an onboarding programme.
   const allDomains = [
     {
+      key: "staffvideos",
+      resourceKey: "staff.domain_videos",
+      n: "01",
+      eyebrow: "Platform guidance",
+      title: "SaaS Domain Videos",
+      desc: "Short walkthroughs for navigating Staff Portal domains, finding the right workflow and working within your role.",
+      Icon: PlayCircle,
+      photo: "everlastings",
+      base: "#235346",
+      g1: "#3c8471",
+      g2: "#102e27",
+    },
+    {
       key: "notifications",
       resourceKey: "staff.notifications",
-      n: "01",
+      n: "02",
       eyebrow: "Workflow & alerts",
       title: "Notifications",
       desc: "Task briefs, project allocations and decisions requiring your attention.",
@@ -4028,7 +4041,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "projects",
       resourceKey: "staff.projects",
-      n: "02",
+      n: "03",
       eyebrow: "Delivery workspace",
       title: "My Projects",
       desc: "Accepted tasks, allocated activities, project tracking and service requests.",
@@ -4042,7 +4055,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "servicerequests",
       resourceKey: "staff.service_requests",
-      n: "03",
+      n: "04",
       eyebrow: "Staff support",
       title: "Service Requests",
       desc: "Submit and track leave, training, equipment, remote/delivery and other internal requests.",
@@ -4056,7 +4069,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "timesheets",
       resourceKey: "staff.timesheets",
-      n: "04",
+      n: "05",
       eyebrow: "Time & delivery",
       title: "Work History",
       desc: "Project tracker history, filters, XLSX export and official time entry.",
@@ -4070,7 +4083,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "staffforms",
       resourceKey: "staff.forms",
-      n: "05",
+      n: "06",
       eyebrow: "Safety, requests & governance",
       title: "WHS & EC Forms",
       desc: "Forms, requests, and approved internal policies and procedures.",
@@ -4083,7 +4096,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "ldlibrary",
       resourceKey: "staff.learning",
-      n: "06",
+      n: "07",
       eyebrow: "People & learning",
       title: "Learning & Development",
       desc: "Your approved training modules, resources and quizzes.",
@@ -4092,19 +4105,6 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       base: "#7d3b5c",
       g1: "#9c4a72",
       g2: "#2a1420",
-    },
-    {
-      key: "staffvideos",
-      resourceKey: "staff.domain_videos",
-      n: "07",
-      eyebrow: "Platform guidance",
-      title: "SaaS Domain Videos",
-      desc: "Short walkthroughs for navigating Staff Portal domains, finding the right workflow and working within your role.",
-      Icon: PlayCircle,
-      photo: "everlastings",
-      base: "#235346",
-      g1: "#3c8471",
-      g2: "#102e27",
     },
     {
       key: "species",
