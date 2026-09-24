@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   AlertCircle,
   BookOpen,
+  PlayCircle,
   Settings,
   Home as HomeIcon,
   ClipboardList,
@@ -53,6 +54,7 @@ import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
 import AdminLearningLibrary from "./AdminLearningLibrary";
 import StaffLearningLibrary from "./StaffLearningLibrary";
+import SaasDomainVideos from "./SaasDomainVideos";
 import PortalManagement from "./PortalManagement";
 import { DraftOnboarding, MyOnboarding } from "./AssignedOnboarding";
 import AdminOnboardingAssignments from "./AdminOnboardingAssignments";
@@ -3626,6 +3628,17 @@ function AdminHome({ onNavigate }) {
       photo: "lorikeet.png",
     },
     {
+      eyebrow: "Platform guidance",
+      title: "SaaS Domain Videos",
+      desc: "Role-specific Admin Portal walkthroughs for navigating operational domains and controlled workflows.",
+      accent: "#e7c979",
+      accent2: "#243a31",
+      Icon: PlayCircle,
+      mode: "adminvideos",
+      resourceKey: "admin.domain_videos",
+      photo: "everlastings.png",
+    },
+    {
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
       desc: "Threatened flora and fauna reference, field-photo verification and survey timing standards.",
@@ -4081,9 +4094,22 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       g2: "#2a1420",
     },
     {
+      key: "staffvideos",
+      resourceKey: "staff.domain_videos",
+      n: "07",
+      eyebrow: "Platform guidance",
+      title: "SaaS Domain Videos",
+      desc: "Short walkthroughs for navigating Staff Portal domains, finding the right workflow and working within your role.",
+      Icon: PlayCircle,
+      photo: "everlastings",
+      base: "#235346",
+      g1: "#3c8471",
+      g2: "#102e27",
+    },
+    {
       key: "species",
       resourceKey: "staff.species",
-      n: "07",
+      n: "08",
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
       desc: "Search the threatened flora and fauna library, attach field photos for expert verification, and check survey timing standards.",
@@ -4096,7 +4122,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "capacity",
       resourceKey: "staff.capacity",
-      n: "08",
+      n: "09",
       eyebrow: "Delivery planning",
       title: "Staff Capacity Planner",
       desc: "See the team's live workload — allocated hours, approved leave and available capacity. Read-only.",
@@ -4109,7 +4135,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
     {
       key: "mine",
       resourceKey: "staff.onboarding",
-      n: "09",
+      n: "10",
       requiresOnboarding: true,
       eyebrow: "Getting started",
       title: "My Onboarding",
@@ -5336,10 +5362,14 @@ export default function OnboardingWorkbook() {
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
             <AdminLearningLibrary />
+          ) : isAdmin && mode === "adminvideos" ? (
+            <SaasDomainVideos audience="admin" />
           ) : isAdmin && mode === "speciesprofiles" ? (
             <AdminSpeciesProfiles onToast={showToast} />
           ) : mode === "ldlibrary" && !inAdminPortal ? (
             <StaffLearningLibrary />
+          ) : mode === "staffvideos" && !inAdminPortal ? (
+            <SaasDomainVideos audience="staff" />
           ) : mode === "species" && !inAdminPortal ? (
             <SpeciesProfiles onToast={showToast} onHome={() => setMode("staffhome")} />
           ) : mode === "capacity" && !inAdminPortal ? (

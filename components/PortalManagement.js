@@ -83,6 +83,7 @@ const STAFF_DOMAIN_OPTIONS = [
   { key: "staff.timesheets", label: "Timesheets", description: "Tracker history and official time entry" },
   { key: "staff.forms", label: "WHS & EC Forms", description: "Forms and internal governance" },
   { key: "staff.learning", label: "Learning & Development", description: "Approved training and Core Training" },
+  { key: "staff.domain_videos", label: "SaaS Domain Videos", description: "Video walkthroughs for navigating Staff Portal domains" },
   { key: "staff.species", label: "Species Profiles", description: "Flora, fauna and survey reference" },
   { key: "staff.remote_operations", label: "Remote Operations", description: "Remote-work support and handover" },
 ];
@@ -95,6 +96,7 @@ const ADMIN_DOMAIN_OPTIONS = [
   { key: "admin.whs", label: "WHS & Compliance", description: "WHS monitoring and internal governance" },
   { key: "admin.service_requests", label: "Service Requests", description: "Staff leave, training and equipment requests" },
   { key: "admin.learning", label: "Learning & Development Library", description: "Controlled learning resources and modules" },
+  { key: "admin.domain_videos", label: "SaaS Domain Videos", description: "Video walkthroughs for navigating Admin Portal domains" },
   { key: "admin.species", label: "Species Profiles & Survey Requirements", description: "Controlled flora, fauna and survey guidance" },
   { key: "admin.regulatory_watch", label: "Regulatory Watch", description: "Regulatory change monitoring and actions" },
   { key: "admin.portal_management", label: "Portal Management", description: "Staff list, roles and system controls" },
