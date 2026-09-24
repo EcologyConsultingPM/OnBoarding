@@ -129,7 +129,7 @@ const STATUS_STYLE = {
   declined: { bg: "#fbecea", fg: "#a5342a", label: "Declined" },
   cancelled: { bg: "#eef0e9", fg: "#6b755f", label: "Cancelled" },
   reviewed: { bg: "#e3edf5", fg: "#2a6591", label: "Reviewed" },
-  actioned: { bg: "#e5f1dd", fg: "#2c6a34", label: "Actioned" },
+  actioned: { bg: "#fbecea", fg: "#a5342a", label: "Corrective action required" },
   archived: { bg: "#eef0e9", fg: "#6b755f", label: "Archived" },
 };
 

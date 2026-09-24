@@ -19674,3 +19674,73 @@ main {
 @media (max-width: 560px) {
   .sr-action-row .sr-btn { width: 100%; justify-content: center; }
 }
+
+
+/* WHS audit outcomes — current status, corrective-action reasoning and staff accountability */
+.wcd-reg-status.actioned {
+  background: #fbecea;
+  color: #a5342a;
+}
+.wcd-audit-state {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  background: #e5f1dd;
+  color: #2c6a34;
+}
+.wcd-audit-state.open,
+.wcd-audit-state.fail {
+  background: #fbecea;
+  color: #a5342a;
+}
+.wcd-audit-state.pass_with_actions {
+  background: #fbf1dd;
+  color: #94631d;
+}
+.wcd-action-reason {
+  max-width: 680px;
+  margin-top: 6px;
+  color: #3a4740;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.wcd-action-reason strong {
+  color: #16371f;
+}
+.wcd-audit-notice {
+  margin: -3px 0 13px;
+  padding: 9px 11px;
+  border: 1px solid #ead8aa;
+  border-radius: 8px;
+  background: #fbf6ea;
+  color: #705b2e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.wcd-close-btn:disabled,
+.wcd-audit-btn:disabled,
+.wcd-record:disabled,
+.wcd-cancel:disabled {
+  cursor: not-allowed;
+  opacity: .62;
+}
+.wcd-audit-btn:disabled {
+  background: #e8eee5;
+  color: #596b5c;
+}
+@media (max-width: 720px) {
+  .wcd-reg-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .wcd-reg-main {
+    flex-basis: 100%;
+  }
+  .wcd-action-row {
+    align-items: flex-start;
+  }
+}

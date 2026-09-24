@@ -158,6 +158,8 @@ export default function WhsComplianceDashboard() {
   const [error, setError] = useState("");
   const [auditing, setAuditing] = useState(null); // form being audited
   const [audit, setAudit] = useState({ outcome: "pass", checks: [], findings: "", corrective_action: "", corrective_due: "" });
+  const [savingAudit, setSavingAudit] = useState(false);
+  const [closingActionId, setClosingActionId] = useState("");
 
   const authFetch = useCallback((method, url, body) => fetch(url, {
     method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -185,15 +187,27 @@ export default function WhsComplianceDashboard() {
   const setCheck = (i, status) => setAudit((a) => ({ ...a, checks: a.checks.map((c, j) => j === i ? { ...c, status } : c) }));
 
   const submitAudit = async () => {
+    if (savingAudit || !auditing) return;
+    setSavingAudit(true);
     try {
       const res = await authFetch("POST", "/api/whs-audits", { form_id: auditing.id, ...audit });
       const d = await res.json(); if (!res.ok) throw new Error(d.error);
-      setAuditing(null); await load();
-    } catch (e) { setError(e.message); }
+      setAuditing(null);
+      await load();
+      if (d.warning) setError(d.warning);
+    } catch (e) { setError(e.message); } finally { setSavingAudit(false); }
   };
 
   const closeAction = async (audit_id) => {
-    try { const res = await authFetch("PATCH", "/api/whs-audits", { audit_id, corrective_status: "closed" }); const d = await res.json(); if (!res.ok) throw new Error(d.error); await load(); } catch (e) { setError(e.message); }
+    if (closingActionId) return;
+    setClosingActionId(audit_id);
+    try {
+      const res = await authFetch("PATCH", "/api/whs-audits", { audit_id, corrective_status: "closed" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      await load();
+      if (d.warning) setError(d.warning);
+    } catch (e) { setError(e.message); } finally { setClosingActionId(""); }
   };
 
   if (error) return <p className="wcd-error"><AlertCircle size={15} /> {error}</p>;
@@ -257,8 +271,12 @@ export default function WhsComplianceDashboard() {
           <h3><Clock size={15} /> Open corrective actions</h3>
           {data.openActions.map((a) => (
             <div key={a.audit_id} className="wcd-action-row">
-              <div><div className="wcd-action-title">{a.form_title}</div><div className="wcd-action-desc">{a.corrective_action}{a.due ? ` · due ${new Date(a.due).toLocaleDateString("en-AU")}` : ""}</div></div>
-              <button className="wcd-close-btn" onClick={() => closeAction(a.audit_id)}>Close</button>
+              <div>
+                <div className="wcd-action-title">{a.form_title}</div>
+                <div className="wcd-action-desc">{a.corrective_action}{a.due ? ` · due ${new Date(a.due).toLocaleDateString("en-AU")}` : ""}</div>
+                {a.findings ? <div className="wcd-action-reason"><strong>Audit reasoning:</strong> {a.findings}</div> : null}
+              </div>
+              <button className="wcd-close-btn" disabled={closingActionId === a.audit_id} onClick={() => closeAction(a.audit_id)}>{closingActionId === a.audit_id ? "Closing…" : "Close"}</button>
             </div>
           ))}
         </div>
@@ -269,16 +287,27 @@ export default function WhsComplianceDashboard() {
         <h3><FileText size={15} /> Submitted forms register</h3>
         {forms.length ? (
           <div className="wcd-register">
-            {forms.map((f) => (
-              <div key={f.id} className="wcd-reg-row">
-                <div className="wcd-reg-main">
-                  <div className="wcd-reg-title">{f.title}{f.notifiable_flag ? <span className="wcd-notif">Notifiable?</span> : null}</div>
-                  <div className="wcd-reg-meta">{TYPE_LABEL[f.form_type] || f.form_type} · {f.author || "Unknown"}{f.site ? ` · ${f.site}` : ""} · {new Date(f.created_at).toLocaleDateString("en-AU")}</div>
+            {forms.map((f) => {
+              const currentAudit = data.auditByForm?.[f.id];
+              const auditLabel = currentAudit?.corrective_status === "open"
+                ? "Corrective action open"
+                : currentAudit?.outcome === "fail"
+                  ? "Failed audit"
+                  : currentAudit?.outcome === "pass_with_actions"
+                    ? "Action closed"
+                    : currentAudit ? "Audited" : "";
+              return (
+                <div key={f.id} className="wcd-reg-row">
+                  <div className="wcd-reg-main">
+                    <div className="wcd-reg-title">{f.title}{f.notifiable_flag ? <span className="wcd-notif">Notifiable?</span> : null}</div>
+                    <div className="wcd-reg-meta">{TYPE_LABEL[f.form_type] || f.form_type} · {f.author || "Unknown"}{f.site ? ` · ${f.site}` : ""} · {new Date(f.created_at).toLocaleDateString("en-AU")}</div>
+                  </div>
+                  <span className={`wcd-reg-status ${f.status}`}>{f.status}</span>
+                  {currentAudit ? <span className={`wcd-audit-state ${currentAudit.corrective_status === "open" ? "open" : currentAudit.outcome}`}>{auditLabel}</span> : null}
+                  <button className="wcd-audit-btn" disabled={Boolean(currentAudit)} title={currentAudit ? "This submission already has a recorded audit." : "Audit this submission"} onClick={() => openAudit(f)}><ClipboardCheck size={13} /> {currentAudit ? "Audited" : "Audit"}</button>
                 </div>
-                <span className={`wcd-reg-status ${f.status}`}>{f.status}</span>
-                <button className="wcd-audit-btn" onClick={() => openAudit(f)}><ClipboardCheck size={13} /> Audit</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : <p className="wcd-empty">Register empty — no forms submitted yet.</p>}
       </div>
@@ -316,17 +345,21 @@ export default function WhsComplianceDashboard() {
               ))}
             </div>
 
-            <label className="wcd-f"><span>Findings</span><textarea rows={2} value={audit.findings} onChange={(e) => setAudit({ ...audit, findings: e.target.value })} /></label>
+            <label className="wcd-f">
+              <span>Audit reasoning {audit.outcome !== "pass" ? "(required)" : ""}</span>
+              <textarea rows={2} value={audit.findings} onChange={(e) => setAudit({ ...audit, findings: e.target.value })} placeholder={audit.outcome !== "pass" ? "Explain why the submission failed or why the corrective action is required." : "Optional notes supporting the passed audit."} />
+            </label>
             {audit.outcome !== "pass" && (
               <>
-                <label className="wcd-f"><span>Corrective action</span><textarea rows={2} value={audit.corrective_action} onChange={(e) => setAudit({ ...audit, corrective_action: e.target.value })} /></label>
-                <label className="wcd-f"><span>Corrective action due</span><input type="date" value={audit.corrective_due} onChange={(e) => setAudit({ ...audit, corrective_due: e.target.value })} /></label>
+                <p className="wcd-audit-notice">The submitter will receive a staff notification containing this reasoning, the required corrective action and its due date.</p>
+                <label className="wcd-f"><span>Corrective action (required)</span><textarea rows={2} value={audit.corrective_action} onChange={(e) => setAudit({ ...audit, corrective_action: e.target.value })} placeholder="State the practical correction the submitter must complete." /></label>
+                <label className="wcd-f"><span>Corrective action due (required)</span><input type="date" value={audit.corrective_due} onChange={(e) => setAudit({ ...audit, corrective_due: e.target.value })} /></label>
               </>
             )}
 
             <div className="wcd-modal-actions">
-              <button className="wcd-record" onClick={submitAudit}><CheckCircle2 size={15} /> Record audit</button>
-              <button className="wcd-cancel" onClick={() => setAuditing(null)}>Cancel</button>
+              <button className="wcd-record" disabled={savingAudit} onClick={submitAudit}><CheckCircle2 size={15} /> {savingAudit ? "Recording audit…" : "Record audit"}</button>
+              <button className="wcd-cancel" disabled={savingAudit} onClick={() => setAuditing(null)}>Cancel</button>
             </div>
           </div>
         </div>
