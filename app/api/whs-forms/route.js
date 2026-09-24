@@ -3,6 +3,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
 import { normalisePreMobilisationDetails } from "../../../lib/preMobilisationChecklist";
 import { OFFICE_RISK_ITEM_IDS } from "../../../lib/officeRiskChecklist";
+import { normaliseEcologicalFieldSwmsDetails } from "../../../lib/ecologicalFieldSwms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ function makeSubmissionKey({ createdBy, formType, title, site, formDate, notifia
 const FORM_TYPES = [
   "daily_risk_assessment", "office_risk_assessment", "injury_incident", "near_miss",
   "site_erp", "journey_plan", "pre_mobilisation", "toolbox_talk", "hazard_report",
-  "job_safety_analysis", "first_aid_kit",
+  "job_safety_analysis", "first_aid_kit", "ecological_field_swms",
 ];
 
 function normaliseOfficeRiskDetails(value) {
@@ -144,6 +145,14 @@ export async function POST(request) {
       site = details.area;
       formDate = details.date;
     }
+    if (b.form_type === "ecological_field_swms") {
+      const checked = normaliseEcologicalFieldSwmsDetails(details);
+      if (checked.errors.length) return Response.json({ error: checked.errors.join(" ") }, { status: 400 });
+      details = checked.details;
+      title = `Generic SWMS — Ecological Field Surveys: ${details.project} — ${details.activity}`;
+      site = details.site;
+      formDate = details.date;
+    }
     const notifiableFlag = b.notifiable_flag === true;
     const submissionKey = makeSubmissionKey({
       createdBy: access.user.id,
@@ -180,10 +189,10 @@ export async function POST(request) {
       return Response.json({ error: error.message }, { status: 400 });
     }
 
-    // Daily Risk Assessments are stored in the WHS monitor and actively
-    // surfaced to each administrator as a portal report. Notification failure
-    // is non-fatal because the submitted assessment remains authoritative.
-    if (b.form_type === "daily_risk_assessment") {
+    // Daily Risk Assessments and ecological survey SWMS records are surfaced
+    // to administrators. Notification failure is non-fatal because the saved
+    // WHS record remains authoritative and visible in the monitoring register.
+    if (["daily_risk_assessment", "ecological_field_swms"].includes(b.form_type)) {
       try {
         const { data: adminRows } = await access.admin.from("admin_emails").select("email");
         const recipientEmails = new Set([
@@ -198,9 +207,9 @@ export async function POST(request) {
         if (recipients.length) {
           await access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
             recipient_id: recipientId,
-            event_type: "daily_risk_assessment_submitted",
+            event_type: b.form_type === "ecological_field_swms" ? "ecological_field_swms_submitted" : "daily_risk_assessment_submitted",
             severity: "information",
-            title: "Daily Risk Assessment submitted",
+            title: b.form_type === "ecological_field_swms" ? "Ecological field survey SWMS submitted" : "Daily Risk Assessment submitted",
             body: `${title}${data.site ? ` · ${data.site}` : ""} is ready for WHS review.`,
             href: "/?mode=whsmonitor",
             source_table: "whs_forms",

@@ -8,7 +8,7 @@ const TYPE_LABEL = {
   daily_risk_assessment: "Daily Risk Assessment", office_risk_assessment: "Office Risk Assessment",
   injury_incident: "Injury / Incident", near_miss: "Near Miss", site_erp: "Site ERP",
   journey_plan: "Journey Plan", pre_mobilisation: "Pre-Mobilisation", toolbox_talk: "Toolbox Talk",
-  hazard_report: "Hazard Report",
+  hazard_report: "Hazard Report", ecological_field_swms: "Ecological Field Survey SWMS",
 };
 
 function isNewerAudit(candidate, current) {

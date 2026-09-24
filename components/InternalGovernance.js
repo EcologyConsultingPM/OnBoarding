@@ -109,8 +109,10 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
     approved: documents.filter((document) => document.doc_type === type && document.status === "published"),
     review: documents.filter((document) => document.doc_type === type && document.status === "in_review"),
     management: documents.filter((document) => document.doc_type === type && !["published", "in_review"].includes(document.status)),
+    internal_generic_swms: documents.filter((document) => document.status === "published" && document.category === "Internal Generic SWMS"),
   }), [documents, type]);
   const visibleDocuments = isAdmin && folder === "management" ? folders.management : folders[folder] || [];
+  const visibleDocumentLabel = folder === "internal_generic_swms" ? "Internal Generic SWMS documents" : selectedType.plural.toLowerCase();
   const metrics = useMemo(() => ({
     approved: documents.filter((document) => document.status === "published").length,
     controls: documents.filter((document) => ["plan", "procedure", "project_control"].includes(document.doc_type) && document.status === "published").length,
@@ -173,6 +175,20 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
 
   const openDocument = async (document) => {
     try {
+      if (document.document_link?.startsWith("controlled:")) {
+        const key = document.document_link.slice("controlled:".length);
+        const response = await fetch(`/api/governance-source?key=${encodeURIComponent(key)}`, {
+          headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "The controlled document could not be opened.");
+        }
+        const source = window.URL.createObjectURL(await response.blob());
+        window.open(source, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => window.URL.revokeObjectURL(source), 60_000);
+        return;
+      }
       if (document.document_link) {
         window.open(document.document_link, "_blank", "noopener,noreferrer");
         return;
@@ -247,12 +263,12 @@ export default function InternalGovernance({ isAdmin = false, onToast = () => {}
           </button>;
         })}
       </div>
-      <div className="governance-folders" aria-label="Document folder"><button className={folder === "approved" ? "selected" : ""} onClick={() => setFolder("approved")}><FolderCheck size={14} /> Approved</button><button className={folder === "review" ? "selected" : ""} onClick={() => setFolder("review")}><FolderClock size={14} /> In review</button>{isAdmin ? <button className={folder === "management" ? "selected" : ""} onClick={() => setFolder("management")}><FileText size={14} /> Drafts &amp; approvals</button> : null}</div>
+      <div className="governance-folders" aria-label="Document folder"><button className={folder === "approved" ? "selected" : ""} onClick={() => setFolder("approved")}><FolderCheck size={14} /> Approved</button><button className={folder === "internal_generic_swms" ? "selected" : ""} onClick={() => { setFolder("internal_generic_swms"); setSelectedId(null); }}><ShieldCheck size={14} /> Internal Generic SWMS</button><button className={folder === "review" ? "selected" : ""} onClick={() => setFolder("review")}><FolderClock size={14} /> In review</button>{isAdmin ? <button className={folder === "management" ? "selected" : ""} onClick={() => setFolder("management")}><FileText size={14} /> Drafts &amp; approvals</button> : null}</div>
 
       <div className="governance-layout">
         <div className="governance-list">
           {loading ? <p className="governance-empty">Loading governance register…</p> : null}
-          {!loading && visibleDocuments.length === 0 ? <p className="governance-empty">No {selectedType.plural.toLowerCase()} are in this folder.</p> : null}
+          {!loading && visibleDocuments.length === 0 ? <p className="governance-empty">No {visibleDocumentLabel} are in this folder.</p> : null}
           {!loading && visibleDocuments.map((document) => <button key={document.id} className={`governance-document${selectedId === document.id ? " selected" : ""}`} onClick={() => { setSelectedId(document.id); setActionOpen(null); setComment(""); }}>
               <div><Badge status={document.status} /><h3>{document.title}</h3><p>{DOC_TYPES.find((item) => item.value === document.doc_type)?.singular || document.doc_type} · v{document.version} · {document.category || "Internal Governance"}</p></div><ChevronDown size={16} />
           </button>)}

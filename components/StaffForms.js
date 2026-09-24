@@ -31,6 +31,7 @@ import PreMobilisationChecklistForm from "./PreMobilisationChecklistForm";
 import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
 import FirstAidKitChecks from "./FirstAidKitChecks";
 import OfficeRiskAssessmentForm from "./OfficeRiskAssessmentForm";
+import EcologicalFieldSwmsForm from "./EcologicalFieldSwmsForm";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -38,6 +39,7 @@ const ICONS = {
   training: GraduationCap,
   equipment: Package,
   daily_risk_assessment: ClipboardCheck,
+  ecological_field_swms: ClipboardCheck,
   journey_plan: Route,
   pre_mobilisation: ClipboardCheck,
   site_erp: MapPin,
@@ -53,6 +55,7 @@ const BLURBS = {
   training: "Courses, conferences, accreditation.",
   equipment: "Field gear, PPE, IT or other equipment.",
   daily_risk_assessment: "Conditions, hazards, check-in & crew sign-on.",
+  ecological_field_swms: "Project-specific ecological survey SWMS hazard selector.",
   journey_plan: "Crew, route, monitoring & overdue escalation.",
   pre_mobilisation: "Vehicle, comms, approvals before departure.",
   site_erp: "Access, medical, muster & evacuation.",
@@ -485,11 +488,23 @@ export default function StaffForms() {
     );
   }
 
-  // ---------- Daily Risk Assessment & Toolbox Talk (bespoke form) ----------
-  if (view === "form" && activeKey === "daily_risk_assessment") {
+// ---------- Daily Risk Assessment & Toolbox Talk (bespoke form) ----------
+ if (view === "form" && activeKey === "daily_risk_assessment") {
+   return (
+     <DailyRiskAssessmentForm
+       authFetch={authFetch}
+       onBack={backToHub}
+       onSubmitted={loadHistory}
+       onToast={notify}
+     />
+   );
+ }
+
+  if (view === "form" && activeKey === "ecological_field_swms") {
     return (
-      <DailyRiskAssessmentForm
+      <EcologicalFieldSwmsForm
         authFetch={authFetch}
+        defaultName={session?.user?.user_metadata?.full_name || ""}
         onBack={backToHub}
         onSubmitted={loadHistory}
         onToast={notify}
@@ -497,7 +512,7 @@ export default function StaffForms() {
     );
   }
 
-  // ---------- Psychosocial Self Risk Assessment (bespoke form) ----------
+ // ---------- Psychosocial Self Risk Assessment (bespoke form) ----------
   if (view === "form" && activeKey === "pre_mobilisation") {
     return (
       <PreMobilisationChecklistForm
