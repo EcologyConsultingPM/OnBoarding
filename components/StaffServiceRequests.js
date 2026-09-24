@@ -550,6 +550,12 @@ export default function StaffServiceRequests({ embedded = false }) {
                     {request.admin_note ? (
                       <em>Administrator note: {request.admin_note}</em>
                     ) : null}
+                    {request.decisionBy && ["approved", "declined"].includes(request.decision_status || request.status) ? (
+                      <small className={`ssr-decision-by ${request.decision_status || request.status}`}>
+                        {request.decision_status === "declined" || request.status === "declined" ? "Denied" : "Approved"} by {request.decisionBy}
+                        {request.reviewed_at ? ` · ${new Date(request.reviewed_at).toLocaleDateString("en-AU")}` : ""}
+                      </small>
+                    ) : null}
                   </div>
                   <div className="ssr-list-actions">
                     <span

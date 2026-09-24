@@ -6,7 +6,7 @@ import { sendPortalEmail } from "../../../lib/transactionalEmail";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, request_type, title, details, status, admin_note, return_reason, reviewed_by, reviewed_at, created_by, project_id, assigned_to, priority, due_date, estimated_hours, attachments, locked, archived_at, submission_key, seen_by_staff, created_at, updated_at";
+const COLUMNS = "id, request_type, title, details, status, decision_status, admin_note, return_reason, reviewed_by, reviewed_at, created_by, project_id, assigned_to, priority, due_date, estimated_hours, attachments, locked, archived_at, submission_key, seen_by_staff, created_at, updated_at";
 const TYPES = ["leave", "training", "equipment", "task", "other", "remote_issue"];
 const TYPE_LABELS = { leave: "leave request", training: "training request", equipment: "equipment request", task: "task request", other: "service request", remote_issue: "remote / delivery request" };
 const PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
@@ -42,14 +42,19 @@ export async function GET(request) {
     const denied = await requirePortalResource(access, access.isAdmin ? "admin.service_requests" : "staff.service_requests"); if (denied) return denied;
     let query = access.admin.from("service_requests").select(COLUMNS).order("updated_at", { ascending: false }); if (!access.isAdmin) query = query.eq("created_by", access.user.id);
     const { data, error } = await query; if (error) return Response.json({ error: error.message }, { status: 400 });
-    const rows = data || []; let emailById = new Map(); let staff = [];
+    const rows = data || [];
+    let emailById = new Map(); let nameById = new Map(); let staff = [];
+    // Staff must be able to see the accountable administrator who approved or
+    // denied their own request. Resolve names server-side without exposing the
+    // wider staff directory to the staff-facing request response.
+    const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const users = usersData?.users || [];
+    emailById = new Map(users.map((user) => [user.id, user.email]));
+    nameById = new Map(users.map((user) => [user.id, user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Administrator"]));
     if (access.isAdmin) {
-      const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const users = usersData?.users || [];
-      emailById = new Map(users.map((user) => [user.id, user.email]));
       staff = users.map((user) => ({ id: user.id, email: user.email || "", name: user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Staff member" })).sort((left, right) => left.name.localeCompare(right.name));
     }
-    const requests = rows.map((row) => ({ ...row, author: emailById.get(row.created_by) || null }));
+    const requests = rows.map((row) => ({ ...row, author: access.isAdmin ? emailById.get(row.created_by) || null : null, decisionBy: row.reviewed_by ? nameById.get(row.reviewed_by) || "Administrator" : null }));
     const pending = requests.filter((row) => ["submitted", "returned"].includes(row.status)).length;
     return Response.json({ requests, staff, summary: { pending, total: requests.length } });
   } catch (error) { return serverError(error); }

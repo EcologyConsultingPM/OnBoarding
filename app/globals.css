@@ -19629,3 +19629,48 @@ main {
   .st-entry-actions > div { width: 100%; flex-direction: column-reverse; }
   .st-entry-actions .st-cancel-edit { width: 100%; }
 }
+
+
+/* Streamlined Service Desk decisions */
+.sr-comment-label {
+  display: block;
+  width: 100%;
+  color: #34533d;
+  font-size: 12px;
+  font-weight: 800;
+}
+.sr-comment-label span { color: #758277; font-weight: 600; }
+.sr-comment {
+  width: 100%;
+  min-height: 76px;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid #b9cbb7;
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: #23301f;
+  background: #fff;
+  font: 13px/1.45 "Archivo", sans-serif;
+}
+.sr-comment:focus { outline: 3px solid rgba(31,90,52,.18); outline-offset: 1px; border-color: #1f5a34; }
+.sr-action-row { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.sr-decision {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 7px 10px;
+  border-left: 3px solid #2c6a34;
+  border-radius: 0 7px 7px 0;
+  color: #295b33;
+  background: #eef7e9;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.sr-decision--declined { border-left-color: #a5342a; color: #8d2f28; background: #fff1ef; }
+.sr-decision svg { flex: 0 0 auto; }
+.ssr-decision-by { display: block; margin-top: 5px; color: #2f653a; font-size: .74rem; font-style: normal; font-weight: 800; }
+.ssr-decision-by.declined { color: #9a3f35; }
+@media (max-width: 560px) {
+  .sr-action-row .sr-btn { width: 100%; justify-content: center; }
+}
