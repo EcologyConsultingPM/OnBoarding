@@ -148,7 +148,7 @@ export default function EcologicalFieldSwmsForm({ authFetch, defaultName = "", o
   return (
     <div className="efs">
       <header className="efs__hero">
-        <span><ClipboardCheck size={16} /> EC-GEN-SWMS-001 · Revision 1.0</span>
+        <span><ClipboardCheck size={16} /> EC-GEN-SWMS-001 · Revision 1.1</span>
         <h1>Generic SWMS — Ecological Field Surveys</h1>
         <p>Complete this daily selector for the specific survey activity. It records the project details, crew and every relevant specialist hazard. It does not replace a selected controlled SWMS or the site-specific Emergency Response Plan.</p>
       </header>
@@ -222,9 +222,13 @@ export default function EcologicalFieldSwmsForm({ authFetch, defaultName = "", o
                 {selected ? <div className="efs__hazard-content">
                   <div className="efs__source-row"><span>Controlled source: <b>{hazard.documentCode} · Revision 1.0</b></span><button type="button" onClick={() => downloadSource(hazard.documentCode)} disabled={downloading === hazard.documentCode}>{downloading === hazard.documentCode ? "Opening…" : <><Download size={14} /> Open controlled SWMS</>}</button></div>
                   <div className="efs__grid"><label><span>Why this hazard applies <b>*</b></span><textarea rows={2} value={detail.reason || ""} onChange={(event) => patchHazard(hazard.id, { reason: event.target.value })} /></label><label><span>Specific task / location <b>*</b></span><textarea rows={2} value={detail.location || ""} onChange={(event) => patchHazard(hazard.id, { location: event.target.value })} /></label></div>
+                  <div className="efs__limit-block"><strong>Scope and non-authorising limits</strong><ul>{hazard.limits.map((limit) => <li key={limit}>{limit}</li>)}</ul></div>
+                  <div className="efs__prereq-block"><strong>Pre-start checks and prerequisites</strong><ul>{hazard.prerequisites.map((prerequisite) => <li key={prerequisite}>{prerequisite}</li>)}</ul></div>
                   <div className="efs__control-block"><strong>Controls to brief and apply</strong><ul>{hazard.controls.map((control) => <li key={control}>{control}</li>)}</ul></div>
+                  <div className="efs__cross-block"><strong>Required linked controls and documents</strong><ul>{hazard.crossReferences.map((reference) => <li key={reference}>{reference}</li>)}</ul></div>
+                  <div className="efs__emergency-block"><strong>Emergency boundaries</strong><ul>{hazard.emergency.map((step) => <li key={step}>{step}</li>)}</ul></div>
                   <div className="efs__stop-block"><FileWarning size={16} /><div><strong>Stop work immediately if</strong><ul>{hazard.stopWork.map((condition) => <li key={condition}>{condition}</li>)}</ul></div></div>
-                  <div className="efs__confirmation-row"><label><input type="checkbox" checked={detail.controlsConfirmed === true} onChange={(event) => patchHazard(hazard.id, { controlsConfirmed: event.target.checked })} /> Controls, authorisations, training, PPE and equipment are confirmed.</label><label><input type="checkbox" checked={detail.stopWorkBriefed === true} onChange={(event) => patchHazard(hazard.id, { stopWorkBriefed: event.target.checked })} /> Stop-work triggers and safe retreat/muster arrangements were briefed.</label></div>
+                  <div className="efs__confirmation-row"><label><input type="checkbox" checked={detail.controlsConfirmed === true} onChange={(event) => patchHazard(hazard.id, { controlsConfirmed: event.target.checked })} /> Scope limits, prerequisites, controls, linked documents, authorisations, training, PPE and equipment are confirmed.</label><label><input type="checkbox" checked={detail.stopWorkBriefed === true} onChange={(event) => patchHazard(hazard.id, { stopWorkBriefed: event.target.checked })} /> Stop-work triggers, emergency boundaries and safe retreat/muster arrangements were briefed.</label></div>
                 </div> : null}
               </article>;
             })}

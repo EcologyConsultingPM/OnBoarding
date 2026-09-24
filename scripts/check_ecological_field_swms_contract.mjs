@@ -22,16 +22,30 @@ for (const sourceCode of sourceCodes) {
   assert.match(migration, new RegExp(`controlled:${sourceCode}`), `${sourceCode} must be seeded into Internal Generic SWMS.`);
 }
 
+assert.match(controls, /ECOLOGICAL_FIELD_SWMS_VERSION = "1\.1"/, "The assured selector revision must be identifiable.");
+assert.match(controls, /limits: \[/, "Every selected hazard must show its non-authorising limits.");
+assert.match(controls, /prerequisites: \[/, "Every selected hazard must show source-derived pre-start requirements.");
+assert.match(controls, /crossReferences: \[/, "Every selected hazard must show linked source controls and documents.");
+assert.match(controls, /emergency: \[/, "Every selected hazard must show emergency boundaries.");
+assert.match(controls, /floating rescue rope of at least 20 m/, "The water selector must retain the source rescue-rope requirement.");
+assert.match(controls, /do not move the plant unless directed by the operator/, "The plant selector must retain the crush-response boundary.");
+assert.match(controls, /current BYDA\/site information/, "The plant selector must retain service-location controls.");
+assert.match(controls, /Do not undertake electrical work/, "The electrical selector must preserve its non-authorising boundary.");
+
 assert.match(controls, /normaliseEcologicalFieldSwmsDetails/, "The daily selector must be normalised server-side.");
 assert.match(controls, /if \(!selectedHazards\.length && details\.noSpecialistHazardConfirmed !== true\)/, "The selector must require a hazard decision.");
 assert.match(controls, /if \(team\.some\(\(member\) => !member\.role \|\| !member\.acknowledged\)\)/, "Every listed worker must acknowledge the briefing.");
 assert.ok(controls.includes('signature.startsWith("data:image/png;base64,")'), "The Field Lead must sign before submission.");
 assert.match(controls, /Ecology Consulting personnel do not perform confined-space rescue/, "The confined-space control must preserve the rescue restriction.");
-assert.match(controls, /No diving or unauthorised water rescue/, "The water control must preserve the no-diving and rescue restriction.");
+assert.match(controls, /Water rescue is reach-or-throw only unless a person is trained and authorised/, "The water control must preserve the no-diving and rescue restriction.");
 
 assert.match(staffForm, /Open controlled SWMS/, "The staff form must let staff open each selected controlled source document.");
-assert.match(staffForm, /Controls, authorisations, training, PPE and equipment are confirmed/, "The staff form must require selected control confirmation.");
-assert.match(staffForm, /Stop-work triggers and safe retreat\/muster arrangements were briefed/, "The staff form must require stop-work briefing confirmation.");
+assert.match(staffForm, /Scope and non-authorising limits/, "The staff form must display each selected source module's limits.");
+assert.match(staffForm, /Pre-start checks and prerequisites/, "The staff form must display selected source prerequisites.");
+assert.match(staffForm, /Required linked controls and documents/, "The staff form must display selected source cross-references.");
+assert.match(staffForm, /Emergency boundaries/, "The staff form must display selected source emergency boundaries.");
+assert.match(staffForm, /Scope limits, prerequisites, controls, linked documents, authorisations, training, PPE and equipment are confirmed/, "The staff form must require selected control confirmation.");
+assert.match(staffForm, /Stop-work triggers, emergency boundaries and safe retreat\/muster arrangements were briefed/, "The staff form must require stop-work briefing confirmation.");
 assert.match(staffForms, /EcologicalFieldSwmsForm/, "The bespoke daily selector must be reachable in the WHS and EC Forms portal.");
 assert.match(schema, /"ecological_field_swms"/, "The staff form must appear in the Field and mobilisation forms list.");
 
@@ -42,6 +56,9 @@ assert.match(compliance, /ecological_field_swms: "Ecological Field Survey SWMS"/
 assert.match(governance, /document\.document_link\?\.startsWith\("controlled:"\)/, "Internal Governance must securely open repository-controlled documents.");
 assert.match(governance, /internal_generic_swms/, "Internal Governance must expose the dedicated Internal Generic SWMS folder.");
 assert.match(governanceSource, /requirePortalResource/, "Controlled SWMS source documents must be access-controlled.");
-assert.match(template, /This form does \*\*not\*\* replace a selected source SWMS/, "The generic controlled template must state its limits.");
+assert.match(template, /This form is \*\*not a replacement\*\* for a selected source SWMS/, "The generic controlled template must state its limits.");
+assert.match(template, /hazard assurance revision/, "The controlled template must identify its assurance revision.");
+assert.match(template, /floating rescue rope of at least 20 m/, "The controlled template must retain the water rescue equipment control.");
+assert.match(template, /do not move the plant unless directed by the operator/, "The controlled template must retain the plant emergency boundary.");
 
 console.log("Ecological field SWMS contract passed.");
