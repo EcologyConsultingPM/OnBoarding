@@ -13,22 +13,37 @@ function validId(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89a
 function text(value, maximum = 5000) { return typeof value === "string" ? value.trim().slice(0, maximum) : ""; }
 function hours(value) { const result = Number(value); return Number.isFinite(result) && result >= 0 && result <= 24 ? result : null; }
 
-export async function eligibleProjects(access, staffUserId = access.user.id) {
+// `includeOtherActiveProjects` supplies the time-entry picker with active,
+// tracker-enabled projects that have a staff-visible allocation. It deliberately
+// does not grant the staff member project-board visibility or a work-activity
+// assignment; it only lets them record genuine ad-hoc time against a controlled
+// allocation when they have worked on a project outside their formal allocation.
+export async function eligibleProjects(access, staffUserId = access.user.id, includeOtherActiveProjects = false) {
   const { data: staffAllocations, error: allocationError } = await access.admin.from("project_allocations").select("project_id, active").eq("staff_user_id", staffUserId);
   if (allocationError) throw new Error(allocationError.message);
-  const ids = [...new Set((staffAllocations || []).filter((row) => row.active !== false).map((row) => row.project_id).filter(Boolean))];
-  if (!ids.length) return { available: true, projects: [] };
+  const assignedIds = new Set((staffAllocations || []).filter((row) => row.active !== false).map((row) => row.project_id).filter(Boolean));
+  const ids = [...assignedIds];
+  if (!ids.length && !includeOtherActiveProjects) return { available: true, projects: [] };
 
-  const [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult] = await Promise.all([
-    access.admin.from("projects").select("id, name, client_name, status").in("id", ids).is("deleted_at", null).eq("status", "active"),
-    access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
-    access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", ids),
+  let projectsResult;
+  if (includeOtherActiveProjects) {
+    projectsResult = await access.admin.from("projects").select("id, name, client_name, status").is("deleted_at", null).eq("status", "active");
+  } else {
+    projectsResult = await access.admin.from("projects").select("id, name, client_name, status").in("id", ids).is("deleted_at", null).eq("status", "active");
+  }
+  if (projectsResult.error) throw new Error(projectsResult.error.message);
+  const projectIds = (projectsResult.data || []).map((project) => project.id);
+  if (!projectIds.length) return { available: true, projects: [] };
+
+  const [settingsResult, templatesResult, sourcesResult, trackerAllocationsResult] = await Promise.all([
+    access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", projectIds),
+    access.admin.from("project_tracker_templates").select("project_id, template_name, instructions, category_options, column_definitions, guidance_rows, locked").in("project_id", projectIds),
     // Staff receive a single project-level budget position in the Overview.
     // Itemised allocation dollars, rates, delivery costs and profitability stay
     // administrator-only; only the approved total, actual spend and balance are
     // calculated for an allocated project's tracker summary.
-    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status, approved_value, approved_hours").in("project_id", ids).eq("approval_status", "approved"),
-    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed, charge_out_spend").in("project_id", ids).eq("status", "active"),
+    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status, approved_value, approved_hours").in("project_id", projectIds).eq("approval_status", "approved"),
+    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed, charge_out_spend").in("project_id", projectIds).eq("status", "active"),
   ]);
   if ([settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].some((result) => result.error && unavailable(result.error))) return { available: false, projects: [] };
   const failed = [projectsResult, settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].find((result) => result.error);
@@ -46,19 +61,13 @@ export async function eligibleProjects(access, staffUserId = access.user.id) {
         const projectSources = sources.filter((source) => source.project_id === project.id);
         const sourceIds = new Set(projectSources.map((source) => source.id));
         const projectAllocations = (trackerAllocationsResult.data || []).filter((allocation) => allocation.project_id === project.id && sourceIds.has(allocation.budget_source_id));
-        const budget = projectSources.reduce((sum, source) => sum + Number(source.approved_value || 0), 0);
-        const actualSpend = projectAllocations.reduce((sum, allocation) => sum + Number(allocation.charge_out_spend || 0), 0);
-        return {
+        const isAssigned = assignedIds.has(project.id);
+        const projectEntry = {
           id: project.id,
           name: project.name,
-          clientName: project.client_name || "Client not recorded",
+          clientName: isAssigned ? project.client_name || "Client not recorded" : "",
+          isAssigned,
           template: templateByProject.get(project.id),
-          financials: {
-            budget,
-            actualSpend,
-            remainingBudget: budget - actualSpend,
-            budgetHours: projectSources.reduce((sum, source) => sum + Number(source.approved_hours || 0), 0),
-          },
           sources: projectSources.map((source) => ({
             id: source.id,
             source_code: source.source_code,
@@ -77,8 +86,50 @@ export async function eligibleProjects(access, staffUserId = access.user.id) {
             })),
           })),
         };
-      }),
+        // The broader ad hoc-entry picker must never disclose the financial
+        // position of a project the staff member is not allocated to. It gives
+        // only the approved entry categories and staff-visible allocation name.
+        if (!includeOtherActiveProjects || isAssigned) {
+          const budget = projectSources.reduce((sum, source) => sum + Number(source.approved_value || 0), 0);
+          const actualSpend = projectAllocations.reduce((sum, allocation) => sum + Number(allocation.charge_out_spend || 0), 0);
+          projectEntry.financials = {
+            budget,
+            actualSpend,
+            remainingBudget: budget - actualSpend,
+            budgetHours: projectSources.reduce((sum, source) => sum + Number(source.approved_hours || 0), 0),
+          };
+        }
+        return projectEntry;
+      })
+      .filter((project) => (includeOtherActiveProjects ? project.sources.some((source) => source.allocations.length > 0) : project.isAssigned)),
   };
+}
+
+export async function refreshTrackerAllocation(access, projectId, allocationId) {
+  const [{ data: entryRows, error: sumError }, { data: projectRates }, { data: projectDefault }] = await Promise.all([
+    access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000),
+    access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
+    access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle(),
+  ]);
+  if (sumError) throw new Error(sumError.message);
+  const consumed = (entryRows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
+  const rateByStaff = new Map((projectRates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
+  const defaultRate = Number(projectDefault?.default_hourly_rate) || 0;
+  const chargeOutSpend = (entryRows || []).reduce((sum, row) => {
+    // Team members can legitimately submit ad hoc time before an individual
+    // allocation/rate is added. Preserve the project default-rate fallback.
+    const rate = rateByStaff.get(row.staff_user_id) || defaultRate;
+    return sum + Number(row.hours || 0) * rate;
+  }, 0);
+  const internalCost = chargeOutSpend * 0.6;
+  const { error: allocationError } = await access.admin.from("project_budget_allocations").update({
+    hours_consumed: consumed,
+    charge_out_spend: Math.round(chargeOutSpend * 100) / 100,
+    internal_cost: Math.round(internalCost * 100) / 100,
+    updated_by: access.user.id,
+    updated_at: new Date().toISOString(),
+  }).eq("id", allocationId).eq("project_id", projectId);
+  if (allocationError) throw new Error(allocationError.message);
 }
 
 async function ownEntries(access) {
@@ -87,7 +138,7 @@ async function ownEntries(access) {
     result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
   }
   if (result.error) { if (unavailable(result.error)) return { available: false, entries: [] }; throw new Error(result.error.message); }
-  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
+  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
 }
 
 // Every person allocated to a project needs to see the same picture: the live
@@ -216,7 +267,7 @@ export async function GET(request) {
   try {
     const access = await requireSession(request); if (access.error) return access.error;
     const denied = await requirePortalResource(access, "staff.projects.tracker"); if (denied) return denied;
-    const [eligible, entries] = await Promise.all([eligibleProjects(access), ownEntries(access)]);
+    const [eligible, entryEligible, entries] = await Promise.all([eligibleProjects(access), eligibleProjects(access, access.user.id, true), ownEntries(access)]);
 
     // ?projectId=<uuid> additionally returns the shared team board for that one
     // project. Omitted => unchanged legacy response, so existing callers and any
@@ -230,7 +281,7 @@ export async function GET(request) {
       board = team;
     }
 
-    return Response.json({ ready: eligible.available && entries.available, eligibleProjects: eligible.projects, entries: entries.entries, board });
+    return Response.json({ ready: eligible.available && entryEligible.available && entries.available, eligibleProjects: eligible.projects, entryProjects: entryEligible.projects, entries: entries.entries, board });
   } catch (error) { return serverError(error); }
 }
 
@@ -242,16 +293,20 @@ export async function GET(request) {
 // the request or needing try/catch gymnastics around Response objects.
 export async function createTrackerEntry(access, input, targetStaffUserId = access.user.id) {
   const isOnBehalf = targetStaffUserId !== access.user.id;
+  const allowOtherProject = !isOnBehalf && input?.entryContext === "other_project";
   const projectId = String(input?.projectId || ""); const sourceId = String(input?.sourceId || ""); const allocationId = String(input?.allocationId || ""); const activityId = String(input?.activityId || "");
   const workDate = text(input?.workDate, 10); const activityCategory = text(input?.activityCategory, 120); const activityInformation = text(input?.activityInformation, 5000); const notableIssues = text(input?.notableIssues, 5000); const amount = hours(input?.hours); const status = String(input?.status || "");
   if (!validId(projectId) || !validId(sourceId) || !validId(allocationId)) return { error: "Choose an eligible project, budget source and allocation.", status: 400 };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) return { error: "Work date, activity category, activity information, hours and a valid status are required.", status: 400 };
   if (status !== "not_commenced" && amount <= 0) return { error: "Active, paused and completed entries must record positive hours.", status: 400 };
 
-  const eligibility = await eligibleProjects(access, targetStaffUserId);
+  const eligibility = await eligibleProjects(access, targetStaffUserId, allowOtherProject);
   if (!eligibility.available) return { error: "Project Tracker entries are awaiting the approved tracker migration.", status: 409 };
   const project = eligibility.projects.find((item) => item.id === projectId);
-  if (!project) return { error: isOnBehalf ? "This Project Tracker is not enabled, or this staff member has no active allocation on it, or its template is not locked." : "This Project Tracker is not enabled, allocated to you, or its template is not locked.", status: 403 };
+  if (!project) return { error: isOnBehalf ? "This Project Tracker is not enabled, or this staff member has no active allocation on it, or its template is not locked." : "This Project Tracker is not enabled, allocated to you, or its template is not locked. To log ad hoc work, choose Other active project first.", status: 403 };
+  const isOtherProjectEntry = project.isAssigned !== true;
+  if (isOtherProjectEntry && !allowOtherProject) return { error: "Choose Other active project before recording time for a project you are not allocated to.", status: 403 };
+  if (isOtherProjectEntry && activityId) return { error: "Ad hoc project time cannot be linked to another staff member's assigned activity. Record it as general project work instead.", status: 403 };
   const source = project.sources.find((item) => item.id === sourceId);
   const allocation = source?.allocations.find((item) => item.id === allocationId);
   if (!source || !allocation) return { error: "Choose an active staff-visible budget allocation for this project.", status: 403 };
@@ -281,32 +336,24 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
   const { data: entry, error: entryError } = await access.admin.from("project_tracker_entries").insert({ project_id: projectId, budget_source_id: sourceId, budget_allocation_id: allocationId, activity_id: linkedActivity?.id || null, staff_user_id: targetStaffUserId, entered_by_admin_id: isOnBehalf ? access.user.id : null, work_date: workDate, activity_category: activityCategory, activity_information: activityInformation, hours: amount, status, notable_issues: notableIssues || null, custom_data: customData, created_at: now, updated_at: now }).select("id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at").single();
   if (entryError) return { error: entryError.message, status: 400 };
 
-    const { data: entryRows, error: sumError } = await access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000);
-    if (sumError) return { error: `Entry was saved, but allocation consumption could not be calculated: ${sumError.message}`, status: 500 };
-    const consumed = (entryRows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
+  if (isOtherProjectEntry) {
+    const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
+      project_id: projectId,
+      tracker_entry_id: entry.id,
+      action: "ad_hoc_entered",
+      reason: "Staff recorded an ad hoc time entry for work completed outside their current project allocation.",
+      before_data: {},
+      after_data: entry,
+      performed_by: access.user.id,
+    });
+    if (auditError) return { error: `Entry was saved, but its ad hoc time audit record could not be saved: ${auditError.message}`, status: 500 };
+  }
 
-    // charge_out_spend used to be a purely manual admin figure, never touched
-    // by actual logged time — this is what caused it to sit static while
-    // hours_consumed correctly updated on every entry. Now computed the same
-    // way: each entry's hours priced at that staff member's rate on this
-    // project, summed, so it's a genuine live feed from timesheet activity.
-    const { data: projectRates } = await access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId);
-    const { data: projectDefault } = await access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle();
-    const rateByStaff = new Map((projectRates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
-    const defaultRate = Number(projectDefault?.default_hourly_rate) || 0;
-    const chargeOutSpend = (entryRows || []).reduce((sum, row) => {
-      // New project team members without a specific rate are charged at the
-      // project's Ecologist default instead of silently recording $0 spend.
-      const rate = rateByStaff.get(row.staff_user_id) || defaultRate;
-      return sum + Number(row.hours || 0) * rate;
-    }, 0);
-
-    // The Health Report uses two intentionally different measures: quote-rate
-    // spend for budget remaining, and a 60%-of-quote-rate delivery cost for
-    // estimated profitability. Recalculate both on every tracker submission.
-    const internalCost = chargeOutSpend * 0.6;
-    const { error: allocationError } = await access.admin.from("project_budget_allocations").update({ hours_consumed: consumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, internal_cost: Math.round(internalCost * 100) / 100, updated_by: access.user.id, updated_at: now }).eq("id", allocationId).eq("project_id", projectId);
-    if (allocationError) return { error: `Entry was saved, but allocation consumption could not be updated: ${allocationError.message}`, status: 500 };
+    try {
+      await refreshTrackerAllocation(access, projectId, allocationId);
+    } catch (refreshError) {
+      return { error: `Entry was saved, but allocation consumption could not be updated: ${refreshError.message}`, status: 500 };
+    }
 
     if (linkedActivity) {
       const nextProgress = status === "completed" ? 100 : Number(linkedActivity.progress_percent || 0);
@@ -351,5 +398,88 @@ export async function POST(request) {
     const result = await createTrackerEntry(access, body);
     if (result.error) return jsonError(result.error, result.status || 400);
     return Response.json(result, { status: 201 });
+  } catch (error) { return serverError(error); }
+}
+
+// Staff can correct only their own submitted tracker rows. The original and
+// corrected values are retained in the immutable tracker audit table, then the
+// allocation position is recalculated so project reporting stays accurate.
+export async function PATCH(request) {
+  try {
+    const access = await requireSession(request); if (access.error) return access.error;
+    const denied = await requirePortalResource(access, "staff.projects.tracker"); if (denied) return denied;
+    const body = await request.json();
+    const id = String(body?.id || "");
+    if (!validId(id)) return jsonError("A valid tracker entry is required.");
+
+    const { data: current, error: currentError } = await access.admin.from("project_tracker_entries")
+      .select("id, project_id, budget_allocation_id, staff_user_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data")
+      .eq("id", id).maybeSingle();
+    if (currentError) return jsonError(currentError.message);
+    if (!current || current.staff_user_id !== access.user.id) return jsonError("Your tracker entry was not found.", 404);
+
+    const workDate = text(body?.workDate, 10);
+    const activityCategory = text(body?.activityCategory, 120);
+    const activityInformation = text(body?.activityInformation, 5000);
+    const notableIssues = text(body?.notableIssues, 5000);
+    const amount = hours(body?.hours);
+    const status = String(body?.status || "");
+    const customData = body?.customData && typeof body.customData === "object" && !Array.isArray(body.customData) ? body.customData : current.custom_data || {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) {
+      return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
+    }
+    if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
+
+    const now = new Date().toISOString();
+    const { data: entry, error: updateError } = await access.admin.from("project_tracker_entries").update({
+      work_date: workDate,
+      activity_category: activityCategory,
+      activity_information: activityInformation,
+      hours: amount,
+      status,
+      notable_issues: notableIssues || null,
+      custom_data: customData,
+      updated_at: now,
+    }).eq("id", id).select("id, project_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at").single();
+    if (updateError) return jsonError(updateError.message);
+
+    const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
+      project_id: current.project_id,
+      tracker_entry_id: id,
+      action: "staff_corrected",
+      reason: "Staff self-correction recorded through the Staff Portal.",
+      before_data: current,
+      after_data: entry,
+      performed_by: access.user.id,
+    });
+    if (auditError) return jsonError(`Entry was corrected but its mandatory audit record could not be saved: ${auditError.message}`, 500);
+
+    try {
+      await refreshTrackerAllocation(access, current.project_id, current.budget_allocation_id);
+    } catch (refreshError) {
+      return jsonError(`Entry was corrected, but allocation totals could not be refreshed: ${refreshError.message}`, 500);
+    }
+    if (current.activity_id) {
+      await access.admin.from("project_activities").update({
+        status,
+        progress_percent: status === "completed" ? 100 : undefined,
+        pause_reason: status === "paused_other" ? notableIssues || null : null,
+        updated_at: now,
+      }).eq("id", current.activity_id).eq("staff_user_id", access.user.id);
+    }
+    const { data: owner } = await access.admin.from("projects").select("created_by, name").eq("id", current.project_id).maybeSingle();
+    if (owner?.created_by && owner.created_by !== access.user.id) {
+      await access.admin.from("portal_events").insert({
+        recipient_id: owner.created_by,
+        event_type: "project_tracker_entry_updated",
+        severity: status === "paused_other" ? "action_required" : "information",
+        title: `Staff corrected a Project Tracker entry: ${owner.name || "Project"}`,
+        body: `${activityCategory} · ${amount} hours · ${workDate}. The original and correction are retained in the tracker audit trail.`,
+        href: "/?workspace=adminprojects",
+        source_table: "project_tracker_entries",
+        source_id: id,
+      });
+    }
+    return Response.json({ entry: { id: entry.id, projectId: entry.project_id, workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, updatedAt: entry.updated_at } });
   } catch (error) { return serverError(error); }
 }

@@ -10,6 +10,7 @@ import {
   ListChecks,
   Loader2,
   PauseCircle,
+  Pencil,
   PlayCircle,
   Plus,
   TrendingUp,
@@ -152,6 +153,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     accessTokenRef.current = session?.access_token || "";
   }, [session?.access_token]);
   const [projects, setProjects] = useState([]);
+  const [entryProjects, setEntryProjects] = useState([]);
   const [entries, setEntries] = useState([]);
   const [assignedActivities, setAssignedActivities] = useState([]);
   const [form, setForm] = useState(() => blankForm(null));
@@ -162,6 +164,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const [loading, setLoading] = useState(true);
   const [boardLoading, setBoardLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [activitySavingId, setActivitySavingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -178,9 +181,14 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     () => projects.find((project) => project.id === form.projectId) || null,
     [projects, form.projectId],
   );
+  const entryProject = useMemo(
+    () => entryProjects.find((project) => project.id === form.projectId) || selected,
+    [entryProjects, selected, form.projectId],
+  );
+  const detailProject = selected || entryProject;
   const selectedSource = useMemo(
-    () => selected?.sources?.find((source) => source.id === form.sourceId) || null,
-    [selected, form.sourceId],
+    () => entryProject?.sources?.find((source) => source.id === form.sourceId) || null,
+    [entryProject, form.sourceId],
   );
   const selectedAllocation = useMemo(
     () => selectedSource?.allocations?.find((allocation) => allocation.id === form.allocationId) || null,
@@ -218,7 +226,9 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       const activitiesBody = await activitiesResponse.json().catch(() => ({}));
       if (!trackerResponse.ok) throw new Error(trackerBody.error || "Could not load your Project Tracker.");
       const nextProjects = trackerBody.eligibleProjects || [];
+      const nextEntryProjects = trackerBody.entryProjects || nextProjects;
       setProjects(nextProjects);
+      setEntryProjects(nextEntryProjects);
       setEntries(trackerBody.entries || []);
       setAssignedActivities((activitiesBody.activities || [])
         .map(normaliseActivity)
@@ -226,10 +236,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       setReady(Boolean(trackerBody.ready));
       setForm((current) => {
         const initial = nextProjects.find((project) => project.id === initialProjectId);
-        const stillSelected = nextProjects.find((project) => project.id === current.projectId);
+        const stillSelected = nextEntryProjects.find((project) => project.id === current.projectId);
         const savedProjectId = readTrackerLocation().projectId;
-        const saved = nextProjects.find((project) => project.id === savedProjectId);
-        return blankForm(stillSelected || initial || saved || nextProjects[0]);
+        const saved = nextEntryProjects.find((project) => project.id === savedProjectId);
+        return blankForm(stillSelected || initial || saved || nextProjects[0] || nextEntryProjects[0]);
       });
     } catch (loadError) {
       setError(loadError.message || "Could not load your Project Tracker.");
@@ -241,12 +251,16 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadBoard(form.projectId); }, [loadBoard, form.projectId]);
   useEffect(() => {
+    if (detailProject?.isAssigned === false && !["entry", "history"].includes(activeTab)) setActiveTab("entry");
+  }, [activeTab, detailProject?.isAssigned]);
+  useEffect(() => {
     writeTrackerLocation(form.projectId, activeTab);
   }, [form.projectId, activeTab]);
 
   const setProject = (projectId) => {
     const project = projects.find((item) => item.id === projectId);
     setForm(blankForm(project));
+    setEditingEntry(null);
     setActiveTab("overview");
     setActivityDrafts({});
     writeTrackerLocation(projectId, "overview");
@@ -281,7 +295,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const projectDeliverables = (selected?.sources || []).map((source) => source.source_name).filter(Boolean);
 
   const submit = async () => {
-    if (!selected || !selectedSource || !selectedAllocation) {
+    if (!entryProject || !selectedSource || !selectedAllocation) {
       setError("Choose a project budget source and allocation.");
       return;
     }
@@ -293,9 +307,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     setError("");
     try {
       const response = await fetch("/api/project-tracker-entries", {
-        method: "POST",
+        method: editingEntry ? "PATCH" : "POST",
         headers: headers(),
         body: JSON.stringify({
+          id: editingEntry?.id,
           projectId: form.projectId,
           sourceId: form.sourceId,
           allocationId: form.allocationId,
@@ -307,20 +322,53 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
           status: form.status,
           notableIssues: form.notableIssues,
           customData: form.customData,
+          entryContext: entryProject.isAssigned === false ? "other_project" : "assigned_project",
         }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "Could not save the Project Tracker entry.");
-      setEntries((current) => [body.entry, ...current]);
-      setForm(blankForm(selected));
+      if (!response.ok) throw new Error(body.error || `Could not ${editingEntry ? "correct" : "save"} the Project Tracker entry.`);
+      setEditingEntry(null);
+      setForm(blankForm(entryProject));
       await Promise.all([loadBoard(form.projectId), load()]);
-      setMessage("Timesheet entry saved. Your hours, work status and the project schedule have been updated.");
+      setMessage(editingEntry ? "Timesheet correction saved. The original and corrected values are retained in the audit trail." : entryProject.isAssigned === false ? "Ad hoc project time saved. It has been recorded against a controlled allocation and retained in the audit trail." : "Timesheet entry saved. Your hours, work status and the project schedule have been updated.");
       setTimeout(() => setMessage(""), 4500);
     } catch (saveError) {
-      setError(saveError.message || "Could not save the Project Tracker entry.");
+      setError(saveError.message || `Could not ${editingEntry ? "correct" : "save"} the Project Tracker entry.`);
     } finally {
       setSaving(false);
     }
+  };
+
+  const editEntry = (entry) => {
+    const project = entryProjects.find((item) => item.id === entry.projectId);
+    if (!project) {
+      setError("This project is no longer available for time entry. Ask the Project Manager to restore the controlled tracker settings if needed.");
+      return;
+    }
+    setForm({
+      ...blankForm(project),
+      projectId: entry.projectId,
+      sourceId: entry.sourceId || project.sources?.[0]?.id || "",
+      allocationId: entry.allocationId || project.sources?.[0]?.allocations?.[0]?.id || "",
+      activityId: entry.activityId || "",
+      workDate: entry.workDate || localToday(),
+      category: entry.category || project.template?.category_options?.[0] || "",
+      information: entry.information || "",
+      hours: entry.hours ?? "",
+      status: entry.status || "not_commenced",
+      notableIssues: entry.notableIssues || "",
+      customData: entry.customData || {},
+    });
+    setEditingEntry(entry);
+    setActiveTab("entry");
+    setError("");
+    setMessage("Editing your saved entry. Saving keeps the original and corrected values in the audit trail.");
+  };
+
+  const cancelEdit = () => {
+    setEditingEntry(null);
+    setForm(blankForm(selected || entryProjects[0]));
+    setActiveTab("history");
   };
 
   const draftFor = (activity) => activityDrafts[activity.id] || {
@@ -385,8 +433,8 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       {error ? <div className="st-error" role="alert"><AlertCircle size={16} /> {error}</div> : null}
       {message ? <div className="st-success" role="status"><CheckCircle2 size={16} /> {message}</div> : null}
 
-      {!projects.length ? (
-        <div className="st-empty"><ClipboardList size={22} /><strong>No Project Tracker is available yet</strong><span>When you are assigned to an active project with a staff-visible tracker, it will appear here.</span></div>
+      {!projects.length && !entryProjects.length ? (
+        <div className="st-empty"><ClipboardList size={22} /><strong>No Project Tracker is available yet</strong><span>When an active project has a staff-visible tracker and controlled allocation, it will appear here.</span></div>
       ) : (
         <div className="st-project-layout">
           <aside className="st-project-list" aria-label="My active projects">
@@ -402,17 +450,18 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 </button>
               );
             })}
+            {!projects.length ? <p className="st-project-list-note">No allocated projects yet. Use <strong>Add timesheet entry</strong> to log genuine ad hoc time against an available controlled project.</p> : null}
           </aside>
 
           <section className="st-project-detail">
-            {selected ? (
+            {detailProject ? (
               <>
                 <header className="st-project-heading">
-                  <h2>{selected.name}</h2>
+                  <h2>{detailProject.name}</h2>
                 </header>
 
                 <nav className="st-detail-tabs" role="tablist" aria-label="Project Tracker sections">
-                  {TABS.map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "selected" : ""} onClick={() => setActiveTab(id)}><Icon size={15} /> {label}</button>)}
+                  {TABS.filter((tab) => detailProject.isAssigned !== false || ["entry", "history"].includes(tab.id)).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "selected" : ""} onClick={() => setActiveTab(id)}><Icon size={15} /> {label}</button>)}
                 </nav>
 
                 {activeTab === "overview" ? (
@@ -466,31 +515,33 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
 
                 {activeTab === "entry" ? (
                   <section className="st-section-card st-entry-card">
-                    <div className="st-section-head"><div><span className="st-kicker"><Plus size={13} /> New timesheet entry</span><h3>Record project activity</h3><p>Save your actual hours against a controlled allocation. If you select an assigned work activity, its status and linked project schedule are updated at the same time.</p></div><span className="st-template-lock"><CheckCircle2 size={14} /> Locked template</span></div>
+                    <div className="st-section-head"><div><span className="st-kicker">{editingEntry ? <Pencil size={13} /> : <Plus size={13} />} {editingEntry ? "Correct saved timesheet" : "New timesheet entry"}</span><h3>{editingEntry ? "Correct your recorded time" : "Record project activity"}</h3><p>{editingEntry ? "You can correct your own saved entry. The original and corrected values remain in the controlled audit trail." : "Save your actual hours against a controlled allocation. For work on an unassigned project, select Other active project and record general project work only."}</p></div><span className="st-template-lock"><CheckCircle2 size={14} /> Locked template</span></div>
+                    {entryProject?.isAssigned === false ? <div className="st-ad-hoc-note"><AlertCircle size={15} /><span><strong>Other active project:</strong> this is an ad hoc time entry. It cannot be linked to another staff member’s activity and is retained in the tracker audit trail for Project Manager review.</span></div> : null}
                     <div className="st-form-grid">
+                      <label className="st-wide">Timesheet project<select value={form.projectId} disabled={Boolean(editingEntry)} onChange={(event) => { const project = entryProjects.find((item) => item.id === event.target.value); setForm((current) => ({ ...blankForm(project), workDate: current.workDate })); setEditingEntry(null); }}>{entryProjects.map((project) => <option key={project.id} value={project.id}>{project.isAssigned ? "Assigned project · " : "Other active project · "}{project.name}</option>)}</select><small className="st-activity-hint">Other active projects are available for genuine ad hoc time only; they do not grant project-board or activity access.</small></label>
                       <label>Work date<input type="date" value={form.workDate} onChange={(event) => setField("workDate", event.target.value)} /></label>
                       <label>Staff member<span className="st-readonly"><UserRound size={13} /> {staffName}</span></label>
-                      <label className="st-wide">Assigned project activity<select value={form.activityId} onChange={(event) => {
+                      <label className="st-wide">Assigned project activity<select value={form.activityId} disabled={entryProject?.isAssigned === false || Boolean(editingEntry)} onChange={(event) => {
                         const activity = projectActivities.find((item) => item.id === event.target.value);
                         setForm((current) => ({ ...current, activityId: event.target.value, category: activity?.taskCategory || current.category, information: activity?.title || "", status: activity?.status || current.status }));
-                      }}><option value="">General project work (not linked to an activity)</option>{projectActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.dueDate ? ` · Due ${formatDate(activity.dueDate)}` : ""}</option>)}</select><small className="st-activity-hint">Use the Work activities tab to update a task without logging time.</small></label>
-                      <label>Budget source<select value={form.sourceId} onChange={(event) => { const source = selected?.sources?.find((item) => item.id === event.target.value); setForm((current) => ({ ...current, sourceId: event.target.value, allocationId: source?.allocations?.[0]?.id || "" })); }}>{selected?.sources?.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}</option>)}</select></label>
-                      <label>Budget allocation<select value={form.allocationId} onChange={(event) => setField("allocationId", event.target.value)}>{selectedSource?.allocations?.map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label>
-                      <label>Activity category<select value={form.category} onChange={(event) => setField("category", event.target.value)}>{selected?.template?.category_options?.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                      }}><option value="">General project work (not linked to an activity)</option>{entryProject?.isAssigned !== false ? projectActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.dueDate ? ` · Due ${formatDate(activity.dueDate)}` : ""}</option>) : null}</select><small className="st-activity-hint">Use the Work activities tab to update a task without logging time.</small></label>
+                      <label>Budget source<select value={form.sourceId} disabled={Boolean(editingEntry)} onChange={(event) => { const source = entryProject?.sources?.find((item) => item.id === event.target.value); setForm((current) => ({ ...current, sourceId: event.target.value, allocationId: source?.allocations?.[0]?.id || "" })); }}>{entryProject?.sources?.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}</option>)}</select></label>
+                      <label>Budget allocation<select value={form.allocationId} disabled={Boolean(editingEntry)} onChange={(event) => setField("allocationId", event.target.value)}>{selectedSource?.allocations?.map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label>
+                      <label>Activity category<select value={form.category} onChange={(event) => setField("category", event.target.value)}>{entryProject?.template?.category_options?.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
                       <label>Hours<input inputMode="decimal" type="number" min="0.1" max="24" step="0.1" value={form.hours} onChange={(event) => setField("hours", event.target.value)} placeholder="0.0" /></label>
                       <label>Work status<select value={form.status} className={`st-status-select ${STATUS[form.status]?.tone || ""}`} onChange={(event) => setField("status", event.target.value)}>{Object.entries(STATUS).map(([value, status]) => <option key={value} value={value}>{status.label}</option>)}</select></label>
                       <label className="st-wide">Activity information<textarea rows={3} value={form.information} onChange={(event) => setField("information", event.target.value)} placeholder="Describe the work completed or planned, including the relevant output, location, file or client matter." /></label>
                       <label className="st-wide">Notable issues<textarea rows={2} value={form.notableIssues} onChange={(event) => setField("notableIssues", event.target.value)} placeholder="Record constraints, risks, blocked work or decisions needed; leave blank if there are none." /></label>
-                      {(selected?.template?.customColumns || []).map((column) => <CustomField key={column.key} column={column} value={form.customData?.[column.key] || ""} setValue={(value) => setField("customData", { ...form.customData, [column.key]: value })} />)}
+                      {(entryProject?.template?.customColumns || []).map((column) => <CustomField key={column.key} column={column} value={form.customData?.[column.key] || ""} setValue={(value) => setField("customData", { ...form.customData, [column.key]: value })} />)}
                     </div>
-                    <div className="st-entry-actions"><span className={`st-status-preview ${STATUS[form.status]?.tone || ""}`}>{form.status === "completed" ? <CheckCircle2 size={15} /> : form.status === "active" ? <PlayCircle size={15} /> : form.status === "paused_other" ? <PauseCircle size={15} /> : <Clock3 size={15} />} {STATUS[form.status]?.label}</span><button type="button" onClick={submit} disabled={saving}>{saving ? <><Loader2 size={15} className="spin" /> Saving…</> : <><Plus size={15} /> Save timesheet entry</>}</button></div>
+                    <div className="st-entry-actions"><span className={`st-status-preview ${STATUS[form.status]?.tone || ""}`}>{form.status === "completed" ? <CheckCircle2 size={15} /> : form.status === "active" ? <PlayCircle size={15} /> : form.status === "paused_other" ? <PauseCircle size={15} /> : <Clock3 size={15} />} {STATUS[form.status]?.label}</span><div>{editingEntry ? <button type="button" className="st-cancel-edit" onClick={cancelEdit} disabled={saving}>Cancel</button> : null}<button type="button" onClick={submit} disabled={saving}>{saving ? <><Loader2 size={15} className="spin" /> Saving…</> : editingEntry ? <><Pencil size={15} /> Save correction</> : <><Plus size={15} /> Save timesheet entry</>}</button></div></div>
                   </section>
                 ) : null}
 
                 {activeTab === "history" ? (
                   <section className="st-section-card st-history">
-                    <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Your audit history</span><h3>Timesheet history</h3><p>Your saved Project Tracker entries for this project. These are your own records and do not expose commercial project information.</p></div></div>
-                    {myHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th></tr></thead><tbody>{myHistory.slice(0, 100).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>You have not recorded a timesheet entry for this project yet.</span></div>}
+                    <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Your audit history</span><h3>Timesheet history</h3><p>Your saved Project Tracker entries for this project. You can edit your own entry; each correction preserves the original values in the audit trail.</p></div></div>
+                    {myHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th><th>Action</th></tr></thead><tbody>{myHistory.slice(0, 100).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td><td><button type="button" className="st-edit-entry" onClick={() => editEntry(entry)}><Pencil size={12} /> Edit entry</button></td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>You have not recorded a timesheet entry for this project yet.</span></div>}
                   </section>
                 ) : null}
 

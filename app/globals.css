@@ -19579,3 +19579,53 @@ main {
 @media (max-width: 900px) { .ld-admin-hero,.sdv-hero,.sdv-layout,.lm-assurance { grid-template-columns: 1fr; }.ld-cycle { max-width: 660px; }.ld-admin-summary { grid-template-columns: repeat(3, 1fr); }.ld-admin-summary p { grid-column: 1 / -1; }.lm-hero { flex-direction: column; }.lm-hero aside { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }.learning-assignment-card { grid-template-columns: 1fr; }.learning-assignment-card aside { max-width: 560px; }.sdv-list { max-height: none; }.sdv-player-panel { min-height: 0; }.sdv-loading,.sdv-empty-player { min-height: 320px; } }
 @media (max-width: 680px) { .admin-learning-library,.lm-detail,.sdv { width: min(100% - 28px, 1240px); }.ld-admin-hero,.sdv-hero { padding: 25px 21px; }.ld-cycle { grid-template-columns: 1fr; gap: 6px; }.ld-cycle li,.ld-cycle li:first-child,.ld-cycle li:last-child { min-height: 0; border: 1px solid rgba(238, 247, 230, .2); border-radius: 8px; }.ld-cycle li:not(:last-child)::after { display: none; }.ld-cycle li { display: grid; grid-template-columns: 25px auto 1fr; align-items: center; gap: 7px; }.ld-cycle span { margin: 0; }.ld-cycle small { margin: 0; }.ld-admin-summary { grid-template-columns: 1fr; }.ld-admin-summary p { grid-column: auto; }.ld-library-panel { padding: 15px; }.ld-library-panel__head { align-items: flex-start; flex-direction: column; }.ld-create-kinds,.ld-create-fields,.lm-identity-grid,.lm-fields,.lm-boundaries,.sdv-guidance { grid-template-columns: 1fr; }.ld-create-fields { gap: 7px; }.ld-node { align-items: flex-start; }.ld-node-actions { flex-wrap: wrap; max-width: 72px; justify-content: flex-end; }.lm-assurance { gap: 12px; }.lm-flow { align-items: flex-start; overflow-x: auto; padding-bottom: 4px; }.lm-flow li { flex: 0 0 auto; }.lm-flow li svg { display: none; }.lm-flow li > span { width: 22px; height: 22px; }.lm-flow strong { font-size: 10px; }.lm-savebar { align-items: stretch; flex-direction: column; }.lm-savebar button { justify-content: center; }.learning-assignments { padding: 15px; }.learning-assignments__create { grid-template-columns: 1fr; }.learning-assignments__create button { grid-column: auto; }.learning-assignment-card__actions { flex-direction: column; }.sdv-controls { align-items: stretch; flex-direction: column; }.sdv-controls p { margin: 0; }.sdv-controls > button { justify-content: center; }.sdv-list article { grid-template-columns: minmax(0, 1fr) auto; }.sdv-player-copy { padding: 15px; } }
 @media (prefers-reduced-motion: reduce) { .sdv-list article { transition: none; } }
+
+
+/* Staff Project Tracker — self-correction and controlled ad hoc time entry */
+.st-ad-hoc-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 13px;
+  border: 1px solid rgba(231, 201, 121, .42);
+  border-left: 3px solid #e7c979;
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: #eadb9a;
+  background: rgba(147, 101, 18, .18);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.st-ad-hoc-note svg { flex: 0 0 auto; color: #f0cd70; margin-top: 1px; }
+.st-ad-hoc-note strong { color: #fff2c9; }
+.st-entry-actions > div { display: flex; gap: 8px; align-items: center; }
+.st-entry-actions .st-cancel-edit {
+  border: 1px solid rgba(231, 201, 121, .4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e8d68b;
+  background: transparent;
+  font: 800 11px "Archivo", sans-serif;
+  cursor: pointer;
+}
+.st-edit-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(231, 201, 121, .45);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #f0d985;
+  background: rgba(231, 201, 121, .09);
+  font: 800 10px "Archivo", sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.st-edit-entry:hover,
+.st-entry-actions .st-cancel-edit:hover { color: #12331d; background: #e7c979; }
+.st-project-list-note { margin: 12px; color: #bfd2ba; font-size: 11px; line-height: 1.5; }
+.st-project-list-note strong { color: #ead484; }
+@media (max-width: 560px) {
+  .st-entry-actions > div { width: 100%; flex-direction: column-reverse; }
+  .st-entry-actions .st-cancel-edit { width: 100%; }
+}
