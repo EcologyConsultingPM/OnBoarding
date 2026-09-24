@@ -25,6 +25,24 @@ import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
 // consistent categories. This keeps the tracker usable across projects while
 // the generated activity title tells a worker exactly what the time relates to.
 const TASK_CATEGORIES = TIME_CATEGORIES;
+const MANUAL_ACTIVITY_DELIVERABLE = "__manual_work_activities__";
+const createBlankActivity = (deliverableId = "") => ({
+  staffUserId: "",
+  taskCategory: "",
+  title: "",
+  detail: "",
+  budgetHours: "",
+  dueDate: "",
+  startDate: "",
+  milestone: false,
+  scheduleItemId: "",
+  deliverableId,
+  status: "not_commenced",
+  acceptanceStatus: "awaiting_response",
+  responseNote: "",
+  progressPercent: 0,
+  locked: false,
+});
 const BLANK_PROJECT = {
   name: "",
   clientName: "",
@@ -610,6 +628,11 @@ function ProjectDetail({
     if (key === "schedule") setScheduleExpanded(true);
     window.requestAnimationFrame(() => stageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
+  const deliverableTypeLabel = (deliverable) => {
+    if (deliverable.deliverable_type === "from_quote") return "From quote";
+    if (deliverable.deliverable_type === "other_manual_activities") return "Other — manual work activities";
+    return deliverable.deliverable_type || "Custom";
+  };
 
   useEffect(() => {
     auth("GET", "/api/deliverable-templates")
@@ -622,6 +645,24 @@ function ProjectDetail({
     if (!quickAddTemplateId) { fail("Choose a deliverable template first."); return; }
     setQuickAddBusy(true);
     try {
+      if (quickAddTemplateId === MANUAL_ACTIVITY_DELIVERABLE) {
+        const title = quickAddTitle.trim() || "Other — manual work activities";
+        const res = await auth("POST", `/api/projects/${projectId}/deliverables`, {
+          title,
+          deliverableType: "other_manual_activities",
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error);
+        setDeliverables((current) => [...current, d.deliverable]);
+        setActivities((current) => current.some((activity) => activity.title?.trim())
+          ? current
+          : [...current, createBlankActivity(d.deliverable.id)]);
+        setQuickAddTemplateId("");
+        setQuickAddTitle("");
+        notify("Other selected — enter the project’s custom work activities in the next step.");
+        goToStage("activities");
+        return;
+      }
       const res = await auth("POST", `/api/projects/${projectId}/deliverables`, {
         templateId: quickAddTemplateId,
         title: quickAddTitle.trim() || undefined,
@@ -1209,6 +1250,7 @@ function ProjectDetail({
               <select value={quickAddTemplateId} onChange={(e) => setQuickAddTemplateId(e.target.value)} style={{ minWidth: 220 }}>
                 <option value="">Select a deliverable…</option>
                 {deliverableTemplates.map((t) => <option key={t.id} value={t.id}>{t.name} ({wbsForDeliverable(t.code, t.standard_activities || []).length} activities)</option>)}
+                <option value={MANUAL_ACTIVITY_DELIVERABLE}>Other — enter work activities manually</option>
               </select>
               <input
                 type="text"
@@ -1218,9 +1260,10 @@ function ProjectDetail({
                 style={{ minWidth: 200 }}
               />
               <button type="button" className="aps-secondary" onClick={quickAddFromTemplate} disabled={quickAddBusy || !quickAddTemplateId}>
-                <ClipboardList size={13} /> {quickAddBusy ? "Generating…" : "Generate activities"}
+                <ClipboardList size={13} /> {quickAddBusy ? "Saving…" : quickAddTemplateId === MANUAL_ACTIVITY_DELIVERABLE ? "Continue to work activities" : "Generate activities"}
               </button>
             </div>
+            {quickAddTemplateId === MANUAL_ACTIVITY_DELIVERABLE ? <p className="aps-manual-deliverable-choice">Use this option when no standard deliverable applies. It creates an <strong>Other</strong> deliverable without a generated checklist, then opens Work Activities with a blank row ready for your project-specific activity.</p> : null}
           </div>
         ) : null}
         {deliverables.length ? (
@@ -1231,7 +1274,7 @@ function ProjectDetail({
                 <div key={d.id} className="aps-deliverable-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, background: "#0f2a1a", marginBottom: 8 }}>
                   <div>
                     <strong style={{ color: "#fffdf8" }}>{d.title}</strong>
-                    <div style={{ color: "#9db894", fontSize: 11.5 }}>{d.deliverable_type === "from_quote" ? "From quote" : (d.deliverable_type || "Custom")} · {linkedCount} activit{linkedCount === 1 ? "y" : "ies"}{d.due_date ? ` · Due ${d.due_date}` : ""}</div>
+                    <div style={{ color: "#9db894", fontSize: 11.5 }}>{deliverableTypeLabel(d)} · {linkedCount} activit{linkedCount === 1 ? "y" : "ies"}{d.due_date ? ` · Due ${d.due_date}` : ""}</div>
                   </div>
                   <span style={{ color: "#cfe0c8", fontSize: 11, textTransform: "uppercase", letterSpacing: ".03em" }}>{(d.status || "not_started").replaceAll("_", " ")}</span>
                 </div>
@@ -1239,7 +1282,7 @@ function ProjectDetail({
             })}
           </div>
         ) : (
-          <p className="aps-note">No deliverables added yet. Choose a template above to define the project outputs and generate their standard work activities.</p>
+          <p className="aps-note">No deliverables added yet. Choose a template to generate a standard work breakdown, or choose <strong>Other</strong> to enter project-specific work activities yourself in the next step.</p>
         )}
       </section> : null}
 
@@ -1263,6 +1306,7 @@ function ProjectDetail({
           hours and delivery dates. This remains a draft until Senior Ecologist
           approval is recorded in the final stage.
         </p>
+        {deliverables.some((deliverable) => deliverable.deliverable_type === "other_manual_activities") ? <p className="aps-manual-activity-note"><strong>Custom activity plan:</strong> enter the project-specific work activities below. You can add, reorder and remove rows before allocating staff, hours and dates.</p> : null}
         {activities.map((row, i) => (
           <div
             key={i}
@@ -1420,22 +1464,7 @@ function ProjectDetail({
           onClick={() =>
             setActivities([
               ...activities,
-              {
-                staffUserId: "",
-                taskCategory: "",
-                title: "",
-                detail: "",
-                budgetHours: "",
-                dueDate: "",
-                startDate: "",
-                milestone: false,
-                scheduleItemId: "",
-                status: "not_commenced",
-                acceptanceStatus: "awaiting_response",
-                responseNote: "",
-                progressPercent: 0,
-                locked: false,
-              },
+              createBlankActivity(deliverables.find((deliverable) => deliverable.deliverable_type === "other_manual_activities")?.id || ""),
             ])
           }
         >

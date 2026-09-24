@@ -19936,3 +19936,25 @@ main {
 .efs__prereq-block li,
 .efs__cross-block li,
 .efs__emergency-block li { margin: 4px 0; font-size: 12px; line-height: 1.45; }
+
+
+/* Project setup — Other manual work-activity path */
+.aps-manual-deliverable-choice,
+.aps-manual-activity-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #d6c071;
+  border-left: 4px solid #c79a2c;
+  border-radius: 8px;
+  background: #fff8df;
+  color: #5b4516;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.aps-manual-activity-note {
+  margin: 0 0 14px;
+  border-color: #adc9b1;
+  border-left-color: #397650;
+  background: #f0f8f0;
+  color: #294d35;
+}

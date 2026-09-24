@@ -75,6 +75,7 @@ function assignmentSignature(activity) {
 function contentSignature(row) {
   return [
     (row.staff_user_id ?? row.staffUserId) || "",
+    (row.deliverable_id ?? row.deliverableId) || "",
     String(row.title || "").trim().toLowerCase(),
     (row.detail ?? opt(row.detail)) || "",
     (row.due_date ?? dueDate(row.dueDate)) || "",
@@ -91,6 +92,7 @@ function planIdentity(row) {
   return [
     Number(row.sort_order ?? row.sortOrder) || 0,
     (row.staff_user_id ?? row.staffUserId) || "",
+    (row.deliverable_id ?? row.deliverableId) || "",
     String(row.title || "").trim().toLowerCase(),
     String(row.detail || "").trim().toLowerCase(),
     String(row.task_category ?? row.taskCategory ?? "").trim().toLowerCase(),
@@ -227,8 +229,13 @@ export async function PUT(request, { params }) {
       if (!existingByPlanIdentity.has(stablePlanSig)) existingByPlanIdentity.set(stablePlanSig, activity);
     }
 
-    const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+    const [directory, deliverablesResult] = await Promise.all([
+      listDirectoryUsers(access.admin, { activeOnly: true }),
+      access.admin.from("project_deliverables").select("id").eq("project_id", params.projectId).eq("is_active", true),
+    ]);
+    if (deliverablesResult.error) return Response.json({ error: deliverablesResult.error.message }, { status: 400 });
     const availableIds = new Set(directory.map((person) => person.id));
+    const availableDeliverableIds = new Set((deliverablesResult.data || []).map((deliverable) => deliverable.id));
     const inputRows = [];
     const incomingSignatures = new Set();
     for (const activity of body.activities) {
@@ -238,6 +245,7 @@ export async function PUT(request, { params }) {
         ? `id:${normalised.id}`
         : [
             opt(normalised.staffUserId) || "",
+            validId(normalised.deliverableId) ? normalised.deliverableId : "",
             normalised.title.toLowerCase(),
             opt(normalised.detail) || "",
             dueDate(normalised.dueDate) || "",
@@ -250,6 +258,7 @@ export async function PUT(request, { params }) {
       inputRows.push({ ...normalised, sortOrder: inputRows.length + 1 });
     }
     if (inputRows.some((row) => row.staffUserId && !availableIds.has(row.staffUserId))) return Response.json({ error: "Project activities must be assigned to an available staff member from the Staff List." }, { status: 400 });
+    if (inputRows.some((row) => row.deliverableId && (!validId(row.deliverableId) || !availableDeliverableIds.has(row.deliverableId)))) return Response.json({ error: "Choose an active deliverable from this project for each linked work activity." }, { status: 400 });
 
     // Concurrency check: if a client's copy of an activity is stale — someone
     // else saved a change to it since this client loaded the page — reject
@@ -285,7 +294,7 @@ export async function PUT(request, { params }) {
       // interrupted prior save. If the activity itself can be recovered, the
       // current generated Schedule row will be adopted inside the upsert loop.
       const recoveredActivity = (validId(row.id) ? existingById.get(row.id) : null)
-        || existingBySignature.get(contentSignature({ staffUserId: row.staffUserId, title: row.title, detail: row.detail, dueDate: row.dueDate, startDate: row.startDate }))
+        || existingBySignature.get(contentSignature({ staffUserId: row.staffUserId, deliverableId: row.deliverableId, title: row.title, detail: row.detail, dueDate: row.dueDate, startDate: row.startDate }))
         || existingByPlanIdentity.get(planIdentity(row));
       return !recoveredActivity;
     });
@@ -311,7 +320,7 @@ export async function PUT(request, { params }) {
       // ID that no longer exists in this project exactly like a new row, then
       // recover the current activity by its stable plan identity below.
       const existingForInputId = validId(input.id) ? existingById.get(input.id) : null;
-      const matchedBySignature = !existingForInputId ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
+      const matchedBySignature = !existingForInputId ? existingBySignature.get(contentSignature({ staffUserId: input.staffUserId, deliverableId: input.deliverableId, title: input.title, detail: input.detail, dueDate: input.dueDate, startDate: input.startDate })) : null;
       const matchedByPlanIdentity = !existingForInputId ? existingByPlanIdentity.get(planIdentity(input)) : null;
       const previous = existingForInputId || matchedBySignature || matchedByPlanIdentity;
       const assignedTo = opt(input.staffUserId);
@@ -362,6 +371,7 @@ export async function PUT(request, { params }) {
       const row = {
         project_id: params.projectId,
         staff_user_id: assignedTo,
+        deliverable_id: validId(input.deliverableId) ? input.deliverableId : null,
         task_category: opt(input.taskCategory),
         title: input.title,
         detail: opt(input.detail),
