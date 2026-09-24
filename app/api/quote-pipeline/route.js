@@ -88,7 +88,6 @@ export async function GET(request) {
     const live = rows.filter((r) => !r.superseded);
     const sent = live.filter((r) => r.initial_sent).length;
     const successful = live.filter((r) => r.status === "successful");
-    const decided = live.filter((r) => r.status === "successful" || r.status === "unsuccessful").length;
     const estimatedPipeline = financialsVisible
       ? live.filter((r) => r.status === "pending").reduce((s, r) => s + (Number(r.quote_total) || 0), 0)
       : null;
@@ -104,7 +103,11 @@ export async function GET(request) {
       summary: {
         sent,
         successful: successful.length,
-        successRate: decided ? Math.round((successful.length / decided) * 100) : 0,
+        // The commercial success rate is the share of every quote sent in this
+        // rolling cohort that has become successful — not only the subset with
+        // a final success/unsuccessful decision. Pending and withdrawn quotes
+        // therefore remain in the denominator until they leave the 30-day view.
+        successRate: sent ? Math.round((successful.length / sent) * 100) : 0,
         estimatedPipeline: estimatedPipeline == null ? null : Math.round(estimatedPipeline),
         successfulValue: successfulValue == null ? null : Math.round(successfulValue),
       },
