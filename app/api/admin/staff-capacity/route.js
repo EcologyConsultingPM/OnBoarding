@@ -1,11 +1,20 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { requirePortalResource } from "../../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../../lib/staffDirectory";
+import { compactAuditRecord, recordAudit } from "../../../../lib/auditLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DAY = 24 * 60 * 60 * 1000;
+const LEAVE_TYPES = {
+  annual_leave: "Annual leave",
+  personal_carers_leave: "Personal / carer’s leave",
+  long_service_leave: "Long service leave",
+  parental_leave: "Parental leave",
+  unpaid_leave: "Unpaid leave",
+  other_leave: "Other leave",
+};
 
 function dateOnly(value) {
   const text = String(value || "").slice(0, 10);
@@ -439,6 +448,75 @@ export async function POST(request) {
     const denied = await requirePortalResource(access, "admin.staff_capacity");
     if (denied) return denied;
     const body = await request.json();
+
+    // An administrator may record already-approved leave directly in the
+    // resourcing calendar. Persist this as the staff member's leave service
+    // request (rather than a planner-only record) so it immediately reduces
+    // capacity, remains visible in Service Requests, and is fully auditable.
+    if (body?.action === "create_approved_leave") {
+      const staffUserId = String(body.staffUserId || "");
+      const leaveType = String(body.leaveType || "");
+      const startDate = dateOnly(body.startDate);
+      const endDate = dateOnly(body.endDate);
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 3000) : "";
+      if (!validId(staffUserId)) return Response.json({ error: "Choose a valid staff member." }, { status: 400 });
+      if (!LEAVE_TYPES[leaveType]) return Response.json({ error: "Choose a valid leave type." }, { status: 400 });
+      if (!startDate || !endDate || startDate > endDate) return Response.json({ error: "Choose a valid leave start and end date." }, { status: 400 });
+      const directory = await listDirectoryUsers(access.admin, { activeOnly: true });
+      const staffMember = directory.find((person) => person.id === staffUserId);
+      if (!staffMember) return Response.json({ error: "Choose an available staff member from the Staff List." }, { status: 400 });
+
+      const now = new Date().toISOString();
+      const title = `${LEAVE_TYPES[leaveType]} · ${startDate}${startDate === endDate ? "" : ` to ${endDate}`}`;
+      const details = {
+        leave_type: leaveType,
+        start_date: startDate,
+        end_date: endDate,
+        administrator_created: true,
+        administrator_note: note || null,
+      };
+      const { data: leave, error: leaveError } = await access.admin
+        .from("service_requests")
+        .insert({
+          created_by: staffUserId,
+          request_type: "leave",
+          title,
+          details,
+          status: "approved",
+          decision_status: "approved",
+          admin_note: note || "Approved and recorded directly in the Workload calendar.",
+          reviewed_by: access.user.id,
+          reviewed_at: now,
+          priority: "normal",
+          due_date: endDate,
+          attachments: [],
+          updated_at: now,
+        })
+        .select("id, request_type, title, details, status, decision_status, created_by, reviewed_by, reviewed_at, due_date, created_at, updated_at")
+        .single();
+      if (leaveError) return Response.json({ error: leaveError.message }, { status: 400 });
+
+      await recordAudit(access.admin, {
+        actorId: access.user.id,
+        action: "approved_leave_created_from_calendar",
+        entityType: "service_request",
+        entityId: leave.id,
+        resourceKey: "admin.staff_capacity",
+        afterData: compactAuditRecord(leave, ["request_type", "title", "status", "decision_status", "created_by", "reviewed_by", "due_date"]),
+        reason: note || null,
+      });
+      const { error: eventError } = await access.admin.from("portal_events").insert({
+        recipient_id: staffUserId,
+        event_type: "service_request_approved",
+        severity: "information",
+        title: `Approved leave recorded: ${LEAVE_TYPES[leaveType]}`,
+        body: `${startDate}${startDate === endDate ? "" : ` to ${endDate}`}${note ? ` · ${note}` : ""}`,
+        href: "/staff/service-requests",
+        source_table: "service_requests",
+        source_id: leave.id,
+      });
+      return Response.json({ leave, event_warning: eventError?.message || null }, { status: 201 });
+    }
 
     // A project-wide Gantt row has no assignee until an administrator places it
     // in a staff row. Materialise one linked activity, preserving the original

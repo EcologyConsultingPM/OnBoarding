@@ -18982,6 +18982,10 @@ main {
 .scp-calendar-heading-actions { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
 .scp-manual-task { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid rgba(231, 201, 121, .7); border-radius: 7px; padding: 6px 9px; color: #fff6d1; background: rgba(26, 83, 49, .92); font: 700 11px/1.15 "IBM Plex Mono", monospace; cursor: pointer; }
 .scp-manual-task:hover, .scp-manual-task:focus-visible { background: #2b7546; outline: 2px solid #f0d775; outline-offset: 2px; }
+.scp-calendar-item-type { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; border: 1px solid rgba(231, 201, 121, .35); border-radius: 8px; padding: 9px 10px 10px; color: #d9e6d8; background: rgba(4, 43, 27, .5); }
+.scp-calendar-item-type legend { padding: 0 4px; color: #ead47e; font: 700 9px/1 "IBM Plex Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+.scp-calendar-item-type label { display: inline-flex; align-items: center; gap: 6px; min-height: 25px; cursor: pointer; color: #eff5e9; font-size: 12px; font-weight: 700; }
+.scp-calendar-item-type input { width: 15px; height: 15px; accent-color: #d5b243; }
 @media (max-width: 760px) { .scp-calendar-heading-actions { width: 100%; justify-content: space-between; } }
 
 /* Staff Project Tracker: staff-safe detail layout mirrors the useful project
