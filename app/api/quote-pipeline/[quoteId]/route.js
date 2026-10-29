@@ -4,8 +4,8 @@ import { canAccessPortalResource, requirePortalResource } from "../../../../lib/
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, client, project, project_folder_link, quote_link, hyperlink, quote_total, initial_sent, sent_on, follow_up_on, status, comments, fully_invoiced, superseded, superseded_note, created_at, updated_at";
-const NON_FINANCIAL_COLUMNS = "id, client, project, project_folder_link, quote_link, hyperlink, initial_sent, sent_on, follow_up_on, status, comments, fully_invoiced, superseded, superseded_note, created_at, updated_at";
+const COLUMNS = "id, company, client, project, quote_draft_id, project_folder_link, quote_link, hyperlink, quote_total, initial_sent, sent_on, follow_up_on, status, comments, fully_invoiced, superseded, superseded_note, created_at, updated_at";
+const NON_FINANCIAL_COLUMNS = "id, company, client, project, quote_draft_id, project_folder_link, quote_link, hyperlink, initial_sent, sent_on, follow_up_on, status, comments, fully_invoiced, superseded, superseded_note, created_at, updated_at";
 
 function opt(v) { const t = typeof v === "string" ? v.trim() : ""; return t || null; }
 function num(v) { if (v === "" || v == null) return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
@@ -43,7 +43,7 @@ export async function PATCH(request, { params }) {
       ? body.status
       : "pending";
     const values = {
-      client: opt(body.client), project: opt(body.project),
+      company: opt(body.company), client: opt(body.client), project: opt(body.project),
       project_folder_link: opt(body.projectFolderLink), quote_link: opt(body.quoteLink),
       hyperlink: opt(body.hyperlink),
       ...(financialsVisible ? { quote_total: num(body.quoteTotal) } : {}),

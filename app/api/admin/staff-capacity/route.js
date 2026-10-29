@@ -115,6 +115,36 @@ function unavailable(error) {
   return code === "42P01" || code === "42703" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
 }
 
+// The multi-assignee table is additive. Capacity must remain useful while a
+// tenant is waiting for its migration/schema cache, so callers fall back to
+// the parent activity's legacy scalar staff_user_id in that case.
+function assignmentTableUnavailable(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "42703" || code === "PGRST204" || code === "PGRST205" || message.includes("project_activity_assignees") || message.includes("schema cache") || message.includes("does not exist");
+}
+
+function assignmentCapacityHours(activity, assignment, siblingAssignments) {
+  const allocated = Number(assignment?.allocated_hours);
+  if (Number.isFinite(allocated) && allocated >= 0) return allocated;
+  const count = Math.max(1, (siblingAssignments || []).length);
+  const parentBudget = number(activity.budget_hours);
+  if (count === 1) return parentBudget;
+  // Old/backfilled multi-assignee rows may not yet have split allocations.
+  // An equal split is deliberately conservative: it never shows every person
+  // the full parent activity budget (which would inflate total capacity).
+  return parentBudget / count;
+}
+
+function activityAssignmentRowsById(rows) {
+  const result = new Map();
+  for (const row of rows || []) {
+    if (!result.has(row.activity_id)) result.set(row.activity_id, []);
+    result.get(row.activity_id).push(row);
+  }
+  return result;
+}
+
 export async function capacityData(access, rangeStart, rangeEnd) {
   const [directory, profilesResult, activitiesResult, leavesResult, trainingResult, scheduleResult, projectsResult, tasksResult, reviewsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
@@ -152,14 +182,64 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const activeActivities = (activitiesResult.data || []).filter((activity) =>
     projectById.has(activity.project_id),
   );
+  const assignmentResult = await access.admin.from("project_activity_assignees")
+    .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
+    .in("activity_id", activeActivities.map((activity) => activity.id))
+    .neq("acceptance_status", "removed");
+  if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) throw new Error(assignmentResult.error.message);
+  const assignmentTableReady = !assignmentResult.error;
+  const assignmentsByActivity = activityAssignmentRowsById(
+    (assignmentResult.data || []).filter((row) => row.staff_user_id && row.acceptance_status !== "declined"),
+  );
   // Capacity is a forward planning tool, so every saved, active assignment
   // shown in the workload calendar must consume capacity immediately. Waiting
   // for a worker acknowledgement hid 45 planned activities from the planner
   // even though the administrator had already allocated their dates/hours.
   // acceptance_status remains in the event payload for visual context only.
-  const activities = activeActivities.filter((activity) =>
-    activity.staff_user_id && projectById.has(activity.project_id),
-  );
+  // Flatten only for capacity. Parent activity records remain the one source
+  // of shared delivery status/progress and are never budgeted once per person
+  // in tracker or health calculations.
+  const capacityActivities = activeActivities.flatMap((activity) => {
+    const assignmentRows = assignmentsByActivity.get(activity.id) || [];
+    if (assignmentTableReady) {
+      return assignmentRows.map((assignment) => ({
+        ...activity,
+        staff_user_id: assignment.staff_user_id,
+        assignment_acceptance_status: assignment.acceptance_status,
+        assignment_allocated_hours: assignmentCapacityHours(activity, assignment, assignmentRows),
+        assignment_count: assignmentRows.length,
+      }));
+    }
+    return activity.staff_user_id ? [{
+      ...activity,
+      assignment_acceptance_status: activity.acceptance_status,
+      assignment_allocated_hours: number(activity.budget_hours),
+      assignment_count: 1,
+    }] : [];
+  });
+  const calendarActivities = activeActivities.flatMap((activity) => {
+    const assignmentRows = assignmentsByActivity.get(activity.id) || [];
+    if (assignmentTableReady) {
+      // An available relation is authoritative. Preserve a row with no person
+      // only so newly-unassigned work stays visible in the shared planner row.
+      return assignmentRows.length
+        ? capacityActivities.filter((row) => row.id === activity.id)
+        : [{
+          ...activity,
+          staff_user_id: null,
+          assignment_acceptance_status: null,
+          assignment_allocated_hours: 0,
+          assignment_count: 0,
+        }];
+    }
+    return [{
+      ...activity,
+      assignment_acceptance_status: activity.acceptance_status,
+      assignment_allocated_hours: activity.staff_user_id ? number(activity.budget_hours) : 0,
+      assignment_count: activity.staff_user_id ? 1 : 0,
+    }];
+  });
+  const activities = capacityActivities.filter((activity) => activity.staff_user_id && projectById.has(activity.project_id));
   const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
   const leaves = (leavesResult.data || []).map((record) => ({
     ...record,
@@ -200,7 +280,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
       const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
       const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
-      return sum + number(activity.budget_hours) * (overlapDays / totalDays);
+      return sum + number(activity.assignment_allocated_hours) * (overlapDays / totalDays);
     }, 0);
     const staffTasks = tasks.filter((task) => task.assigned_to === person.id);
     // Accepted Task Briefs consume capacity exactly like project activities —
@@ -245,12 +325,14 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   });
 
   const calendarEvents = [
-    ...activeActivities.filter((activity) => {
+    ...calendarActivities.filter((activity) => {
       const span = activitySpan(activity);
       return span && intersects(span.start, span.end, rangeStart, rangeEnd);
     }).map((activity) => {
       const span = activitySpan(activity);
       return {
+        // The staff row is the event's identity in the planner. Keep this
+        // activity ID shape for its existing drag/edit endpoint contract.
         id: `activity-${activity.id}`,
         type: activity.task_category === "Fieldwork & travel" ? "field_survey" : "activity",
         startDate: span.start,
@@ -262,9 +344,12 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         status: activity.status,
         taskCategory: activity.task_category || "",
         detail: activity.detail || "",
-        budgetHours: number(activity.budget_hours),
+        // This is the assignee's capacity allocation, never the parent budget
+        // repeated for every member of a shared activity.
+        budgetHours: number(activity.assignment_allocated_hours),
+        activityBudgetHours: number(activity.budget_hours),
         milestone: activity.milestone === true,
-        acceptanceStatus: activity.acceptance_status || "accepted",
+        acceptanceStatus: activity.assignment_acceptance_status || "accepted",
       };
     }),
     ...leaves.map((leave) => ({ id: `leave-${leave.id}`, type: "leave", startDate: leave.startDate, endDate: leave.endDate, title: leave.title, staffUserId: leave.created_by })),

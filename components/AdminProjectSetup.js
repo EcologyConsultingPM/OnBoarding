@@ -26,8 +26,54 @@ import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
 // the generated activity title tells a worker exactly what the time relates to.
 const TASK_CATEGORIES = TIME_CATEGORIES;
 const MANUAL_ACTIVITY_DELIVERABLE = "__manual_work_activities__";
+const ACKNOWLEDGED_ASSIGNEE_STATUSES = new Set(["accepted", "actioned"]);
+
+// Keep the editor's many-to-one shape independent from the legacy scalar
+// activity field. The API can progressively adopt `assignees`, while the first
+// person remains available to older drafts and endpoint implementations.
+const normaliseAssignees = (rawAssignees, fallback = {}) => {
+  const candidates = Array.isArray(rawAssignees)
+    ? rawAssignees
+    : (fallback.staffUserId || fallback.staff_user_id ? [fallback] : []);
+  const seen = new Set();
+  return candidates.reduce((normalised, assignee) => {
+    const staffUserId = assignee?.staffUserId || assignee?.staff_user_id || "";
+    if (!staffUserId || seen.has(staffUserId)) return normalised;
+    seen.add(staffUserId);
+    normalised.push({
+      staffUserId,
+      allocatedHours: assignee?.allocatedHours ?? assignee?.allocated_hours ?? "",
+      acceptanceStatus: assignee?.acceptanceStatus || assignee?.acceptance_status || "awaiting_response",
+      responseNote: assignee?.responseNote ?? assignee?.response_note ?? "",
+    });
+    return normalised;
+  }, []);
+};
+
+const activityAssignees = (activity = {}) => normaliseAssignees(activity.assignees, {
+  staffUserId: activity.staffUserId || activity.staff_user_id || "",
+  allocatedHours: activity.allocatedHours ?? activity.allocated_hours ?? activity.budgetHours ?? activity.budget_hours ?? "",
+  acceptanceStatus: activity.acceptanceStatus || activity.acceptance_status || "awaiting_response",
+  responseNote: activity.responseNote ?? activity.response_note ?? "",
+});
+
+const withActivityAssignees = (activity, assignees) => {
+  const nextAssignees = normaliseAssignees(assignees);
+  return {
+    ...activity,
+    assignees: nextAssignees,
+    staffUserIds: nextAssignees.map((assignee) => assignee.staffUserId),
+    staffUserId: nextAssignees[0]?.staffUserId || "",
+  };
+};
+
+const hydrateActivityDraft = (activity) => withActivityAssignees(activity, activityAssignees(activity));
+const acknowledgedAssigneeCount = (assignees) => assignees.filter((assignee) => ACKNOWLEDGED_ASSIGNEE_STATUSES.has(assignee.acceptanceStatus)).length;
+
 const createBlankActivity = (deliverableId = "") => ({
   staffUserId: "",
+  staffUserIds: [],
+  assignees: [],
   taskCategory: "",
   title: "",
   detail: "",
@@ -715,24 +761,35 @@ function ProjectDetail({
       if (aRes.ok) {
         setKnownMaxUpdatedAt((actData.activities || []).reduce((max, a) => (a.updated_at && a.updated_at > max ? a.updated_at : max), ""));
         setActivities(
-          (actData.activities || []).map((x) => ({
-            id: x.id,
-            staffUserId: x.staff_user_id || "",
-            taskCategory: x.task_category || "",
-            title: x.title,
-            detail: x.detail || "",
-            budgetHours: x.budget_hours ?? "",
-            dueDate: x.due_date || "",
-            startDate: x.start_date || "",
-            milestone: x.milestone === true,
-            scheduleItemId: x.schedule_item_id || "",
-            deliverableId: x.deliverable_id || "",
-            status: x.status || "not_commenced",
-            acceptanceStatus: x.acceptance_status || "accepted",
-            responseNote: x.response_note || "",
-            progressPercent: x.progress_percent ?? 0,
-            locked: x.locked === true,
-          })),
+          (actData.activities || []).map((x) => {
+            const activity = {
+              id: x.id,
+              staffUserId: x.staff_user_id || "",
+              taskCategory: x.task_category || "",
+              title: x.title,
+              detail: x.detail || "",
+              budgetHours: x.budget_hours ?? "",
+              dueDate: x.due_date || "",
+              startDate: x.start_date || "",
+              milestone: x.milestone === true,
+              scheduleItemId: x.schedule_item_id || "",
+              deliverableId: x.deliverable_id || "",
+              status: x.status || "not_commenced",
+              acceptanceStatus: x.acceptance_status || "accepted",
+              responseNote: x.response_note || "",
+              progressPercent: x.progress_percent ?? 0,
+              locked: x.locked === true,
+            };
+            // Newer activity responses carry an assignees collection. Older
+            // responses carry just staff_user_id, which becomes a one-person
+            // collection without losing its acceptance status or note.
+            return withActivityAssignees(activity, normaliseAssignees(x.assignees, {
+              staffUserId: x.staff_user_id || "",
+              allocatedHours: x.budget_hours ?? "",
+              acceptanceStatus: x.acceptance_status || "accepted",
+              responseNote: x.response_note || "",
+            }));
+          }),
         );
       }
       const delData = await dRes.json();
@@ -746,7 +803,7 @@ function ProjectDetail({
         try {
           const saved = JSON.parse(window.localStorage.getItem(activitiesDraftKey) || "null");
           if (Array.isArray(saved) && saved.some((r) => (r.title || "").trim())) {
-            setActivitiesDraftAvailable(saved);
+            setActivitiesDraftAvailable(saved.map(hydrateActivityDraft));
           }
         } catch {}
       }
@@ -866,8 +923,23 @@ function ProjectDetail({
     setSavingActivities(true);
     setConflictPending(false);
     try {
+      const activityPayload = activities
+        .filter((activity) => activity.title.trim())
+        .map((activity) => {
+          const assignees = activityAssignees(activity);
+          const allocatedHours = assignees.reduce((total, assignee) => total + (Number(assignee.allocatedHours) || 0), 0);
+          return {
+            ...activity,
+            assignees,
+            staffUserIds: assignees.map((assignee) => assignee.staffUserId),
+            // The legacy activity API still reads one owner and one total. Keep
+            // those projections until every consumer reads `assignees`.
+            staffUserId: assignees[0]?.staffUserId || "",
+            budgetHours: allocatedHours,
+          };
+        });
       const res = await auth("PUT", `/api/projects/${projectId}/activities`, {
-        activities: activities.filter((a) => a.title.trim()),
+        activities: activityPayload,
         knownMaxUpdatedAt,
         forceSave,
       });
@@ -903,7 +975,14 @@ function ProjectDetail({
     ),
     team: allocations.some((allocation) => allocation.staffUserId && Number(allocation.allocatedHours) > 0),
     deliverables: deliverables.length > 0,
-    activities: activities.some((activity) => activity.title?.trim() && activity.staffUserId && Number(activity.budgetHours) > 0 && (activity.startDate || activity.dueDate)),
+    activities: (() => {
+      const plannedActivities = activities.filter((activity) => activity.title?.trim());
+      return plannedActivities.length > 0 && plannedActivities.every((activity) => {
+        const assignees = activityAssignees(activity);
+        const totalHours = assignees.reduce((total, assignee) => total + (Number(assignee.allocatedHours) || 0), 0);
+        return assignees.length > 0 && totalHours > 0 && (activity.startDate || activity.dueDate);
+      });
+    })(),
     schedule: schedule.some((item) => item.title?.trim() && (item.startDate || item.endDate)),
     review: project?.activities_approval_status === "approved",
   };
@@ -920,7 +999,7 @@ function ProjectDetail({
         details: "Complete the project name, client, scope, project lead, approved hours and approved budget before continuing.",
         team: "Allocate at least one team member with approved hours before continuing.",
         deliverables: "Add at least one deliverable before continuing.",
-        activities: "Add at least one assigned activity with budgeted hours and a start or due date before continuing.",
+        activities: "Add at least one activity with a title, one or more staff members, budgeted hours for each person, and a start or due date before continuing.",
         schedule: "Add at least one dated schedule item before continuing.",
       };
       if (advance && validationMessages[activeStage] && !stageChecks[activeStage]) {
@@ -970,8 +1049,23 @@ function ProjectDetail({
         <p>Loading…</p>
       </div>
     );
-  const staffLabel = (id) =>
-    staff.find((s) => s.id === id)?.email || "Select staff";
+  const staffRecord = (id) => staff.find((person) => person.id === id);
+  const staffNameAndEmail = (id) => {
+    const person = staffRecord(id);
+    if (!person) return "Selected staff";
+    return person.name && person.email && person.name !== person.email
+      ? `${person.name} · ${person.email}`
+      : (person.name || person.email);
+  };
+  const allocatedStaffIds = [...new Set(allocations.map((allocation) => allocation.staffUserId).filter(Boolean))];
+  const updateActivity = (index, updater) => {
+    setActivities((current) => current.map((activity, currentIndex) => (
+      currentIndex === index ? updater(activity) : activity
+    )));
+  };
+  const updateActivityAssignees = (index, assignees) => {
+    updateActivity(index, (activity) => withActivityAssignees(activity, assignees));
+  };
 
   return (
     <div className="aps">
@@ -1302,12 +1396,20 @@ function ProjectDetail({
           </h2>
         </div>
         <p className="aps-note">
-          Assign each activity to an allocated staff member and set its approved
-          hours and delivery dates. This remains a draft until Senior Ecologist
-          approval is recorded in the final stage.
+          Assign each activity to one or more allocated staff members, set each
+          person&apos;s approved hours, and confirm delivery dates. This remains a
+          draft until Senior Ecologist approval is recorded in the final stage.
         </p>
         {deliverables.some((deliverable) => deliverable.deliverable_type === "other_manual_activities") ? <p className="aps-manual-activity-note"><strong>Custom activity plan:</strong> enter the project-specific work activities below. You can add, reorder and remove rows before allocating staff, hours and dates.</p> : null}
-        {activities.map((row, i) => (
+        {activities.map((row, i) => {
+          const assignees = activityAssignees(row);
+          const assignedStaffIds = new Set(assignees.map((assignee) => assignee.staffUserId));
+          const availableAssigneeIds = allocatedStaffIds.filter((staffUserId) => !assignedStaffIds.has(staffUserId));
+          const totalAllocatedHours = assignees.reduce((total, assignee) => total + (Number(assignee.allocatedHours) || 0), 0);
+          const missingAllocatedHours = assignees.some((assignee) => !(Number(assignee.allocatedHours) > 0));
+          const acknowledgedCount = acknowledgedAssigneeCount(assignees);
+          const responseAssignees = assignees.filter((assignee) => assignee.responseNote);
+          return (
           <div
             key={i}
             className="aps-row"
@@ -1350,25 +1452,68 @@ function ProjectDetail({
                 </option>
               ))}
             </select>
-            <select
-              value={row.staffUserId}
-              onChange={(e) =>
-                setActivities(
-                  activities.map((r, j) =>
-                    j === i ? { ...r, staffUserId: e.target.value } : r,
-                  ),
-                )
-              }
-            >
-              <option value="">Assign to…</option>
-              {allocations
-                .filter((a) => a.staffUserId)
-                .map((a) => (
-                  <option key={a.staffUserId} value={a.staffUserId}>
-                    {staffLabel(a.staffUserId)}
-                  </option>
-                ))}
-            </select>
+            <div className="aps-assignee-picker">
+              <label className="aps-field" htmlFor={`activity-assignee-${i}`}>
+                Add staff member
+                <select
+                  id={`activity-assignee-${i}`}
+                  value=""
+                  onChange={(e) => {
+                    const staffUserId = e.target.value;
+                    if (!staffUserId || assignedStaffIds.has(staffUserId)) return;
+                    updateActivityAssignees(i, [...assignees, {
+                      staffUserId,
+                      allocatedHours: "",
+                      acceptanceStatus: "awaiting_response",
+                      responseNote: "",
+                    }]);
+                  }}
+                >
+                  <option value="">+ Add staff member</option>
+                  {availableAssigneeIds.map((staffUserId) => (
+                    <option key={staffUserId} value={staffUserId}>{staffNameAndEmail(staffUserId)}</option>
+                  ))}
+                </select>
+              </label>
+              {assignees.length ? (
+                <ul className="aps-assignee-chips" aria-label={`Staff assigned to ${row.title || `activity ${i + 1}`}`}>
+                  {assignees.map((assignee) => (
+                    <li key={assignee.staffUserId} className="aps-assignee-chip">
+                      <span>{staffNameAndEmail(assignee.staffUserId)}</span>
+                      <label className="aps-assignee-hours">
+                        <span>Allocated hours</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.25"
+                          inputMode="decimal"
+                          value={assignee.allocatedHours}
+                          aria-label={`Allocated hours for ${staffNameAndEmail(assignee.staffUserId)}`}
+                          onChange={(e) => updateActivityAssignees(i, assignees.map((current) => (
+                            current.staffUserId === assignee.staffUserId
+                              ? { ...current, allocatedHours: e.target.value }
+                              : current
+                          )))}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="aps-assignee-remove"
+                        aria-label={`Remove ${staffNameAndEmail(assignee.staffUserId)} from ${row.title || "this activity"}`}
+                        onClick={() => updateActivityAssignees(i, assignees.filter((current) => current.staffUserId !== assignee.staffUserId))}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="aps-assignee-empty">No staff assigned yet. Add an allocated project team member.</p>}
+              <p className={`aps-assignee-summary ${assignees.length && !missingAllocatedHours ? "ready" : "incomplete"}`} role="status">
+                {assignees.length
+                  ? <><strong>{assignees.length} staff member{assignees.length === 1 ? "" : "s"}</strong> · {totalAllocatedHours || 0} budgeted hour{totalAllocatedHours === 1 ? "" : "s"}{missingAllocatedHours ? " · add hours for each staff member" : ""}</>
+                  : "Add at least one staff member and their allocated hours."}
+              </p>
+            </div>
             <textarea
               className="aps-activity-detail"
               rows={5}
@@ -1382,18 +1527,7 @@ function ProjectDetail({
                 )
               }
             />
-            <div className="aps-three">
-              <input
-                placeholder="Hrs"
-                value={row.budgetHours}
-                onChange={(e) =>
-                  setActivities(
-                    activities.map((r, j) =>
-                      j === i ? { ...r, budgetHours: e.target.value } : r,
-                    ),
-                  )
-                }
-              />
+            <div className="aps-two">
               <label className="aps-field">
                 Start date
                 <input
@@ -1426,13 +1560,17 @@ function ProjectDetail({
               </label>
             </div>
             <div className="aps-activity-state">
-              <span className={`aps-activity-response ${row.acceptanceStatus || "accepted"}`}>
-                Staff: {(row.acceptanceStatus || "accepted").replaceAll("_", " ")}
+              <span className={`aps-activity-response ${assignees.length && acknowledgedCount === assignees.length ? "accepted" : "awaiting_response"}`}>
+                Staff: {acknowledgedCount}/{assignees.length} acknowledged
               </span>
               <span className={`aps-activity-delivery ${row.status || "not_commenced"}`}>
                 Delivery: {(row.status || "not_commenced").replaceAll("_", " ")} · {row.progressPercent ?? 0}%
               </span>
-              {row.responseNote ? <small>Latest response: {row.responseNote}</small> : null}
+              {responseAssignees.length ? (
+                <ul className="aps-assignee-responses" aria-label={`Staff responses for ${row.title || `activity ${i + 1}`}`}>
+                  {responseAssignees.map((assignee) => <li key={assignee.staffUserId}><strong>{staffNameAndEmail(assignee.staffUserId)}:</strong> {assignee.responseNote}</li>)}
+                </ul>
+              ) : null}
               <small>Set delivery status and completion in the next <strong>Schedule</strong> step.</small>
               <label className="aps-check"><input type="checkbox" checked={row.locked === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, locked: e.target.checked } : r))} /> Lock staff updates</label>
               <label className="aps-check"><input type="checkbox" checked={row.milestone === true} onChange={(e) => setActivities(activities.map((r, j) => j === i ? { ...r, milestone: e.target.checked } : r))} /> Milestone (shown as a diamond on the Gantt)</label>
@@ -1458,7 +1596,8 @@ function ProjectDetail({
               <Trash2 size={14} />
             </button>
           </div>
-        ))}
+          );
+        })}
         <button
           className="aps-add"
           onClick={() =>
@@ -1483,9 +1622,12 @@ function ProjectDetail({
         {!scheduleExpanded ? <p className="aps-schedule-summary">Open the schedule to review key dates, linked staff, delivery status and Gantt progress.</p> : null}
         {scheduleExpanded ? <div className="aps-schedule-editor">
           {schedule.map((row, i) => {
-            const linkedStaff = activities
-              .filter((activity) => activity.scheduleItemId === row.id && activity.staffUserId)
-              .map((activity) => staff.find((person) => person.id === activity.staffUserId)?.name || staff.find((person) => person.id === activity.staffUserId)?.email || "Allocated staff");
+            const linkedStaff = [...new Set(
+              activities
+                .filter((activity) => activity.scheduleItemId === row.id)
+                .flatMap((activity) => activityAssignees(activity).map((assignee) => assignee.staffUserId))
+                .filter(Boolean),
+            )].map((staffUserId) => staffRecord(staffUserId)?.name || staffRecord(staffUserId)?.email || "Allocated staff");
             return <div key={row.id || i} className="aps-schedule-row">
               <div className="aps-schedule-row-head"><strong>Key date {i + 1}</strong><span className={`aps-delivery-state ${row.status || "not_commenced"}`}>{ACTIVITY_STATUS[row.status || "not_commenced"]?.label || "Not yet commenced"}</span></div>
               <div className="aps-schedule-fields">
@@ -1515,7 +1657,8 @@ function ProjectDetail({
         const namedActivities = activities.filter((a) => (a.title || "").trim());
         const checks = [
           { label: "Deliverables Added", pass: deliverables.length > 0 },
-          { label: "Activities Allocated", pass: namedActivities.length > 0 && namedActivities.every((a) => a.staffUserId) },
+          { label: "Activities Allocated", pass: namedActivities.length > 0 && namedActivities.every((activity) => activityAssignees(activity).length > 0) },
+          { label: "Activity Hours Budgeted", pass: namedActivities.length > 0 && namedActivities.every((activity) => activityAssignees(activity).every((assignee) => Number(assignee.allocatedHours) > 0)) },
           { label: "Team Assigned", pass: allocations.some((a) => a.staffUserId) },
           { label: "Dates Assigned", pass: namedActivities.length > 0 && namedActivities.every((a) => a.dueDate || a.startDate) },
         ];

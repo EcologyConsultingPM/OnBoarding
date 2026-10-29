@@ -20,7 +20,7 @@ const STATUS = [
   { value: "withdrawn", label: "Withdrawn", color: "#607078" },
 ];
 const SUPERSEDED_FILTER = { value: "superseded", label: "Superseded", color: "#7a6b8d" };
-const EMPTY = { client: "", project: "", projectFolderLink: "", quoteLink: "", hyperlink: "", quoteTotal: "", initialSent: false, sentOn: "", followUpOn: "", status: "pending", comments: "", fullyInvoiced: false, superseded: false, supersededNote: "" };
+const EMPTY = { quoteDraftId: "", company: "", client: "", project: "", projectFolderLink: "", quoteLink: "", hyperlink: "", quoteTotal: "", initialSent: false, sentOn: "", followUpOn: "", status: "pending", comments: "", fullyInvoiced: false, superseded: false, supersededNote: "" };
 const VIEWS = new Set(["pipeline", "drafts", "improvements", "governance"]);
 
 const QUOTE_WINDOW_DAYS = 30;
@@ -47,11 +47,30 @@ function followUpDue(quote) {
   return quote.status === "pending" && !quote.superseded && age != null && age >= FOLLOW_UP_WARNING_DAY && age <= QUOTE_WINDOW_DAYS;
 }
 
-function EditRow({ f, set, canSeeFinancials }) {
+function EditRow({ f, set, canSeeFinancials, draftOptions = [], requireDraftSelection = false }) {
   const isSuperseded = f.superseded === true;
+  const companies = [...new Set(draftOptions.map((draft) => draft.company || draft.client_name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const projectsForCompany = draftOptions.filter((draft) => (draft.company || draft.client_name) === f.company);
+  const chooseCompany = (company) => set({ ...f, company, client: "", project: "", quoteDraftId: "" });
+  const chooseProject = (draftId) => {
+    const selected = draftOptions.find((draft) => draft.id === draftId);
+    set({
+      ...f,
+      quoteDraftId: draftId,
+      company: selected?.company || selected?.client_name || f.company,
+      client: selected?.client_name || "",
+      project: selected?.project_name || "",
+    });
+  };
   return <>
-    <input placeholder="Client" value={f.client} onChange={(e) => set({ ...f, client: e.target.value })} />
-    <input placeholder="Project" value={f.project} onChange={(e) => set({ ...f, project: e.target.value })} />
+    {requireDraftSelection ? <>
+      <label className="qp-field"><span>Company</span><select value={f.company} onChange={(e) => chooseCompany(e.target.value)}><option value="">Select company from Quotes to be Drafted…</option>{companies.map((company) => <option value={company} key={company}>{company}</option>)}</select></label>
+      <label className="qp-field"><span>Project name</span><select value={f.quoteDraftId} onChange={(e) => chooseProject(e.target.value)} disabled={!f.company}><option value="">Select project from the chosen company…</option>{projectsForCompany.map((draft) => <option value={draft.id} key={draft.id}>{draft.project_name || "Project name not recorded"}{draft.quote_number ? ` · ${draft.quote_number}` : ""}</option>)}</select></label>
+    </> : <>
+      <label className="qp-field"><span>Company</span><input placeholder="Company / organisation" value={f.company} onChange={(e) => set({ ...f, company: e.target.value })} /></label>
+      <label className="qp-field"><span>Project name</span><input placeholder="Project" value={f.project} onChange={(e) => set({ ...f, project: e.target.value })} /></label>
+    </>}
+    <label className="qp-field"><span>Primary contact name</span><input placeholder="Primary contact name" value={f.client} onChange={(e) => set({ ...f, client: e.target.value })} readOnly={requireDraftSelection} /></label>
     {canSeeFinancials ? <input placeholder="Quote total" value={f.quoteTotal} onChange={(e) => set({ ...f, quoteTotal: e.target.value })} /> : null}
     <input placeholder="Project folder link (URL)" value={f.projectFolderLink} onChange={(e) => set({ ...f, projectFolderLink: e.target.value })} />
     <input placeholder="Quote link (URL)" value={f.quoteLink} onChange={(e) => set({ ...f, quoteLink: e.target.value })} />
@@ -70,6 +89,7 @@ function EditRow({ f, set, canSeeFinancials }) {
 export default function AdminQuotePipeline() {
   const { session } = useAuth();
   const [quotes, setQuotes] = useState([]);
+  const [draftOptions, setDraftOptions] = useState([]);
   const [summary, setSummary] = useState(null);
   const [financialsVisible, setFinancialsVisible] = useState(false);
   const [error, setError] = useState("");
@@ -104,6 +124,7 @@ export default function AdminQuotePipeline() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setQuotes(Array.isArray(data.quotes) ? data.quotes : []);
+      setDraftOptions(Array.isArray(data.draftOptions) ? data.draftOptions : []);
       setSummary(data.summary || null);
       setFinancialsVisible(data.financialsVisible === true);
     } catch (e) { setError(e.message); }
@@ -129,7 +150,7 @@ export default function AdminQuotePipeline() {
   const notify = (m) => { setMessage(m); setError(""); setTimeout(() => setMessage(""), 2200); };
 
   const create = async () => {
-    if (!form.client.trim() && !form.project.trim()) { setError("Add a client or project."); return; }
+    if (!form.quoteDraftId) { setError("Select a company and project from Quotes to be Drafted before adding an issued quote."); return; }
     try { const res = await auth("POST", "/api/quote-pipeline", form); const d = await res.json(); if (!res.ok) throw new Error(d.error); setForm(EMPTY); clearQuoteDraft(); setAdding(false); await load(); notify("Quote added."); } catch (e) { setError(e.message); }
   };
   const saveEdit = async () => {
@@ -141,12 +162,12 @@ export default function AdminQuotePipeline() {
   };
   const startEdit = (q) => {
     setEditingId(q.id);
-    setEditForm({ client: q.client || "", project: q.project || "", projectFolderLink: q.project_folder_link || "", quoteLink: q.quote_link || "", hyperlink: q.hyperlink || "", quoteTotal: q.quote_total ?? "", initialSent: q.initial_sent, sentOn: q.sent_on || "", followUpOn: q.follow_up_on || "", status: q.status, comments: q.comments || "", fullyInvoiced: q.fully_invoiced, superseded: q.superseded, supersededNote: q.superseded_note || "" });
+    setEditForm({ quoteDraftId: q.quote_draft_id || "", company: q.company || q.client || "", client: q.client || "", project: q.project || "", projectFolderLink: q.project_folder_link || "", quoteLink: q.quote_link || "", hyperlink: q.hyperlink || "", quoteTotal: q.quote_total ?? "", initialSent: q.initial_sent, sentOn: q.sent_on || "", followUpOn: q.follow_up_on || "", status: q.status, comments: q.comments || "", fullyInvoiced: q.fully_invoiced, superseded: q.superseded, supersededNote: q.superseded_note || "" });
   };
 
-  const clients = useMemo(() => [...new Set(quotes.map((quote) => quote.client).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [quotes]);
+  const companies = useMemo(() => [...new Set(quotes.map((quote) => quote.company || quote.client).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [quotes]);
   const matchesFilters = useCallback((quote) => {
-    if (filters.client && quote.client !== filters.client) return false;
+    if (filters.client && (quote.company || quote.client) !== filters.client) return false;
     if (filters.status === "superseded" && !quote.superseded) return false;
     if (filters.status && filters.status !== "superseded" && quote.status !== filters.status) return false;
     if (filters.sentFrom && (!quote.sent_on || quote.sent_on < filters.sentFrom)) return false;
@@ -154,7 +175,7 @@ export default function AdminQuotePipeline() {
     return true;
   }, [filters]);
   const sortQuotes = useCallback((list) => [...list].sort((left, right) => {
-    if (filters.sort === "client") return String(left.client || "").localeCompare(String(right.client || ""));
+    if (filters.sort === "client") return String(left.company || left.client || "").localeCompare(String(right.company || right.client || ""));
     if (filters.sort === "sent_desc") return String(right.sent_on || "").localeCompare(String(left.sent_on || ""));
     if (filters.sort === "sent_asc") return String(left.sent_on || "").localeCompare(String(right.sent_on || ""));
     if (filters.sort === "value_desc") return Number(right.quote_total || 0) - Number(left.quote_total || 0);
@@ -179,7 +200,7 @@ export default function AdminQuotePipeline() {
     </tr>
   ) : (
     <tr key={q.id} className={`${q.superseded ? "qp-superseded" : ""}${followUpDue(q) ? " qp-follow-up-due" : ""}`}>
-      <td>{q.client || "—"}</td>
+      <td>{q.company || q.client || "—"}</td>
       <td>{q.project || "—"}{q.superseded ? <span className="qp-super-tag" title={q.superseded_note || "Superseded"}>superseded</span> : null}</td>
       {financialsVisible ? <td>{money(q.quote_total)}</td> : null}
       <td className="qp-links">{q.quote_link ? <a href={q.quote_link} target="_blank" rel="noreferrer" title="Quote link"><ExternalLink size={13} /></a> : null}{q.hyperlink ? <a href={q.hyperlink} target="_blank" rel="noreferrer" title="Hyperlink"><Link2 size={13} /></a> : null}{!q.quote_link && !q.hyperlink ? "—" : null}</td>
@@ -190,7 +211,7 @@ export default function AdminQuotePipeline() {
       <td className="qp-actions"><button onClick={() => startEdit(q)} className="qp-edit">Edit</button><button onClick={() => remove(q.id)} className="qp-del"><Trash2 size={13} /></button></td>
     </tr>
   );
-  const tableHead = <thead><tr><th>Client</th><th>Project</th>{financialsVisible ? <th>Total</th> : null}<th>Links</th><th>Sent</th><th>Follow-up</th><th>Status</th><th>Comments</th><th></th></tr></thead>;
+  const tableHead = <thead><tr><th>Company</th><th>Project</th>{financialsVisible ? <th>Total</th> : null}<th>Links</th><th>Sent</th><th>Follow-up</th><th>Status</th><th>Comments</th><th></th></tr></thead>;
 
   return <div className="qp">
     <nav className="qp-subnav" aria-label="Quote Pipeline sub-domains">
@@ -209,8 +230,8 @@ export default function AdminQuotePipeline() {
       {summary ? <div className="qp-summary"><div className="qp-sum"><div className="qp-sum-v">{summary.sent}</div><div className="qp-sum-l">Sent · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v" style={{ color: "#2c6a34" }}>{summary.successful}</div><div className="qp-sum-l">Successful · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v">{summary.successRate}%</div><div className="qp-sum-l">Successful ÷ sent · 30 days</div></div>{financialsVisible ? <><div className="qp-sum"><div className="qp-sum-v">{money(summary.estimatedPipeline)}</div><div className="qp-sum-l">Pending value · 30 days</div></div><div className="qp-sum"><div className="qp-sum-v">{money(summary.successfulValue)}</div><div className="qp-sum-l">Successful value · 30 days</div></div></> : <div className="qp-financials-locked">Financial values are restricted by portal access controls.</div>}</div> : null}
       {error ? <p className="qp-error"><AlertCircle size={15} /> {error}</p> : null}
       {message ? <p className="qp-success"><CheckCircle2 size={15} /> {message}</p> : null}
-      <section className="qp-controls" aria-label="Quote Pipeline controls"><div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange current issued quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div><div className="qp-controls-fields"><label>Client<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All clients</option>{clients.map((client) => <option key={client} value={client}>{client}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{[...STATUS, SUPERSEDED_FILTER].map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label><label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Client · A–Z</option>{financialsVisible ? <option value="value_desc">Quote value · highest</option> : null}<option value="follow_up">Next follow-up</option></select></label><button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button></div></section>
-      {adding ? <div className="qp-editor">{quoteDraftRestored ? <p className="aps-draft-note">An unsaved quote was restored from this browser.<button type="button" className="ec-btn--quiet" onClick={discardQuoteDraft}>Discard</button></p> : null}<div className="qp-editor-grid"><EditRow f={form} set={setForm} canSeeFinancials={financialsVisible} /></div><div className="qp-editor-actions"><button className="qp-primary" onClick={create}>Save quote</button><button className="qp-secondary" onClick={() => { setAdding(false); discardQuoteDraft(); }}>Cancel</button></div></div> : <button className="qp-add" onClick={() => setAdding(true)}><Plus size={14} /> Add issued quote</button>}
+      <section className="qp-controls" aria-label="Quote Pipeline controls"><div className="qp-controls-title"><ListFilter size={15} /><span>Find and arrange current issued quotes</span><b>{visibleQuotes.length} of {quotes.length}</b></div><div className="qp-controls-fields"><label>Company<select value={filters.client} onChange={(event) => setFilters({ ...filters, client: event.target.value })}><option value="">All companies</option>{companies.map((company) => <option key={company} value={company}>{company}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All statuses</option>{[...STATUS, SUPERSEDED_FILTER].map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label>Sent from<input type="date" value={filters.sentFrom} onChange={(event) => setFilters({ ...filters, sentFrom: event.target.value })} /></label><label>Sent to<input type="date" value={filters.sentTo} onChange={(event) => setFilters({ ...filters, sentTo: event.target.value })} /></label><label>Sort by<select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}><option value="updated_desc">Recently updated</option><option value="sent_desc">Sent date · newest</option><option value="sent_asc">Sent date · oldest</option><option value="client">Company · A–Z</option>{financialsVisible ? <option value="value_desc">Quote value · highest</option> : null}<option value="follow_up">Next follow-up</option></select></label><button type="button" className="qp-clear-controls" onClick={() => setFilters({ client: "", status: "", sentFrom: "", sentTo: "", sort: "updated_desc" })}>Clear</button></div></section>
+      {adding ? <div className="qp-editor">{quoteDraftRestored ? <p className="aps-draft-note">An unsaved quote was restored from this browser.<button type="button" className="ec-btn--quiet" onClick={discardQuoteDraft}>Discard</button></p> : null}<div className="qp-editor-grid"><EditRow f={form} set={setForm} canSeeFinancials={financialsVisible} draftOptions={draftOptions} requireDraftSelection /></div><div className="qp-editor-actions"><button className="qp-primary" onClick={create}>Save quote</button><button className="qp-secondary" onClick={() => { setAdding(false); discardQuoteDraft(); }}>Cancel</button></div></div> : <button className="qp-add" onClick={() => setAdding(true)}><Plus size={14} /> Add issued quote</button>}
       <div className="qp-table-wrap">
         <table className="qp-table">{tableHead}<tbody>{visibleQuotes.map(renderRow)}</tbody></table>
         {!quotes.length ? <p className="qp-empty">No quotes have been sent in the current 30-day period.</p> : null}
