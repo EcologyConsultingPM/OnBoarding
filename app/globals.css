@@ -18982,11 +18982,12 @@ main {
 .scp-calendar-heading-actions { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
 .scp-manual-task { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid rgba(231, 201, 121, .7); border-radius: 7px; padding: 6px 9px; color: #fff6d1; background: rgba(26, 83, 49, .92); font: 700 11px/1.15 "IBM Plex Mono", monospace; cursor: pointer; }
 .scp-manual-task:hover, .scp-manual-task:focus-visible { background: #2b7546; outline: 2px solid #f0d775; outline-offset: 2px; }
-.scp-calendar-item-type { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0; border: 1px solid #aec2b2; border-radius: 8px; padding: 9px 10px 10px; color: #163d2b; background: linear-gradient(135deg, #edf4eb, #dce9df); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .82); }
-.scp-calendar-item-type legend { padding: 0 4px; color: #546d5c; font: 700 9px/1 "IBM Plex Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
-.scp-calendar-item-type label { display: inline-flex; align-items: center; gap: 7px; min-height: 27px; border: 1px solid transparent; border-radius: 6px; padding: 0 7px; cursor: pointer; color: #1b3f2c; font-size: 12px; font-weight: 750; transition: background-color .16s var(--ease-out, ease-out), border-color .16s var(--ease-out, ease-out), color .16s var(--ease-out, ease-out); }
-.scp-calendar-item-type label:has(input:checked) { border-color: #8cac96; color: #103b25; background: #fffef9; box-shadow: 0 1px 2px rgba(25, 63, 44, .08); }
-.scp-calendar-item-type input { width: 15px; height: 15px; margin: 0; accent-color: #1b7042; }
+.scp-calendar-item-type { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0; border: 1px solid #d7d4c3; border-radius: 8px; padding: 9px 10px 10px; color: #173f2b; background: #f8f6ed; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .94); }
+.scp-calendar-item-type legend { padding: 0 4px; color: #355b43; font: 700 9px/1 "IBM Plex Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+.scp-calendar-item-type label { display: inline-flex; align-items: center; gap: 7px; min-height: 27px; border: 1px solid transparent; border-radius: 6px; padding: 0 7px; cursor: pointer; color: #17462e; font-size: 12px; font-weight: 800; transition: background-color .16s var(--ease-out, ease-out), border-color .16s var(--ease-out, ease-out), color .16s var(--ease-out, ease-out); }
+.scp-calendar-item-type label:hover { color: #0c3722; background: #f0eee2; }
+.scp-calendar-item-type label:has(input:checked) { border-color: #a9beaa; color: #0f3d26; background: #e4efe3; box-shadow: 0 1px 2px rgba(25, 63, 44, .08); }
+.scp-calendar-item-type input { width: 15px; height: 15px; margin: 0; accent-color: #17633b; }
 .scp-calendar-item-type label:focus-within { outline: 2px solid #c59a28; outline-offset: 2px; }
 @media (max-width: 760px) { .scp-calendar-heading-actions { width: 100%; justify-content: space-between; } }
 
