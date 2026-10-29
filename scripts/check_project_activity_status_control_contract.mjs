@@ -35,7 +35,8 @@ assert.match(adminTracker, /administratorOverride: true/, "The administrator tra
 assert.match(adminTracker, /activityOverride\.reason\.trim\(\)\.length < 10/, "The administrator tracker must make the audit reason visibly mandatory.");
 assert.match(adminTracker, /!row\.staffUserId/, "The administrator tracker must disable overrides for unassigned activity rows.");
 assert.match(adminTrackerRoute, /progressPercent: number\(activity\.progress_percent\)/, "The admin tracker must provide the current activity completion percentage to the override editor.");
-assert.match(adminTrackerRoute, /staffUserId: activity\.staff_user_id \|\| null/, "The admin tracker must provide assignment identity to the override editor.");
+assert.match(adminTrackerRoute, /const staffUserId = activity\.staff_user_id \|\| assignees\[0\]\?\.staffUserId \|\| null/, "The admin tracker must retain a legacy primary-assignee projection while providing the shared team separately.");
+assert.match(adminTrackerRoute, /assignees,\s*staffNames: assignees\.map/, "The admin tracker must expose all assigned staff for a shared work activity.");
 assert.match(styles, /\.apt-activity-override/, "The administrator override panel must have dedicated visual styling.");
 
 const overseeingIndex = setup.indexOf("Select Overseeing Senior Ecologist");

@@ -18982,6 +18982,10 @@ main {
 .scp-calendar-heading-actions { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
 .scp-manual-task { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid rgba(231, 201, 121, .7); border-radius: 7px; padding: 6px 9px; color: #fff6d1; background: rgba(26, 83, 49, .92); font: 700 11px/1.15 "IBM Plex Mono", monospace; cursor: pointer; }
 .scp-manual-task:hover, .scp-manual-task:focus-visible { background: #2b7546; outline: 2px solid #f0d775; outline-offset: 2px; }
+.scp-calendar-item-type { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; border: 1px solid rgba(231, 201, 121, .35); border-radius: 8px; padding: 9px 10px 10px; color: #d9e6d8; background: rgba(4, 43, 27, .5); }
+.scp-calendar-item-type legend { padding: 0 4px; color: #ead47e; font: 700 9px/1 "IBM Plex Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+.scp-calendar-item-type label { display: inline-flex; align-items: center; gap: 6px; min-height: 25px; cursor: pointer; color: #eff5e9; font-size: 12px; font-weight: 700; }
+.scp-calendar-item-type input { width: 15px; height: 15px; accent-color: #d5b243; }
 @media (max-width: 760px) { .scp-calendar-heading-actions { width: 100%; justify-content: space-between; } }
 
 /* Staff Project Tracker: staff-safe detail layout mirrors the useful project
@@ -19957,4 +19961,97 @@ main {
   border-left-color: #397650;
   background: #f0f8f0;
   color: #294d35;
+}
+
+/* Work activity multi-assignee picker. Keeps shared work inside one activity
+   card while making each person's allocation and acknowledgement visible. */
+.aps-assignee-picker {
+  display: grid;
+  gap: 8px;
+  margin: 9px 0;
+  padding: 10px;
+  border: 1px solid rgba(215, 186, 78, 0.3);
+  border-radius: 10px;
+  background: rgba(6, 53, 34, 0.18);
+}
+.aps-assignee-picker > .aps-field { max-width: 360px; }
+.aps-assignee-chips,
+.aps-assignee-responses {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aps-assignee-chip {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(116px, 140px) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid rgba(180, 207, 185, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eff6ea;
+  font-size: 12px;
+  font-weight: 700;
+}
+.aps-assignee-hours {
+  display: grid;
+  gap: 3px;
+  color: #c7d6cc;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.aps-assignee-hours input {
+  width: 100% !important;
+  min-width: 0;
+  padding: 7px 8px !important;
+  font-size: 12px !important;
+}
+.aps-assignee-remove {
+  border: 1px solid rgba(228, 152, 143, 0.56);
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: #ffd6d0;
+  background: rgba(139, 52, 48, 0.38);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.aps-assignee-remove:hover { background: rgba(166, 57, 51, 0.62); }
+.aps-assignee-picker select:focus-visible,
+.aps-assignee-hours input:focus-visible,
+.aps-assignee-remove:focus-visible {
+  outline: 2px solid #e3c158;
+  outline-offset: 2px;
+}
+.aps-assignee-empty,
+.aps-assignee-summary {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.aps-assignee-empty { color: #c7d6cc; }
+.aps-assignee-summary { color: #e3c158; }
+.aps-assignee-summary.ready { color: #b9e0bc; }
+.aps-assignee-summary.incomplete { color: #f0c878; }
+.aps-assignee-responses {
+  flex-basis: 100%;
+  width: 100%;
+  padding: 7px 9px;
+  border-left: 2px solid #d6b94d;
+  border-radius: 3px;
+  background: rgba(214, 185, 77, 0.1);
+  color: #f3ead0;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.aps-assignee-responses strong { color: #fff4c5; }
+@media (max-width: 560px) {
+  .aps-assignee-chip { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .aps-assignee-hours { grid-column: 1 / -1; }
 }

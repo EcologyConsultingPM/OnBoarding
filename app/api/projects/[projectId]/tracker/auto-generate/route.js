@@ -15,6 +15,23 @@ function num(value) {
   return Number.isFinite(result) ? result : 0;
 }
 
+// The assignment table is additive. Keep the scalar staff_user_id rate path
+// alive for installations whose migration or PostgREST schema cache is behind.
+function assignmentTableUnavailable(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "42703" || code === "PGRST204" || code === "PGRST205" || message.includes("project_activity_assignees") || message.includes("schema cache") || message.includes("does not exist");
+}
+
+function assignmentsByActivity(rows) {
+  const result = new Map();
+  for (const row of rows || []) {
+    if (!result.has(row.activity_id)) result.set(row.activity_id, []);
+    result.get(row.activity_id).push(row);
+  }
+  return result;
+}
+
 // Groups a project's Work Activities by category, prices each group using
 // the assigned staff member's rate on this project (falling back to the
 // project's default hourly rate when an activity has no assignee or that
@@ -26,7 +43,7 @@ function num(value) {
 export async function generateTrackerFromActivities(access, projectId) {
   const [projectResult, activitiesResult, allocationsResult, sourcesResult] = await Promise.all([
     access.admin.from("projects").select("id, name, budget_hours, budget_dollars, default_hourly_rate").eq("id", projectId).maybeSingle(),
-    access.admin.from("project_activities").select("task_category, budget_hours, staff_user_id").eq("project_id", projectId).eq("is_active", true),
+    access.admin.from("project_activities").select("id, task_category, budget_hours, staff_user_id").eq("project_id", projectId).eq("is_active", true),
     access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
     access.admin.from("project_budget_sources").select("id, source_code, source_type").eq("project_id", projectId),
   ]);
@@ -45,6 +62,13 @@ export async function generateTrackerFromActivities(access, projectId) {
   const rateByStaff = new Map((allocationsResult.data || []).map((a) => [a.staff_user_id, num(a.hourly_rate)]));
   const defaultRate = num(project.default_hourly_rate);
   const now = new Date().toISOString();
+  const assignmentResult = await access.admin.from("project_activity_assignees")
+    .select("activity_id, staff_user_id, allocated_hours")
+    .in("activity_id", activities.map((activity) => activity.id))
+    .neq("acceptance_status", "removed");
+  if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) return { error: assignmentResult.error.message };
+  const assignmentTableReady = !assignmentResult.error;
+  const assignmentRowsByActivity = assignmentsByActivity((assignmentResult.data || []).filter((row) => row.staff_user_id));
 
   const SOURCE_CODE = "AUTO-ORIGINAL";
   // New projects seed ORG-01 when the approved baseline is saved; older
@@ -73,12 +97,34 @@ export async function generateTrackerFromActivities(access, projectId) {
   for (const activity of activities) {
     const category = activity.task_category || "Uncategorised";
     const hours = num(activity.budget_hours);
-    const rate = activity.staff_user_id && rateByStaff.has(activity.staff_user_id)
-      ? rateByStaff.get(activity.staff_user_id)
-      : defaultRate;
+    const assignees = assignmentRowsByActivity.get(activity.id) || [];
+    let value = 0;
+    if (assignmentTableReady && assignees.length) {
+      const explicitHours = assignees.map((assignee) => Math.max(0, num(assignee.allocated_hours)));
+      const totalExplicitHours = explicitHours.reduce((sum, allocatedHours) => sum + allocatedHours, 0);
+      assignees.forEach((assignee, index) => {
+        // Allocation hours normally sum to the shared parent budget. If an old
+        // backfill has blank/uneven values, use equal or normalized shares so
+        // the activity is still priced ONCE, never once per staff member.
+        const shareHours = totalExplicitHours > 0
+          ? hours * (explicitHours[index] / totalExplicitHours)
+          : hours / assignees.length;
+        const rate = rateByStaff.has(assignee.staff_user_id)
+          ? rateByStaff.get(assignee.staff_user_id)
+          : defaultRate;
+        value += shareHours * rate;
+      });
+    } else if (!assignmentTableReady) {
+      const rate = activity.staff_user_id && rateByStaff.has(activity.staff_user_id)
+        ? rateByStaff.get(activity.staff_user_id)
+        : defaultRate;
+      value = hours * rate;
+    }
     const entry = byCategory.get(category) || { hours: 0, value: 0 };
+    // Activity budget hours are an activity-level financial measure. Do not
+    // add the same parent budget once for every shared assignee.
     entry.hours += hours;
-    entry.value += hours * rate;
+    entry.value += value;
     byCategory.set(category, entry);
   }
 

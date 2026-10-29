@@ -66,13 +66,32 @@ jobs:
             echo "SUPABASE_DB_URL=$SUPABASE_POOLER_DB_URL" >> "$GITHUB_ENV"
             echo "Using the configured IPv4-capable Supabase pooler connection."
           else
-            pooler_url=$(printf '%s' "$SUPABASE_DB_URL" | sed -E 's#://postgres:#://postgres.qjsdglkipgncttztksxl:#; s#@db\.qjsdglkipgncttztksxl\.supabase\.co:5432#@aws-0-ap-south-1.pooler.supabase.com:6543#')
-            if [[ "$pooler_url" == "$SUPABASE_DB_URL" ]]; then
-              echo "Unable to derive a pooler URL. Set the SUPABASE_POOLER_DB_URL repository secret." >&2
-              exit 1
-            fi
+            # Supabase pooler authentication requires the project-qualified
+            # username (postgres.<project-ref>), not the direct host's plain
+            # postgres username. The prior sed-only conversion rewrote only
+            # the host/port, causing `password authentication failed for user
+            # "postgres"` on every scheduled backup.
+            pooler_url=$(SUPABASE_DIRECT_URL="$SUPABASE_DB_URL" python3 - <<'PY'
+          import os
+          import sys
+          from urllib.parse import quote, unquote, urlsplit, urlunsplit
+
+          project_ref = "qjsdglkipgncttztksxl"
+          direct_host = f"db.{project_ref}.supabase.co"
+          pooler_host = "aws-0-ap-south-1.pooler.supabase.com"
+          raw = os.environ.get("SUPABASE_DIRECT_URL", "")
+          parts = urlsplit(raw)
+          if parts.scheme not in {"postgres", "postgresql"} or parts.hostname != direct_host or not parts.username:
+              print("The configured direct database URL cannot be safely converted. Set SUPABASE_POOLER_DB_URL.", file=sys.stderr)
+              raise SystemExit(1)
+          username = quote(f"postgres.{project_ref}", safe="")
+          password = quote(unquote(parts.password or ""), safe="")
+          auth = username if not password else f"{username}:{password}"
+          print(urlunsplit((parts.scheme, f"{auth}@{pooler_host}:6543", parts.path or "/postgres", parts.query, parts.fragment)))
+          PY
+            )
             echo "SUPABASE_DB_URL=$pooler_url" >> "$GITHUB_ENV"
-            echo "Derived an IPv4-capable Supabase transaction-pooler connection."
+            echo "Derived an IPv4-capable Supabase transaction-pooler connection with its required project-qualified username."
           fi
 
       - name: Create private logical database archive

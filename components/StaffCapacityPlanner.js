@@ -291,6 +291,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     if (mode === "staff" || !data?.canEdit) return;
     setModalError("");
     setManualTaskModal({
+      itemType: "task",
       assignedTo: "",
       project: "Internal / non-project work",
       task: "",
@@ -299,19 +300,29 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       budgetHours: "",
       deliverable: "",
       notes: "",
+      leaveType: "annual_leave",
     });
   };
   const saveManualTask = async () => {
     if (!manualTaskModal) return;
     if (!manualTaskModal.assignedTo) { setModalError("Choose the staff member who will receive this assignment."); return; }
-    if (!manualTaskModal.task.trim()) { setModalError("Enter a short task description."); return; }
+    if (manualTaskModal.itemType !== "leave" && !manualTaskModal.task.trim()) { setModalError("Enter a short task description."); return; }
+    if (manualTaskModal.itemType === "leave" && (!manualTaskModal.startDate || !manualTaskModal.dueDate)) { setModalError("Choose the leave start and end dates."); return; }
     setModalBusy(true);
     setModalError("");
     try {
-      const response = await fetch("/api/remote-tasks", {
+      const isLeave = manualTaskModal.itemType === "leave";
+      const response = await fetch(isLeave ? "/api/admin/staff-capacity" : "/api/remote-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
+        body: JSON.stringify(isLeave ? {
+          action: "create_approved_leave",
+          staffUserId: manualTaskModal.assignedTo,
+          leaveType: manualTaskModal.leaveType,
+          startDate: manualTaskModal.startDate,
+          endDate: manualTaskModal.dueDate,
+          note: manualTaskModal.notes,
+        } : {
           assigned_to: manualTaskModal.assignedTo,
           project: manualTaskModal.project.trim() || "Internal / non-project work",
           task: manualTaskModal.task.trim(),
@@ -323,7 +334,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not create the manual assignment.");
+      if (!response.ok) throw new Error(payload.error || (isLeave ? "Could not create the approved leave entry." : "Could not create the manual assignment."));
       setManualTaskModal(null);
       await load();
     } catch (saveError) {
@@ -596,7 +607,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           )}
 
               <div className="scp-calendar-section">
-              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click any project item to see its project, activity and client context. Administrators can drag an activity or unassigned schedule item to a staff member and date; the linked delivery schedule updates automatically.</p></div><div className="scp-calendar-heading-actions">{mode !== "staff" && data.canEdit ? <button type="button" className="scp-manual-task" onClick={openManualTaskModal}><UserPlus size={14} /> Add manual assignment</button> : null}<span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div></div>
+              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click any project item to see its project, activity and client context. Administrators can drag an activity or unassigned schedule item to a staff member and date; the linked delivery schedule updates automatically.</p></div><div className="scp-calendar-heading-actions">{mode !== "staff" && data.canEdit ? <button type="button" className="scp-manual-task" onClick={openManualTaskModal}><UserPlus size={14} /> Add calendar item</button> : null}<span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
               <>
@@ -689,18 +700,25 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
               ) : null}
 
               {manualTaskModal ? (
-                <div className="scp-modal-backdrop" role="dialog" aria-label="Add manual staff assignment" onClick={() => !modalBusy && setManualTaskModal(null)}>
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Add calendar item" onClick={() => !modalBusy && setManualTaskModal(null)}>
                   <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
-                    <div className="scp-modal-head"><div><span>Operational work allocation</span><h3>Add manual assignment</h3></div><button type="button" onClick={() => !modalBusy && setManualTaskModal(null)}><X size={16} /></button></div>
+                    <div className="scp-modal-head"><div><span>Workload calendar</span><h3>Add calendar item</h3></div><button type="button" onClick={() => !modalBusy && setManualTaskModal(null)}><X size={16} /></button></div>
                     {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
-                    <p>Use this for policy reviews, operational work and other non-project tasks. The assignee receives a Staff Portal notification and the task appears in the workload calendar immediately.</p>
+                    <p>{manualTaskModal.itemType === "leave" ? "Record administrator-approved leave directly in the calendar. It reduces capacity immediately and creates a staff-owned approved leave record." : "Use this for policy reviews, operational work and other non-project tasks. The assignee receives a Staff Portal notification and the task appears in the workload calendar immediately."}</p>
+                    <fieldset className="scp-calendar-item-type"><legend>Calendar item type</legend><label><input type="radio" name="calendar-item-type" checked={manualTaskModal.itemType === "task"} onChange={() => setManualTaskModal({ ...manualTaskModal, itemType: "task" })} /> Manual task</label><label><input type="radio" name="calendar-item-type" checked={manualTaskModal.itemType === "leave"} onChange={() => setManualTaskModal({ ...manualTaskModal, itemType: "leave" })} /> Approved leave</label></fieldset>
                     <label className="scp-modal-field">Assign to<select value={manualTaskModal.assignedTo} onChange={(event) => setManualTaskModal({ ...manualTaskModal, assignedTo: event.target.value })}><option value="">Select a staff member…</option>{(data.people || []).map((person) => <option key={person.id} value={person.id}>{person.name || person.email}</option>)}</select></label>
-                    <label className="scp-modal-field">Workstream or project<input value={manualTaskModal.project} onChange={(event) => setManualTaskModal({ ...manualTaskModal, project: event.target.value })} placeholder="e.g. Internal / non-project work" /></label>
-                    <label className="scp-modal-field">Task description<input value={manualTaskModal.task} onChange={(event) => setManualTaskModal({ ...manualTaskModal, task: event.target.value })} placeholder="e.g. Review biodiversity policy update" /></label>
-                    <div className="scp-modal-row"><label className="scp-modal-field">Start date<input type="date" value={manualTaskModal.startDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, startDate: event.target.value })} /></label><label className="scp-modal-field">Due date<input type="date" value={manualTaskModal.dueDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, dueDate: event.target.value })} /></label></div>
-                    <div className="scp-modal-row"><label className="scp-modal-field">Planned hours<input type="number" min="0" step="0.25" value={manualTaskModal.budgetHours} onChange={(event) => setManualTaskModal({ ...manualTaskModal, budgetHours: event.target.value })} /></label><label className="scp-modal-field">Deliverable / outcome<input value={manualTaskModal.deliverable} onChange={(event) => setManualTaskModal({ ...manualTaskModal, deliverable: event.target.value })} placeholder="Optional" /></label></div>
-                    <label className="scp-modal-field">Instructions or links<textarea rows={3} value={manualTaskModal.notes} onChange={(event) => setManualTaskModal({ ...manualTaskModal, notes: event.target.value })} placeholder="Brief, context and any handover requirements" /></label>
-                    <div className="scp-modal-actions"><button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveManualTask}>{modalBusy ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {modalBusy ? "Assigning…" : "Assign & notify"}</button></div>
+                    {manualTaskModal.itemType === "leave" ? <>
+                      <label className="scp-modal-field">Leave type<select value={manualTaskModal.leaveType} onChange={(event) => setManualTaskModal({ ...manualTaskModal, leaveType: event.target.value })}><option value="annual_leave">Annual leave</option><option value="personal_carers_leave">Personal / carer’s leave</option><option value="long_service_leave">Long service leave</option><option value="parental_leave">Parental leave</option><option value="unpaid_leave">Unpaid leave</option><option value="other_leave">Other leave</option></select></label>
+                      <div className="scp-modal-row"><label className="scp-modal-field">Leave start<input type="date" value={manualTaskModal.startDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, startDate: event.target.value })} /></label><label className="scp-modal-field">Leave end<input type="date" value={manualTaskModal.dueDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, dueDate: event.target.value })} /></label></div>
+                      <label className="scp-modal-field">Administrator note<textarea rows={3} value={manualTaskModal.notes} onChange={(event) => setManualTaskModal({ ...manualTaskModal, notes: event.target.value })} placeholder="Optional leave context or cover arrangement" /></label>
+                    </> : <>
+                      <label className="scp-modal-field">Workstream or project<input value={manualTaskModal.project} onChange={(event) => setManualTaskModal({ ...manualTaskModal, project: event.target.value })} placeholder="e.g. Internal / non-project work" /></label>
+                      <label className="scp-modal-field">Task description<input value={manualTaskModal.task} onChange={(event) => setManualTaskModal({ ...manualTaskModal, task: event.target.value })} placeholder="e.g. Review biodiversity policy update" /></label>
+                      <div className="scp-modal-row"><label className="scp-modal-field">Start date<input type="date" value={manualTaskModal.startDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, startDate: event.target.value })} /></label><label className="scp-modal-field">Due date<input type="date" value={manualTaskModal.dueDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, dueDate: event.target.value })} /></label></div>
+                      <div className="scp-modal-row"><label className="scp-modal-field">Planned hours<input type="number" min="0" step="0.25" value={manualTaskModal.budgetHours} onChange={(event) => setManualTaskModal({ ...manualTaskModal, budgetHours: event.target.value })} /></label><label className="scp-modal-field">Deliverable / outcome<input value={manualTaskModal.deliverable} onChange={(event) => setManualTaskModal({ ...manualTaskModal, deliverable: event.target.value })} placeholder="Optional" /></label></div>
+                      <label className="scp-modal-field">Instructions or links<textarea rows={3} value={manualTaskModal.notes} onChange={(event) => setManualTaskModal({ ...manualTaskModal, notes: event.target.value })} placeholder="Brief, context and any handover requirements" /></label>
+                    </>}
+                    <div className="scp-modal-actions"><button type="button" className="scp-modal-save" disabled={modalBusy} onClick={saveManualTask}>{modalBusy ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {modalBusy ? (manualTaskModal.itemType === "leave" ? "Adding leave…" : "Assigning…") : (manualTaskModal.itemType === "leave" ? "Add approved leave & notify" : "Assign & notify")}</button></div>
                   </div>
                 </div>
               ) : null}

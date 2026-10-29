@@ -16,6 +16,24 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// The join table arrives with the multi-assignee migration. Keep the scalar
+// staff_user_id route intact while that migration or its PostgREST cache is not
+// available, rather than blocking staff access to existing projects.
+function assignmentTableUnavailable(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "42703" || code === "PGRST204" || code === "PGRST205" || message.includes("project_activity_assignees") || message.includes("schema cache") || message.includes("does not exist");
+}
+
+function assignmentsByActivity(rows) {
+  const result = new Map();
+  for (const row of rows || []) {
+    if (!result.has(row.activity_id)) result.set(row.activity_id, []);
+    result.get(row.activity_id).push(row);
+  }
+  return result;
+}
+
 async function projectAccess(access, projectId, staffWorkspace = false) {
   let projectQuery = access.admin
     .from("projects")
@@ -27,7 +45,7 @@ async function projectAccess(access, projectId, staffWorkspace = false) {
   const { data: project, error } = await projectQuery.maybeSingle();
   if (error || !project) return { response: Response.json({ error: "Project not found." }, { status: 404 }) };
   if (!access.isAdmin || staffWorkspace) {
-    const [allocationResult, activityResult] = await Promise.all([
+    const [allocationResult, activityResult, assignmentResult] = await Promise.all([
       access.admin
         .from("project_allocations")
         .select("id")
@@ -43,6 +61,12 @@ async function projectAccess(access, projectId, staffWorkspace = false) {
         .eq("is_active", true)
         .in("acceptance_status", ["accepted", "actioned"])
         .limit(1),
+      access.admin
+        .from("project_activity_assignees")
+        .select("activity_id")
+        .eq("staff_user_id", access.user.id)
+        .neq("acceptance_status", "removed")
+        .in("acceptance_status", ["accepted", "actioned"]),
     ]);
     if (allocationResult.error) return { response: Response.json({ error: allocationResult.error.message }, { status: 400 }) };
     let activityRows = activityResult.data || [];
@@ -53,7 +77,22 @@ async function projectAccess(access, projectId, staffWorkspace = false) {
       if (fallback.error) return { response: Response.json({ error: fallback.error.message }, { status: 400 }) };
       activityRows = fallback.data || [];
     }
-    if (!(allocationResult.data || []).length && !activityRows.length) {
+    if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) return { response: Response.json({ error: assignmentResult.error.message }, { status: 400 }) };
+    let assignedActivityRows = [];
+    if (!assignmentResult.error && (assignmentResult.data || []).length) {
+      const { data, error: assignmentActivityError } = await access.admin.from("project_activities")
+        .select("id")
+        .eq("project_id", projectId)
+        .in("id", (assignmentResult.data || []).map((row) => row.activity_id))
+        .eq("is_active", true)
+        .limit(1);
+      if (assignmentActivityError) return { response: Response.json({ error: assignmentActivityError.message }, { status: 400 }) };
+      assignedActivityRows = data || [];
+    }
+    // If the join table is live, an individual acceptance/action controls
+    // visibility. The parent activity acceptance is a legacy fallback only.
+    const activityMembership = assignmentResult.error ? activityRows : assignedActivityRows;
+    if (!(allocationResult.data || []).length && !activityMembership.length) {
       return { response: Response.json({ error: "You are not allocated to this project." }, { status: 403 }) };
     }
   }
@@ -106,6 +145,15 @@ export async function GET(request, { params }) {
     // no way to distinguish "gone" from "empty".
     if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
     const schedule = scheduleResult.data || [];
+    const assignmentResult = await access.admin.from("project_activity_assignees")
+      .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
+      .in("activity_id", (activitiesResult?.data || []).map((activity) => activity.id))
+      .neq("acceptance_status", "removed");
+    if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) return Response.json({ error: assignmentResult.error.message }, { status: 400 });
+    const assignmentTableReady = !assignmentResult.error;
+    const activityAssignees = assignmentsByActivity(
+      (assignmentResult.data || []).filter((row) => row.staff_user_id && row.acceptance_status !== "declined"),
+    );
 
     // Attach staff emails to allocations and linked schedule activities so project
     // team members can see who owns each delivery line without receiving data for
@@ -115,24 +163,43 @@ export async function GET(request, { params }) {
     const staffIds = [...new Set([
       ...allocationsWithEmail.map((row) => row.staff_user_id),
       ...activityRows.map((row) => row.staff_user_id),
+      ...(assignmentResult.data || []).map((row) => row.staff_user_id),
     ].filter(Boolean))];
     const { data: users } = staffIds.length ? await access.admin.auth.admin.listUsers() : { data: { users: [] } };
     const emailById = new Map((users?.users || []).map((user) => [user.id, user.email]));
     allocationsWithEmail = allocationsWithEmail.map((allocation) => ({ ...allocation, email: emailById.get(allocation.staff_user_id) || null }));
     const scheduleWithAssignments = (schedule || []).map((item) => {
       const linkedActivities = activityRows.filter((activity) => activity.schedule_item_id === item.id);
-      const assignedStaff = linkedActivities.map((activity) => ({
-        id: activity.staff_user_id,
-        email: emailById.get(activity.staff_user_id) || "Allocated team member",
-        activityId: activity.id,
-        title: activity.title,
-        status: activity.status || "not_commenced",
-        progressPercent: Number(activity.progress_percent || 0),
-        acceptanceStatus: activity.acceptance_status || "accepted",
-      }));
+      const assignedStaff = linkedActivities.flatMap((activity) => {
+        const rows = activityAssignees.get(activity.id) || [];
+        const assignees = assignmentTableReady
+          ? rows
+          : activity.staff_user_id
+            ? [{ staff_user_id: activity.staff_user_id, allocated_hours: null, acceptance_status: activity.acceptance_status || "accepted" }]
+            : [];
+        return assignees.map((assignee) => ({
+          id: assignee.staff_user_id,
+          email: emailById.get(assignee.staff_user_id) || "Allocated team member",
+          activityId: activity.id,
+          title: activity.title,
+          status: activity.status || "not_commenced",
+          progressPercent: Number(activity.progress_percent || 0),
+          acceptanceStatus: assignee.acceptance_status || "accepted",
+          allocatedHours: assignee.allocated_hours ?? null,
+        }));
+      });
       const liveStatuses = linkedActivities.map((activity) => activity.status).filter(Boolean);
       const averageProgress = linkedActivities.length ? Math.round(linkedActivities.reduce((sum, activity) => sum + Number(activity.progress_percent || 0), 0) / linkedActivities.length) : Number(item.progress_percent || 0);
-      return { ...item, assigned_staff: assignedStaff, progress_percent: averageProgress, status: liveStatuses.includes("completed") && linkedActivities.every((activity) => activity.status === "completed") ? "completed" : (liveStatuses.find((status) => status !== "not_commenced") || item.status || "not_commenced") };
+      return {
+        ...item,
+        assigned_staff: assignedStaff,
+        // Explicit aggregate aliases let newer consumers avoid inferring a
+        // person from the first legacy projection in a schedule activity.
+        assignees: assignedStaff,
+        staffNames: [...new Set(assignedStaff.map((staff) => staff.email))],
+        progress_percent: averageProgress,
+        status: liveStatuses.includes("completed") && linkedActivities.every((activity) => activity.status === "completed") ? "completed" : (liveStatuses.find((status) => status !== "not_commenced") || item.status || "not_commenced"),
+      };
     });
 
     return Response.json({ project, schedule: scheduleWithAssignments, allocations: allocationsWithEmail });

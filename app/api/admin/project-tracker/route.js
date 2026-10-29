@@ -17,6 +17,23 @@ function tableUnavailable(error) {
   return code === "42P01" || code === "42703" || code === "PGRST205" || message.includes("does not exist") || message.includes("schema cache");
 }
 
+// Multi-assignee support is additive. An unavailable join table must preserve
+// the scalar staff_user_id projection used by existing tracker consumers.
+function assignmentTableUnavailable(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "42703" || code === "PGRST204" || code === "PGRST205" || message.includes("project_activity_assignees") || message.includes("schema cache") || message.includes("does not exist");
+}
+
+function assignmentsByActivity(rows) {
+  const result = new Map();
+  for (const row of rows || []) {
+    if (!result.has(row.activity_id)) result.set(row.activity_id, []);
+    result.get(row.activity_id).push(row);
+  }
+  return result;
+}
+
 function number(value) {
   const result = Number(value);
   return Number.isFinite(result) ? result : 0;
@@ -67,7 +84,7 @@ function healthForAllocation(allocation) {
   return "on_track";
 }
 
-function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames) {
+function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames, activityAssignees, assignmentTableReady) {
   const projectSources = sources.filter((source) => source.project_id === project.id);
   const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
   const original = projectSources.filter((source) => source.source_type === "original");
@@ -167,12 +184,28 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     activityPosition: relevantActivities.filter((a) => (a.title || "").trim()).map((activity) => {
       const actualHours = projectEntries.filter((e) => e.activity_category === activity.task_category).reduce((sum, e) => sum + number(e.hours), 0);
       const allocatedHours = number(activity.budget_hours);
+      const assignmentRows = activityAssignees.get(activity.id) || [];
+      const assignees = assignmentTableReady
+        ? assignmentRows.map((row) => ({
+          staffUserId: row.staff_user_id,
+          staffName: staffNames?.get(row.staff_user_id) || "Allocated team member",
+          allocatedHours: row.allocated_hours ?? null,
+          acceptanceStatus: row.acceptance_status || "accepted",
+        }))
+        : activity.staff_user_id
+          ? [{ staffUserId: activity.staff_user_id, staffName: staffNames?.get(activity.staff_user_id) || "Allocated team member", allocatedHours: activity.budget_hours ?? null, acceptanceStatus: activity.acceptance_status || "accepted" }]
+          : [];
+      const staffUserId = activity.staff_user_id || assignees[0]?.staffUserId || null;
       return {
         id: activity.id,
         title: activity.title,
         category: activity.task_category,
-        assignedTo: staffNames?.get(activity.staff_user_id) || "Unassigned",
-        staffUserId: activity.staff_user_id || null,
+        // The legacy scalar fields remain for override/editor consumers while
+        // assignees/staffNames expose the full shared-work team.
+        assignedTo: staffUserId ? staffNames?.get(staffUserId) || "Allocated team member" : "Unassigned",
+        staffUserId,
+        assignees,
+        staffNames: assignees.map((assignee) => assignee.staffName),
         allocatedHours,
         actualHours,
         remainingHours: allocatedHours ? Math.round((allocatedHours - actualHours) * 10) / 10 : null,
@@ -218,6 +251,16 @@ async function trackerData(access, requestedProjectId = "") {
   }
   if (trackerEntriesResult.error && !tableUnavailable(trackerEntriesResult.error)) throw new Error(trackerEntriesResult.error.message);
 
+  const activityAssignmentResult = await access.admin.from("project_activity_assignees")
+    .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
+    .in("activity_id", (activitiesResult.data || []).map((activity) => activity.id))
+    .neq("acceptance_status", "removed");
+  if (activityAssignmentResult.error && !assignmentTableUnavailable(activityAssignmentResult.error)) throw new Error(activityAssignmentResult.error.message);
+  const assignmentTableReady = !activityAssignmentResult.error;
+  const activityAssignees = assignmentsByActivity(
+    (activityAssignmentResult.data || []).filter((row) => row.staff_user_id && row.acceptance_status !== "declined"),
+  );
+
   const teamCounts = new Map();
   (allocationsResult.data || []).filter((row) => row.active !== false).forEach((row) => {
     if (row.staff_user_id) teamCounts.set(row.project_id, (teamCounts.get(row.project_id) || 0) + 1);
@@ -225,7 +268,7 @@ async function trackerData(access, requestedProjectId = "") {
   const settingsByProject = new Map((settingsResult.data || []).map((setting) => [setting.project_id, setting]));
   return {
     financialReady,
-    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames)),
+    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames, activityAssignees, assignmentTableReady)),
   };
 }
 
