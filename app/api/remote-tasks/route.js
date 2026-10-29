@@ -34,12 +34,20 @@ export async function GET(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
 
+    // The Staff Notifications workspace can be opened by an administrator in
+    // their staff capacity. `scope=mine` is therefore a deliberate, server-
+    // enforced recipient view: it never returns a colleague's task brief,
+    // regardless of the caller's administrator role. The admin Task Briefs
+    // domain omits this scope and retains its team-management view.
+    const scope = new URL(request.url).searchParams.get("scope");
+    const recipientOnly = scope === "mine" || !access.isAdmin;
+
     let query = access.admin
       .from("remote_tasks")
       .select(COLS)
       .order("due_date", { ascending: true, nullsFirst: false });
 
-    if (!access.isAdmin) query = query.eq("assigned_to", access.user.id);
+    if (recipientOnly) query = query.eq("assigned_to", access.user.id);
 
     const { data, error } = await query;
     if (error) return badRequest(error.message);
@@ -65,7 +73,7 @@ export async function GET(request) {
       ? tasks.filter((task) => task.status === "awaiting_acceptance").length
       : tasks.filter((task) => task.status === "awaiting_acceptance" && !task.seen_by_staff).length;
 
-    return Response.json({ tasks, staff, isAdmin: access.isAdmin, pendingAcceptanceCount });
+    return Response.json({ tasks, staff, isAdmin: access.isAdmin, recipientOnly, pendingAcceptanceCount });
   } catch (error) {
     return serverError(error);
   }

@@ -85,7 +85,12 @@ export default function RemoteTasks({
 
   const load = useCallback(async () => {
     try {
-      const res = await authFetch("GET", "/api/remote-tasks");
+      // An administrator may legitimately open the Staff Notifications workspace
+      // to check their own operational updates. That staff-facing view must not
+      // become a team-wide Task Briefs inbox merely because their account also
+      // has an administrator role.
+      const endpoint = isAdmin ? "/api/remote-tasks" : "/api/remote-tasks?scope=mine";
+      const res = await authFetch("GET", endpoint);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setTasks(data.tasks || []);
