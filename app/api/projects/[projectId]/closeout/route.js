@@ -1,194 +1,105 @@
 import { requireSession, serverError } from "../../../../../lib/serverAuth";
+import { requirePortalResource } from "../../../../../lib/portalVisibility";
+import {
+  CLOSEOUT_PROJECT_COLUMNS, CloseoutError, MASTER_ACTIONS, closeoutErrorResponse,
+  closeoutRows, closeoutTeam, prepareCloseoutMutation, validCloseoutId,
+} from "../../../../../lib/projectCloseoutServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STATUSES = new Set([
-  "not_started",
-  "initiated",
-  "awaiting_reviews",
-  "awaiting_manager_approval",
-  "closed",
-  "archived",
-]);
-const ACTION_STATUSES = new Set([
-  "draft",
-  "assigned",
-  "in_progress",
-  "completed",
-  "verified",
-  "archived",
-]);
-
-function text(value) {
-  const valueText = typeof value === "string" ? value.trim() : "";
-  return valueText || null;
-}
-
-function score(value) {
-  if (value === "" || value === null || value === undefined) return null;
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
-}
-
-async function loadProject(access, projectId) {
-  const { data, error } = await access.admin
-    .from("projects")
-    .select("id, name, status, project_lead_user_id")
-    .eq("id", projectId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-async function ensureCloseout(access, projectId, userId) {
-  const { data, error } = await access.admin
-    .from("project_closeouts")
-    .select("*")
-    .eq("project_id", projectId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (data) return data;
-  const { data: created, error: createError } = await access.admin
-    .from("project_closeouts")
-    .insert({ project_id: projectId, created_by: userId, updated_by: userId })
-    .select("*")
-    .single();
-  if (createError) throw new Error(createError.message);
-  return created;
+async function context(request, params) {
+  const access = await requireSession(request);
+  if (access.error) return { response: access.error };
+  const { projectId } = await params;
+  validCloseoutId(projectId);
+  const staffAudience = new URL(request.url).searchParams.get("audience") === "staff" || !access.isAdmin;
+  const canManage = access.isAdmin && !staffAudience;
+  const permission = await requirePortalResource(access, canManage ? "admin.projects" : "staff.notifications");
+  if (permission) return { response: permission };
+  const { data: project, error } = await access.admin.from("projects").select(CLOSEOUT_PROJECT_COLUMNS).eq("id", projectId).is("deleted_at", null).maybeSingle();
+  if (error) throw error;
+  // Do not reveal project names, status or whether a close-out exists to an
+  // uninvited user. An admin deliberately using the staff workspace is scoped too.
+  if (!project) throw new CloseoutError("Project not found.", 404, "NOT_FOUND");
+  const { data: closeout, error: closeoutError } = await access.admin.from("project_closeouts").select("*").eq("project_id", projectId).maybeSingle();
+  if (closeoutError) throw closeoutError;
+  let invitation = null;
+  let team = null;
+  if (!canManage) {
+    if (!closeout) throw new CloseoutError("You do not have an invitation to this project close-out.", 403, "NOT_INVITED");
+    const { data, error: invitationError } = await access.admin.from("project_closeout_invitations").select("*").eq("closeout_id", closeout.id).eq("staff_user_id", access.user.id).eq("review_round", closeout.review_round || 1).limit(1).maybeSingle();
+    if (invitationError) throw invitationError;
+    if (!data) throw new CloseoutError("You do not have an invitation to this project close-out.", 403, "NOT_INVITED");
+    // Test current allocation/assignment/lead membership, never invitation alone.
+    const { data: member, error: memberError } = await access.admin.rpc("project_closeout_is_team_member", { p_project_id: projectId, p_user_id: access.user.id });
+    if (memberError) throw memberError;
+    if (!member) throw new CloseoutError("You are no longer a current member of this project team.", 403, "NOT_TEAM");
+    invitation = data;
+    team = []; // Staff must not receive the project-wide identity/email directory.
+  }
+  return { access, projectId, project, closeout, invitation, team, canManage, staffAudience };
 }
 
 export async function GET(request, { params }) {
   try {
-    const access = await requireSession(request);
-    if (access.error) return access.error;
-    if (!access.isAdmin) return Response.json({ error: "Only administrators can view project close-out records." }, { status: 403 });
-    const project = await loadProject(access, params.projectId);
-    if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
-
-    const [closeoutResult, actionsResult, feedbackResult] = await Promise.all([
-      access.admin.from("project_closeouts").select("*").eq("project_id", params.projectId).maybeSingle(),
-      access.admin.from("project_improvement_actions").select("*").eq("project_id", params.projectId).eq("is_active", true).order("due_date", { ascending: true, nullsFirst: false }).limit(200),
-      access.admin.from("project_closeout_feedback").select("id, closeout_id, staff_user_id, response, status, submitted_at, created_at, updated_at").limit(200),
+    const ctx = await context(request, params);
+    if (ctx.response) return ctx.response;
+    const { access, project, projectId, closeout, canManage, invitation } = ctx;
+    const [feedback, actionsResult, team] = await Promise.all([
+      closeout ? closeoutRows(access.admin, "project_closeout_feedback", closeout.id, canManage ? null : access.user.id) : [],
+      canManage ? access.admin.from("project_improvement_actions").select("*").eq("project_id", projectId).eq("is_active", true).order("due_date", { ascending: true, nullsFirst: false }).limit(500) : { data: [] },
+      canManage ? closeoutTeam(access.admin, project) : ctx.team,
     ]);
-    const error = closeoutResult.error || actionsResult.error || feedbackResult.error;
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    const closeout = closeoutResult.data || null;
-    const feedback = closeout ? (feedbackResult.data || []).filter((row) => row.closeout_id === closeout.id) : [];
-    return Response.json({ project, closeout, actions: actionsResult.data || [], feedback });
+    if (actionsResult.error) throw actionsResult.error;
+    const invitations = canManage && closeout ? await closeoutRows(access.admin, "project_closeout_invitations", closeout.id) : undefined;
+    // An invitation grants access to the shared template, not historical internal
+    // financial commentary or administrative override reasons. Redact on the
+    // server rather than merely hiding those fields in the staff interface.
+    const visibleCloseout = closeout && (canManage ? closeout : Object.fromEntries([
+      "id", "project_id", "status", "report_data", "report_revision", "review_round",
+      "locked_at", "approved_at", "created_at", "updated_at",
+    ].map((key) => [key, closeout[key]])));
+    return Response.json({ project, closeout: visibleCloseout ? { ...visibleCloseout, report_data: visibleCloseout.report_data ?? null, report_revision: visibleCloseout.report_revision ?? 0 } : null, actions: actionsResult.data || [], feedback, team, canManage, invitation, ...(canManage ? { invitations } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return serverError(error);
+    return closeoutErrorResponse(error) || serverError(error);
   }
 }
 
 export async function POST(request, { params }) {
   try {
-    const access = await requireSession(request);
-    if (access.error) return access.error;
-    if (!access.isAdmin) return Response.json({ error: "Only administrators can update project close-out records." }, { status: 403 });
-    const project = await loadProject(access, params.projectId);
-    if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
-    const body = await request.json();
-    const now = new Date().toISOString();
-
-    if (body.action === "upsert_improvement") {
-      const title = text(body.title);
-      if (!title) return Response.json({ error: "An improvement action title is required." }, { status: 400 });
-      const actionStatus = ACTION_STATUSES.has(body.status) ? body.status : "draft";
-      const values = {
-        project_id: params.projectId,
-        closeout_id: text(body.closeoutId),
-        title,
-        description: text(body.description),
-        assigned_to: text(body.assignedTo),
-        status: actionStatus,
-        due_date: text(body.dueDate),
-        updated_by: access.user.id,
-        updated_at: now,
-      };
-      if (body.actionId) {
-        const { data, error } = await access.admin.from("project_improvement_actions").update(values).eq("id", body.actionId).eq("project_id", params.projectId).eq("is_active", true).select("*").single();
-        if (error) return Response.json({ error: error.message }, { status: 400 });
-        return Response.json({ action: data });
-      }
-      const { data, error } = await access.admin.from("project_improvement_actions").insert({ ...values, created_by: access.user.id }).select("*").single();
-      if (error) return Response.json({ error: error.message }, { status: 400 });
-      return Response.json({ action: data }, { status: 201 });
+    const ctx = await context(request, params);
+    if (ctx.response) return ctx.response;
+    // Bound the body before parsing to avoid unbounded user-controlled JSON work.
+    // This also accommodates all capped rows at their maximum text length and
+    // JSON/unicode escaping overhead; valid template fields are not truncated.
+    if (Number(request.headers.get("content-length") || 0) > 32_000_000) throw new CloseoutError("The close-out request is too large.", 413, "PAYLOAD_TOO_LARGE");
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).length > 32_000_000) throw new CloseoutError("The close-out request is too large.", 413, "PAYLOAD_TOO_LARGE");
+    let body;
+    try { body = JSON.parse(raw); } catch { throw new CloseoutError("Request body must be valid JSON."); }
+    const mutation = prepareCloseoutMutation(body, ctx.project);
+    const ownResponse = ["save_feedback", "submit_feedback"].includes(mutation.action);
+    if (!ctx.canManage && !ownResponse) throw new CloseoutError("Only authorised project administrators can manage the master report.", 403, "FORBIDDEN");
+    // Even administrators must explicitly enter the recipient-scoped workspace
+    // before submitting a personal response; admin rights are not an invitation.
+    if (ownResponse && ctx.canManage) throw new CloseoutError("Open your invited staff report to submit your own response.", 403, "NOT_INVITED");
+    if (mutation.action === "invite_team") {
+      const team = await closeoutTeam(ctx.access.admin, ctx.project);
+      const allowed = new Set(team.map((person) => person.id));
+      if (mutation.payload.staffUserIds.some((id) => !allowed.has(id))) throw new CloseoutError("Invitations may only be sent to current project team members.", 403, "NOT_TEAM");
     }
-
-    if (body.action === "archive_improvement") {
-      if (!body.actionId) return Response.json({ error: "An improvement action is required." }, { status: 400 });
-      const { data, error } = await access.admin.from("project_improvement_actions").update({ is_active: false, status: "archived", updated_by: access.user.id, updated_at: now }).eq("id", body.actionId).eq("project_id", params.projectId).select("id, status, is_active").single();
-      if (error) return Response.json({ error: error.message }, { status: 400 });
-      return Response.json({ action: data });
-    }
-
-    if (body.action === "archive_project") {
-      const existing = await ensureCloseout(access, params.projectId, access.user.id);
-      if (existing.status !== "closed" || !existing.locked_at) {
-        return Response.json({ error: "Approve and lock the close-out before archiving this project." }, { status: 409 });
-      }
-      const { count: openActions, error: actionsError } = await access.admin
-        .from("project_improvement_actions")
-        .select("id", { count: "exact", head: true })
-        .eq("project_id", params.projectId)
-        .eq("is_active", true)
-        .not("status", "in", "(completed,verified,archived)");
-      if (actionsError) return Response.json({ error: actionsError.message }, { status: 400 });
-      if (openActions) return Response.json({ error: "Complete or archive all improvement actions before archiving this project." }, { status: 409 });
-      const { data: closeout, error: closeoutError } = await access.admin
-        .from("project_closeouts")
-        .update({ status: "archived", archived_at: now, archived_by: access.user.id, updated_by: access.user.id, updated_at: now })
-        .eq("id", existing.id)
-        .select("*")
-        .single();
-      if (closeoutError) return Response.json({ error: closeoutError.message }, { status: 400 });
-      const { error: projectUpdateError } = await access.admin
-        .from("projects")
-        .update({ status: "archived", updated_at: now })
-        .eq("id", params.projectId);
-      if (projectUpdateError) return Response.json({ error: `Close-out archived but the project status could not be updated: ${projectUpdateError.message}` }, { status: 400 });
-      return Response.json({ closeout, project_archived: true });
-    }
-
-    const nextStatus = STATUSES.has(body.status) ? body.status : "not_started";
-    const existing = await ensureCloseout(access, params.projectId, access.user.id);
-    if (nextStatus === "archived") return Response.json({ error: "Use the archive action after close-out approval." }, { status: 400 });
-    if (existing.locked_at && nextStatus !== "archived") return Response.json({ error: "This close-out is locked and must be reopened by an administrator before editing." }, { status: 409 });
-    if (nextStatus === "closed") {
-      const missing = [
-        !score(body.successScore) && "success score",
-        !text(body.clientOutcome) && "client outcome",
-        !text(body.deliverySummary) && "delivery summary",
-        !text(body.financialReviewNotes) && "financial review",
-        !text(body.approvalNote) && "approval note",
-      ].filter(Boolean);
-      if (missing.length) {
-        return Response.json({ error: `Complete the ${missing.join(", ")} before approving and locking the close-out.` }, { status: 400 });
-      }
-    }
-    const update = {
-      status: nextStatus,
-      success_score: score(body.successScore),
-      client_outcome: text(body.clientOutcome),
-      delivery_summary: text(body.deliverySummary),
-      lessons_learned: text(body.lessonsLearned),
-      stakeholder_feedback: text(body.stakeholderFeedback),
-      financial_review_notes: text(body.financialReviewNotes),
-      recommendations: text(body.recommendations),
-      approval_note: text(body.approvalNote),
-      initiated_at: nextStatus !== "not_started" ? (existing.initiated_at || now) : existing.initiated_at,
-      approved_at: nextStatus === "closed" ? (existing.approved_at || now) : existing.approved_at,
-      approved_by: nextStatus === "closed" ? (existing.approved_by || access.user.id) : existing.approved_by,
-      locked_at: nextStatus === "closed" ? (existing.locked_at || now) : existing.locked_at,
-      locked_by: nextStatus === "closed" ? (existing.locked_by || access.user.id) : existing.locked_by,
-      updated_by: access.user.id,
-      updated_at: now,
-    };
-    const { data, error } = await access.admin.from("project_closeouts").update(update).eq("id", existing.id).select("*").single();
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ closeout: data });
+    const { data, error } = await ctx.access.admin.rpc("mutate_project_closeout", {
+      p_project_id: ctx.projectId,
+      p_actor_id: ctx.access.user.id,
+      p_action: mutation.action,
+      p_expected_revision: MASTER_ACTIONS.has(mutation.action) ? mutation.expectedRevision : null,
+      p_payload: mutation.payload,
+      p_staff_audience: ctx.staffAudience,
+    });
+    if (error) throw error;
+    return Response.json(data, { status: mutation.action === "upsert_improvement" && !mutation.payload.actionId ? 201 : 200, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return serverError(error);
+    return closeoutErrorResponse(error) || serverError(error);
   }
 }

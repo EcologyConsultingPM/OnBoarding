@@ -5333,11 +5333,19 @@ export default function OnboardingWorkbook() {
               )}
               {projectsSubview === "closeout" && (
                 projectCloseOutTarget.id ? (
-                  <ProjectCloseOut
-                    projectId={projectCloseOutTarget.id}
-                    projectName={projectCloseOutTarget.name}
-                    onToast={showToast}
-                  />
+                  <div>
+                    <div data-print="hide" style={{ marginBottom: 16 }}>
+                      <button type="button" className="aps-secondary" onClick={() => setProjectCloseOutTarget({ id: "", name: "" })}>
+                        Choose another project
+                      </button>
+                    </div>
+                    <ProjectCloseOut
+                      key={projectCloseOutTarget.id}
+                      projectId={projectCloseOutTarget.id}
+                      projectName={projectCloseOutTarget.name}
+                      onToast={showToast}
+                    />
+                  </div>
                 ) : (
                   <ProjectCloseOutSelector
                     onOpen={(project) => setProjectCloseOutTarget({ id: project.id, name: project.name })}
