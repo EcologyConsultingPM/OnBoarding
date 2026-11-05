@@ -1,6 +1,7 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../lib/staffDirectory";
+import { emptyStaffProjectAssignmentSummary, loadStaffProjectAssignments, summarizeStaffProjectAssignments } from "../../../lib/staffProjectAssignmentSummary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,27 +76,24 @@ function hours(value) { const result = Number(value); return Number.isFinite(res
 // assignment; it only lets them record genuine ad-hoc time against a controlled
 // allocation when they have worked on a project outside their formal allocation.
 export async function eligibleProjects(access, staffUserId = access.user.id, includeOtherActiveProjects = false) {
-  const [{ data: staffAllocations, error: allocationError }, assignmentResult] = await Promise.all([
-    access.admin.from("project_allocations").select("project_id, active").eq("staff_user_id", staffUserId),
-    access.admin.from("project_activity_assignees").select("activity_id, acceptance_status").eq("staff_user_id", staffUserId).neq("acceptance_status", "removed"),
-  ]);
+  const { data: staffAllocations, error: allocationError } = await access.admin
+    .from("project_allocations").select("project_id, active, allocated_hours").eq("staff_user_id", staffUserId);
   if (allocationError) throw new Error(allocationError.message);
-  const assignedIds = new Set((staffAllocations || []).filter((row) => row.active !== false).map((row) => row.project_id).filter(Boolean));
-  if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) throw new Error(assignmentResult.error.message);
-  if (!assignmentResult.error) {
-    const acceptedActivityIds = (assignmentResult.data || [])
+  const activeStaffAllocations = (staffAllocations || []).filter((row) => row.active !== false);
+  const personalAllocationByProject = new Map(activeStaffAllocations.map((row) => [row.project_id, row]));
+  const assignedIds = new Set(activeStaffAllocations.map((row) => row.project_id).filter(Boolean));
+  const assignmentResult = await loadStaffProjectAssignments(access.admin, staffUserId, [...assignedIds], assignmentTableUnavailable);
+  const assignmentSummaryByProject = summarizeStaffProjectAssignments(assignmentResult.rows, assignmentResult.activities, staffUserId);
+  if (!assignmentResult.legacy) {
+    // Pending assignments are counted for existing members, but ONLY an
+    // accepted/actioned assignment may establish new project-board membership.
+    const acceptedActivityIds = new Set(assignmentResult.rows
       .filter((row) => ["accepted", "actioned"].includes(row.acceptance_status))
       .map((row) => row.activity_id)
-      .filter(Boolean);
-    if (acceptedActivityIds.length) {
-      const { data: assignedActivities, error: assignedActivitiesError } = await access.admin
-        .from("project_activities")
-        .select("project_id")
-        .in("id", acceptedActivityIds)
-        .eq("is_active", true);
-      if (assignedActivitiesError) throw new Error(assignedActivitiesError.message);
-      (assignedActivities || []).forEach((activity) => assignedIds.add(activity.project_id));
-    }
+      .filter(Boolean));
+    assignmentResult.activities.forEach((activity) => {
+      if (acceptedActivityIds.has(activity.id)) assignedIds.add(activity.project_id);
+    });
   }
   const ids = [...assignedIds];
   if (!ids.length && !includeOtherActiveProjects) return { available: true, projects: [] };
@@ -161,6 +159,14 @@ export async function eligibleProjects(access, staffUserId = access.user.id, inc
             })),
           })),
         };
+        if (isAssigned) {
+          const personalAllocation = personalAllocationByProject.get(project.id);
+          projectEntry.hasActiveAllocation = Boolean(personalAllocation);
+          // Project allocations and per-activity planned hours are distinct.
+          // Never substitute the sum of activity hours for the caller's budget.
+          projectEntry.allocatedHours = personalAllocation?.allocated_hours ?? null;
+          projectEntry.assignmentSummary = assignmentSummaryByProject.get(project.id) || emptyStaffProjectAssignmentSummary();
+        }
         // The broader ad hoc-entry picker must never disclose the financial
         // position of a project the staff member is not allocated to. It gives
         // only the approved entry categories and staff-visible allocation name.
