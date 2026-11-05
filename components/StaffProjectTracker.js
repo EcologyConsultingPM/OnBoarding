@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
+import { staffProjectCardLabels } from "../lib/staffProjectAssignmentSummary";
 
 const STATUS = {
   not_commenced: { label: "Not yet commenced", tone: "not-commenced" },
@@ -156,6 +157,8 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const [entryProjects, setEntryProjects] = useState([]);
   const [entries, setEntries] = useState([]);
   const [assignedActivities, setAssignedActivities] = useState([]);
+  const [ownActivitiesForSummary, setOwnActivitiesForSummary] = useState(null);
+  const [trackerSummaryAvailable, setTrackerSummaryAvailable] = useState(false);
   const [form, setForm] = useState(() => blankForm(null));
   const [board, setBoard] = useState(null);
   const [activeTab, setActiveTab] = useState(() => readTrackerLocation().activeTab);
@@ -217,22 +220,34 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     if (!accessTokenRef.current || !sessionUserId) return;
     setLoading(true);
     setError("");
+    setTrackerSummaryAvailable(false);
+    setOwnActivitiesForSummary(null);
     try {
       const [trackerResponse, activitiesResponse] = await Promise.all([
         fetch("/api/project-tracker-entries", { headers: headers(), cache: "no-store" }),
-        fetch("/api/my-activities", { headers: headers(), cache: "no-store" }),
+        // An activity-service failure must not discard authoritative card
+        // counts returned successfully by the tracker service.
+        fetch("/api/my-activities", { headers: headers(), cache: "no-store" }).catch(() => null),
       ]);
       const trackerBody = await trackerResponse.json().catch(() => ({}));
-      const activitiesBody = await activitiesResponse.json().catch(() => ({}));
+      const activitiesBody = await activitiesResponse?.json().catch(() => ({}));
       if (!trackerResponse.ok) throw new Error(trackerBody.error || "Could not load your Project Tracker.");
+      if (!Array.isArray(trackerBody.eligibleProjects)) throw new Error("Could not load your project assignment summaries.");
       const nextProjects = trackerBody.eligibleProjects || [];
       const nextEntryProjects = trackerBody.entryProjects || nextProjects;
       setProjects(nextProjects);
       setEntryProjects(nextEntryProjects);
       setEntries(trackerBody.entries || []);
-      setAssignedActivities((activitiesBody.activities || [])
-        .map(normaliseActivity)
+      setTrackerSummaryAvailable(true);
+      const ownActivities = activitiesResponse?.ok && !activitiesBody?.error && Array.isArray(activitiesBody?.activities)
+        ? activitiesBody.activities.map(normaliseActivity)
+        : null;
+      setOwnActivitiesForSummary(ownActivities);
+      // This list remains actionable only after individual acceptance; pending
+      // card counts do not enter the timesheet dropdown or progress workflow.
+      setAssignedActivities((ownActivities || [])
         .filter((activity) => ["accepted", "actioned"].includes(activity.acceptanceStatus)));
+      if (ownActivities === null) setError(activitiesBody?.error || "Your work activities are unavailable. Project assignment counts use the tracker summary where available.");
       setReady(Boolean(trackerBody.ready));
       setForm((current) => {
         const initial = nextProjects.find((project) => project.id === initialProjectId);
@@ -243,6 +258,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       });
     } catch (loadError) {
       setError(loadError.message || "Could not load your Project Tracker.");
+      setAssignedActivities([]);
     } finally {
       setLoading(false);
     }
@@ -441,12 +457,14 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
             <div className="st-list-head"><span>My active projects</span><b>{projects.length}</b></div>
             {projects.map((project) => {
               const isSelected = project.id === selected?.id;
-              const activityCount = assignedActivities.filter((activity) => activity.projectId === project.id).length;
+              const cardLabels = staffProjectCardLabels(project, ownActivitiesForSummary, trackerSummaryAvailable);
               return (
                 <button key={project.id} type="button" className={`st-project-select ${isSelected ? "selected" : ""}`} onClick={() => setProject(project.id)}>
                   <span className="st-project-select-kicker">Assigned project</span>
                   <strong>{project.name}</strong>
-                  <small>{activityCount} allocated work activit{activityCount === 1 ? "y" : "ies"}</small>
+                  <small className="st-project-assigned-count">{cardLabels.assigned}</small>
+                  <small className="st-project-awaiting-response">{cardLabels.awaitingResponse}</small>
+                  <small className="st-project-personal-hours">{cardLabels.allocation}</small>
                 </button>
               );
             })}

@@ -20,6 +20,13 @@ import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
+import {
+  activitySelectionKey,
+  withActivityClientId,
+  stripActivityUiFields,
+  activityRemovalConfirmation,
+  retireSelectedWorkActivities,
+} from "../lib/workActivitySelection";
 
 // Activities are detailed WBS steps; staff record time only against these ten
 // consistent categories. This keeps the tracker usable across projects while
@@ -67,10 +74,13 @@ const withActivityAssignees = (activity, assignees) => {
   };
 };
 
-const hydrateActivityDraft = (activity) => withActivityAssignees(activity, activityAssignees(activity));
+const hydrateActivityDraft = (activity) => withActivityClientId(withActivityAssignees({
+  ...stripActivityUiFields(activity),
+  ...(activity.clientId ? { clientId: activity.clientId } : {}),
+}, activityAssignees(activity)));
 const acknowledgedAssigneeCount = (assignees) => assignees.filter((assignee) => ACKNOWLEDGED_ASSIGNEE_STATUSES.has(assignee.acceptanceStatus)).length;
 
-const createBlankActivity = (deliverableId = "") => ({
+const createBlankActivity = (deliverableId = "") => withActivityClientId({
   staffUserId: "",
   staffUserIds: [],
   assignees: [],
@@ -148,15 +158,15 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
     [session?.access_token],
   );
 
-  const notify = (m) => {
+  const notify = useCallback((m) => {
     setMessage(m);
     setError("");
     setTimeout(() => setMessage(""), 2500);
-  };
-  const fail = (e) => {
+  }, []);
+  const fail = useCallback((e) => {
     setError(typeof e === "string" ? e : e.message);
     setMessage("");
-  };
+  }, []);
 
   const [removingId, setRemovingId] = useState("");
 
@@ -627,6 +637,14 @@ function ProjectDetail({
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [selectedActivityKeys, setSelectedActivityKeys] = useState(() => new Set());
+  const [deletingActivities, setDeletingActivities] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deletionResult, setDeletionResult] = useState(null);
+  const [loadingProject, setLoadingProject] = useState(false);
+  const [scheduleNeedsRefresh, setScheduleNeedsRefresh] = useState(false);
+  const deletingActivitiesRef = useRef(false);
+  const selectAllActivitiesRef = useRef(null);
   const [deliverables, setDeliverables] = useState([]);
   const [deliverableTemplates, setDeliverableTemplates] = useState([]);
   const [quickAddTemplateId, setQuickAddTemplateId] = useState("");
@@ -643,18 +661,39 @@ function ProjectDetail({
   // This never touches the server — it's purely a local safety net until
   // "Save activities" is clicked.
   useEffect(() => {
-    if (!activitiesDraftKey) return;
+    if (!activitiesDraftKey || loadingProject || !project) return;
     const meaningful = activities.some((r) => (r.title || "").trim());
     if (!meaningful) { window.localStorage.removeItem(activitiesDraftKey); return; }
     const timer = window.setTimeout(() => {
-      try { window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities)); } catch {}
+      try {
+        window.localStorage.setItem(activitiesDraftKey, JSON.stringify(activities.map((row) => ({
+          ...stripActivityUiFields(row),
+          ...(row.clientId ? { clientId: row.clientId } : {}),
+        }))));
+      } catch {}
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [activitiesDraftKey, activities]);
+  }, [activitiesDraftKey, activities, loadingProject, project?.id]);
+
+  useEffect(() => {
+    const existingKeys = new Set(activities.map(activitySelectionKey));
+    setSelectedActivityKeys((current) => {
+      const next = new Set([...current].filter((key) => existingKeys.has(key)));
+      return next.size === current.size ? current : next;
+    });
+  }, [activities]);
+
+  useEffect(() => {
+    setSelectedActivityKeys(new Set());
+    setDeletionResult(null);
+  }, [projectId]);
+
+  const selectedActivities = activities.filter((row) => selectedActivityKeys.has(activitySelectionKey(row)));
+  const allActivitiesSelected = activities.length > 0 && selectedActivities.length === activities.length;
 
   const [dragIndex, setDragIndex] = useState(null);
   const reorderActivities = (from, to) => {
-    if (from === to || from == null || to == null) return;
+    if (deletingActivitiesRef.current || activitiesBusy || from === to || from == null || to == null) return;
     setActivities((current) => {
       const next = [...current];
       const [moved] = next.splice(from, 1);
@@ -668,8 +707,15 @@ function ProjectDetail({
   const [activeStage, setActiveStage] = useState("details");
   const [stageSaving, setStageSaving] = useState(false);
   const stageTopRef = useRef(null);
+  const activitiesBusy = deletingActivities || savingActivities || stageSaving || quickAddBusy || loadingProject;
+  useEffect(() => {
+    if (selectAllActivitiesRef.current) {
+      selectAllActivitiesRef.current.indeterminate = selectedActivities.length > 0 && !allActivitiesSelected;
+    }
+  }, [selectedActivities.length, allActivitiesSelected, activeStage]);
 
   const goToStage = (key) => {
+    if (deletingActivitiesRef.current) return;
     setActiveStage(key);
     if (key === "schedule") setScheduleExpanded(true);
     window.requestAnimationFrame(() => stageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -688,6 +734,7 @@ function ProjectDetail({
   }, [auth]);
 
   const quickAddFromTemplate = async () => {
+    if (deletingActivitiesRef.current || quickAddBusy || loadingProject) return;
     if (!quickAddTemplateId) { fail("Choose a deliverable template first."); return; }
     setQuickAddBusy(true);
     try {
@@ -727,6 +774,12 @@ function ProjectDetail({
   };
 
   const load = useCallback(async () => {
+    if (deletingActivitiesRef.current) return;
+    setLoadingProject(true);
+    setSelectedActivityKeys(new Set());
+    setDeletionResult(null);
+    setActivitiesDraftAvailable(null);
+    setActivitiesDraftRestored(false);
     try {
       const [pRes, aRes, dRes] = await Promise.all([
         auth("GET", `/api/projects/${projectId}`),
@@ -749,6 +802,7 @@ function ProjectDetail({
           locked: s.locked === true,
         })),
       );
+      setScheduleNeedsRefresh(false);
       setAllocations(
         (pData.allocations || []).map((a) => ({
           staffUserId: a.staff_user_id,
@@ -809,12 +863,115 @@ function ProjectDetail({
       }
     } catch (e) {
       fail(e);
+    } finally {
+      setLoadingProject(false);
     }
-  }, [projectId, auth, fail]);
+  }, [projectId, activitiesDraftKey, auth, fail]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const refreshActivitySchedule = async () => {
+    const response = await auth("GET", `/api/projects/${projectId}`);
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.schedule)) throw new Error(data.error || "Could not refresh the project schedule.");
+    const activeScheduleIds = new Set(data.schedule.map((row) => row.id));
+    // Only reconcile schedule membership. Existing local schedule fields and
+    // unsaved standalone rows remain untouched, just like unselected activities.
+    setSchedule((current) => {
+      const retained = current.filter((row) => !row.id || activeScheduleIds.has(row.id));
+      const retainedIds = new Set(retained.map((row) => row.id));
+      return [...retained, ...data.schedule.filter((row) => !retainedIds.has(row.id)).map((row) => ({
+        id: row.id,
+        title: row.title,
+        detail: row.detail || "",
+        startDate: row.start_date || "",
+        endDate: row.end_date || "",
+        milestone: row.milestone === true,
+        progressPercent: row.progress_percent ?? 0,
+        status: row.status || "not_commenced",
+        locked: row.locked === true,
+      }))];
+    });
+    setScheduleNeedsRefresh(false);
+  };
+
+  const removeActivities = async (rows) => {
+    if (deletingActivitiesRef.current || activitiesBusy || gateBusy || !rows.length) return;
+    if (!window.confirm(activityRemovalConfirmation(rows))) return;
+    deletingActivitiesRef.current = true;
+    setDeletingActivities(true);
+    setDeleteProgress(0);
+    setDeletionResult(null);
+    setDragIndex(null);
+    try {
+      const result = await retireSelectedWorkActivities({ rows, projectId, auth, onProgress: setDeleteProgress });
+      const { completedKeys, remainingKeys } = result;
+      const remainingActivities = activities.filter((row) => !completedKeys.has(activitySelectionKey(row)));
+      setActivities(remainingActivities);
+      // Do not leave retired rows in the prior device draft while waiting for
+      // the debounce. A quick navigation must not offer them for restoration.
+      if (completedKeys.size && activitiesDraftKey) {
+        try {
+          if (remainingActivities.some((row) => (row.title || "").trim())) {
+            window.localStorage.setItem(activitiesDraftKey, JSON.stringify(remainingActivities.map((row) => ({
+              ...stripActivityUiFields(row),
+              ...(row.clientId ? { clientId: row.clientId } : {}),
+            }))));
+          } else window.localStorage.removeItem(activitiesDraftKey);
+        } catch {}
+      }
+      setActivitiesDraftAvailable((current) => current
+        ? current.filter((row) => !completedKeys.has(activitySelectionKey(row)))
+        : current);
+      setSelectedActivityKeys((current) => new Set([
+        ...[...current].filter((key) => !completedKeys.has(key)),
+        ...remainingKeys,
+      ]));
+
+      let scheduleWarning = "";
+      if (result.retiredSavedCount) {
+        setScheduleNeedsRefresh(true);
+        try {
+          await refreshActivitySchedule();
+        } catch (error) {
+          scheduleWarning = `Schedule refresh failed: ${error.message}. Refresh it before saving the Schedule stage.`;
+        }
+      }
+      const countMessage = `${completedKeys.size} of ${rows.length} work activit${rows.length === 1 ? "y" : "ies"} removed from the active plan; ${remainingKeys.size} remaining.${remainingKeys.size ? " Remaining rows stay selected for retry." : ""}`;
+      const warnings = [
+        result.requestError ? `Deletion stopped: ${result.requestError}.` : "",
+        result.reconciledRetirement ? "Active activities were checked: some retirements completed despite the error. Notification or Gantt cleanup may still need review." : "",
+        result.reconciliationError ? `Could not verify active activities: ${result.reconciliationError}. Unconfirmed rows were kept; retry deletion before saving or restoring a draft.` : "",
+        scheduleWarning,
+      ].filter(Boolean).join(" ");
+      setDeletionResult({ text: `${countMessage} ${warnings}`.trim(), warning: Boolean(warnings), unverified: Boolean(result.reconciliationError) });
+      if (warnings || remainingKeys.size) fail(`${countMessage} ${warnings}`.trim());
+      else notify(countMessage);
+    } catch (error) {
+      // Unexpected UI errors must never turn into an apparent full success.
+      const text = `Deletion could not be confirmed. Remaining rows are retained. ${error.message}`;
+      setDeletionResult({ text, warning: true, unverified: true });
+      fail(text);
+    } finally {
+      deletingActivitiesRef.current = false;
+      setDeletingActivities(false);
+    }
+  };
+
+  const retryScheduleRefresh = async () => {
+    if (deletingActivitiesRef.current || activitiesBusy) return;
+    setLoadingProject(true);
+    try {
+      await refreshActivitySchedule();
+      notify("Schedule refreshed. Unsaved editor fields were retained.");
+    } catch (error) {
+      fail(error);
+    } finally {
+      setLoadingProject(false);
+    }
+  };
 
   const saveDetails = async () => {
     try {
@@ -845,6 +1002,11 @@ function ProjectDetail({
     }
   };
   const saveSchedule = async () => {
+    if (deletingActivitiesRef.current) return false;
+    if (scheduleNeedsRefresh) {
+      fail("Refresh the schedule after activity deletion before saving this stage.");
+      return false;
+    }
     try {
       const res = await auth("PUT", `/api/projects/${projectId}`, { schedule });
       const d = await res.json();
@@ -919,7 +1081,11 @@ function ProjectDetail({
     }
   };
   const saveActivities = async (forceSave = false) => {
-    if (savingActivities) return;
+    if (deletingActivitiesRef.current || savingActivities || loadingProject) return false;
+    if (deletionResult?.unverified) {
+      fail("Retry deletion to verify the remaining active activities before saving this draft.");
+      return false;
+    }
     setSavingActivities(true);
     setConflictPending(false);
     try {
@@ -929,7 +1095,7 @@ function ProjectDetail({
           const assignees = activityAssignees(activity);
           const allocatedHours = assignees.reduce((total, assignee) => total + (Number(assignee.allocatedHours) || 0), 0);
           return {
-            ...activity,
+            ...stripActivityUiFields(activity),
             assignees,
             staffUserIds: assignees.map((assignee) => assignee.staffUserId),
             // The legacy activity API still reads one owner and one total. Keep
@@ -993,6 +1159,7 @@ function ProjectDetail({
   const setupReadyForReview = ["details", "team", "deliverables", "activities", "schedule"].every((key) => stageChecks[key]);
 
   const saveStage = async (advance = false) => {
+    if (deletingActivitiesRef.current || stageSaving || savingActivities || loadingProject) return;
     setStageSaving(true);
     try {
       const validationMessages = {
@@ -1069,7 +1236,7 @@ function ProjectDetail({
 
   return (
     <div className="aps">
-      <button className="aps-back" onClick={onBack}>
+      <button className="aps-back" disabled={deletingActivities} onClick={onBack}>
         <ArrowLeft size={15} /> All projects
       </button>
       {error ? (
@@ -1111,6 +1278,7 @@ function ProjectDetail({
               type="button"
               key={stage.key}
               className={`aps-stage-tab ${activeStage === stage.key ? "active" : ""} ${stageChecks[stage.key] ? "complete" : ""}`}
+              disabled={deletingActivities || loadingProject}
               onClick={() => goToStage(stage.key)}
             >
               <span>{stageChecks[stage.key] ? <CheckCircle2 size={15} /> : index + 1}</span>
@@ -1381,11 +1549,12 @@ function ProjectDetail({
       </section> : null}
 
       {activeStage === "activities" ? <section className="aps-card aps-stage-panel" id="aps-section-activities">
+        <fieldset className="aps-activity-editor-controls" disabled={activitiesBusy}>
         {activitiesDraftAvailable && !activitiesDraftRestored ? (
           <div style={{ background: "#fbf6e6", border: "1px solid #ece0bc", borderLeft: "3px solid #c9962a", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12.5 }}>
             <strong>Unsaved activities found from a previous session.</strong> Restoring will replace what's currently shown below with your unsaved draft — review carefully if someone else may have edited this project since.
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button type="button" className="aps-secondary" onClick={() => { setActivities(activitiesDraftAvailable); setActivitiesDraftRestored(true); }}>Restore draft</button>
+              <button type="button" className="aps-secondary" disabled={deletionResult?.unverified} onClick={() => { setActivities(activitiesDraftAvailable.map(hydrateActivityDraft)); setSelectedActivityKeys(new Set()); setDeletionResult(null); setActivitiesDraftRestored(true); }}>Restore draft</button>
               <button type="button" className="aps-secondary" onClick={() => { if (activitiesDraftKey) window.localStorage.removeItem(activitiesDraftKey); setActivitiesDraftAvailable(null); }}>Discard draft</button>
             </div>
           </div>
@@ -1401,6 +1570,20 @@ function ProjectDetail({
           draft until Senior Ecologist approval is recorded in the final stage.
         </p>
         {deliverables.some((deliverable) => deliverable.deliverable_type === "other_manual_activities") ? <p className="aps-manual-activity-note"><strong>Custom activity plan:</strong> enter the project-specific work activities below. You can add, reorder and remove rows before allocating staff, hours and dates.</p> : null}
+        <div className="aps-activity-selection-toolbar" aria-label="Work activity selection">
+          <label className="aps-activity-select-all">
+            <input type="checkbox" ref={selectAllActivitiesRef} checked={allActivitiesSelected} disabled={!activities.length}
+              onChange={(event) => setSelectedActivityKeys(event.target.checked ? new Set(activities.map(activitySelectionKey)) : new Set())} />
+            Select all activities
+          </label>
+          <span className="aps-activity-selection-count" role="status"> {selectedActivities.length} selected </span>
+          <button type="button" className="aps-secondary" disabled={!selectedActivities.length} onClick={() => setSelectedActivityKeys(new Set())}>Clear selection</button>
+          <button type="button" className="aps-activity-delete-selected" disabled={!selectedActivities.length} onClick={() => removeActivities(selectedActivities)}>
+            <Trash2 size={14} /> Delete selected ({selectedActivities.length}){deletingActivities ? ` · Deleting… ${deleteProgress}` : ""}
+          </button>
+        </div>
+        {deletionResult ? <p className={`aps-activity-deletion-result ${deletionResult.warning ? "warning" : "success"}`} role={deletionResult.warning ? "alert" : "status"}>{deletionResult.text}</p> : null}
+        {scheduleNeedsRefresh ? <button type="button" className="aps-secondary" onClick={retryScheduleRefresh}>Refresh schedule</button> : null}
         {activities.map((row, i) => {
           const assignees = activityAssignees(row);
           const assignedStaffIds = new Set(assignees.map((assignee) => assignee.staffUserId));
@@ -1411,15 +1594,18 @@ function ProjectDetail({
           const responseAssignees = assignees.filter((assignee) => assignee.responseNote);
           return (
           <div
-            key={i}
-            className="aps-row"
+            key={activitySelectionKey(row)}
+            className={`aps-row aps-selectable-activity ${selectedActivityKeys.has(activitySelectionKey(row)) ? "is-selected" : ""}`}
             style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: dragIndex === i ? 0.5 : 1 }}
-            draggable
+            draggable={!activitiesBusy}
             onDragStart={() => setDragIndex(i)}
             onDragEnd={() => setDragIndex(null)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); reorderActivities(dragIndex, i); setDragIndex(null); }}
           >
+            <input className="aps-activity-selection-checkbox" type="checkbox" aria-label={`Select activity ${i + 1}: ${row.title || "Untitled activity"}`}
+              checked={selectedActivityKeys.has(activitySelectionKey(row))}
+              onChange={(event) => { const checked = event.target.checked; setSelectedActivityKeys((current) => { const next = new Set(current); if (checked) next.add(activitySelectionKey(row)); else next.delete(activitySelectionKey(row)); return next; }); }} />
             <span style={{ cursor: "grab", color: "#8a927c", paddingTop: 10, flexShrink: 0 }} title="Drag to reorder"><GripVertical size={15} /></span>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 700, color: "#6b755f", paddingTop: 11, flexShrink: 0, minWidth: 20 }}>{i + 1}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1577,21 +1763,10 @@ function ProjectDetail({
             </div>
             </div>
             <button
+              type="button"
               className="aps-remove"
-              onClick={async () => {
-                if (row.id) {
-                  if (!window.confirm(`Remove "${row.title || "this activity"}" from the active plan? Its unanswered assignment notification and standalone generated Gantt row will be withdrawn; retained history remains auditable.`)) return;
-                  try {
-                    const res = await auth("DELETE", `/api/projects/${projectId}/activities?id=${row.id}`);
-                    const d = await res.json();
-                    if (!res.ok) throw new Error(d.error);
-                  } catch (e) {
-                    fail(e);
-                    return;
-                  }
-                }
-                setActivities(activities.filter((_, j) => j !== i));
-              }}
+              aria-label={`Delete ${row.title || "this activity"}`}
+              onClick={() => removeActivities([row])}
             >
               <Trash2 size={14} />
             </button>
@@ -1609,6 +1784,7 @@ function ProjectDetail({
         >
           <Plus size={13} /> Add activity
         </button>
+        </fieldset>
       </section> : null}
 
       {/* Schedule — compact until a project lead chooses to edit the full delivery plan. */}
@@ -1695,7 +1871,7 @@ function ProjectDetail({
         <button
           type="button"
           className="aps-secondary"
-          disabled={stageIndex === 0 || stageSaving || gateBusy}
+          disabled={stageIndex === 0 || activitiesBusy || gateBusy}
           onClick={() => goToStage(PROJECT_SETUP_STAGES[stageIndex - 1]?.key || "details")}
         >
           <ArrowLeft size={14} /> Previous stage
@@ -1703,10 +1879,10 @@ function ProjectDetail({
         <div className="aps-stage-actions__right">
           {activeStage !== "review" ? (
             <>
-              <button type="button" className="aps-secondary" disabled={stageSaving || savingActivities} onClick={() => saveStage(false)}>
+              <button type="button" className="aps-secondary" disabled={activitiesBusy} onClick={() => saveStage(false)}>
                 <Save size={14} /> {stageSaving ? "Saving…" : "Save progress"}
               </button>
-              <button type="button" className="aps-primary" disabled={stageSaving || savingActivities} onClick={() => saveStage(true)}>
+              <button type="button" className="aps-primary" disabled={activitiesBusy} onClick={() => saveStage(true)}>
                 <CheckCircle2 size={14} /> {stageSaving ? "Saving…" : activeStage === "activities" ? "Save activities & continue to Schedule" : `Complete stage${nextStage ? " & continue" : ""}`}
               </button>
             </>

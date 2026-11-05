@@ -20059,3 +20059,20 @@ main {
   .aps-assignee-chip { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .aps-assignee-hours { grid-column: 1 / -1; }
 }
+
+/* Work activities: transient selection, explicit retirement and readable controls. */
+.ec-app .aps .aps-activity-editor-controls { min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.ec-app .aps .aps-activity-selection-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0; padding: 12px 14px; border: 1px solid #b9cdbb; border-radius: 10px; background: #fafbf5; color: #173e2c; }
+.ec-app .aps .aps-activity-select-all { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: #173e2c; font: inherit; font-size: 13px; font-weight: 750; text-transform: none; letter-spacing: normal; cursor: pointer; }
+.ec-app .aps .aps-activity-selection-count { color: #355e46; font-size: 12px; font-weight: 700; margin-right: auto; }
+.ec-app .aps .aps-activity-select-all input, .ec-app .aps .aps-activity-selection-checkbox { appearance: auto; flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: #1e6545; cursor: pointer; }
+.ec-app .aps .aps-activity-selection-checkbox { margin-top: 10px; }
+.ec-app .aps .aps-activity-select-all input:focus-visible, .ec-app .aps .aps-activity-selection-checkbox:focus-visible { outline: 2px solid #356b4c; outline-offset: 3px; }
+.ec-app .aps .aps-activity-delete-selected { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #ac5c50; border-radius: 8px; padding: 9px 12px; background: #fff1eb; color: #853f32; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ec-app .aps .aps-activity-delete-selected:hover:not(:disabled) { background: #f9dfd5; }
+.ec-app .aps .aps-activity-editor-controls:disabled button, .ec-app .aps .aps-activity-selection-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+.ec-app .aps .aps-selectable-activity.is-selected { border-color: #8eb696; box-shadow: inset 0 0 0 2px #8eb696; }
+.ec-app .aps .aps-activity-deletion-result { margin: 10px 0 14px; padding: 11px 13px; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.ec-app .aps .aps-activity-deletion-result.success { color: #245538; background: #e9f4e6; border: 1px solid #afceb2; }
+.ec-app .aps .aps-activity-deletion-result.warning { color: #7d382c; background: #fff0e9; border: 1px solid #d9b5a7; }
+@media (max-width: 600px) { .ec-app .aps .aps-activity-selection-toolbar { gap: 10px; padding: 10px; } .ec-app .aps .aps-activity-selection-toolbar button { flex: 1 1 130px; } .ec-app .aps .aps-activity-select-all { flex: 1 1 160px; } }
