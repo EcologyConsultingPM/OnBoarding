@@ -20,6 +20,7 @@ import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
+import { monthlyBudgetInputError } from "../lib/projectSetupBudgetBasis";
 import {
   activitySelectionKey,
   withActivityClientId,
@@ -634,6 +635,8 @@ function ProjectDetail({
   message,
 }) {
   const [project, setProject] = useState(null);
+  const [monthlyBudgetBaseline, setMonthlyBudgetBaseline] = useState(null);
+  const [monthlyBudgetInputs, setMonthlyBudgetInputs] = useState({ value: "", hours: "" });
   const [schedule, setSchedule] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -789,6 +792,11 @@ function ProjectDetail({
       const pData = await pRes.json();
       if (!pRes.ok) throw new Error(pData.error);
       setProject(pData.project);
+      setMonthlyBudgetBaseline(pData.monthlyBudgetBaseline || null);
+      setMonthlyBudgetInputs({
+        value: pData.monthlyBudgetBaseline?.monthlyValue ?? "",
+        hours: pData.monthlyBudgetBaseline?.monthlyHours ?? "",
+      });
       setSchedule(
         (pData.schedule || []).map((s) => ({
           id: s.id,
@@ -975,6 +983,11 @@ function ProjectDetail({
 
   const saveDetails = async () => {
     try {
+      if (monthlyBudgetBaseline) {
+        if (!monthlyBudgetBaseline.uniform) throw new Error("Monthly budgets differ. Resolve them in the administrator per-source budget editor and reload this project before saving details.");
+        const inputError = monthlyBudgetInputError(monthlyBudgetInputs.value, monthlyBudgetInputs.hours);
+        if (inputError) throw new Error(inputError);
+      }
       const res = await auth("PATCH", `/api/projects/${projectId}`, {
         name: project.name,
         clientName: project.client_name,
@@ -987,17 +1000,30 @@ function ProjectDetail({
         description: project.description,
         startDate: project.start_date,
         endDate: project.end_date,
-        budgetHours: project.budget_hours,
-        budgetDollars: project.budget_dollars,
+        ...(monthlyBudgetBaseline ? {
+          budgetBasis: "monthly",
+          monthlyBudgetValue: monthlyBudgetInputs.value,
+          monthlyBudgetHours: monthlyBudgetInputs.hours,
+        } : {
+          budgetHours: project.budget_hours,
+          budgetDollars: project.budget_dollars,
+        }),
         defaultHourlyRate: project.default_hourly_rate,
         status: project.status,
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
+      setMonthlyBudgetBaseline(d.monthlyBudgetBaseline || null);
+      setMonthlyBudgetInputs({
+        value: d.monthlyBudgetBaseline?.monthlyValue ?? "",
+        hours: d.monthlyBudgetBaseline?.monthlyHours ?? "",
+      });
+      // Refresh only controlled totals. Never replace the user's wording or
+      // team selections with the returned project's snapshot.
       if (d.monthlyBudgetControlled && d.project) {
         setProject((current) => ({ ...current, budget_dollars: d.project.budget_dollars, budget_hours: d.project.budget_hours }));
       }
-      notify(d.monthlyBudgetControlled ? "Project details saved. Headline budget and hours synchronised with the approved monthly sources." : "Project details saved.");
+      notify(d.monthlyBudgetBaseline ? "Project details saved. Per-month baseline and approved aggregate totals synchronised; actuals remain month-specific." : "Project details saved.");
       return true;
     } catch (e) {
       fail(e);
@@ -1139,8 +1165,9 @@ function ProjectDetail({
       project?.client_name?.trim() &&
       project?.scope_of_works?.trim() &&
       project?.project_lead_user_id &&
-      Number(project?.budget_hours) > 0 &&
-      Number(project?.budget_dollars) > 0,
+      (monthlyBudgetBaseline
+        ? monthlyBudgetBaseline.uniform && !monthlyBudgetInputError(monthlyBudgetInputs.value, monthlyBudgetInputs.hours)
+        : Number(project?.budget_hours) > 0 && Number(project?.budget_dollars) > 0),
     ),
     team: allocations.some((allocation) => allocation.staffUserId && Number(allocation.allocatedHours) > 0),
     deliverables: deliverables.length > 0,
@@ -1370,20 +1397,28 @@ function ProjectDetail({
           />
           <div className="aps-three">
             <label className="aps-field">
-              Budget hours
+              {monthlyBudgetBaseline ? "Budget hours per month" : "Budget hours"}
               <input
-                value={project.budget_hours || ""}
-                onChange={(e) =>
-                  setProject({ ...project, budget_hours: e.target.value })
+                value={monthlyBudgetBaseline ? monthlyBudgetInputs.hours : project.budget_hours ?? ""}
+                disabled={Boolean(monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform)}
+                placeholder={monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform ? "Varies by month" : ""}
+                inputMode="decimal"
+                onChange={(e) => monthlyBudgetBaseline
+                  ? setMonthlyBudgetInputs((current) => ({ ...current, hours: e.target.value }))
+                  : setProject({ ...project, budget_hours: e.target.value })
                 }
               />
             </label>
             <label className="aps-field">
-              Budget $
+              {monthlyBudgetBaseline ? "Budget $ per month" : "Budget $"}
               <input
-                value={project.budget_dollars || ""}
-                onChange={(e) =>
-                  setProject({ ...project, budget_dollars: e.target.value })
+                value={monthlyBudgetBaseline ? monthlyBudgetInputs.value : project.budget_dollars ?? ""}
+                disabled={Boolean(monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform)}
+                placeholder={monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform ? "Varies by month" : ""}
+                inputMode="decimal"
+                onChange={(e) => monthlyBudgetBaseline
+                  ? setMonthlyBudgetInputs((current) => ({ ...current, value: e.target.value }))
+                  : setProject({ ...project, budget_dollars: e.target.value })
                 }
               />
             </label>
@@ -1403,6 +1438,12 @@ function ProjectDetail({
               </select>
             </label>
           </div>
+          {monthlyBudgetBaseline ? <div className="aps-note">
+            <p>Approved aggregate: ${Number(monthlyBudgetBaseline.aggregateValue).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {monthlyBudgetBaseline.aggregateHours} hours across {monthlyBudgetBaseline.monthCount} service month{monthlyBudgetBaseline.monthCount === 1 ? "" : "s"} (including any other approved sources). Actuals remain month-specific.</p>
+            {monthlyBudgetBaseline.uniform
+              ? <p>Saving these per-month values updates every approved service-month budget and its itemised allocations, not historical actuals or team hours.</p>
+              : <><p>Monthly budgets differ. Bulk baseline editing and saving details are disabled. Resolve the budgets in the administrator per-source budget editor, then reload this project; no common value will be assumed.</p>{onOpenTracker ? <button type="button" className="aps-secondary" onClick={onOpenTracker}>Open per-source budget editor</button> : null}</>}
+          </div> : null}
         </div>
       </section> : null}
 
@@ -1882,10 +1923,10 @@ function ProjectDetail({
         <div className="aps-stage-actions__right">
           {activeStage !== "review" ? (
             <>
-              <button type="button" className="aps-secondary" disabled={activitiesBusy} onClick={() => saveStage(false)}>
+              <button type="button" className="aps-secondary" disabled={activitiesBusy || (activeStage === "details" && Boolean(monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform))} onClick={() => saveStage(false)}>
                 <Save size={14} /> {stageSaving ? "Saving…" : "Save progress"}
               </button>
-              <button type="button" className="aps-primary" disabled={activitiesBusy} onClick={() => saveStage(true)}>
+              <button type="button" className="aps-primary" disabled={activitiesBusy || (activeStage === "details" && Boolean(monthlyBudgetBaseline && !monthlyBudgetBaseline.uniform))} onClick={() => saveStage(true)}>
                 <CheckCircle2 size={14} /> {stageSaving ? "Saving…" : activeStage === "activities" ? "Save activities & continue to Schedule" : `Complete stage${nextStage ? " & continue" : ""}`}
               </button>
             </>

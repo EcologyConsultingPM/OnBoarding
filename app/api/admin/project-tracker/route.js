@@ -94,10 +94,14 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   // "remaining" figures; otherwise a closed setup baseline is counted a second
   // time alongside the current controlled tracker baseline.
   const approvedOriginal = original.filter((source) => sourceStatus(source) === "approved");
+  const approvedSources = projectSources.filter((source) => sourceStatus(source) === "approved");
   const variations = projectSources.filter((source) => source.source_type === "variation" && sourceStatus(source) === "approved");
   const approvedSourceIds = new Set([...approvedOriginal, ...variations].map((source) => source.id));
   const liveAllocations = projectAllocations.filter((allocation) => allocation.status === "active" && approvedSourceIds.has(allocation.budget_source_id));
-  const originalBudget = approvedOriginal.length ? approvedOriginal.reduce((sum, source) => sum + number(source.approved_value), 0) : number(project.budget_dollars);
+  // A variation can be the sole current accepted scope. Never add the project
+  // register's cached budget to it, even when the original source is closed.
+  const legacyBudget = !approvedSources.length && !projectSources.length;
+  const originalBudget = legacyBudget ? number(project.budget_dollars) : approvedOriginal.reduce((sum, source) => sum + number(source.approved_value), 0);
   const variationBudget = variations.reduce((sum, source) => sum + number(source.approved_value), 0);
   const overallBudget = roundCurrency(originalBudget + variationBudget);
   const chargeOutSpend = roundCurrency(liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
@@ -107,8 +111,17 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   // The delivery cost is maintained at 60% of each recorded person's quote
   // rate (the agreed "minus 40%" cost basis), not a markup on spend.
   const estimatedProfit = roundCurrency(overallBudget - internalCost);
-  const budgetHours = approvedSourceIds.size ? [...approvedOriginal, ...variations].reduce((sum, source) => sum + number(source.approved_hours), 0) : number(project.budget_hours);
+  const budgetHours = legacyBudget ? number(project.budget_hours) : [...approvedOriginal, ...variations].reduce((sum, source) => sum + number(source.approved_hours), 0);
   const usedHours = liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  // Closed/unapproved sources and inactive allocations remain audit history,
+  // not spend against current funding. Use stored actuals without repricing.
+  const liveAllocationIds = new Set(liveAllocations.map((allocation) => allocation.id));
+  const historicalAllocations = projectAllocations.filter((allocation) => !liveAllocationIds.has(allocation.id));
+  const historicalUsedHours = historicalAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  const historicalChargeOutSpend = roundCurrency(historicalAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
+  const historicalInternalCost = roundCurrency(historicalAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0));
+  const lifetimeUsedHours = projectAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  const lifetimeChargeOutSpend = roundCurrency(projectAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
   const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
   const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
   const completedActivities = relevantActivities.filter((activity) => activity.status === "completed").length;
@@ -168,7 +181,7 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     healthOverridden,
     manualHealthStatus: project.manual_health_status || null,
     manualHealthNote: project.manual_health_note || null,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, utilisationPercent, remainingBudget: roundCurrency(overallBudget - chargeOutSpend), remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, historicalUsedHours, historicalChargeOutSpend, historicalInternalCost, lifetimeUsedHours, lifetimeChargeOutSpend, utilisationPercent, remainingBudget: roundCurrency(overallBudget - chargeOutSpend), remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
     entrySummary: {

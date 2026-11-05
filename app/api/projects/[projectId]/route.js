@@ -1,4 +1,6 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { monthlyBudgetBaselineForSources, monthlyBudgetInputError } from "../../../../lib/projectSetupBudgetBasis";
+import { validBudgetDate } from "../../../../lib/projectBudgetPeriods";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,38 @@ function num(value) {
   if (value === "" || value === null || value === undefined) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function budgetSchemaUnavailable(error) {
+  return error && ["42P01", "42703", "PGRST204", "PGRST205"].includes(error.code);
+}
+
+async function approvedProjectSources(admin, projectId) {
+  return admin.from("project_budget_sources")
+    .select("source_type, approved_value, approved_hours, service_period_start, service_period_end")
+    .eq("project_id", projectId)
+    .eq("approval_status", "approved")
+    .in("source_type", ["original", "variation"]);
+}
+
+// Preflight all project fields before the monthly RPC commits its transaction.
+// Omitted fields are left alone; an explicit blank still clears optional text.
+function projectBodyError(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return "Provide a project details object.";
+  for (const key of ["name", "clientName", "clientContact", "sharepointLink", "sharepointLabel", "description", "scopeOfWorks", "projectLeadUserId", "overseeingSeniorEcologistUserId", "startDate", "endDate", "status", "action"]) {
+    if (body[key] != null && typeof body[key] !== "string") return `${key} must be text.`;
+  }
+  for (const key of ["projectLeadUserId", "overseeingSeniorEcologistUserId"]) {
+    if (opt(body[key]) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opt(body[key]))) return `${key} must be a valid user ID.`;
+  }
+  if (opt(body.status) && !["planning", "active", "on_hold", "complete", "archived"].includes(opt(body.status))) return "Provide a valid project status.";
+  if (body.budgetBasis === "monthly") {
+    for (const key of ["startDate", "endDate"]) {
+      if (opt(body[key]) && !validBudgetDate(opt(body[key]))) return `${key} must be a valid date.`;
+    }
+    if (body.defaultHourlyRate != null && body.defaultHourlyRate !== "" && (typeof body.defaultHourlyRate !== "string" && typeof body.defaultHourlyRate !== "number" || num(body.defaultHourlyRate) === null || num(body.defaultHourlyRate) < 0)) return "Default hourly rate must be a finite, non-negative number.";
+  }
+  return "";
 }
 
 // The join table arrives with the multi-assignee migration. Keep the scalar
@@ -145,6 +179,13 @@ export async function GET(request, { params }) {
     // no way to distinguish "gone" from "empty".
     if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
     const schedule = scheduleResult.data || [];
+    const administratorAudience = access.isAdmin && !staffWorkspace;
+    let monthlyBudgetBaseline = null;
+    if (administratorAudience) {
+      const sources = await approvedProjectSources(access.admin, params.projectId);
+      if (sources.error && !budgetSchemaUnavailable(sources.error)) return Response.json({ error: sources.error.message }, { status: 400 });
+      if (!sources.error) monthlyBudgetBaseline = monthlyBudgetBaselineForSources(sources.data || []);
+    }
     const assignmentResult = await access.admin.from("project_activity_assignees")
       .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
       .in("activity_id", (activitiesResult?.data || []).map((activity) => activity.id))
@@ -202,7 +243,7 @@ export async function GET(request, { params }) {
       };
     });
 
-    return Response.json({ project, schedule: scheduleWithAssignments, allocations: allocationsWithEmail });
+    return Response.json({ project, schedule: scheduleWithAssignments, allocations: allocationsWithEmail, ...(administratorAudience ? { monthlyBudgetBaseline } : {}) });
   } catch (error) {
     return serverError(error);
   }
@@ -217,40 +258,68 @@ export async function PATCH(request, { params }) {
     if (authorisation.response) return authorisation.response;
 
     const body = await request.json();
-    // A monthly service project's headline is the sum of its approved sources,
-    // not one month's fee or the team's separately allocated hours. The Setup
-    // form must not overwrite controlled tracker totals when saving other fields.
-    const { data: approvedSources, error: budgetError } = await access.admin
-      .from("project_budget_sources")
-      .select("approved_value, approved_hours, service_period_start, service_period_end")
-      .eq("project_id", params.projectId)
-      .eq("approval_status", "approved");
-    const budgetSchemaUnavailable = budgetError && ["42P01", "42703", "PGRST204", "PGRST205"].includes(budgetError.code);
-    if (budgetError && !budgetSchemaUnavailable) return Response.json({ error: budgetError.message }, { status: 400 });
+    const bodyError = projectBodyError(body);
+    if (bodyError) return Response.json({ error: bodyError }, { status: 400 });
+    const explicitMonthly = body.budgetBasis === "monthly";
+    const hasMonthlyInput = Object.hasOwn(body, "monthlyBudgetValue") || Object.hasOwn(body, "monthlyBudgetHours");
+    if (hasMonthlyInput && !explicitMonthly || body.budgetBasis != null && !explicitMonthly) {
+      return Response.json({ error: "Monthly budget edits require budgetBasis: 'monthly' and both monthly amounts." }, { status: 400 });
+    }
+    if (explicitMonthly) {
+      const inputError = monthlyBudgetInputError(body.monthlyBudgetValue, body.monthlyBudgetHours);
+      if (inputError) return Response.json({ error: inputError }, { status: 400 });
+    }
+    // Legacy/generic saves retain the approved aggregate guard. They must never
+    // turn a stale budgetDollars/budgetHours input into a broadcast monthly edit.
+    const { data: approvedSources, error: budgetError } = await approvedProjectSources(access.admin, params.projectId);
+    const schemaUnavailable = budgetSchemaUnavailable(budgetError);
+    if (budgetError && !schemaUnavailable) return Response.json({ error: budgetError.message }, { status: 400 });
+    if (explicitMonthly && schemaUnavailable) return Response.json({ error: "Monthly budget editing is awaiting its approved database migration. No project details were saved." }, { status: 409 });
+    let monthlyBudgetBaseline = budgetError ? null : monthlyBudgetBaselineForSources(approvedSources || []);
     const monthlyBudgetControlled = !budgetError && (approvedSources || []).some((source) => source.service_period_start && source.service_period_end);
-    const budgetDollars = monthlyBudgetControlled
+    let budgetDollars = monthlyBudgetControlled
       ? (approvedSources || []).reduce((sum, source) => sum + Math.round(Number(source.approved_value || 0) * 100), 0) / 100
       : num(body.budgetDollars);
-    const budgetHours = monthlyBudgetControlled
+    let budgetHours = monthlyBudgetControlled
       ? (approvedSources || []).reduce((sum, source) => sum + Math.round(Number(source.approved_hours || 0) * 100), 0) / 100
       : num(body.budgetHours);
+    if (explicitMonthly) {
+      if (!monthlyBudgetBaseline?.uniform) return Response.json({ error: "A uniform approved monthly baseline is required. Resolve differing monthly budgets in the administrator per-source budget editor first." }, { status: 409 });
+      const { data: baseline, error: rpcError } = await access.admin.rpc("ec_set_monthly_project_budget", {
+        p_project_id: params.projectId,
+        p_actor_id: access.user.id,
+        p_monthly_value: Number(body.monthlyBudgetValue),
+        p_monthly_hours: Number(body.monthlyBudgetHours),
+      });
+      if (rpcError) {
+        const migrationPending = ["42883", "PGRST202", "PGRST204", "PGRST205"].includes(rpcError.code) || /schema cache|does not exist/i.test(rpcError.message || "");
+        return Response.json({ error: migrationPending ? "Monthly budget editing is awaiting its approved database migration. No project details were saved." : rpcError.message }, { status: migrationPending ? 409 : 400 });
+      }
+      if (!baseline || monthlyBudgetInputError(baseline.monthlyValue, baseline.monthlyHours) || !Number.isInteger(baseline.monthCount) || baseline.monthCount < 1 || typeof baseline.changed !== "boolean" || [baseline.aggregateValue, baseline.aggregateHours].some((value) => value == null || !Number.isFinite(Number(value)) || Number(value) < 0)) {
+        return Response.json({ error: "Monthly budget response could not be verified. Reload the project before retrying; no further project details were saved." }, { status: 502 });
+      }
+      monthlyBudgetBaseline = { ...baseline, monthlyValue: Number(baseline.monthlyValue), monthlyHours: Number(baseline.monthlyHours), aggregateValue: Number(baseline.aggregateValue), aggregateHours: Number(baseline.aggregateHours), uniform: true };
+      budgetDollars = monthlyBudgetBaseline.aggregateValue;
+      budgetHours = monthlyBudgetBaseline.aggregateHours;
+    }
+    const optionalText = (key) => Object.hasOwn(body, key) ? opt(body[key]) : undefined;
     const { data, error } = await access.admin
       .from("projects")
       .update({
         name: opt(body.name) ?? undefined,
-        client_name: opt(body.clientName),
-        client_contact: opt(body.clientContact),
-        sharepoint_link: opt(body.sharepointLink),
-        sharepoint_label: opt(body.sharepointLabel),
-        description: opt(body.description),
-        scope_of_works: opt(body.scopeOfWorks),
-        project_lead_user_id: opt(body.projectLeadUserId),
-        overseeing_senior_ecologist_user_id: opt(body.overseeingSeniorEcologistUserId),
-        start_date: opt(body.startDate),
-        end_date: opt(body.endDate),
-        budget_hours: budgetHours,
-        budget_dollars: budgetDollars,
-        default_hourly_rate: num(body.defaultHourlyRate),
+        client_name: optionalText("clientName"),
+        client_contact: optionalText("clientContact"),
+        sharepoint_link: optionalText("sharepointLink"),
+        sharepoint_label: optionalText("sharepointLabel"),
+        description: optionalText("description"),
+        scope_of_works: optionalText("scopeOfWorks"),
+        project_lead_user_id: optionalText("projectLeadUserId"),
+        overseeing_senior_ecologist_user_id: optionalText("overseeingSeniorEcologistUserId"),
+        start_date: optionalText("startDate"),
+        end_date: optionalText("endDate"),
+        budget_hours: monthlyBudgetControlled || Object.hasOwn(body, "budgetHours") ? budgetHours : undefined,
+        budget_dollars: monthlyBudgetControlled || Object.hasOwn(body, "budgetDollars") ? budgetDollars : undefined,
+        default_hourly_rate: Object.hasOwn(body, "defaultHourlyRate") ? num(body.defaultHourlyRate) : undefined,
         status: opt(body.status) || undefined,
         // Restoring from the recycle bin. Explicit action rather than an
         // arbitrary field write, so it can never happen by accident.
@@ -260,8 +329,8 @@ export async function PATCH(request, { params }) {
       .select(PROJECT_COLUMNS)
       .single();
 
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ project: data, monthlyBudgetControlled });
+    if (error) return Response.json({ error: explicitMonthly ? `Monthly baseline saved, but project details were not saved. Reload before retrying. ${error.message}` : error.message }, { status: 400 });
+    return Response.json({ project: data, monthlyBudgetControlled, monthlyBudgetBaseline });
   } catch (error) {
     return serverError(error);
   }
