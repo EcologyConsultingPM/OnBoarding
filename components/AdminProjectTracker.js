@@ -599,6 +599,12 @@ export default function AdminProjectTracker({
                 />
               </div>
 
+              {["overview", "budget"].includes(detailView) && (selected.financials.historicalUsedHours > 0 || selected.financials.historicalChargeOutSpend > 0) ? (
+                <p role="note" style={{ margin: "0 0 14px", fontSize: 12.5, color: "#cfe0c8", lineHeight: 1.5 }}>
+                  <strong>Historical work retained:</strong> {hours(selected.financials.historicalUsedHours)} and {money(selected.financials.historicalChargeOutSpend)} quote-rate spend on closed/non-current sources or allocations. Excluded from current accepted-scope budgets, spend and profit calculations. Recorded lifetime totals: {hours(selected.financials.lifetimeUsedHours)} and {money(selected.financials.lifetimeChargeOutSpend)}. Full entry history remains available in Timesheet Entries.
+                </p>
+              ) : null}
+
               {detailView === "budget" ? <button
                 type="button"
                 onClick={() => setFinancialDetailsOpen((v) => !v)}
