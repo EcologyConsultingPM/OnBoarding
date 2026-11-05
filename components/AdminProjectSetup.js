@@ -994,7 +994,10 @@ function ProjectDetail({
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      notify("Project details saved.");
+      if (d.monthlyBudgetControlled && d.project) {
+        setProject((current) => ({ ...current, budget_dollars: d.project.budget_dollars, budget_hours: d.project.budget_hours }));
+      }
+      notify(d.monthlyBudgetControlled ? "Project details saved. Headline budget and hours synchronised with the approved monthly sources." : "Project details saved.");
       return true;
     } catch (e) {
       fail(e);
