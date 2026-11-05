@@ -33,79 +33,115 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_DB_URL"
-          test -n "$BACKUP_STATUS_TOKEN"
-          test -n "$BACKUP_ARCHIVE_PASSWORD"
+          if [[ -z "${SUPABASE_POOLER_DB_URL:-}" && -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "::error::Set SUPABASE_POOLER_DB_URL to this project's Session pooler connection string."
+            exit 1
+          fi
+          for name in BACKUP_STATUS_TOKEN BACKUP_ARCHIVE_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required Actions secret $name is missing."
+              exit 1
+            fi
+          done
+          echo "BACKUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Report backup start
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 2 \
+          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 15 --max-time 60 \
             -X POST "$BACKUP_STATUS_URL" \
             -H "Authorization: Bearer $BACKUP_STATUS_TOKEN" \
             -H "Content-Type: application/json" \
-            --data "{\"run_id\":\"$RUN_ID\",\"status\":\"running\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS}"
+            --data "{\"run_id\":\"$RUN_ID\",\"status\":\"running\",\"started_at\":\"$BACKUP_STARTED_AT\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":false,\"database_schema\":false,\"database_data\":false,\"storage_objects\":false}}"
 
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.0.0
 
       - name: Select IPv4-capable database connection
         shell: bash
         run: |
           set -euo pipefail
-          # Supabase direct database hostnames can resolve only to IPv6 on the
-          # GitHub-hosted runner. Prefer an explicitly supplied pooler secret;
-          # otherwise derive the project’s transaction-pooler URL from the
-          # existing direct URL without logging the password.
-          if [[ "$SUPABASE_DB_URL" == *"pooler.supabase.com"* ]]; then
-            echo "The configured backup connection already uses the Supabase pooler."
-          elif [[ -n "${SUPABASE_POOLER_DB_URL:-}" ]]; then
-            echo "SUPABASE_DB_URL=$SUPABASE_POOLER_DB_URL" >> "$GITHUB_ENV"
-            echo "Using the configured IPv4-capable Supabase pooler connection."
-          else
-            # Supabase pooler authentication requires the project-qualified
-            # username (postgres.<project-ref>), not the direct host's plain
-            # postgres username. The prior sed-only conversion rewrote only
-            # the host/port, causing `password authentication failed for user
-            # "postgres"` on every scheduled backup.
-            pooler_url=$(SUPABASE_DIRECT_URL="$SUPABASE_DB_URL" python3 - <<'PY'
+          # Copy the exact Session pooler URL from this project's Connect dialog.
+          # Pooler cluster indexes cannot be inferred from the project's region.
+          # The explicit pooler secret must override even an existing pooler URL.
+          python3 - <<'PY'
           import os
+          import re
           import sys
-          from urllib.parse import quote, unquote, urlsplit, urlunsplit
+          from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+
+          def fail(message):
+              print(f"::error::{message}", file=sys.stderr)
+              raise SystemExit(1)
+
+          def mask(value):
+              if value:
+                  escaped = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::add-mask::{escaped}", flush=True)
 
           project_ref = "qjsdglkipgncttztksxl"
-          direct_host = f"db.{project_ref}.supabase.co"
-          pooler_host = "aws-0-ap-south-1.pooler.supabase.com"
-          raw = os.environ.get("SUPABASE_DIRECT_URL", "")
-          parts = urlsplit(raw)
-          if parts.scheme not in {"postgres", "postgresql"} or parts.hostname != direct_host or not parts.username:
-              print("The configured direct database URL cannot be safely converted. Set SUPABASE_POOLER_DB_URL.", file=sys.stderr)
-              raise SystemExit(1)
-          username = quote(f"postgres.{project_ref}", safe="")
-          password = quote(unquote(parts.password or ""), safe="")
-          auth = username if not password else f"{username}:{password}"
-          print(urlunsplit((parts.scheme, f"{auth}@{pooler_host}:6543", parts.path or "/postgres", parts.query, parts.fragment)))
+          raw = os.environ.get("SUPABASE_POOLER_DB_URL") or os.environ.get("SUPABASE_DB_URL", "")
+          if not raw or any(ord(c) < 32 or ord(c) == 127 for c in raw):
+              fail("The backup database URL is missing or contains control characters.")
+          mask(raw)
+          try:
+              parts = urlsplit(raw)
+              port = parts.port
+          except ValueError:
+              fail("The backup database URL is malformed. Copy the Session pooler URL from Supabase Connect.")
+          if parts.scheme not in {"postgres", "postgresql"} or not parts.hostname:
+              fail("The backup database URL must be a PostgreSQL connection string.")
+          if not re.fullmatch(r"aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com", parts.hostname):
+              fail("Set SUPABASE_POOLER_DB_URL to the exact IPv4 Session pooler URL from Supabase Connect; a direct URL cannot safely determine the pooler host.")
+          if unquote(parts.username or "") != f"postgres.{project_ref}":
+              fail("The Session pooler URL must use this project's project-qualified username: postgres.qjsdglkipgncttztksxl.")
+          if port not in {5432, 6543}:
+              fail("The shared pooler URL must use port 5432 (Session) or 6543 (Transaction).")
+          if parts.path != "/postgres" or parts.fragment or (parts.password and any(c.isspace() for c in parts.password)):
+              fail("The backup URL must target /postgres and reserved password characters must be percent-encoded.")
+          password = unquote(parts.password or "")
+          if not password or "[YOUR-PASSWORD]" in password or any(ord(c) < 32 or ord(c) == 127 for c in password):
+              fail("The backup database URL needs the current database password, not a placeholder or an API key.")
+          mask(parts.password)
+          mask(password)
+          encoded_password = quote(password, safe="")
+          mask(encoded_password)
+          try:
+              query = dict(parse_qsl(parts.query, strict_parsing=True))
+          except ValueError:
+              fail("The backup URL has malformed query parameters. Percent-encode reserved password characters.")
+          sslmode = query.get("sslmode", "require")
+          if sslmode not in {"require", "verify-ca", "verify-full"}:
+              fail("The backup connection must require TLS (sslmode=require or stricter).")
+          query["sslmode"] = sslmode
+          query["connect_timeout"] = "20"
+          # Backups use a single session, not transaction pooling. The host and
+          # credentials remain exactly those configured by the project owner.
+          selected = urlunsplit((parts.scheme, f"postgres.{project_ref}:{encoded_password}@{parts.hostname}:5432", "/postgres", urlencode(query), ""))
+          mask(selected)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SUPABASE_DB_URL={selected}\n")
+          print("Using the configured IPv4 Supabase Session pooler on port 5432 with TLS required.")
           PY
-            )
-            echo "SUPABASE_DB_URL=$pooler_url" >> "$GITHUB_ENV"
-            echo "Derived an IPv4-capable Supabase transaction-pooler connection with its required project-qualified username."
-          fi
 
       - name: Create private logical database archive
         id: dump
         shell: bash
         run: |
           set -euo pipefail
+          umask 077
           mkdir -p backup
-          supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f backup/roles.sql
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
-          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f backup/data.sql
+          # Clean partial plaintext dumps even if a dump or encryption fails.
+          trap 'rm -f backup/roles.sql backup/schema.sql backup/data.sql backup/database.tar.gz' EXIT
+          supabase db dump --remote="$SUPABASE_DB_URL" --role-only -f backup/roles.sql
+          supabase db dump --remote="$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --remote="$SUPABASE_DB_URL" --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f backup/data.sql
+          test -s backup/roles.sql && test -s backup/schema.sql && test -s backup/data.sql
           tar -czf backup/database.tar.gz -C backup roles.sql schema.sql data.sql
           openssl enc -aes-256-cbc -pbkdf2 -salt -in backup/database.tar.gz -out backup/ecology-database.tar.gz.enc -pass env:BACKUP_ARCHIVE_PASSWORD
-          rm -f backup/roles.sql backup/schema.sql backup/data.sql backup/database.tar.gz
           bytes=$(stat -c%s backup/ecology-database.tar.gz.enc)
           if [ "$bytes" -gt "$MAX_ARCHIVE_BYTES" ]; then
             echo "Encrypted archive ($bytes bytes) exceeds the configured zero-cost ceiling ($MAX_ARCHIVE_BYTES bytes)." >&2
@@ -129,11 +165,16 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ job.status }}" = "success" ]; then
-            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"succeeded\",\"workflow_name\":\"private-daily-database-backup\",\"archive_bytes\":${{ steps.dump.outputs.bytes }},\"archive_sha256\":\"${{ steps.dump.outputs.sha256 }}\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"succeeded\",\"started_at\":\"$BACKUP_STARTED_AT\",\"workflow_name\":\"private-daily-database-backup\",\"archive_bytes\":${{ steps.dump.outputs.bytes }},\"archive_sha256\":\"${{ steps.dump.outputs.sha256 }}\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
           else
-            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"failed\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"error_summary\":\"The private daily backup workflow failed or exceeded its zero-cost archive ceiling. Open the private GitHub Actions run for details.\",\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
+            started_at="${BACKUP_STARTED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"failed\",\"started_at\":\"$started_at\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"error_summary\":\"No verified archive was retained. Check the GitHub Actions failed step; database authentication requires the current password in the exact Supabase Session pooler URL.\",\"coverage\":{\"database_roles\":false,\"database_schema\":false,\"database_data\":false,\"storage_objects\":false}}"
           fi
-          curl --fail --silent --show-error --retry 2 \
+          if [[ -z "${BACKUP_STATUS_TOKEN:-}" ]]; then
+            echo "::error::Cannot report outcome: BACKUP_STATUS_TOKEN is missing."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 15 --max-time 60 \
             -X POST "$BACKUP_STATUS_URL" \
             -H "Authorization: Bearer $BACKUP_STATUS_TOKEN" \
             -H "Content-Type: application/json" \
