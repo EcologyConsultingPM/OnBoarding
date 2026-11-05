@@ -19,6 +19,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import WorkspaceNav from "./WorkspaceNav";
 import { staffProjectCardLabels } from "../lib/staffProjectAssignmentSummary";
+import { allocationMatchesCategory, budgetEntryPeriodError, budgetPeriodLabel, budgetSourceMatchesDate, hasBudgetPeriod, missingBudgetMessage, selectBudgetForDate } from "../lib/projectBudgetPeriods";
 
 const STATUS = {
   not_commenced: { label: "Not yet commenced", tone: "not-commenced" },
@@ -104,7 +105,7 @@ function normaliseActivity(row) {
 function blankForm(project) {
   const source = project?.sources?.[0];
   const allocation = source?.allocations?.[0];
-  return {
+  return selectBudgetForDate(project, {
     projectId: project?.id || "",
     activityId: "",
     sourceId: source?.id || "",
@@ -116,7 +117,7 @@ function blankForm(project) {
     status: "not_commenced",
     notableIssues: "",
     customData: {},
-  };
+  });
 }
 
 function allocationRows(project, board) {
@@ -185,10 +186,22 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     [projects, form.projectId],
   );
   const entryProject = useMemo(
-    () => entryProjects.find((project) => project.id === form.projectId) || selected,
-    [entryProjects, selected, form.projectId],
+    () => {
+      const project = entryProjects.find((item) => item.id === form.projectId) || selected;
+      if (!project || !editingEntry?.budgetSource || editingEntry.projectId !== project.id) return project;
+      // Only the caller's saved source/allocation metadata is added for editing;
+      // a closed source is not added to the new-entry picker or other projects.
+      const historical = editingEntry.budgetSource;
+      const sources = project.sources || [];
+      const existing = sources.find((source) => source.id === historical.id);
+      return { ...project, sources: existing
+        ? sources.map((source) => source.id !== historical.id ? source : { ...source, allocations: [...(source.allocations || []), ...(historical.allocations || []).filter((allocation) => !source.allocations?.some((item) => item.id === allocation.id)).map((allocation) => ({ ...allocation, historicalOnly: true }))] })
+        : [...sources, { ...historical, allocations: (historical.allocations || []).map((allocation) => ({ ...allocation, historicalOnly: true })) }] };
+    },
+    [entryProjects, selected, form.projectId, editingEntry],
   );
   const detailProject = selected || entryProject;
+  const availableSources = useMemo(() => (entryProject?.sources || []).filter((source) => budgetSourceMatchesDate(source, form.workDate)), [entryProject, form.workDate]);
   const selectedSource = useMemo(
     () => entryProject?.sources?.find((source) => source.id === form.sourceId) || null,
     [entryProject, form.sourceId],
@@ -197,6 +210,19 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     () => selectedSource?.allocations?.find((allocation) => allocation.id === form.allocationId) || null,
     [selectedSource, form.allocationId],
   );
+  const periodSelectionError = !entryProject ? "" : !selectedSource || !selectedAllocation
+    ? missingBudgetMessage(entryProject, form.workDate)
+    : budgetEntryPeriodError(selectedSource, form.workDate, selectedAllocation, form.category);
+  useEffect(() => {
+    if (!entryProject) return;
+    setForm((current) => {
+      const originalSource = entryProject.sources?.find((source) => source.id === editingEntry?.sourceId);
+      const originalPeriod = current.workDate === editingEntry?.workDate || (hasBudgetPeriod(originalSource) && budgetSourceMatchesDate(originalSource, current.workDate));
+      const preserve = Boolean(editingEntry && originalPeriod && current.category === editingEntry.category && current.sourceId === editingEntry.sourceId && current.allocationId === editingEntry.allocationId);
+      const next = selectBudgetForDate(entryProject, current, { preserve });
+      return next.sourceId === current.sourceId && next.allocationId === current.allocationId && next.category === current.category ? current : next;
+    });
+  }, [entryProject, form.workDate, form.category, editingEntry]);
   const staffName = session?.user?.user_metadata?.full_name || session?.user?.email || "Signed-in staff member";
 
   const loadBoard = useCallback(async (projectId) => {
@@ -311,6 +337,10 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const projectDeliverables = (selected?.sources || []).map((source) => source.source_name).filter(Boolean);
 
   const submit = async () => {
+    if (periodSelectionError) {
+      setError(periodSelectionError);
+      return;
+    }
     if (!entryProject || !selectedSource || !selectedAllocation) {
       setError("Choose a project budget source and allocation.");
       return;
@@ -535,16 +565,17 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                   <section className="st-section-card st-entry-card">
                     <div className="st-section-head"><div><span className="st-kicker">{editingEntry ? <Pencil size={13} /> : <Plus size={13} />} {editingEntry ? "Correct saved timesheet" : "New timesheet entry"}</span><h3>{editingEntry ? "Correct your recorded time" : "Record project activity"}</h3><p>{editingEntry ? "You can correct your own saved entry. The original and corrected values remain in the controlled audit trail." : "Save your actual hours against a controlled allocation. For work on an unassigned project, select Other active project and record general project work only."}</p></div><span className="st-template-lock"><CheckCircle2 size={14} /> Locked template</span></div>
                     {entryProject?.isAssigned === false ? <div className="st-ad-hoc-note"><AlertCircle size={15} /><span><strong>Other active project:</strong> this is an ad hoc time entry. It cannot be linked to another staff member’s activity and is retained in the tracker audit trail for Project Manager review.</span></div> : null}
+                    {periodSelectionError ? <div className="st-error" role="alert"><AlertCircle size={15} /> {periodSelectionError}</div> : null}
                     <div className="st-form-grid">
-                      <label className="st-wide">Timesheet project<select value={form.projectId} disabled={Boolean(editingEntry)} onChange={(event) => { const project = entryProjects.find((item) => item.id === event.target.value); setForm((current) => ({ ...blankForm(project), workDate: current.workDate })); setEditingEntry(null); }}>{entryProjects.map((project) => <option key={project.id} value={project.id}>{project.isAssigned ? "Assigned project · " : "Other active project · "}{project.name}</option>)}</select><small className="st-activity-hint">Other active projects are available for genuine ad hoc time only; they do not grant project-board or activity access.</small></label>
+                      <label className="st-wide">Timesheet project<select value={form.projectId} disabled={Boolean(editingEntry)} onChange={(event) => { const project = entryProjects.find((item) => item.id === event.target.value); setForm((current) => selectBudgetForDate(project, { ...blankForm(project), workDate: current.workDate })); setEditingEntry(null); }}>{entryProjects.map((project) => <option key={project.id} value={project.id}>{project.isAssigned ? "Assigned project · " : "Other active project · "}{project.name}</option>)}</select><small className="st-activity-hint">Other active projects are available for genuine ad hoc time only; they do not grant project-board or activity access.</small></label>
                       <label>Work date<input type="date" value={form.workDate} onChange={(event) => setField("workDate", event.target.value)} /></label>
                       <label>Staff member<span className="st-readonly"><UserRound size={13} /> {staffName}</span></label>
                       <label className="st-wide">Assigned project activity<select value={form.activityId} disabled={entryProject?.isAssigned === false || Boolean(editingEntry)} onChange={(event) => {
                         const activity = projectActivities.find((item) => item.id === event.target.value);
                         setForm((current) => ({ ...current, activityId: event.target.value, category: activity?.taskCategory || current.category, information: activity?.title || "", status: activity?.status || current.status }));
                       }}><option value="">General project work (not linked to an activity)</option>{entryProject?.isAssigned !== false ? projectActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.dueDate ? ` · Due ${formatDate(activity.dueDate)}` : ""}</option>) : null}</select><small className="st-activity-hint">Use the Work activities tab to update a task without logging time.</small></label>
-                      <label>Budget source<select value={form.sourceId} disabled={Boolean(editingEntry)} onChange={(event) => { const source = entryProject?.sources?.find((item) => item.id === event.target.value); setForm((current) => ({ ...current, sourceId: event.target.value, allocationId: source?.allocations?.[0]?.id || "" })); }}>{entryProject?.sources?.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}</option>)}</select></label>
-                      <label>Budget allocation<select value={form.allocationId} disabled={Boolean(editingEntry)} onChange={(event) => setField("allocationId", event.target.value)}>{selectedSource?.allocations?.map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label>
+                      <label>Budget source<select value={form.sourceId} onChange={(event) => setForm((current) => selectBudgetForDate(entryProject, { ...current, sourceId: event.target.value }, { preferredSourceId: event.target.value }))}><option value="">Choose the work-date budget</option>{availableSources.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}{budgetPeriodLabel(source) ? ` · ${budgetPeriodLabel(source)}` : " · Unrestricted"}</option>)}</select></label>
+                      <label>Budget allocation<select value={form.allocationId} onChange={(event) => setField("allocationId", event.target.value)}><option value="">Choose matching allocation</option>{selectedSource?.allocations?.filter((allocation) => !hasBudgetPeriod(selectedSource) || allocationMatchesCategory(allocation, form.category)).map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label>
                       <label>Activity category<select value={form.category} onChange={(event) => setField("category", event.target.value)}>{entryProject?.template?.category_options?.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
                       <label>Hours<input inputMode="decimal" type="number" min="0.1" max="24" step="0.1" value={form.hours} onChange={(event) => setField("hours", event.target.value)} placeholder="0.0" /></label>
                       <label>Work status<select value={form.status} className={`st-status-select ${STATUS[form.status]?.tone || ""}`} onChange={(event) => setField("status", event.target.value)}>{Object.entries(STATUS).map(([value, status]) => <option key={value} value={value}>{status.label}</option>)}</select></label>

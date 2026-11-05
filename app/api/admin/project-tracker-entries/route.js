@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
-import { createTrackerEntry } from "../../project-tracker-entries/route";
+import { createTrackerEntry, validateTrackerBudgetCorrection } from "../../project-tracker-entries/route";
+import { validBudgetDate } from "../../../../lib/projectBudgetPeriods";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,13 +123,17 @@ export async function PATCH(request) {
     const auditReason = correctionReason || "Administrative correction recorded without an additional note.";
     const amount = validHours(body.hours);
     const status = String(body.status || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !ENTRY_STATUSES.has(status)) {
+    if (!validBudgetDate(workDate) || !activityCategory || !activityInformation || amount === null || !ENTRY_STATUSES.has(status)) {
       return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
     }
     if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
 
+    const budget = await validateTrackerBudgetCorrection(access, current, body, workDate, activityCategory);
+    if (budget.error) return jsonError(budget.error);
     const now = new Date().toISOString();
     const { data: entry, error } = await access.admin.from("project_tracker_entries").update({
+      budget_source_id: budget.sourceId,
+      budget_allocation_id: budget.allocationId,
       work_date: workDate,
       activity_category: activityCategory,
       activity_information: activityInformation,
@@ -136,7 +141,7 @@ export async function PATCH(request) {
       status,
       notable_issues: notableIssues || null,
       updated_at: now,
-    }).eq("id", id).select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, updated_at").single();
+    }).eq("id", id).select("id, project_id, budget_source_id, budget_allocation_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, updated_at").single();
     if (error) return jsonError(error.message);
 
     const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
@@ -151,6 +156,7 @@ export async function PATCH(request) {
     if (auditError) return jsonError(`Entry was corrected but its mandatory audit record could not be saved: ${auditError.message}`, 500);
 
     await refreshAllocation(access, current.project_id, current.budget_allocation_id);
+    if (budget.allocationId !== current.budget_allocation_id) await refreshAllocation(access, current.project_id, budget.allocationId);
     if (current.activity_id) {
       await access.admin.from("project_activities").update({ status, progress_percent: status === "completed" ? 100 : undefined, updated_at: now }).eq("id", current.activity_id);
     }

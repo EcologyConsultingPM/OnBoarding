@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectTrackerExport from "./ProjectTrackerExport";
+import { budgetPeriodLabel, monthBudgetPeriod, serviceMonthForSource } from "../lib/projectBudgetPeriods";
 
 function money(value) {
   return new Intl.NumberFormat("en-AU", {
@@ -55,6 +56,8 @@ function emptySource(project) {
     variationReason: "",
     effectiveDate: new Date().toISOString().slice(0, 10),
     projectId: project?.id || "",
+    service_period_start: null,
+    service_period_end: null,
   };
 }
 function emptyAllocation(source) {
@@ -724,6 +727,7 @@ export default function AdminProjectTracker({
                           <div className="apt-source-line">
                             <strong>{source.source_name}</strong>
                             <span>{source.source_code}</span>
+                            {budgetPeriodLabel(source) ? <span>Service period: {budgetPeriodLabel(source)}</span> : null}
                             <em>
                               {source.source_type === "original"
                                 ? (source.approval_status ? source.approval_status.charAt(0).toUpperCase() + source.approval_status.slice(1) : "Approved")
@@ -743,6 +747,8 @@ export default function AdminProjectTracker({
                                   variationReason:
                                     source.variation_reason || "",
                                   effectiveDate: source.effective_date || "",
+                                  service_period_start: source.service_period_start ?? null,
+                                  service_period_end: source.service_period_end ?? null,
                                 })
                               }
                             >
@@ -1351,6 +1357,11 @@ function SourceEditor({ source, setSource, onSave, onCancel, saving }) {
               value={source.effectiveDate}
               onChange={(event) => update("effectiveDate", event.target.value)}
             />
+          </label>
+          <label>
+            Service month (optional)
+            <input type="month" value={serviceMonthForSource(source)} onChange={(event) => setSource({ ...source, ...monthBudgetPeriod(event.target.value) })} />
+            <small>{budgetPeriodLabel(source) ? `Current service period: ${budgetPeriodLabel(source)}. ` : ""}Leave blank for an unrestricted source. A month restricts work dates to its first through last day. Enter explicitly approved values for each new month; do not duplicate the original baseline.</small>
           </label>
           {source.sourceType === "variation" ? (
             <label className="wide">

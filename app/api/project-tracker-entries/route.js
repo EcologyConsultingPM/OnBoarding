@@ -2,6 +2,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../lib/staffDirectory";
 import { emptyStaffProjectAssignmentSummary, loadStaffProjectAssignments, summarizeStaffProjectAssignments } from "../../../lib/staffProjectAssignmentSummary";
+import { budgetEntryPeriodError, validBudgetDate } from "../../../lib/projectBudgetPeriods";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ export async function eligibleProjects(access, staffUserId = access.user.id, inc
     // Itemised allocation dollars, rates, delivery costs and profitability stay
     // administrator-only; only the approved total, actual spend and balance are
     // calculated for an allocated project's tracker summary.
-    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status, approved_value, approved_hours").in("project_id", projectIds).eq("approval_status", "approved"),
+    access.admin.from("project_budget_sources").select("id, project_id, source_code, source_name, approval_status, approved_value, approved_hours, service_period_start, service_period_end").in("project_id", projectIds).eq("approval_status", "approved"),
     access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_code, allocation_name, status, staff_visible, allocation_hours, hours_consumed, charge_out_spend").in("project_id", projectIds).eq("status", "active"),
   ]);
   if ([settingsResult, templatesResult, sourcesResult, trackerAllocationsResult].some((result) => result.error && unavailable(result.error))) return { available: false, projects: [] };
@@ -146,6 +147,8 @@ export async function eligibleProjects(access, staffUserId = access.user.id, inc
             source_code: source.source_code,
             source_name: source.source_name,
             approval_status: source.approval_status,
+            service_period_start: source.service_period_start ?? null,
+            service_period_end: source.service_period_end ?? null,
             allocations: (allocationBySource.get(source.id) || []).filter((allocation) => allocation.staff_visible === true).map((allocation) => ({
               id: allocation.id,
               project_id: allocation.project_id,
@@ -214,12 +217,12 @@ export async function refreshTrackerAllocation(access, projectId, allocationId) 
 }
 
 async function ownEntries(access) {
-  let result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name), activity:project_activities!project_tracker_entries_activity_id_fkey(title)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
+  let result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), source:project_budget_sources!project_tracker_entries_budget_source_id_fkey(id, source_code, source_name, approval_status, service_period_start, service_period_end), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(id, allocation_code, allocation_name), activity:project_activities!project_tracker_entries_activity_id_fkey(title)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
   if (result.error && unavailable(result.error)) {
-    result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
+    result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), source:project_budget_sources!project_tracker_entries_budget_source_id_fkey(id, source_code, source_name, approval_status, service_period_start, service_period_end), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(id, allocation_code, allocation_name)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
   }
   if (result.error) { if (unavailable(result.error)) return { available: false, entries: [] }; throw new Error(result.error.message); }
-  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
+  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, budgetSource: entry.source ? { ...entry.source, allocations: entry.allocation ? [{ ...entry.allocation, budget_source_id: entry.budget_source_id, project_id: entry.project_id }] : [] } : null, allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
 }
 
 // Every person allocated to a project needs to see the same picture: the live
@@ -389,7 +392,7 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
   const projectId = String(input?.projectId || ""); const sourceId = String(input?.sourceId || ""); const allocationId = String(input?.allocationId || ""); const activityId = String(input?.activityId || "");
   const workDate = text(input?.workDate, 10); const activityCategory = text(input?.activityCategory, 120); const activityInformation = text(input?.activityInformation, 5000); const notableIssues = text(input?.notableIssues, 5000); const amount = hours(input?.hours); const status = String(input?.status || "");
   if (!validId(projectId) || !validId(sourceId) || !validId(allocationId)) return { error: "Choose an eligible project, budget source and allocation.", status: 400 };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) return { error: "Work date, activity category, activity information, hours and a valid status are required.", status: 400 };
+  if (!validBudgetDate(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) return { error: "Work date, activity category, activity information, hours and a valid status are required.", status: 400 };
   if (status !== "not_commenced" && amount <= 0) return { error: "Active, paused and completed entries must record positive hours.", status: 400 };
 
   const eligibility = await eligibleProjects(access, targetStaffUserId, allowOtherProject);
@@ -402,6 +405,8 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
   const source = project.sources.find((item) => item.id === sourceId);
   const allocation = source?.allocations.find((item) => item.id === allocationId);
   if (!source || !allocation) return { error: "Choose an active staff-visible budget allocation for this project.", status: 403 };
+  const periodError = budgetEntryPeriodError(source, workDate, allocation, activityCategory);
+  if (periodError) return { error: periodError, status: 400 };
   if (!(project.template.category_options || []).includes(activityCategory)) return { error: "Choose an activity category from the locked project template.", status: 400 };
   const customData = input?.customData && typeof input.customData === "object" && !Array.isArray(input.customData) ? input.customData : {};
   for (const column of project.template.column_definitions || []) { if (column?.required && !text(String(customData[column.key] || ""), 5000)) return { error: `${column.label || "A custom field"} is required by the locked tracker template.`, status: 400 }; }
@@ -507,6 +512,31 @@ export async function POST(request) {
 // Staff can correct only their own submitted tracker rows. The original and
 // corrected values are retained in the immutable tracker audit table, then the
 // allocation position is recalculated so project reporting stays accurate.
+export async function validateTrackerBudgetCorrection(access, current, body, workDate, category) {
+  const sourceId = body.sourceId === undefined ? current.budget_source_id : String(body.sourceId || "");
+  const allocationId = body.allocationId === undefined ? current.budget_allocation_id : String(body.allocationId || "");
+  if (!validId(sourceId) || !validId(allocationId)) return { error: "Choose the approved budget source and category allocation for the work date." };
+  const [sourceResult, allocationResult] = await Promise.all([
+    access.admin.from("project_budget_sources").select("id, project_id, approval_status, service_period_start, service_period_end").eq("id", sourceId).eq("project_id", current.project_id).maybeSingle(),
+    access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, allocation_name, allocation_code, status, staff_visible").eq("id", allocationId).eq("project_id", current.project_id).eq("budget_source_id", sourceId).maybeSingle(),
+  ]);
+  if (sourceResult.error || allocationResult.error) return { error: sourceResult.error?.message || allocationResult.error.message };
+  if (!sourceResult.data || !allocationResult.data) return { error: "Budget source and allocation must belong to this entry's project." };
+  const error = budgetEntryPeriodError(sourceResult.data, workDate, allocationResult.data, category);
+  if (error) return { error };
+  const reallocated = sourceId !== current.budget_source_id || allocationId !== current.budget_allocation_id;
+  // Closed historical sources remain usable for corrections in their original
+  // period. A move is explicit and only to an approved, active visible target.
+  if (reallocated) {
+    const eligibility = await eligibleProjects(access, current.staff_user_id, !access.isAdmin);
+    const project = eligibility.projects.find((item) => item.id === current.project_id);
+    const source = project?.sources.find((item) => item.id === sourceId);
+    if (!source?.allocations.some((item) => item.id === allocationId)) return { error: "Choose an approved active staff-visible allocation on the enabled, locked project tracker." };
+    if (!(project.template.category_options || []).includes(category)) return { error: "Choose an activity category from the locked project template." };
+  }
+  return { sourceId, allocationId };
+}
+
 export async function PATCH(request) {
   try {
     const access = await requireSession(request); if (access.error) return access.error;
@@ -516,7 +546,7 @@ export async function PATCH(request) {
     if (!validId(id)) return jsonError("A valid tracker entry is required.");
 
     const { data: current, error: currentError } = await access.admin.from("project_tracker_entries")
-      .select("id, project_id, budget_allocation_id, staff_user_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data")
+      .select("id, project_id, budget_source_id, budget_allocation_id, staff_user_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data")
       .eq("id", id).maybeSingle();
     if (currentError) return jsonError(currentError.message);
     if (!current || current.staff_user_id !== access.user.id) return jsonError("Your tracker entry was not found.", 404);
@@ -528,13 +558,17 @@ export async function PATCH(request) {
     const amount = hours(body?.hours);
     const status = String(body?.status || "");
     const customData = body?.customData && typeof body.customData === "object" && !Array.isArray(body.customData) ? body.customData : current.custom_data || {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) {
+    if (!validBudgetDate(workDate) || !activityCategory || !activityInformation || amount === null || !STATUSES.has(status)) {
       return jsonError("Work date, activity category, activity information, hours and a valid status are required.");
     }
     if (status !== "not_commenced" && amount <= 0) return jsonError("Active, paused and completed entries must record positive hours.");
 
+    const budget = await validateTrackerBudgetCorrection(access, current, body, workDate, activityCategory);
+    if (budget.error) return jsonError(budget.error);
     const now = new Date().toISOString();
     const { data: entry, error: updateError } = await access.admin.from("project_tracker_entries").update({
+      budget_source_id: budget.sourceId,
+      budget_allocation_id: budget.allocationId,
       work_date: workDate,
       activity_category: activityCategory,
       activity_information: activityInformation,
@@ -543,7 +577,7 @@ export async function PATCH(request) {
       notable_issues: notableIssues || null,
       custom_data: customData,
       updated_at: now,
-    }).eq("id", id).select("id, project_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at").single();
+    }).eq("id", id).select("id, project_id, budget_source_id, budget_allocation_id, activity_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at").single();
     if (updateError) return jsonError(updateError.message);
 
     const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
@@ -559,6 +593,7 @@ export async function PATCH(request) {
 
     try {
       await refreshTrackerAllocation(access, current.project_id, current.budget_allocation_id);
+      if (budget.allocationId !== current.budget_allocation_id) await refreshTrackerAllocation(access, current.project_id, budget.allocationId);
     } catch (refreshError) {
       return jsonError(`Entry was corrected, but allocation totals could not be refreshed: ${refreshError.message}`, 500);
     }
@@ -586,6 +621,6 @@ export async function PATCH(request) {
         source_id: id,
       });
     }
-    return Response.json({ entry: { id: entry.id, projectId: entry.project_id, workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, updatedAt: entry.updated_at } });
+    return Response.json({ entry: { id: entry.id, projectId: entry.project_id, sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, updatedAt: entry.updated_at } });
   } catch (error) { return serverError(error); }
 }

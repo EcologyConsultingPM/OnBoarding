@@ -1,10 +1,11 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
+import { budgetPeriodPatch } from "../../../../lib/projectBudgetPeriods";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PROJECT_COLUMNS = "id, name, client_name, description, start_date, end_date, budget_hours, budget_dollars, default_hourly_rate, status, updated_at, manual_health_status, manual_health_note, manual_health_set_by, manual_health_set_at";
-const SOURCE_COLUMNS = "id, project_id, source_code, source_name, source_type, approved_value, approved_hours, approval_status, variation_reason, effective_date, created_at, updated_at";
+const SOURCE_COLUMNS = "id, project_id, source_code, source_name, source_type, approved_value, approved_hours, approval_status, variation_reason, effective_date, service_period_start, service_period_end, created_at, updated_at";
 const ALLOCATION_COLUMNS = "id, project_id, budget_source_id, allocation_code, allocation_name, allocation_value, allocation_hours, hours_consumed, charge_out_spend, internal_cost, threshold_percent, status, staff_visible, created_at, updated_at";
 
 function jsonError(error, status = 400) {
@@ -318,16 +319,35 @@ export async function POST(request) {
       const approvedHours = optionalNumber(body.approvedHours);
       if (!sourceCode || !sourceName || approvedValue === null || approvedHours === null) return jsonError("Source code, name, approved value and approved hours are required.");
       if (sourceType === "variation" && !String(body.variationReason || "").trim()) return jsonError("A variation reason is required.");
-      const payload = { project_id: projectId, source_code: sourceCode, source_name: sourceName, source_type: sourceType, approved_value: approvedValue, approved_hours: approvedHours, approval_status: approvalStatus, variation_reason: String(body.variationReason || "").trim() || null, effective_date: body.effectiveDate || new Date().toISOString().slice(0, 10), updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
+      let period;
+      try { period = budgetPeriodPatch(body); } catch (error) { return jsonError(error.message); }
+      if (body.id && !validId(body.id)) return jsonError("A valid budget source is required.");
+      let currentSource = null;
+      if (body.id) {
+        const { data, error } = await auth.access.admin.from("project_budget_sources").select("id, source_type").eq("id", body.id).eq("project_id", projectId).maybeSingle();
+        if (error) return jsonError(error.message);
+        if (!data) return jsonError("Budget source not found for this project.", 404);
+        currentSource = data;
+      }
+      if (sourceType === "original" && currentSource?.source_type !== "original") {
+        let originalQuery = auth.access.admin.from("project_budget_sources").select("id").eq("project_id", projectId).eq("source_type", "original");
+        if (body.id) originalQuery = originalQuery.neq("id", body.id);
+        const { data: originals, error: originalsError } = await originalQuery.limit(1);
+        if (originalsError) return jsonError(originalsError.message);
+        if (originals?.length) return jsonError("This project already has an original contract source. Add an explicitly approved variation for another service month, not a duplicate original.", 409);
+      }
+      if (body.id && period.service_period_start) {
+        const { data: outside, error: outsideError } = await auth.access.admin.from("project_tracker_entries")
+          .select("id").eq("budget_source_id", body.id).eq("project_id", projectId)
+          .or(`work_date.lt.${period.service_period_start},work_date.gt.${period.service_period_end}`).limit(1);
+        if (outsideError) return jsonError(outsideError.message);
+        if (outside?.length) return jsonError("Cannot change service period: existing tracker entries fall outside the proposed bounds. Their original budget classification is retained.", 409);
+      }
+      const payload = { ...period, project_id: projectId, source_code: sourceCode, source_name: sourceName, source_type: sourceType, approved_value: approvedValue, approved_hours: approvedHours, approval_status: approvalStatus, variation_reason: String(body.variationReason || "").trim() || null, effective_date: body.effectiveDate || new Date().toISOString().slice(0, 10), updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
       if (body.id && validId(body.id)) {
         const { data, error } = await auth.access.admin.from("project_budget_sources").update(payload).eq("id", body.id).eq("project_id", projectId).select(SOURCE_COLUMNS).single();
         if (error) return jsonError(error.message);
         return Response.json({ source: data });
-      }
-      if (sourceType === "original") {
-        const { data: existing, error: existingError } = await auth.access.admin.from("project_budget_sources").select("id").eq("project_id", projectId).eq("source_type", "original").limit(1);
-        if (existingError) return jsonError(existingError.message);
-        if ((existing || []).length) return jsonError("This project already has an original contract source.", 409);
       }
       const { data, error } = await auth.access.admin.from("project_budget_sources").insert({ ...payload, created_by: auth.access.user.id }).select(SOURCE_COLUMNS).single();
       if (error) return jsonError(error.message);
