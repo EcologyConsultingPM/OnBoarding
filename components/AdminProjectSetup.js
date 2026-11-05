@@ -994,7 +994,10 @@ function ProjectDetail({
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      notify("Project details saved.");
+      if (d.monthlyBudgetControlled && d.project) {
+        setProject((current) => ({ ...current, budget_dollars: d.project.budget_dollars, budget_hours: d.project.budget_hours }));
+      }
+      notify(d.monthlyBudgetControlled ? "Project details saved. Headline budget and hours synchronised with the approved monthly sources." : "Project details saved.");
       return true;
     } catch (e) {
       fail(e);
@@ -1603,9 +1606,6 @@ function ProjectDetail({
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); reorderActivities(dragIndex, i); setDragIndex(null); }}
           >
-            <input className="aps-activity-selection-checkbox" type="checkbox" aria-label={`Select activity ${i + 1}: ${row.title || "Untitled activity"}`}
-              checked={selectedActivityKeys.has(activitySelectionKey(row))}
-              onChange={(event) => { const checked = event.target.checked; setSelectedActivityKeys((current) => { const next = new Set(current); if (checked) next.add(activitySelectionKey(row)); else next.delete(activitySelectionKey(row)); return next; }); }} />
             <span style={{ cursor: "grab", color: "#8a927c", paddingTop: 10, flexShrink: 0 }} title="Drag to reorder"><GripVertical size={15} /></span>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 700, color: "#6b755f", paddingTop: 11, flexShrink: 0, minWidth: 20 }}>{i + 1}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1770,6 +1770,9 @@ function ProjectDetail({
             >
               <Trash2 size={14} />
             </button>
+            <input className="aps-activity-selection-checkbox" type="checkbox" aria-label={`Select activity ${i + 1}: ${row.title || "Untitled activity"}`}
+              checked={selectedActivityKeys.has(activitySelectionKey(row))}
+              onChange={(event) => { const checked = event.target.checked; setSelectedActivityKeys((current) => { const next = new Set(current); if (checked) next.add(activitySelectionKey(row)); else next.delete(activitySelectionKey(row)); return next; }); }} />
           </div>
           );
         })}

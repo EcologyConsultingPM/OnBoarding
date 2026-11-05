@@ -217,6 +217,23 @@ export async function PATCH(request, { params }) {
     if (authorisation.response) return authorisation.response;
 
     const body = await request.json();
+    // A monthly service project's headline is the sum of its approved sources,
+    // not one month's fee or the team's separately allocated hours. The Setup
+    // form must not overwrite controlled tracker totals when saving other fields.
+    const { data: approvedSources, error: budgetError } = await access.admin
+      .from("project_budget_sources")
+      .select("approved_value, approved_hours, service_period_start, service_period_end")
+      .eq("project_id", params.projectId)
+      .eq("approval_status", "approved");
+    const budgetSchemaUnavailable = budgetError && ["42P01", "42703", "PGRST204", "PGRST205"].includes(budgetError.code);
+    if (budgetError && !budgetSchemaUnavailable) return Response.json({ error: budgetError.message }, { status: 400 });
+    const monthlyBudgetControlled = !budgetError && (approvedSources || []).some((source) => source.service_period_start && source.service_period_end);
+    const budgetDollars = monthlyBudgetControlled
+      ? (approvedSources || []).reduce((sum, source) => sum + Math.round(Number(source.approved_value || 0) * 100), 0) / 100
+      : num(body.budgetDollars);
+    const budgetHours = monthlyBudgetControlled
+      ? (approvedSources || []).reduce((sum, source) => sum + Math.round(Number(source.approved_hours || 0) * 100), 0) / 100
+      : num(body.budgetHours);
     const { data, error } = await access.admin
       .from("projects")
       .update({
@@ -231,8 +248,8 @@ export async function PATCH(request, { params }) {
         overseeing_senior_ecologist_user_id: opt(body.overseeingSeniorEcologistUserId),
         start_date: opt(body.startDate),
         end_date: opt(body.endDate),
-        budget_hours: num(body.budgetHours),
-        budget_dollars: num(body.budgetDollars),
+        budget_hours: budgetHours,
+        budget_dollars: budgetDollars,
         default_hourly_rate: num(body.defaultHourlyRate),
         status: opt(body.status) || undefined,
         // Restoring from the recycle bin. Explicit action rather than an
@@ -244,7 +261,7 @@ export async function PATCH(request, { params }) {
       .single();
 
     if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ project: data });
+    return Response.json({ project: data, monthlyBudgetControlled });
   } catch (error) {
     return serverError(error);
   }

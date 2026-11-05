@@ -11,8 +11,8 @@
     "test:ecado": "node scripts/ecado_evals.mjs",
     "test:closeout": "node scripts/check_project_closeout_template.mjs && node scripts/check_project_closeout_backend.mjs",
     "test:activity-bulk-delete": "node scripts/check_work_activity_bulk_delete.mjs && node scripts/check_staff_project_assignment_counts.mjs",
-    "test:project-budget-periods": "node scripts/check_project_budget_periods.mjs",
-    "pretest": "node scripts/check_project_budget_periods.mjs"
+    "test:project-budget-periods": "node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs",
+    "pretest": "node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^8.55.2",
