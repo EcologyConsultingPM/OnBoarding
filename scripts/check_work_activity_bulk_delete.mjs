@@ -83,3 +83,13 @@ assert.equal(retired.completedKeys.size,2);assert.equal(retired.remainingKeys.si
 retired=await retireSelectedWorkActivities({rows:saved,projectId,auth:async()=>{throw new Error('Offline');}});
 assert.equal(retired.completedKeys.size,0);assert.equal(retired.remainingKeys.size,3);assert.equal(retired.reconciliationError,'Offline');
 console.log('Activity selection behaviour passed: stable draft/saved identity, no UI fields in payloads, local-only removal, serial targeted DELETEs and truthful partial-failure recovery.');
+
+const setupSource=await readFile(new URL('components/AdminProjectSetup.js',root),'utf8');
+const styles=await readFile(new URL('app/globals.css',root),'utf8');
+const deleteControl=setupSource.indexOf('aria-label={`Delete ${row.title || "this activity"}`}');
+const selectionControl=setupSource.indexOf('<input className="aps-activity-selection-checkbox"');
+assert(deleteControl>0&&selectionControl>deleteControl,'The activity selection checkbox must follow the right-hand delete control, not consume the left content column.');
+assert.match(styles,/\.aps \.aps-selectable-activity > input\.aps-activity-selection-checkbox\[type="checkbox"\]/);
+assert.match(styles,/flex: 0 0 18px !important; width: 18px !important; min-width: 18px !important; max-width: 18px !important;/);
+assert(!styles.includes('.ec-app .aps .aps-activity-editor-controls'),'The selection controls must work without an .ec-app ancestor.');
+console.log('Activity checkbox layout contract passed: compact native 18px control at the far right, independent of the portal ancestor class.');
