@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 function coverageStatus(run) {
   const coverage = run?.coverage && typeof run.coverage === "object" ? run.coverage : {};
   return {
-    database: Boolean(coverage.database_roles && coverage.database_schema && coverage.database_data),
-    storage: Boolean(coverage.storage_objects),
+    database: run?.status === "succeeded" && coverage.database_roles === true && coverage.database_schema === true && coverage.database_data === true,
+    storage: run?.status === "succeeded" && coverage.storage_objects === true,
   };
 }
 
