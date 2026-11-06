@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { ClipboardList, AlertTriangle, ShieldAlert, CheckCircle2, AlertCircle, Filter } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import PreMobilisationBiologicalRecord from "./PreMobilisationBiologicalRecord";
 
 const TYPE_LABEL = {
   daily_risk_assessment: "Daily Risk Assessment",
@@ -126,6 +127,7 @@ export default function WhsFormsCompliance() {
                 <span className="wfc-status" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
               </div>
               {details ? <div className="wfc-detail">{details}</div> : null}
+              {f.form_type === "pre_mobilisation" ? <PreMobilisationBiologicalRecord details={f.details} /> : null}
               {f.review_note ? <div className="wfc-note">Review: {f.review_note}</div> : null}
 
               {openId === f.id ? (
