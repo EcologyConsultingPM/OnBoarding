@@ -32,6 +32,7 @@ import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
 import FirstAidKitChecks from "./FirstAidKitChecks";
 import OfficeRiskAssessmentForm from "./OfficeRiskAssessmentForm";
 import EcologicalFieldSwmsForm from "./EcologicalFieldSwmsForm";
+import PreMobilisationBiologicalRecord from "./PreMobilisationBiologicalRecord";
 import WorkspaceNav from "./WorkspaceNav";
 
 const ICONS = {
@@ -57,7 +58,7 @@ const BLURBS = {
   daily_risk_assessment: "Conditions, hazards, check-in & crew sign-on.",
   ecological_field_swms: "Project-specific ecological survey SWMS hazard selector.",
   journey_plan: "Crew, route, monitoring & overdue escalation.",
-  pre_mobilisation: "Vehicle, comms, approvals before departure.",
+  pre_mobilisation: "Vehicle, comms & biological hazard pre-checks before fieldwork.",
   site_erp: "Access, medical, muster & evacuation.",
   injury_incident: "Record an injury, illness or dangerous incident.",
   office_risk_assessment: "Office hazards, controls & actions.",
@@ -67,7 +68,7 @@ const BLURBS = {
 
 const FORM_REFERENCE_DOCS = {
   daily_risk_assessment: [{ label: "Daily Toolbox Talk template", href: "/resources/whs/EC-Daily-Toolbox-Talk-Template.pdf" }],
-  pre_mobilisation: [{ label: "Pre-Mobilisation Checklist source", href: "/resources/whs/EC-Pre-Mobilisation-Checklist.pdf" }],
+  pre_mobilisation: [{ label: "Legacy vehicle checklist reference (use the current online form)", href: "/resources/whs/EC-Pre-Mobilisation-Checklist.pdf" }],
   site_erp: [{ label: "Site Specific Emergency Response Plan template", href: "/resources/whs/EC-Site-Specific-Emergency-Response-Plan-Template.pdf" }],
   job_safety_analysis: [{ label: "General Field Surveys JSA", href: "/resources/whs/EC-JSA-General-Field-Surveys.pdf" }],
   office_risk_assessment: [{ label: "Office Risk Assessment source", href: "/resources/whs/EC-Office-Risk-Assessment.html" }],
@@ -430,6 +431,7 @@ export default function StaffForms() {
         kind: w.form_type.replace(/_/g, " "),
         status: w.status,
         note: w.review_note,
+        biologicalDetails: w.form_type === "pre_mobilisation" ? w.details : null,
       })),
       ...firstAidHistory.map((check) => ({
         id: `first-aid-${check.id}`,
@@ -470,6 +472,7 @@ export default function StaffForms() {
                       {r.kind} - {new Date(r.when).toLocaleDateString("en-AU")}
                       {r.note ? " - " + r.note : ""}
                     </div>
+                    {r.biologicalDetails ? <PreMobilisationBiologicalRecord details={r.biologicalDetails} /> : null}
                   </div>
                   <span
                     className="sf-status"

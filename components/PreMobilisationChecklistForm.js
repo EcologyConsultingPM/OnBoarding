@@ -4,20 +4,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ChevronLeft, Printer, Send, ShieldAlert } from "lucide-react";
 import SignaturePad from "./SignaturePad";
 import {
+  BIOLOGICAL_CHECK_OUTCOMES,
   CHECK_OUTCOMES,
   FIRE_DANGER_RATINGS,
   MOBILE_COVERAGE_OPTIONS,
+  PRE_FIELDWORK_BIOLOGICAL_SECTION,
   PRE_MOBILISATION_DOCUMENT_LABEL,
   PRE_MOBILISATION_SECTIONS,
   PRE_MOBILISATION_SOURCE_LINKS,
   VEHICLE_TYPES,
   WEATHER_CONDITIONS,
   createEmptyPreMobilisationForm,
+  preMobilisationProceedStatus,
   preMobilisationValidationMessages,
 } from "../lib/preMobilisationChecklist";
 
 const DRAFT_PREFIX = "ecology-consulting:whs-form-controlled:";
 const DRAFT_TTL = 1000 * 60 * 60 * 24 * 14;
+const OUTCOME_LABELS = { pass: "Pass", fail: "Fail", yes: "Yes", no: "No", na: "N/A" };
 
 function draftKey(userId) { return `${DRAFT_PREFIX}${userId || "anonymous"}:pre_mobilisation`; }
 
@@ -58,14 +62,36 @@ function mergeDraft(draft) {
   if (!draft || typeof draft !== "object") return empty;
   const suppliedById = new Map(Array.isArray(draft.checks) ? draft.checks.map((row) => [row?.id, row]) : []);
   const suppliedConditions = draft.conditions && typeof draft.conditions === "object" ? draft.conditions : {};
+  const suppliedBiological = Array.isArray(draft.biologicalChecks) ? draft.biologicalChecks : [];
+  const suppliedBiologicalById = new Map(suppliedBiological.map((row) => [row?.id, row]));
+  const biologicalChecks = empty.biologicalChecks.map((row) => {
+    const supplied = suppliedBiologicalById.get(row.id);
+    return {
+      ...row,
+      // Only explicit, valid answers survive restoration. Older drafts leave
+      // the new controls unanswered; never infer Yes from a core Pass.
+      outcome: BIOLOGICAL_CHECK_OUTCOMES.includes(supplied?.outcome) ? supplied.outcome : "",
+      action: typeof supplied?.action === "string" ? supplied.action : "",
+    };
+  });
+  const biologicalComplete = suppliedBiological.length === biologicalChecks.length
+    && suppliedBiologicalById.size === biologicalChecks.length
+    && biologicalChecks.every((row) => BIOLOGICAL_CHECK_OUTCOMES.includes(row.outcome));
+  const approval = { ...empty.approval, ...(draft.approval && typeof draft.approval === "object" ? draft.approval : {}) };
+  if (draft.documentRevision !== empty.documentRevision || !biologicalComplete) {
+    // An earlier sign-off is not consent to the expanded controlled checklist.
+    approval.signature = "";
+    approval.signedAt = "";
+  }
   return {
     ...empty,
     metadata: { ...empty.metadata, ...(draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {}) },
     checks: empty.checks.map((row) => ({ ...row, ...(suppliedById.get(row.id) || {}) })),
+    biologicalChecks,
     // Do not carry withdrawn controlled fields from an older saved draft into
     // the current submission contract.
     conditions: Object.fromEntries(Object.keys(empty.conditions).map((key) => [key, suppliedConditions[key] ?? empty.conditions[key]])),
-    approval: { ...empty.approval, ...(draft.approval && typeof draft.approval === "object" ? draft.approval : {}) },
+    approval,
   };
 }
 
@@ -80,29 +106,31 @@ function FormField({ label, required, error, children, help, full = false }) {
   );
 }
 
-function ChecklistTable({ section, checks, onRowChange, error }) {
+function ChecklistTable({ section, checks, onRowChange, error, outcomes = CHECK_OUTCOMES, outcomeLabels = OUTCOME_LABELS, blockingOutcome = "fail", actionLabel = "Corrective action / comment", showHeading = true, headingId, describedBy }) {
   const rowsById = new Map(checks.map((row) => [row.id, row]));
+  const blockedLabel = outcomeLabels[blockingOutcome];
   return (
-    <section className="pmc-table-wrap" aria-labelledby={`pmc-${section.id}-title`}>
-      <h3 id={`pmc-${section.id}-title`}>{section.title}</h3>
+    <section className="pmc-table-wrap" aria-labelledby={showHeading ? `pmc-${section.id}-title` : headingId}>
+      {showHeading ? <h3 id={`pmc-${section.id}-title`}>{section.title}</h3> : null}
       {error ? <p className="pmc-table-error" role="alert"><AlertCircle size={14} /> {error}</p> : null}
       <div className="pmc-table-scroll">
         <table className="pmc-table">
           <thead>
-            <tr><th scope="col">Ref</th><th scope="col">Check and outcome</th><th scope="col">Corrective action / comment</th></tr>
+            <tr><th scope="col">Ref</th><th scope="col">Check and outcome</th><th scope="col">{actionLabel}</th></tr>
           </thead>
           <tbody>
             {section.rows.map((definition, index) => {
               const row = rowsById.get(definition.id) || { id: definition.id, outcome: "", action: "" };
-              const isFailed = row.outcome === "fail";
+              const isFailed = row.outcome === blockingOutcome;
+              const actionRequired = isFailed && !row.action?.trim();
               return (
                 <tr key={definition.id} className={isFailed ? "pmc-row--fail" : index % 2 ? "pmc-row--alt" : ""}>
                   <th scope="row" className="pmc-ref">{definition.id}</th>
                   <td>
                     <strong className="pmc-check-text">{definition.check}</strong>
-                    <fieldset className="pmc-outcomes" aria-label={`${definition.id}: ${definition.check}`}>
+                    <fieldset className="pmc-outcomes" aria-label={`${definition.id}: ${definition.check}`} aria-describedby={describedBy}>
                       <legend>Outcome for {definition.id}</legend>
-                      {CHECK_OUTCOMES.map((outcome) => (
+                      {outcomes.map((outcome) => (
                         <label key={outcome} className={`pmc-outcome pmc-outcome--${outcome}`}>
                           <input
                             type="radio"
@@ -111,23 +139,27 @@ function ChecklistTable({ section, checks, onRowChange, error }) {
                             checked={row.outcome === outcome}
                             onChange={() => onRowChange(definition.id, { ...row, outcome })}
                           />
-                          {outcome === "na" ? "N/A" : outcome[0].toUpperCase() + outcome.slice(1)}
+                          {outcomeLabels[outcome]}
                         </label>
                       ))}
                     </fieldset>
+                    <p className="pmc-print-only pmc-print-outcome">Outcome: <strong>{outcomeLabels[row.outcome] || "Unanswered"}</strong></p>
                   </td>
                   <td>
-                    <label className="pmc-visually-hidden" htmlFor={`action-${definition.id}`}>{definition.id} corrective action or comment</label>
+                    <label className="pmc-visually-hidden" htmlFor={`action-${definition.id}`}>{definition.id} {actionLabel}</label>
                     <textarea
                       id={`action-${definition.id}`}
                       rows={2}
                       maxLength={1000}
                       value={row.action || ""}
                       aria-required={isFailed}
-                      placeholder={isFailed ? "Required: corrective action before resubmitting" : "Comment or action (if relevant)"}
+                      aria-invalid={actionRequired || undefined}
+                      aria-describedby={[describedBy, actionRequired ? `action-required-${definition.id}` : null].filter(Boolean).join(" ") || undefined}
+                      placeholder={isFailed ? "Required: action to resolve the missing or failed control" : "Comment or action (if relevant)"}
                       onChange={(event) => onRowChange(definition.id, { ...row, action: event.target.value })}
                     />
-                    {isFailed && !row.action?.trim() ? <small className="pmc-fail-required">A corrective action is required for a Fail.</small> : null}
+                    {actionRequired ? <small id={`action-required-${definition.id}`} className="pmc-fail-required">{blockingOutcome === "no" ? "Comments / action are required for a No." : `A corrective action is required for a ${blockedLabel}.`}</small> : null}
+                    <p className="pmc-print-only pmc-print-text">{row.action || "—"}</p>
                   </td>
                 </tr>
               );
@@ -142,31 +174,45 @@ function ChecklistTable({ section, checks, onRowChange, error }) {
 export default function PreMobilisationChecklistForm({ authFetch, userId, onBack, onSubmitted, onToast }) {
   const [form, setForm] = useState(createEmptyPreMobilisationForm);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  const [loadedDraftKey, setLoadedDraftKey] = useState(null);
+  const [signaturePadKey, setSignaturePadKey] = useState(0);
   const [errors, setErrors] = useState([]);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
   const errorRef = useRef(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const draft = readDraft(userId);
-    if (draft) {
-      setForm(mergeDraft(draft));
-      setRestoredDraft(true);
-    }
+    setForm(mergeDraft(draft));
+    setRestoredDraft(!!draft);
+    setErrors([]);
+    setSubmitError("");
+    setSubmitted(null);
+    setLoadedDraftKey(draftKey(userId));
+    setSignaturePadKey((current) => current + 1);
   }, [userId]);
 
   useEffect(() => {
-    if (!submitted) writeDraft(userId, form);
-  }, [form, submitted, userId]);
+    // Effects on the initial render still hold the empty form. Wait until the
+    // current user's saved data has been restored before writing anything.
+    if (loadedDraftKey === draftKey(userId) && !submitted) writeDraft(userId, form);
+  }, [form, loadedDraftKey, submitted, userId]);
 
   const failedChecks = useMemo(() => form.checks.filter((row) => row.outcome === "fail"), [form.checks]);
-  const proceedStatus = failedChecks.length ? "blocked" : "cleared";
+  const incompleteBiologicalChecks = useMemo(() => form.biologicalChecks.filter((row) => row.outcome === "no"), [form.biologicalChecks]);
+  const proceedStatus = preMobilisationProceedStatus(form.checks, form.biologicalChecks);
+  const blockedItems = [
+    failedChecks.length ? `Core Fail: ${failedChecks.map((row) => row.id).join(", ")}.` : "",
+    incompleteBiologicalChecks.length ? `Biological control No: ${incompleteBiologicalChecks.map((row) => row.id).join(", ")}.` : "",
+  ].filter(Boolean).join(" ");
 
   const setMetadata = (key, value) => setForm((current) => ({ ...current, metadata: { ...current.metadata, [key]: value } }));
   const setConditions = (key, value) => setForm((current) => ({ ...current, conditions: { ...current.conditions, [key]: value } }));
   const setApproval = (key, value) => setForm((current) => ({ ...current, approval: { ...current.approval, [key]: value } }));
   const setCheck = (id, next) => setForm((current) => ({ ...current, checks: current.checks.map((row) => row.id === id ? next : row) }));
+  const setBiologicalCheck = (id, next) => setForm((current) => ({ ...current, biologicalChecks: current.biologicalChecks.map((row) => row.id === id ? next : row) }));
 
   const validate = () => {
     const messages = preMobilisationValidationMessages({ ...form, proceedStatus });
@@ -175,12 +221,15 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
   };
 
   const scrollToErrors = () => {
-    window.setTimeout(() => errorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" }), 0);
+    window.setTimeout(() => {
+      errorRef.current?.focus?.({ preventScroll: true });
+      errorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }, 0);
   };
 
   const submit = async (event) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submittingRef.current || loadedDraftKey !== draftKey(userId)) return;
     const messages = validate();
     if (messages.length) {
       setSubmitError("This controlled checklist is incomplete. Review the required items below before submitting.");
@@ -188,6 +237,7 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
       return;
     }
     setSubmitError("");
+    submittingRef.current = true;
     setSubmitting(true);
     const payload = { ...form, proceedStatus };
     try {
@@ -207,13 +257,14 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
       }
       if (!response.ok) throw new Error(body.error || "The checklist could not be submitted. Please try again.");
       clearDraft(userId);
-      setSubmitted({ id: body.form?.id || null, duplicate: body.duplicate === true });
+      setSubmitted({ id: body.form?.id || null, duplicate: body.duplicate === true, proceedStatus });
       onSubmitted?.();
       onToast?.(body.duplicate ? "This checklist was already submitted and the original record was retained." : "Pre-Mobilisation Checklist submitted.");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "The checklist could not be submitted. Please try again.");
       scrollToErrors();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -225,7 +276,12 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
     setErrors([]);
     setSubmitError("");
     setRestoredDraft(false);
+    setSignaturePadKey((current) => current + 1);
   };
+
+  if (loadedDraftKey !== draftKey(userId)) {
+    return <div className="pmc"><style>{PMC_CSS}{PMC_RESPONSIVE_CSS}</style><p className="pmc-hint" role="status">Loading your saved checklist draft…</p></div>;
+  }
 
   if (submitted) {
     return (
@@ -236,8 +292,9 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
           <p className="pmc-kicker">{PRE_MOBILISATION_DOCUMENT_LABEL}</p>
           <h1>Pre-Mobilisation Checklist recorded</h1>
           <p>{submitted.duplicate ? "An identical submission was already on record, so the original checklist was retained." : "The signed checklist has been filed in your WHS submission history."}</p>
+          {submitted.proceedStatus === "blocked" ? <p className="pmc-stop" role="alert"><strong>Proceeding remains blocked. This record is not approval to proceed. Resolve the controls with the Office and complete a new checklist as instructed.</strong></p> : null}
           <div className="pmc-actions">
-            <button type="button" className="pmc-button pmc-button--primary" onClick={() => { setSubmitted(null); setForm(createEmptyPreMobilisationForm()); setErrors([]); }}>Start another checklist</button>
+            <button type="button" className="pmc-button pmc-button--primary" onClick={() => { setSubmitted(null); setForm(createEmptyPreMobilisationForm()); setErrors([]); setRestoredDraft(false); setSignaturePadKey((current) => current + 1); }}>Start another checklist</button>
             <button type="button" className="pmc-button" onClick={onBack}><ChevronLeft size={15} /> Back to forms</button>
           </div>
         </main>
@@ -249,7 +306,8 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
   const conditionsError = errors.find((message) => /pre-departure condition/.test(message));
   const rowsError = errors.find((message) => /Pass, Fail or N\/A/.test(message));
   const failActionError = errors.find((message) => /Every failed item needs/.test(message));
-  const failedSummaryError = errors.find((message) => /Summarise failed/.test(message));
+  const biologicalErrors = errors.filter((message) => /biological|Yes, No or N\/A/i.test(message) && !/Summarise/.test(message));
+  const failedSummaryError = errors.find((message) => /Summarise.*(failed|biological|No)/i.test(message));
   const approvalError = errors.find((message) => /sign-off/.test(message));
 
   return (
@@ -259,9 +317,9 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
         <div>
           <p className="pmc-kicker">Operations · Vehicle pre-start</p>
           <h1>Pre-Mobilisation Checklist</h1>
-          <p>Confirm the vehicle, emergency equipment, load and day&apos;s conditions before travel. One checklist is required for each vehicle and trip.</p>
+          <p>Confirm the vehicle, emergency equipment, load, biological hazard controls and day&apos;s conditions before travel and fieldwork. One checklist is required for each vehicle and trip.</p>
         </div>
-        <div className="pmc-doc-control"><strong>{PRE_MOBILISATION_DOCUMENT_LABEL}</strong><span>Issued September 2026 · Per journey</span></div>
+        <div className="pmc-doc-control"><strong>{PRE_MOBILISATION_DOCUMENT_LABEL}</strong><span>Issued November 2026 · Per journey</span></div>
       </header>
 
       <div className="pmc-toolbar pmc-no-print">
@@ -273,10 +331,10 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
       <main className="pmc-main">
           <aside className="pmc-stop" role="alert">
             <ShieldAlert size={20} aria-hidden="true" />
-          <div><strong>Do not proceed</strong><br />A failed vehicle, emergency equipment, fire, weather or lightning check blocks travel. Record the corrective action, report it to the Ecology Consulting Office, and obtain instruction before a new checklist is completed.</div>
+          <div><strong>Do not proceed until controls are resolved</strong><br />Any core Fail or biological control No blocks travel and fieldwork. Record the row-specific action, report it to the Ecology Consulting Office, and obtain instruction before completing a new checklist. Submitting a blocked record is not approval to proceed.</div>
         </aside>
-        {restoredDraft ? <p className="pmc-draft" role="status">Your saved draft was restored from this device.</p> : null}
-        {submitError ? <div ref={errorRef} className="pmc-submit-error" role="alert"><AlertCircle size={17} /><div><strong>Checklist not submitted</strong><br />{submitError}{errors.length ? <ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div></div> : null}
+        {restoredDraft ? <p className="pmc-draft" role="status">Your saved draft was restored from this device. Review all 15 biological controls. Earlier-revision or biologically incomplete drafts require a new signature and signing time.</p> : null}
+        {submitError ? <div className="pmc-submit-error" role="alert" aria-labelledby="pmc-submit-error-title"><AlertCircle size={17} aria-hidden="true" /><div><h2 id="pmc-submit-error-title" ref={errorRef} tabIndex={-1}>Checklist not submitted</h2><p>{submitError}</p>{errors.length ? <ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}</div></div> : null}
 
         <form noValidate onSubmit={submit}>
           <section className="pmc-section" aria-labelledby="pmc-information">
@@ -316,19 +374,27 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
             {rowsError ? <p className="pmc-section-error" role="alert">{rowsError}</p> : null}
             {failActionError ? <p className="pmc-section-error" role="alert">{failActionError}</p> : null}
             {PRE_MOBILISATION_SECTIONS.map((section) => <ChecklistTable key={section.id} section={section} checks={form.checks} onRowChange={setCheck} error={null} />)}
+          </section>
+
+          <section className="pmc-section" aria-labelledby="pmc-biological">
+            <div className="pmc-section-head"><h2 id="pmc-biological">7. {PRE_FIELDWORK_BIOLOGICAL_SECTION.title}</h2><span>Mandatory</span></div>
+            <p id="pmc-biological-guidance" className="pmc-hint">Choose exactly one outcome for each control: <strong>Yes</strong> = the control has been completed or confirmed; <strong>No</strong> = a missing or uncompleted control, not the presence of a biological hazard; <strong>N/A</strong> = the control is not applicable to this fieldwork. Do not use N/A to bypass a missing check. <strong>Every No requires Comments / action and blocks proceeding until the controls are resolved.</strong></p>
+            <aside id="pmc-biological-confidentiality" className="pmc-hint pmc-confidentiality" aria-label="Confidentiality warning"><strong>Confidentiality:</strong> Record only process confirmation and control actions in shared comments and the Office summary. Do not record personal medical details, diagnoses or individual emergency plan contents. Address relevant individual plans confidentially through the appropriate process.</aside>
+            {biologicalErrors.map((message) => <p key={message} className="pmc-section-error" role="alert">{message}</p>)}
+            <ChecklistTable section={PRE_FIELDWORK_BIOLOGICAL_SECTION} checks={form.biologicalChecks} onRowChange={setBiologicalCheck} error={null} outcomes={BIOLOGICAL_CHECK_OUTCOMES} outcomeLabels={OUTCOME_LABELS} blockingOutcome="no" actionLabel="Comments / action" showHeading={false} headingId="pmc-biological" describedBy="pmc-biological-guidance pmc-biological-confidentiality" />
             <div className={proceedStatus === "blocked" ? "pmc-proceed pmc-proceed--blocked" : "pmc-proceed pmc-proceed--cleared"} role="status" aria-live="polite">
-              <strong>{proceedStatus === "blocked" ? "PROCEEDING BLOCKED" : "NO FAILS RECORDED"}</strong>
-              <span>{proceedStatus === "blocked" ? `${failedChecks.map((row) => row.id).join(", ")} failed. Do not proceed; notify the Office and complete the corrective action record.` : "Submission remains unavailable until every required row and field is complete."}</span>
+              <strong>{proceedStatus === "blocked" ? "PROCEEDING BLOCKED" : "NO FAILS OR BIOLOGICAL NO ANSWERS RECORDED"}</strong>
+              <span>{proceedStatus === "blocked" ? `${blockedItems} Do not proceed; notify the Office and complete the row actions and Office summary. Recording this checklist does not resolve the controls or authorise departure.` : "This is not clearance for unanswered checks. Submission remains unavailable until every required row and field is complete."}</span>
             </div>
           </section>
 
           <section className="pmc-section" aria-labelledby="pmc-conditions">
-            <div className="pmc-section-head"><h2 id="pmc-conditions">7. Conditions recorded and source links</h2></div>
+            <div className="pmc-section-head"><h2 id="pmc-conditions">8. Conditions recorded and source links</h2></div>
             <p className="pmc-hint">Record the actual ratings you read and where you read them. These fields are evidence that the pre-departure check occurred today.</p>
             {conditionsError ? <p className="pmc-section-error" role="alert">{conditionsError}</p> : null}
             <div className="pmc-grid pmc-grid--two">
               <FormField label="Weather conditions" required><select required value={form.conditions.weatherConditions} onChange={(event) => setConditions("weatherConditions", event.target.value)}><option value="">Select…</option>{WEATHER_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></FormField>
-              <FormField label="Comments" full><textarea rows={4} value={form.conditions.comments} maxLength={2000} placeholder="Changes to the plan, delayed start, revised route or additional controls." onChange={(event) => setConditions("comments", event.target.value)} /></FormField>
+              <FormField label="Comments" full><textarea rows={4} value={form.conditions.comments} maxLength={2000} placeholder="Changes to the plan, delayed start, revised route or additional controls." onChange={(event) => setConditions("comments", event.target.value)} /><span className="pmc-print-only pmc-print-text">{form.conditions.comments || "—"}</span></FormField>
               <FormField label="Fire Danger Rating" required help="Select the rating for the travel route and project area. Record a Total Fire Ban in comments."><select required value={form.conditions.fireDangerRating} onChange={(event) => setConditions("fireDangerRating", event.target.value)}><option value="">Select…</option>{FIRE_DANGER_RATINGS.map((rating) => <option key={rating} value={rating}>{rating}</option>)}</select></FormField>
               <FormField label="Lightning / storm activity" required help="Record radar review and activity within 30 km."><input required value={form.conditions.lightningStormActivity} maxLength={240} onChange={(event) => setConditions("lightningStormActivity", event.target.value)} /></FormField>
               <FormField label="Mobile coverage on route" required><select required value={form.conditions.mobileCoverage} onChange={(event) => setConditions("mobileCoverage", event.target.value)}><option value="">Select…</option>{MOBILE_COVERAGE_OPTIONS.map((coverage) => <option key={coverage} value={coverage}>{coverage}</option>)}</select></FormField>
@@ -344,8 +410,8 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
           </section>
 
           <section className="pmc-section" aria-labelledby="pmc-approval">
-            <div className="pmc-section-head"><h2 id="pmc-approval">8. Approval</h2><span>Mandatory</span></div>
-            <p className="pmc-hint">The person completing the checklist signs on screen. Any failed item must be recorded and reported to the Office before departure.</p>
+            <div className="pmc-section-head"><h2 id="pmc-approval">9. Approval</h2><span>Mandatory</span></div>
+            <p className="pmc-hint">The person completing the checklist signs on screen after reviewing the full checklist, including all 15 biological controls. Any core Fail or biological No must be recorded and reported to the Office. Signing or submitting a blocked record does not authorise proceeding.</p>
             {approvalError ? <p className="pmc-section-error" role="alert">{approvalError}</p> : null}
             <div className="pmc-grid pmc-grid--two">
               <FormField label="Name" required><input required value={form.approval.name} maxLength={120} onChange={(event) => setApproval("name", event.target.value)} /></FormField>
@@ -353,14 +419,15 @@ export default function PreMobilisationChecklistForm({ authFetch, userId, onBack
               <FormField label="Date and time" required><input required type="datetime-local" value={form.approval.signedAt} onChange={(event) => setApproval("signedAt", event.target.value)} /></FormField>
               <div className="pmc-signature-field">
                 <span className="pmc-label">Signature <abbr title="required">*</abbr></span>
-                <SignaturePad label="Sign with your finger or mouse" value={form.approval.signature} onChange={(signature) => setApproval("signature", signature)} />
+                <SignaturePad key={`${loadedDraftKey}:${signaturePadKey}`} label="Sign with your finger or mouse" value={form.approval.signature} onChange={(signature) => setApproval("signature", signature)} />
+                {form.approval.signature ? <img className="pmc-print-only pmc-print-signature" src={form.approval.signature} alt="Checklist approver signature" /> : <span className="pmc-print-only">Not signed</span>}
               </div>
-              <FormField label="Failed items and action taken" required={failedChecks.length > 0} error={failedSummaryError} full help="For each Fail, list the item, who was notified at the Office and the instruction received."><textarea rows={4} value={form.approval.failedItemsAction} maxLength={4000} placeholder={failedChecks.length ? "Required: failed items, Office notification and instruction received." : "Record any fail, Office notification and instruction received."} onChange={(event) => setApproval("failedItemsAction", event.target.value)} /></FormField>
+              <FormField label="Failed / incomplete controls and Office action taken" required={proceedStatus === "blocked"} error={failedSummaryError} full help="For each core Fail and biological No, list the item ID, who was notified at the Office and the instruction received. Record process actions only, not personal medical details or emergency plan contents."><textarea required={proceedStatus === "blocked"} aria-required={proceedStatus === "blocked"} rows={4} value={form.approval.failedItemsAction} maxLength={4000} placeholder={proceedStatus === "blocked" ? "Required: core Fail / biological No IDs, Office notification and instruction received." : "Record any failed or incomplete control, Office notification and instruction received."} onChange={(event) => setApproval("failedItemsAction", event.target.value)} /><span className="pmc-print-only pmc-print-text">{form.approval.failedItemsAction || "—"}</span></FormField>
             </div>
           </section>
 
           <div className="pmc-submit-area pmc-no-print">
-            <p><strong>{proceedStatus === "blocked" ? "Proceeding is blocked." : "Complete every required field to submit."}</strong> Submission stores the controlled revision and signed image with the WHS record.</p>
+            <p><strong>{proceedStatus === "blocked" ? "Proceeding is blocked; submit only as an Office action record, not approval to depart." : "Complete every required field to submit."}</strong> Submission stores the controlled revision, all biological answers and signed image with the WHS record.</p>
             <button className="pmc-button pmc-button--primary" type="submit" disabled={submitting} aria-busy={submitting}><Send size={15} /> {submitting ? "Submitting…" : "Submit checklist"}</button>
           </div>
         </form>
@@ -381,18 +448,26 @@ const PMC_RESPONSIVE_CSS = `
 .pmc h1, .pmc h2, .pmc h3 { letter-spacing: normal; }
 .pmc-table { min-width: 650px; font-size: 14px; }
 .pmc-table th, .pmc-table td { padding: 12px; }
+.pmc-print-only { display: none; }
+.pmc-submit-error h2 { margin: 0 0 4px; color: inherit; font-size: 15px; line-height: 1.4; }
+.pmc-submit-error h2:focus { outline: 2px solid var(--danger); outline-offset: 3px; }
+.pmc-submit-error p { margin: 0; }
+.pmc-confidentiality { padding: 11px 12px; border-left: 3px solid var(--accent); background: var(--wash); }
 .pmc-check-text { display: block; color: #24362c; font-size: 14px; line-height: 1.48; font-weight: 650; }
 .pmc-outcomes { min-width: 0; margin-top: 10px; gap: 7px; }
 .pmc-outcomes legend { width: 100%; margin: 0 0 2px; color: #53655b; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .pmc-outcome { min-height: 38px; padding: 8px 10px; font-size: 13px; font-weight: 700; }
+.pmc .pmc-outcome input[type="radio"] { appearance: auto !important; box-sizing: border-box; flex: 0 0 16px !important; width: 16px !important; min-width: 16px !important; max-width: 16px !important; height: 16px !important; min-height: 16px !important; max-height: 16px !important; margin: 0 !important; padding: 0 !important; box-shadow: none; accent-color: var(--accent); cursor: pointer; }
+.pmc .pmc-outcome input[type="radio"]:focus-visible { outline: 2px solid var(--accent-dark); outline-offset: 2px; }
 .pmc-outcome:has(input:checked) { border-color: var(--accent-dark); background: #ece8ff; color: #30276a; }
-.pmc-outcome--fail:has(input:checked) { border-color: #aa3b34; background: #fff0ee; color: #802a23; }
+.pmc-outcome--no { border-color: #d99d98; }
+.pmc-outcome--fail:has(input:checked), .pmc-outcome--no:has(input:checked) { border-color: #aa3b34; background: #fff0ee; color: #802a23; }
 .pmc-field input, .pmc-field select, .pmc-field textarea, .pmc-table textarea { min-height: 42px; font-size: 14px; line-height: 1.45; }
 .pmc-table textarea { min-height: 84px; }
 .pmc-check-prompt { grid-column: 1 / -1; display: flex; gap: 11px; align-items: flex-start; min-height: 58px; padding: 13px 14px; border: 1px solid #bfb8a3; border-radius: 8px; background: #fcfaf2; color: #28382f; cursor: pointer; }
 .pmc-check-prompt:hover { border-color: var(--accent); }
 .pmc-check-prompt--checked { border-color: #5a8b68; background: #eef8ed; }
-.pmc-check-prompt input { width: 20px; height: 20px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--success); }
+.pmc .pmc-check-prompt input[type="checkbox"] { appearance: auto !important; box-sizing: border-box; width: 20px !important; min-width: 20px !important; max-width: 20px !important; height: 20px !important; min-height: 20px !important; max-height: 20px !important; padding: 0 !important; flex: 0 0 20px !important; margin: 1px 0 0 !important; box-shadow: none; accent-color: var(--success); }
 .pmc-check-prompt strong, .pmc-check-prompt small { display: block; }
 .pmc-check-prompt strong { font-size: 14px; line-height: 1.3; }
 .pmc-check-prompt small { margin-top: 3px; color: #526158; font-size: 12px; line-height: 1.45; }
@@ -416,6 +491,29 @@ const PMC_RESPONSIVE_CSS = `
   .pmc-outcome { justify-content: center; min-width: 0; padding: 8px 4px; }
   .pmc-table textarea { min-height: 76px; }
   .pmc-source-title, .pmc-sources { margin-left: 14px; margin-right: 14px; }
+}
+@media print {
+  .pmc { print-color-adjust: exact; -webkit-print-color-adjust: exact; font-size: 10px; overflow: visible; }
+  .pmc-main { padding: 12px; }
+  .pmc-section, .pmc-table-wrap { break-inside: auto; overflow: visible; }
+  .pmc-section-head, .pmc-table-wrap h3 { break-after: avoid; }
+  .pmc-table-scroll { overflow: visible; border: 1px solid var(--line); }
+  .pmc-table { display: table; width: 100%; min-width: 0; font-size: 9px; }
+  .pmc-table thead { display: table-header-group; }
+  .pmc-table tbody { display: table-row-group; }
+  .pmc-table tr { display: table-row; break-inside: avoid; margin: 0; }
+  .pmc-table th, .pmc-table td { display: table-cell; width: auto; padding: 5px; border-top: 1px solid var(--line); }
+  .pmc-table th.pmc-ref { width: 40px; }
+  .pmc-check-text { font-size: 10px; line-height: 1.35; }
+  .pmc-outcomes, .pmc-table textarea, .pmc-field textarea, .pmc-signature-field .sig { display: none !important; }
+  .pmc-print-only { display: block !important; }
+  .pmc-print-outcome { margin: 4px 0 0; font-size: 9px; }
+  .pmc-print-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pmc-print-signature { width: 100%; max-width: 320px; max-height: 100px; object-fit: contain; object-position: left center; }
+  .pmc-signature-field { break-inside: avoid; }
+  .pmc-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pmc-grid--two, .pmc-inspection-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pmc-hint, .pmc-proceed span { font-size: 10px; }
 }
 `;
 

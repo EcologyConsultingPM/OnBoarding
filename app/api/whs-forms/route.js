@@ -126,7 +126,7 @@ export async function POST(request) {
     let site = (b.site || "").toString().trim() || null;
     let formDate = b.form_date || null;
     let details = b.details && typeof b.details === "object" ? b.details : {};
-    // EC-OPS-PMC-001 Rev 3 is a controlled document with a fixed row set and
+    // EC-OPS-PMC-001 Rev 4 is a controlled document with a fixed row set and
     // enumerations. Validate and reduce its stored JSON only for this form so
     // established generic WHS form payloads remain backward compatible.
     if (b.form_type === "pre_mobilisation") {
@@ -189,10 +189,11 @@ export async function POST(request) {
       return Response.json({ error: error.message }, { status: 400 });
     }
 
-    // Daily Risk Assessments and ecological survey SWMS records are surfaced
+    // Daily Risk Assessments, pre-mobilisation and survey SWMS are surfaced
     // to administrators. Notification failure is non-fatal because the saved
-    // WHS record remains authoritative and visible in the monitoring register.
-    if (["daily_risk_assessment", "ecological_field_swms"].includes(b.form_type)) {
+    // WHS record remains authoritative. Never include checklist comments or
+    // personal emergency-plan information in a notification payload.
+    if (["daily_risk_assessment", "ecological_field_swms", "pre_mobilisation"].includes(b.form_type)) {
       try {
         const { data: adminRows } = await access.admin.from("admin_emails").select("email");
         const recipientEmails = new Set([
@@ -205,19 +206,21 @@ export async function POST(request) {
           .map((user) => user.id)
           .filter(Boolean);
         if (recipients.length) {
+          const preMobilisation = b.form_type === "pre_mobilisation";
+          const blocked = preMobilisation && details.proceedStatus === "blocked";
           await access.admin.from("portal_events").insert(recipients.map((recipientId) => ({
             recipient_id: recipientId,
-            event_type: b.form_type === "ecological_field_swms" ? "ecological_field_swms_submitted" : "daily_risk_assessment_submitted",
-            severity: "information",
-            title: b.form_type === "ecological_field_swms" ? "Ecological field survey SWMS submitted" : "Daily Risk Assessment submitted",
-            body: `${title}${data.site ? ` · ${data.site}` : ""} is ready for WHS review.`,
+            event_type: preMobilisation ? "pre_mobilisation_submitted" : b.form_type === "ecological_field_swms" ? "ecological_field_swms_submitted" : "daily_risk_assessment_submitted",
+            severity: blocked ? "warning" : "information",
+            title: preMobilisation ? blocked ? "Pre-mobilisation: proceeding blocked" : "Pre-Mobilisation Checklist submitted" : b.form_type === "ecological_field_swms" ? "Ecological field survey SWMS submitted" : "Daily Risk Assessment submitted",
+            body: `${title}${data.site ? ` · ${data.site}` : ""} is ready for WHS review.${blocked ? " Proceeding is blocked; review the recorded controls and Office action record." : ""}`,
             href: "/?mode=whsmonitor",
             source_table: "whs_forms",
             source_id: data.id,
           })));
         }
       } catch (notificationError) {
-        console.warn("Daily Risk Assessment notification could not be created:", notificationError?.message);
+        console.warn("WHS submission notification could not be created:", notificationError?.message);
       }
     }
 
