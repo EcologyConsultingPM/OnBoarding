@@ -45,6 +45,11 @@ jobs:
           done
           echo "BACKUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
+      - name: Check out backup collector
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Report backup start
         shell: bash
         run: |
@@ -84,6 +89,10 @@ jobs:
 
           project_ref = "qjsdglkipgncttztksxl"
           raw = os.environ.get("SUPABASE_POOLER_DB_URL") or os.environ.get("SUPABASE_DB_URL", "")
+          trimmed = raw.strip()
+          if trimmed != raw:
+              print("::warning::Removed leading/trailing whitespace from the configured backup database URL.", flush=True)
+          raw = trimmed
           if not raw or any(ord(c) < 32 or ord(c) == 127 for c in raw):
               fail("The backup database URL is missing or contains control characters.")
           mask(raw)
@@ -134,13 +143,17 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p backup
-          # Clean partial plaintext dumps even if a dump or encryption fails.
-          trap 'rm -f backup/roles.sql backup/schema.sql backup/data.sql backup/database.tar.gz' EXIT
+          # Clean all partial plaintext, including private photos, on every exit.
+          trap 'rm -f backup/roles.sql backup/schema.sql backup/data.sql backup/database.tar.gz; rm -rf backup/storage_objects; rm -f backup/storage_manifest.json' EXIT
           supabase db dump --remote="$SUPABASE_DB_URL" --role-only -f backup/roles.sql
           supabase db dump --remote="$SUPABASE_DB_URL" -f backup/schema.sql
           supabase db dump --remote="$SUPABASE_DB_URL" --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f backup/data.sql
           test -s backup/roles.sql && test -s backup/schema.sql && test -s backup/data.sql
-          tar -czf backup/database.tar.gz -C backup roles.sql schema.sql data.sql
+          # Reuses BACKUP_STATUS_TOKEN and derives the private storage endpoint
+          # from BACKUP_STATUS_URL; no service key or additional secret in Actions.
+          python3 scripts/backup_storage_objects.py --directory backup
+          python3 scripts/backup_storage_objects.py --directory backup --verify
+          tar -czf backup/database.tar.gz -C backup roles.sql schema.sql data.sql storage_objects storage_manifest.json
           openssl enc -aes-256-cbc -pbkdf2 -salt -in backup/database.tar.gz -out backup/ecology-database.tar.gz.enc -pass env:BACKUP_ARCHIVE_PASSWORD
           bytes=$(stat -c%s backup/ecology-database.tar.gz.enc)
           if [ "$bytes" -gt "$MAX_ARCHIVE_BYTES" ]; then
@@ -149,6 +162,7 @@ jobs:
           fi
           echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum backup/ecology-database.tar.gz.enc | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "storage_objects=true" >> "$GITHUB_OUTPUT"
 
       - name: Retain encrypted private archive
         uses: actions/upload-artifact@v4
@@ -164,11 +178,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ job.status }}" = "success" ]; then
-            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"succeeded\",\"started_at\":\"$BACKUP_STARTED_AT\",\"workflow_name\":\"private-daily-database-backup\",\"archive_bytes\":${{ steps.dump.outputs.bytes }},\"archive_sha256\":\"${{ steps.dump.outputs.sha256 }}\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":false}}"
+          if [ "${{ job.status }}" = "success" ] && [ "${{ steps.dump.outputs.storage_objects }}" = "true" ]; then
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"succeeded\",\"started_at\":\"$BACKUP_STARTED_AT\",\"workflow_name\":\"private-daily-database-backup\",\"archive_bytes\":${{ steps.dump.outputs.bytes }},\"archive_sha256\":\"${{ steps.dump.outputs.sha256 }}\",\"retention_days\":$RETENTION_DAYS,\"coverage\":{\"database_roles\":true,\"database_schema\":true,\"database_data\":true,\"storage_objects\":true}}"
           else
             started_at="${BACKUP_STARTED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"failed\",\"started_at\":\"$started_at\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"error_summary\":\"No verified archive was retained. Check the GitHub Actions failed step; database authentication requires the current password in the exact Supabase Session pooler URL.\",\"coverage\":{\"database_roles\":false,\"database_schema\":false,\"database_data\":false,\"storage_objects\":false}}"
+            payload="{\"run_id\":\"$RUN_ID\",\"status\":\"failed\",\"started_at\":\"$started_at\",\"workflow_name\":\"private-daily-database-backup\",\"retention_days\":$RETENTION_DAYS,\"error_summary\":\"No verified database and storage archive was retained. Inspect the failed GitHub Actions step for database or photo backup configuration, download, verification, or shared size/count/time ceiling failure.\",\"coverage\":{\"database_roles\":false,\"database_schema\":false,\"database_data\":false,\"storage_objects\":false}}"
           fi
           if [[ -z "${BACKUP_STATUS_TOKEN:-}" ]]; then
             echo "::error::Cannot report outcome: BACKUP_STATUS_TOKEN is missing."

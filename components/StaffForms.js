@@ -34,7 +34,8 @@ import OfficeRiskAssessmentForm from "./OfficeRiskAssessmentForm";
 import EcologicalFieldSwmsForm from "./EcologicalFieldSwmsForm";
 import PreMobilisationBiologicalRecord from "./PreMobilisationBiologicalRecord";
 import WorkspaceNav from "./WorkspaceNav";
-
+import BiologicalHazardForm from "./BiologicalHazardForm";
+import BiologicalHazardRegister from "./BiologicalHazardRegister";
 const ICONS = {
   leave: CalendarDays,
   training: GraduationCap,
@@ -162,6 +163,19 @@ export default function StaffForms() {
     [session],
   );
 
+  // Let the browser set multipart boundaries for private photo uploads.
+  const biologicalAuthFetch = useCallback((method, url, body) => {
+    const multipart = typeof FormData !== "undefined" && body instanceof FormData;
+    return fetch(url, {
+      method,
+      headers: {
+        ...(multipart ? {} : { "Content-Type": "application/json" }),
+        Authorization: `Bearer ${session?.access_token || ""}`,
+      },
+      body: body ? (multipart ? body : JSON.stringify(body)) : undefined,
+    });
+  }, [session?.access_token]);
+
   const loadHistory = useCallback(async () => {
     try {
       // `scope=mine` is intentional. Some staff are also administrators, but
@@ -188,6 +202,11 @@ export default function StaffForms() {
   }, [session, loadHistory]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("formView") === "biological-history") setView("biological-history");
+  }, []);
+
+  useEffect(() => {
     try {
       const saved = window.localStorage.getItem("ec-whs-forms-theme");
       if (saved === "light" || saved === "dark") setTheme(saved);
@@ -202,6 +221,7 @@ export default function StaffForms() {
 
   useEffect(() => {
     if (view !== "form" || !activeKey) return;
+    if (activeKey === "biological_hazard_register") return;
     writeFormDraft(activeKey, session?.user?.id, form);
   }, [activeKey, form, view, session?.user?.id]);
 
@@ -211,7 +231,7 @@ export default function StaffForms() {
     setTimeout(() => setMessage(""), 2600);
   };
   const openForm = (key) => {
-    const savedDraft = readFormDraft(key, session?.user?.id);
+    const savedDraft = key === "biological_hazard_register" ? {} : readFormDraft(key, session?.user?.id);
     setActiveKey(key);
     setForm(savedDraft);
     setError("");
@@ -491,6 +511,14 @@ export default function StaffForms() {
     );
   }
 
+  if (view === "biological-history") {
+    return <div><button type="button" className="sf-back" onClick={backToHub}>← Back to forms</button><BiologicalHazardRegister audience="staff" onToast={notify} /></div>;
+  }
+
+  if (view === "form" && activeKey === "biological_hazard_register") {
+    return <BiologicalHazardForm authFetch={biologicalAuthFetch} userId={session?.user?.id} onBack={backToHub} onToast={notify} onSubmitted={() => { setView("biological-history"); setActiveKey(null); }} />;
+  }
+
 // ---------- Daily Risk Assessment & Toolbox Talk (bespoke form) ----------
  if (view === "form" && activeKey === "daily_risk_assessment") {
    return (
@@ -681,6 +709,9 @@ export default function StaffForms() {
         </a>
         <button className="sf-history-btn" onClick={() => setView("history")}>
           <History size={15} /> View my WHS submission history
+        </button>
+        <button className="sf-history-btn" onClick={() => setView("biological-history")}>
+          <History size={15} /> My biological reports
         </button>
       </div>
 
