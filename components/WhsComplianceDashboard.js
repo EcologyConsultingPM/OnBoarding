@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { ShieldCheck, AlertTriangle, Clock, ClipboardCheck, FileText, X, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import PreMobilisationBiologicalRecord from "./PreMobilisationBiologicalRecord";
+import GeneralEcologicalSwmsRecord from "./GeneralEcologicalSwmsRecord";
 
 const TYPE_LABEL = {
   daily_risk_assessment: "Daily Risk Assessment", office_risk_assessment: "Office Risk Assessment",
@@ -324,6 +325,7 @@ export default function WhsComplianceDashboard() {
 
             <SubmittedFormViewer details={auditing.details} />
             {auditing.form_type === "pre_mobilisation" ? <PreMobilisationBiologicalRecord details={auditing.details} /> : null}
+            {auditing.form_type === "ecological_field_swms" ? <GeneralEcologicalSwmsRecord details={auditing.details} /> : null}
 
             <label className="wcd-f"><span>Audit outcome</span>
               <select value={audit.outcome} onChange={(e) => setAudit({ ...audit, outcome: e.target.value })}>
