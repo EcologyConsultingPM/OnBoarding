@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import sharp from "sharp";
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { PRIMARY_ADMIN_EMAILS, requirePortalResource } from "../../../lib/portalVisibility";
 import { normalisePreMobilisationDetails } from "../../../lib/preMobilisationChecklist";
@@ -9,6 +10,25 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COLUMNS = "id, form_type, title, site, form_date, details, status, notifiable_flag, review_note, reviewed_by, reviewed_at, created_by, created_at, updated_at, submission_key";
+
+// EC-SWMS00 structural validation is shared with the client. Decode submitted
+// rasters as well, so a forged PNG header or corrupt compressed data cannot be
+// retained as a signature. No image bytes or personal prose enter error text.
+async function generalSwmsSignaturesDecode(details) {
+  for (const member of details.team) {
+    if (!member.signature) continue;
+    try {
+      const image = sharp(Buffer.from(member.signature.slice(22), "base64"), { limitInputPixels: 16777216 });
+      const metadata = await image.metadata();
+      if (metadata.format !== "png" || !metadata.width || !metadata.height
+        || metadata.width > 4096 || metadata.height > 4096 || (metadata.pages || 1) !== 1) return false;
+      await image.stats();
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
 
 function makeSubmissionKey({ createdBy, formType, title, site, formDate, notifiableFlag, details }) {
   return crypto.createHash("md5").update([
@@ -88,7 +108,10 @@ export async function GET(request) {
     if (personalHistory || !access.isAdmin) query = query.eq("created_by", access.user.id);
     if (typeFilter && FORM_TYPES.includes(typeFilter)) query = query.eq("form_type", typeFilter);
     const { data, error } = await query;
-    if (error) return Response.json({ error: error.message }, { status: 400 });
+    if (error) {
+      const safeHistory = personalHistory || !access.isAdmin || typeFilter === "ecological_field_swms";
+      return Response.json({ error: safeHistory ? "The form history could not be loaded. Please try again or contact the Ecology Consulting Office." : error.message }, { status: 400 });
+    }
     let rows = data || [];
 
     // Attach author emails for the admin monitoring view.
@@ -149,7 +172,11 @@ export async function POST(request) {
       const checked = normaliseEcologicalFieldSwmsDetails(details);
       if (checked.errors.length) return Response.json({ error: checked.errors.join(" ") }, { status: 400 });
       details = checked.details;
-      title = `Generic SWMS — Ecological Field Surveys: ${details.project} — ${details.activity}`;
+      if (details.templateVersion === 2 && !await generalSwmsSignaturesDecode(details)) {
+        return Response.json({ error: "Every listed crew member must provide a valid PNG signature before submission." }, { status: 400 });
+      }
+      const activity = details.templateVersion === 2 ? "General ecological survey work" : details.activity;
+      title = `Generic SWMS — Ecological Field Surveys: ${details.project} — ${activity}`;
       site = details.site;
       formDate = details.date;
     }
@@ -185,6 +212,9 @@ export async function POST(request) {
       }
       if (b.form_type === "pre_mobilisation") {
         return Response.json({ error: "The checklist could not be saved. Please try again or contact the Ecology Consulting Office." }, { status: 400 });
+      }
+      if (b.form_type === "ecological_field_swms") {
+        return Response.json({ error: "The SWMS could not be saved. Please try again or contact the Ecology Consulting Office." }, { status: 400 });
       }
       return Response.json({ error: error.message }, { status: 400 });
     }

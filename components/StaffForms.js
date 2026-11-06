@@ -31,11 +31,12 @@ import PreMobilisationChecklistForm from "./PreMobilisationChecklistForm";
 import PsychosocialSelfRiskAssessment from "./PsychosocialSelfRiskAssessment";
 import FirstAidKitChecks from "./FirstAidKitChecks";
 import OfficeRiskAssessmentForm from "./OfficeRiskAssessmentForm";
-import EcologicalFieldSwmsForm from "./EcologicalFieldSwmsForm";
+import EcologicalFieldSwmsForm from "./GeneralEcologicalSwmsForm";
 import PreMobilisationBiologicalRecord from "./PreMobilisationBiologicalRecord";
 import WorkspaceNav from "./WorkspaceNav";
 import BiologicalHazardForm from "./BiologicalHazardForm";
 import BiologicalHazardRegister from "./BiologicalHazardRegister";
+import GeneralEcologicalSwmsRecord from "./GeneralEcologicalSwmsRecord";
 const ICONS = {
   leave: CalendarDays,
   training: GraduationCap,
@@ -57,7 +58,7 @@ const BLURBS = {
   training: "Courses, conferences, accreditation.",
   equipment: "Field gear, PPE, IT or other equipment.",
   daily_risk_assessment: "Conditions, hazards, check-in & crew sign-on.",
-  ecological_field_swms: "Project-specific ecological survey SWMS hazard selector.",
+  ecological_field_swms: "General ecological survey work — complete the blank cells and ticks, then export a landscape PDF.",
   journey_plan: "Crew, route, monitoring & overdue escalation.",
   pre_mobilisation: "Vehicle, comms & biological hazard pre-checks before fieldwork.",
   site_erp: "Access, medical, muster & evacuation.",
@@ -452,6 +453,7 @@ export default function StaffForms() {
         status: w.status,
         note: w.review_note,
         biologicalDetails: w.form_type === "pre_mobilisation" ? w.details : null,
+        swmsDetails: w.form_type === "ecological_field_swms" ? w.details : null,
       })),
       ...firstAidHistory.map((check) => ({
         id: `first-aid-${check.id}`,
@@ -493,6 +495,7 @@ export default function StaffForms() {
                       {r.note ? " - " + r.note : ""}
                     </div>
                     {r.biologicalDetails ? <PreMobilisationBiologicalRecord details={r.biologicalDetails} /> : null}
+                    {r.swmsDetails ? <GeneralEcologicalSwmsRecord details={r.swmsDetails} /> : null}
                   </div>
                   <span
                     className="sf-status"
@@ -536,6 +539,7 @@ export default function StaffForms() {
       <EcologicalFieldSwmsForm
         authFetch={authFetch}
         defaultName={session?.user?.user_metadata?.full_name || ""}
+        userId={session?.user?.id || ""}
         onBack={backToHub}
         onSubmitted={loadHistory}
         onToast={notify}

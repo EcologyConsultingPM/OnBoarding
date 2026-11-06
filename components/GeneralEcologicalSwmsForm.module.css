@@ -1,0 +1,54 @@
+.root { font-family:Arial,'Helvetica Neue',Helvetica,sans-serif; color:#243038; font-size:11px; line-height:1.45; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.root *, .root *::before, .root *::after { box-sizing:border-box; }
+.root h1, .root h2, .root h3, .root h4 { margin:0; text-wrap:balance; }
+.root p { margin:0 0 8px; }
+.root a { color:#3f93cf; }
+.root a:hover { color:#2f7d3f; }
+.root :global(.gswms__viewport) { overflow-x:auto; background:#edf0ee; padding:16px; }
+.root :global(.gswms__paper), .root :global(.gswms__page-shell) { background:#fff; width:100%; min-width:980px; max-width:1122px; margin:0 auto; }
+.root :global(.gswms__paper) { padding:34px 48px; border:1px solid #dbe2de; box-shadow:0 2px 12px #1735240d; }
+.root table { break-inside:auto; table-layout:fixed; }
+.root tr { break-inside:avoid; page-break-inside:avoid; }
+.root th, .root td { overflow-wrap:anywhere; }
+.root thead { display:table-header-group; }
+.root tfoot { display:table-footer-group; }
+.root h2, .root h3 { break-after:avoid; }
+.root input:not([type="checkbox"]), .root textarea { display:block; font:inherit; color:#243038; background:white; border:1px solid #a7b9ab; border-radius:2px; width:100%; min-width:0; max-width:100%; margin:0; padding:5px 6px; box-shadow:none; }
+.root input[type="checkbox"] { appearance:auto; display:inline-block; width:13px!important; height:13px!important; min-width:13px!important; max-width:13px!important; padding:0!important; margin:0 4px 0 0!important; flex:0 0 13px; vertical-align:middle; accent-color:#2f7d3f; }
+.root input:focus-visible, .root textarea:focus-visible, .root button:focus-visible { outline:2px solid #3f93cf; outline-offset:2px; }
+.root :global(.gswms__identity) { display:grid; grid-template-columns:1fr 1fr; gap:5px 10px; }
+.root :global(.gswms__identity) label { display:block; font-size:9px; }
+.root :global(.gswms__identity) label:nth-child(2) { grid-column:1 / -1; }
+.root :global(.gswms__control-tick) { display:block; margin:1px 0; font:inherit; color:inherit; line-height:1.45; cursor:pointer; }
+.root :global(.gswms__signature-value) { display:block; width:auto; max-width:100%; height:44px; object-fit:contain; object-position:left center; }
+.root :global(.sig) { margin:0; width:100%; }
+.root :global(.sig-wrap) { position:relative; height:62px; border:1px solid #a7b9ab; border-radius:2px; background:white; }
+.root :global(.sig-canvas) { display:block; width:100%; height:60px; }
+.root :global(.sig-label) { display:none; }
+.root :global(.sig-hint) { position:absolute; inset:22px 24px auto 6px; font-size:8px; color:#7c8980; pointer-events:none; }
+.root :global(.sig-clear) { position:absolute; right:2px; top:2px; padding:3px; width:auto; border:0; background:white; color:#5b6b76; }
+.root :global(.gswms__toolbar) { display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:1122px; margin:0 auto 12px; }
+.root :global(.gswms__toolbar) button, .root :global(.gswms__source-links) button { font:inherit; padding:7px 10px; border:1px solid #adc2b2; border-radius:3px; color:#2f7d3f; background:#fff; cursor:pointer; }
+.root :global(.gswms__notice), .root :global(.gswms__error) { max-width:1122px; margin:0 auto 12px; padding:9px 12px; border-left:3px solid #2f7d3f; background:#f4f7f2; }
+.root :global(.gswms__error) { color:#8b3029; border-color:#8b3029; }
+.root :global(.gswms__source-links) { padding:8px 0; font-size:9px; }
+.root :global(.gswms__source-links) button { padding:3px 5px; margin:3px 3px 0 0; font-size:8px; }
+.root :global(.gswms__value) { white-space:pre-wrap; }
+.root :global(.gswms__printed-tick) { display:inline-flex; vertical-align:middle; align-items:center; justify-content:center; width:11px; height:11px; border:1px solid #627969; margin-right:3px; font-size:10px; line-height:10px; color:#2f7d3f; }
+.root :global(.gswms__document-footer) { margin-top:10px; }
+.root :global(.gswms__page-shell) { border-collapse:collapse; padding:0; }
+.root :global(.gswms__page-shell) > thead > tr > td, .root :global(.gswms__page-shell) > tfoot > tr > td, .root :global(.gswms__page-shell) > tbody > tr > td { padding:0; border:0; }
+.root :global(.gswms__page-shell) > tbody > tr { break-inside:auto; page-break-inside:auto; }
+.root :global(.gswms__identity-values) div { margin:1px 0; }
+@media print {
+.root, .root { margin:0; padding:0; background:#fff; }
+.root :global(.gswms__toolbar), .root :global(.gswms__notice), .root :global(.gswms__error), .root :global(.gswms__source-links) { display:none!important; }
+.root :global(.gswms__paper), .root :global(.gswms__page-shell) { min-width:0; max-width:none; width:100%; margin:0; padding:0; border:0; box-shadow:none; }
+.root :global(.gswms__viewport) { overflow:visible; padding:0; background:white; }
+.root :global(.gswms__page-shell) > thead > tr > td { padding-bottom:4mm; }
+.root :global(.gswms__page-shell) > tfoot > tr > td { padding-top:2mm; }
+.root :global(.gswms__document-footer) { margin-top:0; }
+.root :global(.gswms__signature-value) { height:36px; }
+}
+.sheetFieldset { margin:0; padding:0; border:0; min-width:0; }
+.sheetFieldset:disabled { pointer-events:none; }
