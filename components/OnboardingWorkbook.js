@@ -4156,7 +4156,7 @@ function StaffHome({ user, onNavigate, hasAssignedOnboarding = false }) {
       // Timesheets (project_tracker_entry). Counting them here too made the
       // badge show more than the feed actually displayed underneath it.
       if (key === "notifications")
-        return !["remote_task_assigned", "project_tracker_entry"].includes(String(event.event_type || ""));
+        return !["remote_task_assigned", "project_tracker_entry", "legis_brief_ready"].includes(String(event.event_type || "")) && event.source_table !== "monday_briefs";
       if (key === "projects")
         return (
           [

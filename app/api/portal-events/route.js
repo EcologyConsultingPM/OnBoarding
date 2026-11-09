@@ -27,7 +27,10 @@ export async function GET(request) {
       .select("id, event_type, severity, title, body, href, created_at, read_at, deferred_until, source_table, source_id")
       .eq("recipient_id", access.user.id)
       .is("dismissed_at", null)
-      .or(`deferred_until.is.null,deferred_until.lte.${new Date().toISOString()}`)
+      // One compound filter keeps deferred handling AND null-safe Legis
+      // exclusions. Repeating .or() would overwrite the prior PostgREST key.
+      // This is the staff inbox even when the caller is also an administrator.
+      .or(`and(or(deferred_until.is.null,deferred_until.lte.${new Date().toISOString()}),or(event_type.is.null,event_type.neq.legis_brief_ready),or(source_table.is.null,source_table.neq.monday_briefs))`)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) return Response.json({ error: error.message }, { status: 400 });

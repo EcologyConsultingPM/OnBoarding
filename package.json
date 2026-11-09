@@ -12,7 +12,7 @@
     "test:closeout": "node scripts/check_project_closeout_template.mjs && node scripts/check_project_closeout_backend.mjs",
     "test:activity-bulk-delete": "node scripts/check_work_activity_bulk_delete.mjs && node scripts/check_staff_project_assignment_counts.mjs",
     "test:project-budget-periods": "node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs",
-    "pretest": "node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs && node scripts/check_accepted_scope_budget_totals.mjs && node scripts/check_biological_hazard_model.mjs && node scripts/check_biological_hazard_backend.mjs && node scripts/check_storage_backup_contract.mjs && node scripts/check_general_ecological_swms_template.mjs && node scripts/check_general_ecological_swms_workflow.mjs"
+    "pretest": "node scripts/check_staff_legis_removal.mjs && node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs && node scripts/check_accepted_scope_budget_totals.mjs && node scripts/check_biological_hazard_model.mjs && node scripts/check_biological_hazard_backend.mjs && node scripts/check_storage_backup_contract.mjs && node scripts/check_general_ecological_swms_template.mjs && node scripts/check_general_ecological_swms_workflow.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^8.55.2",

@@ -207,23 +207,6 @@ async function generateBrief(weekOf, previousWatchlist, projectRoster) {
   return parsed;
 }
 
-async function notifyAllStaff(admin, weekOf, urgentCount) {
-  const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (usersError) { console.warn("Legis: could not list staff for notification:", usersError.message); return; }
-  const recipients = (usersData?.users || []).filter((user) => /@ecologyconsulting\.au$/i.test(String(user.email || "")));
-  if (!recipients.length) return;
-  const { error } = await admin.from("portal_events").insert(recipients.map((user) => ({
-    recipient_id: user.id,
-    event_type: "legis_brief_ready",
-    severity: urgentCount > 0 ? "action_required" : "information",
-    title: urgentCount > 0 ? `Legis: ${urgentCount} item(s) need immediate procedure change` : "Legis briefing ready",
-    body: `This week's regulatory briefing for the week of ${weekOf} is ready.`,
-    href: "/staff/notifications",
-    source_table: "monday_briefs",
-  })));
-  if (error) console.warn("Legis: could not create staff notifications:", error.message);
-}
-
 // Only update_llc and immediate_procedure_change represent a genuine
 // register/procedure action — no_action and monitor are informational and
 // belong in the brief only, not in the admin's Regulatory Watch queue.
@@ -295,7 +278,8 @@ export async function runLegisBrief() {
     if (updateError) throw new Error(updateError.message);
 
     await feedRegulatoryWatch(admin, briefRow.id, weekOf, result.developments);
-    await notifyAllStaff(admin, weekOf, urgentCount);
+    // Legis stays in admin Regulatory Watch. No staff inbox broadcast: any
+    // resulting staff action must be assigned through the normal task workflow.
 
     return { ok: true, brief_id: briefRow.id, developments_found: (result.developments || []).length, immediate_procedure_change: urgentCount, self_audit_passed: result.self_audit_passed !== false };
   } catch (error) {
