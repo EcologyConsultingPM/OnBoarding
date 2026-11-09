@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { requirePortalResource } from "../../../lib/portalVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ export async function GET(request) {
   try {
     const access = await requireSession(request);
     if (access.error) return access.error;
+    if (!access.isAdmin) return Response.json({ error: "Legis is available in admin Regulatory Watch only." }, { status: 403 });
+    const denied = await requirePortalResource(access, "admin.regulatory_watch");
+    if (denied) return denied;
 
     const { searchParams } = new URL(request.url);
     const history = searchParams.get("history") === "true";
@@ -38,7 +42,7 @@ export async function GET(request) {
       return Response.json({ briefs: (data || []).map(normaliseBrief) });
     }
 
-    // Staff should receive the latest usable briefing. Scheduler failures are
+    // Administrators should receive the latest usable briefing. Scheduler failures are
     // operational/admin concerns and must not replace a valid prior briefing.
     const { data, error } = await access.admin.from("monday_briefs").select(COLUMNS).eq("status", "ready").order("week_of", { ascending: false }).limit(1).maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400 });
