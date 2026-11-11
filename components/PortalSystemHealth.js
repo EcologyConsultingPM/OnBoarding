@@ -30,7 +30,7 @@ export default function PortalSystemHealth() {
     try {
       const response = await fetch("/api/admin/system-health", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.error || "Could not load system health.");
+      if (!response.ok) throw new Error(`${body?.error || "Could not load system health."}${body?.code ? ` (${body.code})` : ""}`);
       setData(body);
     } catch (requestError) {
       setError(requestError.message || "Could not load system health.");
@@ -60,10 +60,10 @@ export default function PortalSystemHealth() {
 
       {error ? <div className="pm-notice error"><ShieldAlert size={16} /><span>{error}</span></div> : null}
       <div className="pm-system__metrics">
-        <Metric icon={DatabaseBackup} label="Latest database archive" value={latest?.status === "succeeded" ? "Succeeded" : latest?.status === "running" ? "Running" : latest?.status === "failed" ? "Attention required" : "Not configured"} note={latest ? formatDate(latest.finished_at || latest.started_at) : "Configure private workflow secrets to begin"} tone={latest?.status === "succeeded" ? "good" : latest?.status === "failed" ? "bad" : "warn"} />
-        <Metric icon={HardDrive} label="Database coverage" value={data?.backup_coverage?.database ? "Roles, schema & data" : "Pending first archive"} note={latest ? `${formatBytes(latest.archive_bytes)} · ${latest.retention_days || 7}-day retention` : "Private encrypted archive"} tone={data?.backup_coverage?.database ? "good" : "warn"} />
+        <Metric icon={DatabaseBackup} label="Latest database archive" value={error ? "Status unavailable" : data?.backup_coverage?.stale ? "Archive is stale" : latest?.status === "succeeded" ? "Succeeded" : latest?.status === "running" ? "Running" : latest?.status === "failed" ? "Attention required" : "Not configured"} note={latest ? formatDate(latest.finished_at || latest.started_at) : "Configure private workflow secrets to begin"} tone={data?.backup_coverage?.database ? "good" : latest?.status === "failed" || error ? "bad" : "warn"} />
+        <Metric icon={HardDrive} label="Database coverage" value={data?.backup_coverage?.database ? "Roles, schema & data" : "Not currently verified"} note={latest ? `${formatBytes(latest.archive_bytes)} · ${latest.retention_days || 7}-day retention` : "Private encrypted archive"} tone={data?.backup_coverage?.database ? "good" : "warn"} />
         <Metric icon={HardDrive} label="Uploaded file coverage" value={data?.backup_coverage?.storage ? "Independently archived" : "Not independently archived"} note="Storage files are monitored separately from the database export" tone={data?.backup_coverage?.storage ? "good" : "warn"} />
-        <Metric icon={issues.length ? AlertTriangle : CheckCircle2} label="Known system issues" value={loading ? "Checking…" : issues.length ? `${issues.length} recent` : "None recorded"} note={`${healthyCount} successful recent health checks`} tone={issues.length ? "bad" : "good"} />
+        <Metric icon={issues.length || error ? AlertTriangle : CheckCircle2} label="Known system issues" value={loading ? "Checking…" : error ? "Status unavailable" : issues.length ? `${issues.length} recent` : "None recorded"} note={`${healthyCount} successful recent health checks`} tone={issues.length || error ? "bad" : "good"} />
       </div>
 
       <div className="pm-system__grid">
@@ -73,10 +73,10 @@ export default function PortalSystemHealth() {
         </section>
         <section className="pm-system__card">
           <div className="pm-system__head"><div><span className="pm-kicker">System log</span><h3>Recent health checks & warnings</h3></div><Activity size={18} /></div>
-          {loading ? <p className="pm-muted">Loading health records…</p> : health.length === 0 ? <p className="pm-muted">No scheduled health check has reported yet. The first daily check will verify the core portal tables and Storage connection.</p> : <div className="pm-system__list">{health.slice(0, 12).map((run) => <div className="pm-system__row" key={run.id}><span className={`pm-system__dot ${run.status === "healthy" ? "succeeded" : run.status}`} /><span><strong>{run.service_key}</strong><small>{run.summary} · {formatDate(run.checked_at)}</small>{run.details?.error ? <em>{run.details.error}</em> : null}</span></div>)}</div>}
+          {loading ? <p className="pm-muted">Loading health records…</p> : health.length === 0 ? <p className="pm-muted">No scheduled health check has reported yet. The first daily check will verify the core portal tables and Storage connection.</p> : <div className="pm-system__list">{health.slice(0, 12).map((run) => <div className="pm-system__row" key={run.id}><span className={`pm-system__dot ${run.status === "healthy" ? "succeeded" : run.status}`} /><span><strong>{run.service_key}</strong><small>{run.summary} · {formatDate(run.checked_at)}</small>{run.details?.error_code ? <em>Error code: {run.details.error_code}</em> : null}{run.details?.error ? <em>{run.details.error}</em> : null}</span></div>)}</div>}
         </section>
       </div>
-      <p className="pm-system__footnote">Free-tier protection: the private archive is database-only and short-retention. Supabase Storage files are operationally monitored, but are not included in the independent archive until a separate free file-archive destination is configured.</p>
+      <p className="pm-system__footnote">The existing daily workflow is configured to archive database roles, schemas and data, including Internal Registers, plus uploaded Storage files. Archives are encrypted and retained for one day within the configured size limit. Coverage is verified only after a successful run; failed or stale runs require attention.</p>
     </section>
   );
 }

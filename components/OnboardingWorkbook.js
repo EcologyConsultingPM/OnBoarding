@@ -49,6 +49,7 @@ import ProjectHealthReport from "./ProjectHealthReport";
 import AdminProjectTracker from "./AdminProjectTracker";
 import ProjectCloseOut, { ProjectCloseOutSelector } from "./ProjectCloseOut";
 import AdminWhsGovernance from "./AdminWhsGovernance";
+import AdminInternalRegisters from "./AdminInternalRegisters";
 import AdminRegulatoryWatch from "./AdminRegulatoryWatch";
 import WhsEcFormsDomain from "./WhsEcFormsDomain";
 import AdminServiceRequests from "./AdminServiceRequests";
@@ -3639,6 +3640,17 @@ function AdminHome({ onNavigate }) {
       photo: "lorikeet.png",
     },
     {
+      eyebrow: "People & equipment records",
+      title: "Internal Registers",
+      desc: "Staff training, qualifications and certificate expiry oversight. Asset & Equipment register coming soon.",
+      accent: "#9cbf5a",
+      accent2: "#203615",
+      Icon: ClipboardList,
+      mode: "internalregisters",
+      resourceKey: "admin.internal_registers",
+      photo: "everlastings.png",
+    },
+    {
       eyebrow: "Species reference",
       title: "Species Profiles & Survey Requirements",
       desc: "Threatened flora and fauna reference, field-photo verification and survey timing standards.",
@@ -5370,6 +5382,8 @@ export default function OnboardingWorkbook() {
             <AdminServiceRequests />
           ) : isAdmin && mode === "ldlibrary" ? (
             <AdminLearningLibrary />
+          ) : isAdmin && mode === "internalregisters" ? (
+            <AdminInternalRegisters onToast={showToast} />
           ) : isAdmin && mode === "adminvideos" ? (
             <SaasDomainVideos audience="admin" />
           ) : isAdmin && mode === "speciesprofiles" ? (
