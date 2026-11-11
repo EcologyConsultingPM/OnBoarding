@@ -17,8 +17,8 @@ function adminClient() {
 
 async function databaseCheck(admin, table) {
   const started = Date.now();
-  const { error } = await admin.from(table).select("id", { head: true, count: "exact" }).limit(1);
-  if (error) throw new Error(error.message);
+  const { error } = await admin.from(table).select(table === "backup_runs" ? "run_id" : "id", { head: true, count: "exact" }).limit(1);
+  if (error) throw new Error("HEALTH_TABLE_QUERY_FAILED");
   return { table, latency_ms: Date.now() - started };
 }
 
@@ -30,13 +30,13 @@ export async function GET(request) {
   const admin = adminClient();
   const checks = [];
   try {
-    const tables = ["projects", "portal_events", "regulatory_sources", "regulatory_source_health_alerts", "bionet_watchlists", "learning_assignments", "commercial_margin_snapshots", "psychosocial_support_cases", "admin_audit_log", "project_tracker_templates", "backup_runs"];
+    const tables = ["projects", "portal_events", "regulatory_sources", "regulatory_source_health_alerts", "bionet_watchlists", "learning_assignments", "commercial_margin_snapshots", "psychosocial_support_cases", "admin_audit_log", "project_tracker_templates", "backup_runs", "internal_register_staff", "internal_training_records"];
     for (const table of tables) {
       try {
         const details = await databaseCheck(admin, table);
         checks.push({ service_key: `database:${table}`, status: "healthy", summary: `${table} is reachable.`, details });
       } catch (error) {
-        checks.push({ service_key: `database:${table}`, status: "failed", summary: `${table} could not be queried.`, details: { error: String(error.message || error).slice(0, 500) } });
+        checks.push({ service_key: `database:${table}`, status: "failed", summary: `${table} could not be queried.`, details: { error_code: "HEALTH_TABLE_QUERY_FAILED" } });
       }
     }
     try {

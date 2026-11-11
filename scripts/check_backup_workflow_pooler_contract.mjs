@@ -80,17 +80,21 @@ await select(pooler + "?sslmode=disable", "", false);
 await select(pooler + "?malformed", "", false);
 await select(direct, "invalid-explicit-override", false); // Fail closed rather than use stale credentials.
 
-const coverageMatch = healthRoute.match(/function coverageStatus\(run\) \{[\s\S]*?\n\}/);
+const coverageMatch = healthRoute.match(/function coverageStatus\(run, now = Date\.now\(\)\) \{[\s\S]*?\n\}/);
 assert.ok(coverageMatch);
 const coverageStatus = vm.runInNewContext(`(${coverageMatch[0]})`);
 const covered = { database_roles: true, database_schema: true, database_data: true, storage_objects: false };
-assert.equal(coverageStatus({ status: "succeeded", coverage: covered }).database, true);
-assert.equal(coverageStatus({ status: "succeeded", coverage: covered }).storage, false);
+const now = Date.now();
+const fresh = { status: "succeeded", finished_at: new Date(now - 3600000).toISOString(), coverage: covered };
+assert.equal(coverageStatus(fresh, now).database, true);
+assert.equal(coverageStatus(fresh, now).storage, false);
+assert.equal(coverageStatus({ ...fresh, finished_at: new Date(now - 31 * 3600000).toISOString() }, now).database, false, "Stale archives cannot display current coverage.");
+assert.equal(coverageStatus({ ...fresh, finished_at: null }, now).database, false);
 for (const status of ["failed", "running", undefined]) {
-  assert.equal(coverageStatus({ status, coverage: covered }).database, false, "Unsuccessful runs cannot display verified coverage.");
+  assert.equal(coverageStatus({ ...fresh, status }, now).database, false, "Unsuccessful runs cannot display verified coverage.");
 }
 assert.equal(coverageStatus(null).database, false);
-assert.equal(coverageStatus({ status: "succeeded", coverage: { ...covered, database_data: "true" } }).database, false);
+assert.equal(coverageStatus({ ...fresh, coverage: { ...covered, database_data: "true" } }, now).database, false);
 assert.match(workflow, /version: 3\.0\.0/, "Pin the tested CLI release, not a drifting latest version.");
 assert.doesNotMatch(workflow, /--db-url/, "Use the current CLI's --remote flag.");
 assert.match(workflow, /retention-days: 1/);
