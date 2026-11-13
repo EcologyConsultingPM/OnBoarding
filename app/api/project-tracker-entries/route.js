@@ -3,6 +3,7 @@ import { requirePortalResource } from "../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../lib/staffDirectory";
 import { emptyStaffProjectAssignmentSummary, loadStaffProjectAssignments, summarizeStaffProjectAssignments } from "../../../lib/staffProjectAssignmentSummary";
 import { budgetEntryPeriodError, validBudgetDate } from "../../../lib/projectBudgetPeriods";
+import { hoursPayload, selectWithHoursFlags } from "../../../lib/workActivityHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,9 @@ function assignmentTableUnavailable(error) {
 async function activeActivityAssignees(admin, activityIds) {
   const ids = [...new Set((activityIds || []).filter(Boolean))];
   if (!ids.length) return { available: true, rows: [] };
-  const result = await admin.from("project_activity_assignees")
-    .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
-    .in("activity_id", ids)
-    .neq("acceptance_status", "removed");
+  const result = await selectWithHoursFlags((columns) => admin.from("project_activity_assignees")
+    .select(columns).in("activity_id", ids).neq("acceptance_status", "removed"),
+  "activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, acceptance_status");
   if (result.error) {
     if (assignmentTableUnavailable(result.error)) return { available: false, rows: [] };
     return { available: false, rows: [], error: result.error };
@@ -49,12 +49,12 @@ function assignmentProjection(activity, assignmentRows, assignmentsAvailable, na
   const rows = assignmentsAvailable
     ? assignmentRows || []
     : activity.staff_user_id
-      ? [{ staff_user_id: activity.staff_user_id, allocated_hours: activity.budget_hours, acceptance_status: activity.acceptance_status || "accepted" }]
+      ? [{ staff_user_id: activity.staff_user_id, allocated_hours: activity.budget_hours, allocated_hours_tbc: activity.budget_hours_tbc, acceptance_status: activity.acceptance_status || "accepted" }]
       : [];
   const assignees = rows.map((row) => ({
     staffUserId: row.staff_user_id,
     staffName: nameById.get(row.staff_user_id) || "Allocated team member",
-    allocatedHours: row.allocated_hours ?? null,
+    ...hoursPayload(row, "allocated"),
     // When the join table is present this is deliberately the individual
     // assignment state, never the shared parent activity state.
     acceptanceStatus: row.acceptance_status || "accepted",
@@ -271,7 +271,7 @@ async function teamEntries(access, projectId, eligible) {
     // This staff route never returns itemised allocation dollar values, rates,
     // costs or profitability. Those stay in the administrator tracker.
     access.admin.from("project_budget_allocations").select("id, allocation_code, allocation_name, allocation_hours, hours_consumed, staff_visible, status").eq("project_id", projectId),
-    access.admin.from("project_activities").select("id, title, detail, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours").eq("project_id", projectId).eq("is_active", true),
+    selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("project_id", projectId).eq("is_active", true), "id, title, detail, task_category, staff_user_id, status, acceptance_status, progress_percent, due_date, budget_hours, budget_hours_tbc"),
   ]);
   if (activitiesResult.error) throw new Error(activitiesResult.error.message);
   const assignmentResult = await activeActivityAssignees(access.admin, (activitiesResult.data || []).map((activity) => activity.id));
@@ -311,7 +311,7 @@ async function teamEntries(access, projectId, eligible) {
       acceptanceStatus: activity.acceptance_status,
       progressPercent: activity.progress_percent,
       dueDate: activity.due_date || null,
-      budgetHours: activity.budget_hours ?? null,
+      ...hoursPayload(activity),
       isMine: assignmentResult.available
         ? assignmentRows.some((row) => row.staff_user_id === access.user.id)
         : activity.staff_user_id === access.user.id,

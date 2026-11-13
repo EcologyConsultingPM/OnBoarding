@@ -1,13 +1,14 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
+import { hoursPayload, selectWithHoursFlags } from "../../../lib/workActivityHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 const ACCEPTANCE_STATES = new Set(["awaiting_response", "accepted", "declined", "actioned"]);
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
-const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
+const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, progress_percent, locked, is_active";
+const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
 
 function text(value, limit = 5000) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -32,7 +33,7 @@ function assignmentResponse(assignment) {
   return {
     id: assignment.id,
     staffUserId: assignment.staff_user_id,
-    allocatedHours: Number(assignment.allocated_hours || 0),
+    ...hoursPayload(assignment, "allocated"),
     role: assignment.role || "contributor",
     acceptanceStatus: assignment.acceptance_status,
     acceptance_status: assignment.acceptance_status,
@@ -70,9 +71,11 @@ async function refreshLinkedSchedule(admin, activity, now) {
 
 async function joinedAssignmentsForActivities(admin, activityIds, staffUserId = null) {
   if (!activityIds.length) return { available: true, rows: [], byActivity: new Map() };
-  let query = admin.from("project_activity_assignees").select(ASSIGNMENT_COLUMNS).in("activity_id", activityIds).neq("acceptance_status", "removed");
-  if (staffUserId) query = query.eq("staff_user_id", staffUserId);
-  const result = await query;
+  const result = await selectWithHoursFlags((columns) => {
+    let query = admin.from("project_activity_assignees").select(columns).in("activity_id", activityIds).neq("acceptance_status", "removed");
+    if (staffUserId) query = query.eq("staff_user_id", staffUserId);
+    return query;
+  }, ASSIGNMENT_COLUMNS);
   if (result.error) {
     if (isAssignmentSchemaError(result.error)) return { available: false, rows: [], byActivity: new Map() };
     throw new Error(result.error.message);
@@ -97,13 +100,10 @@ export async function GET(request) {
     const activeIds = (activeProjects || []).map((project) => project.id);
     if (!activeIds.length) return Response.json({ activities: [] });
 
-    const { data: candidates, error: candidateError } = await access.admin
-      .from("project_activities")
-      .select("id, project_id, staff_user_id, title, task_category, detail, budget_hours, due_date, status, acceptance_status, progress_percent, response_note, projects!project_activities_project_id_fkey(name)")
-      .eq("is_active", true)
-      .in("project_id", activeIds)
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(400);
+    const { data: candidates, error: candidateError } = await selectWithHoursFlags((columns) => access.admin
+      .from("project_activities").select(columns).eq("is_active", true).in("project_id", activeIds)
+      .order("due_date", { ascending: true, nullsFirst: false }).limit(400),
+    "id, project_id, staff_user_id, title, task_category, detail, budget_hours, budget_hours_tbc, due_date, status, acceptance_status, progress_percent, response_note, projects!project_activities_project_id_fkey(name)");
     if (candidateError) return Response.json({ error: candidateError.message }, { status: 400 });
 
     const assignmentState = await joinedAssignmentsForActivities(access.admin, (candidates || []).map((activity) => activity.id), access.user.id);
@@ -120,7 +120,7 @@ export async function GET(request) {
           title: activity.title,
           taskCategory: activity.task_category || "",
           detail: activity.detail || "",
-          budgetHours: activity.budget_hours,
+          ...hoursPayload(activity),
           dueDate: activity.due_date || null,
           status: activity.status,
           acceptanceStatus: assignment?.acceptance_status || activity.acceptance_status,
@@ -276,7 +276,7 @@ export async function PATCH(request) {
     // Kept as an explicit scalar-compatible expression for older source
     // consumers. Joined override notifications above fan out to all assignees.
     const recipientId = adminOverride ? existing.staff_user_id : existing.assigned_by || null;
-    return Response.json({ activity: { ...activity, acceptance_status: responseAssignment?.acceptance_status || activity.acceptance_status, response_note: responseAssignment?.response_note || activity.response_note, assignment: responseAssignment ? assignmentResponse(responseAssignment) : null }, schedule_warning: scheduleWarning || null, event_warning: eventWarning || null, multiAssigneeReady: assignmentState.available, recipientId });
+    return Response.json({ activity: { ...activity, ...hoursPayload(activity), acceptance_status: responseAssignment?.acceptance_status || activity.acceptance_status, response_note: responseAssignment?.response_note || activity.response_note, assignment: responseAssignment ? assignmentResponse(responseAssignment) : null }, schedule_warning: scheduleWarning || null, event_warning: eventWarning || null, multiAssigneeReady: assignmentState.available, recipientId });
   } catch (error) {
     return serverError(error);
   }

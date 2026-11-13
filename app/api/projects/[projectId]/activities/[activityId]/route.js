@@ -1,10 +1,11 @@
 import { requireSession, serverError } from "../../../../../../lib/serverAuth";
 import { listDirectoryUsers } from "../../../../../../lib/staffDirectory";
+import { resolveHoursInput, resolveAssigneeInput, hoursPayload, allocationBudgetError, selectWithHoursFlags } from "../../../../../../lib/workActivityHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
+const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
 
 function validId(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
@@ -43,8 +44,7 @@ function assignmentView(row, email = null) {
     staffUserId: row.staff_user_id,
     staff_user_id: row.staff_user_id,
     email,
-    allocatedHours: Number(row.allocated_hours || 0),
-    allocated_hours: Number(row.allocated_hours || 0),
+    ...hoursPayload(row, "allocated"),
     role: row.role || "contributor",
     acceptanceStatus: row.acceptance_status,
     acceptance_status: row.acceptance_status,
@@ -62,37 +62,8 @@ function assignmentView(row, email = null) {
 function hasArrayAssigneeInput(body) {
   return Object.hasOwn(body || {}, "assignees") || Object.hasOwn(body || {}, "staffUserIds");
 }
-function normaliseAssignees(body, budgetHours, fallback) {
-  let raw;
-  let scalarMode = false;
-  if (Object.hasOwn(body || {}, "assignees")) {
-    if (!Array.isArray(body.assignees)) return { error: "assignees must be an array." };
-    raw = body.assignees;
-  } else if (Object.hasOwn(body || {}, "staffUserIds")) {
-    if (!Array.isArray(body.staffUserIds)) return { error: "staffUserIds must be an array." };
-    raw = body.staffUserIds;
-  } else if (Object.hasOwn(body || {}, "staffUserId")) {
-    raw = body.staffUserId ? [{ staffUserId: body.staffUserId, allocatedHours: body.allocatedHours, role: body.role }] : [];
-    scalarMode = true;
-  } else return { assignees: fallback, supplied: false };
-
-  const ids = new Set();
-  const assignees = [];
-  for (const candidate of raw) {
-    const source = typeof candidate === "string" ? { staffUserId: candidate } : (candidate || {});
-    const staffUserId = String(source.staffUserId ?? source.staff_user_id ?? source.id ?? "").trim();
-    if (!staffUserId) continue;
-    if (!validId(staffUserId)) return { error: "Choose valid staff members." };
-    if (ids.has(staffUserId)) continue;
-    const suppliedHours = source.allocatedHours ?? source.allocated_hours;
-    const allocatedHours = suppliedHours === undefined || suppliedHours === null || suppliedHours === ""
-      ? (scalarMode ? Number(budgetHours || 0) : 0)
-      : Number(suppliedHours);
-    if (!Number.isFinite(allocatedHours) || allocatedHours < 0) return { error: "Allocated hours must be a nonnegative number." };
-    ids.add(staffUserId);
-    assignees.push({ staffUserId, allocatedHours, role: text(source.role, 100) || "contributor" });
-  }
-  return { assignees, supplied: true, scalarMode };
+function normaliseAssignees(body, budgetHours, fallback = [], budgetTbc = false) {
+  return resolveAssigneeInput(body, budgetHours, budgetTbc, fallback);
 }
 
 async function allocationIds(admin, projectId) {
@@ -121,15 +92,15 @@ async function syncAssignments(admin, activityId, requested, existingRows, actor
   for (const next of requested || []) {
     const previous = byStaff.get(next.staffUserId);
     if (!previous) {
-      const { data, error } = await admin.from("project_activity_assignees").insert({ activity_id: activityId, staff_user_id: next.staffUserId, allocated_hours: next.allocatedHours, role: next.role, acceptance_status: "awaiting_response", assigned_at: now, assigned_by: actorId, created_at: now, updated_at: now }).select(ASSIGNMENT_COLUMNS).single();
+      const { data, error } = await admin.from("project_activity_assignees").insert({ activity_id: activityId, staff_user_id: next.staffUserId, allocated_hours: next.allocatedHours, allocated_hours_tbc: next.allocatedHoursTbc === true, role: next.role, acceptance_status: "awaiting_response", assigned_at: now, assigned_by: actorId, created_at: now, updated_at: now }).select(ASSIGNMENT_COLUMNS).single();
       if (error) throw new Error(error.message);
       additions.push(data);
     } else if (previous.acceptance_status === "removed") {
-      const { data, error } = await admin.from("project_activity_assignees").update({ allocated_hours: next.allocatedHours, role: next.role, acceptance_status: "awaiting_response", response_note: null, assigned_at: now, accepted_at: null, declined_at: null, actioned_at: null, assigned_by: actorId, notified_at: null, removed_at: null, updated_at: now }).eq("id", previous.id).select(ASSIGNMENT_COLUMNS).single();
+      const { data, error } = await admin.from("project_activity_assignees").update({ allocated_hours: next.allocatedHours, allocated_hours_tbc: next.allocatedHoursTbc === true, role: next.role, acceptance_status: "awaiting_response", response_note: null, assigned_at: now, accepted_at: null, declined_at: null, actioned_at: null, assigned_by: actorId, notified_at: null, removed_at: null, updated_at: now }).eq("id", previous.id).select(ASSIGNMENT_COLUMNS).single();
       if (error) throw new Error(error.message);
       additions.push(data);
-    } else if (Number(previous.allocated_hours || 0) !== next.allocatedHours || previous.role !== next.role) {
-      const { error } = await admin.from("project_activity_assignees").update({ allocated_hours: next.allocatedHours, role: next.role, updated_at: now }).eq("id", previous.id);
+    } else if (Number(previous.allocated_hours || 0) !== next.allocatedHours || previous.role !== next.role || (previous.allocated_hours_tbc === true) !== (next.allocatedHoursTbc === true)) {
+      const { error } = await admin.from("project_activity_assignees").update({ allocated_hours: next.allocatedHours, allocated_hours_tbc: next.allocatedHoursTbc === true, role: next.role, updated_at: now }).eq("id", previous.id);
       if (error) throw new Error(error.message);
     }
   }
@@ -167,7 +138,7 @@ export async function PATCH(request, { params }) {
     if (!validId(projectId) || !validId(activityId)) return Response.json({ error: "A valid project and activity id are required." }, { status: 400 });
 
     const { data: current, error: currentError } = await access.admin.from("project_activities")
-      .select("id, project_id, staff_user_id, title, task_category, detail, budget_hours, due_date, start_date, milestone, status, progress_percent, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, schedule_item_id, sort_order, is_active")
+      .select("id, project_id, staff_user_id, title, task_category, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, progress_percent, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, schedule_item_id, sort_order, is_active")
       .eq("id", activityId).eq("project_id", projectId).maybeSingle();
     if (currentError) return Response.json({ error: currentError.message }, { status: 400 });
     if (!current || !current.is_active) return Response.json({ error: "Activity not found." }, { status: 404 });
@@ -182,10 +153,11 @@ export async function PATCH(request, { params }) {
     }
     if (body?.taskCategory !== undefined) patch.task_category = text(body.taskCategory, 200) || null;
     if (body?.detail !== undefined) patch.detail = text(body.detail, 5000) || null;
-    if (body?.budgetHours !== undefined) {
-      const hours = number(body.budgetHours);
-      if (hours == null || hours < 0) return Response.json({ error: "Budget hours must be a nonnegative number." }, { status: 400 });
-      patch.budget_hours = hours;
+    const budget = resolveHoursInput(body, current);
+    if (budget.error) return Response.json({ error: budget.error }, { status: 400 });
+    if (budget.supplied) {
+      patch.budget_hours = budget.value;
+      patch.budget_hours_tbc = budget.tbc;
     }
     if (body?.startDate !== undefined) patch.start_date = dueDate(body.startDate);
     if (body?.dueDate !== undefined) patch.due_date = dueDate(body.dueDate);
@@ -207,17 +179,17 @@ export async function PATCH(request, { params }) {
 
     let assignmentRows = [];
     let assignmentSchemaAvailable = true;
-    const assignmentResult = await access.admin.from("project_activity_assignees").select(ASSIGNMENT_COLUMNS).eq("activity_id", activityId);
+    const assignmentResult = await selectWithHoursFlags((columns) => access.admin.from("project_activity_assignees").select(columns).eq("activity_id", activityId), ASSIGNMENT_COLUMNS);
     if (assignmentResult.error) {
       if (!isAssignmentSchemaError(assignmentResult.error)) return Response.json({ error: assignmentResult.error.message }, { status: 400 });
       assignmentSchemaAvailable = false;
     } else assignmentRows = assignmentResult.data || [];
 
     const priorAssignees = assignmentSchemaAvailable
-      ? activeAssignees(assignmentRows).map((row) => ({ staffUserId: row.staff_user_id, allocatedHours: Number(row.allocated_hours || 0), role: row.role }))
-      : (current.staff_user_id ? [{ staffUserId: current.staff_user_id, allocatedHours: Number(current.budget_hours || 0) }] : []);
-    const effectiveBudget = patch.budget_hours ?? Number(current.budget_hours || 0);
-    const requested = normaliseAssignees(body, effectiveBudget, priorAssignees);
+      ? activeAssignees(assignmentRows).map((row) => ({ staffUserId: row.staff_user_id, allocatedHours: Number(row.allocated_hours || 0), allocatedHoursTbc: row.allocated_hours_tbc === true || row.allocated_hours == null, role: row.role }))
+      : (current.staff_user_id ? [{ staffUserId: current.staff_user_id, allocatedHours: Number(current.budget_hours || 0), allocatedHoursTbc: current.budget_hours_tbc === true || current.budget_hours == null }] : []);
+    const effectiveBudget = budget.value;
+    const requested = normaliseAssignees(body, effectiveBudget, priorAssignees, budget.tbc);
     if (requested.error) return Response.json({ error: requested.error }, { status: 400 });
     const suppliedTeam = requested.supplied;
 
@@ -226,8 +198,8 @@ export async function PATCH(request, { params }) {
       const availableIds = new Set(directory.map((person) => person.id));
       if (requested.assignees.some((assignee) => !availableIds.has(assignee.staffUserId) || !projectAllocationIds.has(assignee.staffUserId))) return Response.json({ error: "Activity assignees must be active staff allocated to this project." }, { status: 400 });
     }
-    const totalAllocated = requested.assignees.reduce((sum, assignee) => sum + assignee.allocatedHours, 0);
-    if (totalAllocated > effectiveBudget) return Response.json({ error: "Total allocated staff hours cannot exceed this activity's budget hours." }, { status: 400 });
+    const budgetError = allocationBudgetError(requested.assignees, effectiveBudget, budget.tbc);
+    if (budgetError) return Response.json({ error: budgetError }, { status: 400 });
 
     // Keep scalar identity for old clients. In joined mode it is a projection
     // only: it never controls recipient response state or notification flags.
@@ -249,7 +221,7 @@ export async function PATCH(request, { params }) {
       }
     }
 
-    let { data: updated, error: updateError } = await access.admin.from("project_activities").update(patch).eq("id", activityId).select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, progress_percent, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, schedule_item_id, sort_order").single();
+    let { data: updated, error: updateError } = await access.admin.from("project_activities").update(patch).eq("id", activityId).select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, progress_percent, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, schedule_item_id, sort_order").single();
     if (updateError) return Response.json({ error: updateError.message }, { status: 400 });
 
     let additions = [];
@@ -278,7 +250,7 @@ export async function PATCH(request, { params }) {
     let notifyWarning = null;
     if (assignmentSchemaAvailable && additions.length) {
       const { data: project } = await access.admin.from("projects").select("name").eq("id", projectId).maybeSingle();
-      const { error: notifyError } = await access.admin.from("portal_events").insert(additions.map((assignment) => ({ recipient_id: assignment.staff_user_id, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${updated.title}`, body: `${project?.name || "A project"}${updated.task_category ? ` · ${updated.task_category}` : ""}${updated.budget_hours != null ? ` · ${updated.budget_hours} budgeted hours` : ""}${formatDueDate(updated.due_date)}`, href: "/staff/notifications", source_table: "project_activities", source_id: updated.id })));
+      const { error: notifyError } = await access.admin.from("portal_events").insert(additions.map((assignment) => ({ recipient_id: assignment.staff_user_id, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${updated.title}`, body: `${project?.name || "A project"}${updated.task_category ? ` · ${updated.task_category}` : ""}${updated.budget_hours_tbc ? " · Budget hours TBC" : updated.budget_hours != null ? ` · ${updated.budget_hours} budgeted hours` : ""}${formatDueDate(updated.due_date)}`, href: "/staff/notifications", source_table: "project_activities", source_id: updated.id })));
       if (notifyError) notifyWarning = notifyError.message;
       else {
         const { error: markError } = await access.admin.from("project_activity_assignees").update({ notified_at: now, updated_at: now }).in("id", additions.map((assignment) => assignment.id));
@@ -286,7 +258,7 @@ export async function PATCH(request, { params }) {
       }
     } else if (!assignmentSchemaAvailable && suppliedTeam && patch.staff_user_id && patch.staff_user_id !== current.staff_user_id) {
       const { data: project } = await access.admin.from("projects").select("name").eq("id", projectId).maybeSingle();
-      const { error: notifyError } = await access.admin.from("portal_events").insert({ recipient_id: patch.staff_user_id, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${updated.title}`, body: `${project?.name || "A project"}${updated.task_category ? ` · ${updated.task_category}` : ""}${updated.budget_hours != null ? ` · ${updated.budget_hours} budgeted hours` : ""}${formatDueDate(updated.due_date)}`, href: "/staff/notifications", source_table: "project_activities", source_id: updated.id });
+      const { error: notifyError } = await access.admin.from("portal_events").insert({ recipient_id: patch.staff_user_id, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${updated.title}`, body: `${project?.name || "A project"}${updated.task_category ? ` · ${updated.task_category}` : ""}${updated.budget_hours_tbc ? " · Budget hours TBC" : updated.budget_hours != null ? ` · ${updated.budget_hours} budgeted hours` : ""}${formatDueDate(updated.due_date)}`, href: "/staff/notifications", source_table: "project_activities", source_id: updated.id });
       if (notifyError) notifyWarning = notifyError.message;
       else await access.admin.from("project_activities").update({ notified_at: now }).eq("id", updated.id);
     }
@@ -296,8 +268,8 @@ export async function PATCH(request, { params }) {
       const { data: finalRows, error: finalError } = await access.admin.from("project_activity_assignees").select(ASSIGNMENT_COLUMNS).eq("activity_id", updated.id);
       if (!finalError) assignees = await hydrateAssignees(access.admin, finalRows || []);
     }
-    if (!assignmentSchemaAvailable && updated.staff_user_id) assignees = [{ staffUserId: updated.staff_user_id, staff_user_id: updated.staff_user_id, email: null, allocatedHours: Number(updated.budget_hours || 0), allocated_hours: Number(updated.budget_hours || 0), role: "contributor", acceptanceStatus: updated.acceptance_status, acceptance_status: updated.acceptance_status, responseStatus: updated.acceptance_status, responseNote: updated.response_note || "", response_note: updated.response_note || null, assignedAt: updated.assigned_at || null, acceptedAt: updated.accepted_at || null, declinedAt: updated.declined_at || null, actionedAt: updated.actioned_at || null, assignedBy: updated.assigned_by || null, notifiedAt: updated.notified_at || null }];
-    return Response.json({ activity: { ...updated, staffUserId: updated.staff_user_id || null, assignees }, notify_warning: notifyWarning, multiAssigneeReady: assignmentSchemaAvailable });
+    if (!assignmentSchemaAvailable && updated.staff_user_id) assignees = [{ staffUserId: updated.staff_user_id, staff_user_id: updated.staff_user_id, email: null, ...hoursPayload({ allocated_hours: updated.budget_hours, allocated_hours_tbc: updated.budget_hours_tbc }, "allocated"), role: "contributor", acceptanceStatus: updated.acceptance_status, acceptance_status: updated.acceptance_status, responseStatus: updated.acceptance_status, responseNote: updated.response_note || "", response_note: updated.response_note || null, assignedAt: updated.assigned_at || null, acceptedAt: updated.accepted_at || null, declinedAt: updated.declined_at || null, actionedAt: updated.actioned_at || null, assignedBy: updated.assigned_by || null, notifiedAt: updated.notified_at || null }];
+    return Response.json({ activity: { ...updated, ...hoursPayload(updated), staffUserId: updated.staff_user_id || null, assignees }, notify_warning: notifyWarning, multiAssigneeReady: assignmentSchemaAvailable });
   } catch (error) {
     return serverError(error);
   }

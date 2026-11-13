@@ -589,7 +589,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           <td><strong>{person.name || person.email}</strong><small>{person.email}</small></td>
                           <td><div className="scp-meter"><i style={{ width: `${Math.min(100, person.capacityPercent)}%`, background: status.color }} /><span>{person.capacityPercent}%</span></div></td>
                           <td><strong>{person.weeklyCapacityHours} h</strong><small>per week</small></td>
-                          <td>{person.availableHours} h</td><td>{person.allocatedHours} h</td><td>{person.leaveDays ? `${person.leaveDays} day${person.leaveDays === 1 ? "" : "s"}` : "—"}</td><td>{person.activeProjectCount}</td><td>{person.upcomingDueCount}</td>
+                          <td>{person.availableHours} h{person.capacityIncomplete ? <small> · known effort only</small> : null}</td><td>{person.allocatedHours} h{person.unknownAllocationCount ? <small> + {person.unknownAllocationCount} TBC</small> : null}</td><td>{person.leaveDays ? `${person.leaveDays} day${person.leaveDays === 1 ? "" : "s"}` : "—"}</td><td>{person.activeProjectCount}</td><td>{person.upcomingDueCount}</td>
                           <td><span className="scp-status" style={{ color: status.color, borderColor: `${status.color}66`, background: `${status.color}14` }}>{status.label}</span></td>
                           <td>{data.canEdit ? <button type="button" className="scp-edit" onClick={() => {
                           if (editing === person.id && capacityDirty && !window.confirm("Discard the unsaved capacity change for this person?")) return;
@@ -621,7 +621,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                       const events = day.events.filter((event) => event.staffUserId === person.id);
                       const canReceiveDrop = mode !== "staff" && data.canEdit;
                       return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(activityFromDrop(event), person.id, day.date); }}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}</span></button>; })}
+                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
@@ -643,7 +643,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); else if (manageable && mode !== "staff") openUnassignedModal(event); }}
                           style={{ cursor: manageable ? "pointer" : "default" }}
                         >
-                          <i style={{ background: style.color }} /><span>{event.title}</span>
+                          <i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}</span>
                         </button>
                       );
                     })}</div>)}
@@ -667,7 +667,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                       <div><span>Project</span><strong>{unassignedModal.projectName || "Project"}</strong></div>
                       <div><span>Activity</span><strong>{unassignedModal.title || "Untitled activity"}</strong></div>
                       <div><span>Category</span><strong>{unassignedModal.taskCategory || "Not categorised"}</strong></div>
-                      <div><span>Budgeted effort</span><strong>{unassignedModal.budgetHours === "" ? "Not set" : `${unassignedModal.budgetHours} hours`}</strong></div>
+                      <div><span>Budgeted effort</span><strong>{unassignedModal.budgetHours === "" ? "TBC" : `${unassignedModal.budgetHours} hours`}</strong></div>
                     </div>
                     <label className="scp-modal-field">
                       Title

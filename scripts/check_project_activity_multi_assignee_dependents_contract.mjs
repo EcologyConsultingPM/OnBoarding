@@ -36,8 +36,9 @@ assert.match(capacity, /assignmentCapacityHours\(activity, assignment, assignmen
 assert.match(capacity, /return parentBudget \/ count;/, "Unsplit multi-assignee legacy rows must use the documented equitable fallback.");
 assert.match(capacity, /capacityActivities = activeActivities\.flatMap/, "Capacity must emit flattened per-assignee activity rows.");
 assert.match(capacity, /staff_user_id: assignment\.staff_user_id/, "Each capacity event must identify the assignment's staff member.");
-assert.match(capacity, /budgetHours: number\(activity\.assignment_allocated_hours\)/, "Capacity event hours must use assignment allocated hours rather than the shared parent budget.");
-assert.match(capacity, /activityBudgetHours: number\(activity\.budget_hours\)/, "Capacity must preserve the parent budget separately for context.");
+assert.match(capacity, /budgetHours: activity\.assignment_hours_tbc \? null : number\(activity\.assignment_allocated_hours\)/, "Capacity event hours must use assignment allocated hours, with unknown effort nullable, never the shared parent budget.");
+assert.match(capacity, /hoursTbc: activity\.assignment_hours_tbc === true/, "Nullable capacity hours must carry an explicit unknown-effort flag.");
+assert.match(capacity, /activityBudgetHours: activity\.budget_hours_tbc \? null : confirmedHours\(activity\.budget_hours\)/, "Capacity must preserve the confirmed parent budget separately, without misrepresenting an unknown estimate as zero.");
 assert.match(staffCapacity, /capacityData\(access, rangeStart, rangeEnd\)/, "The staff capacity endpoint must reuse the assignment-aware shared capacity producer.");
 
 assert.match(projectDetail, /assignmentResult\.error \? activityRows : assignedActivityRows/, "Project detail visibility must prefer accepted join-table membership when the table is available.");

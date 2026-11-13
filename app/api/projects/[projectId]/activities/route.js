@@ -1,12 +1,13 @@
 import { requireSession, serverError } from "../../../../../lib/serverAuth";
 import { listDirectoryUsers } from "../../../../../lib/staffDirectory";
+import { resolveHoursInput, resolveAssigneeInput, hoursPayload, allocationBudgetError, selectWithHoursFlags } from "../../../../../lib/workActivityHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, notified_at, progress_percent, locked, is_active, deliverable_id";
-const LEGACY_COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, status, pause_reason, sort_order, updated_at, created_at";
-const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
+const COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, pause_reason, sort_order, updated_at, created_at, schedule_item_id, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, started_at, completed_at, assigned_by, notified_at, progress_percent, locked, is_active, deliverable_id";
+const LEGACY_COLUMNS = "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, status, pause_reason, sort_order, updated_at, created_at";
+const ASSIGNMENT_COLUMNS = "id, activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, role, acceptance_status, response_note, assigned_at, accepted_at, declined_at, actioned_at, assigned_by, notified_at, removed_at, created_at, updated_at";
 const ACTIVITY_STATUSES = new Set(["not_commenced", "active", "need_info", "paused_other", "qa_review", "completed"]);
 
 function opt(value) {
@@ -120,42 +121,8 @@ function activeAssignees(rows) {
   return (rows || []).filter((row) => row.acceptance_status !== "removed");
 }
 
-function normaliseAssignees(row, budgetHours, fallback = []) {
-  const explicit = hasAssignmentInput(row);
-  let raw = [];
-  let scalarFallback = false;
-  if (Object.hasOwn(row || {}, "assignees")) {
-    if (!Array.isArray(row.assignees)) return { error: "assignees must be an array." };
-    raw = row.assignees;
-  } else if (Object.hasOwn(row || {}, "staffUserIds")) {
-    if (!Array.isArray(row.staffUserIds)) return { error: "staffUserIds must be an array." };
-    raw = row.staffUserIds;
-  } else if (Object.hasOwn(row || {}, "staffUserId") || Object.hasOwn(row || {}, "staff_user_id")) {
-    const staffUserId = row.staffUserId ?? row.staff_user_id;
-    raw = staffUserId ? [{ staffUserId, allocatedHours: row.allocatedHours, role: row.role }] : [];
-    scalarFallback = true;
-  } else {
-    raw = fallback;
-  }
-
-  const seen = new Set();
-  const assignees = [];
-  for (const candidate of raw) {
-    const source = typeof candidate === "string" ? { staffUserId: candidate } : (candidate || {});
-    const staffUserId = String(source.staffUserId ?? source.staff_user_id ?? source.id ?? "").trim();
-    if (!staffUserId) continue;
-    if (!validId(staffUserId)) return { error: "Choose valid staff members for this activity." };
-    if (seen.has(staffUserId)) continue;
-    const providedHours = source.allocatedHours ?? source.allocated_hours;
-    const allocatedHours = providedHours === undefined || providedHours === null || providedHours === ""
-      ? (scalarFallback ? Number(budgetHours || 0) : Number(source.allocated_hours || 0))
-      : Number(providedHours);
-    if (!Number.isFinite(allocatedHours) || allocatedHours < 0) return { error: "Allocated hours must be a nonnegative number." };
-    const role = opt(source.role) || "contributor";
-    seen.add(staffUserId);
-    assignees.push({ staffUserId, allocatedHours, role });
-  }
-  return { assignees, explicit };
+function normaliseAssignees(row, budgetHours, fallback = [], budgetTbc = false) {
+  return resolveAssigneeInput(row, budgetHours, budgetTbc, fallback);
 }
 
 function legacyPrimary(assignees, previousStaffUserId = null) {
@@ -169,8 +136,7 @@ function assignmentPayload(assignment, email = null) {
     staffUserId: assignment.staff_user_id,
     staff_user_id: assignment.staff_user_id,
     email,
-    allocatedHours: Number(assignment.allocated_hours || 0),
-    allocated_hours: Number(assignment.allocated_hours || 0),
+    ...hoursPayload(assignment, "allocated"),
     role: assignment.role || "contributor",
     acceptanceStatus: assignment.acceptance_status,
     acceptance_status: assignment.acceptance_status,
@@ -188,7 +154,7 @@ function assignmentPayload(assignment, email = null) {
 
 async function loadAssignments(admin, activityIds) {
   if (!activityIds.length) return { available: true, rows: [], byActivity: new Map() };
-  const result = await admin.from("project_activity_assignees").select(ASSIGNMENT_COLUMNS).in("activity_id", activityIds);
+  const result = await selectWithHoursFlags((columns) => admin.from("project_activity_assignees").select(columns).in("activity_id", activityIds), ASSIGNMENT_COLUMNS);
   if (result.error) {
     if (isAssignmentSchemaError(result.error)) return { available: false, rows: [], byActivity: new Map() };
     throw new Error(result.error.message);
@@ -250,7 +216,7 @@ function assignmentEvent(project, activity, recipientId) {
     event_type: "project_activity_assigned",
     severity: "action_required",
     title: `Work assignment: ${activity.title}`,
-    body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${formatDueDate(activity.due_date)}`,
+    body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours_tbc ? " · Budget hours TBC" : activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${formatDueDate(activity.due_date)}`,
     href: "/staff/notifications",
     source_table: "project_activities",
     source_id: activity.id,
@@ -280,6 +246,7 @@ async function hydrateActivities(access, rows, assignmentState) {
       activity_id: row.id,
       staff_user_id: row.staff_user_id,
       allocated_hours: row.budget_hours || 0,
+      allocated_hours_tbc: row.budget_hours_tbc === true || row.budget_hours == null,
       role: "contributor",
       acceptance_status: row.acceptance_status || "accepted",
       response_note: row.response_note,
@@ -296,6 +263,7 @@ async function hydrateActivities(access, rows, assignmentState) {
     const assignees = (assignmentState.available && joinedRows ? joined : legacy).map((assignment) => assignmentPayload(assignment, emailById.get(assignment.staff_user_id) || null));
     return {
       ...row,
+      ...hoursPayload(row),
       staffUserId: row.staff_user_id || assignees[0]?.staffUserId || null,
       staff_email: row.staff_user_id ? emailById.get(row.staff_user_id) || null : null,
       assignees,
@@ -338,7 +306,7 @@ async function syncAssignments(admin, activity, requestedAssignees, currentRows,
       const { data, error } = await admin.from("project_activity_assignees").insert({
         activity_id: activity.id,
         staff_user_id: requested.staffUserId,
-        allocated_hours: requested.allocatedHours,
+        allocated_hours: requested.allocatedHours, allocated_hours_tbc: requested.allocatedHoursTbc === true,
         role: requested.role,
         acceptance_status: "awaiting_response",
         assigned_at: now,
@@ -350,7 +318,7 @@ async function syncAssignments(admin, activity, requestedAssignees, currentRows,
       additions.push({ activity, assignment: data });
     } else if (previous.acceptance_status === "removed") {
       const { data, error } = await admin.from("project_activity_assignees").update({
-        allocated_hours: requested.allocatedHours,
+        allocated_hours: requested.allocatedHours, allocated_hours_tbc: requested.allocatedHoursTbc === true,
         role: requested.role,
         acceptance_status: "awaiting_response",
         response_note: null,
@@ -365,9 +333,9 @@ async function syncAssignments(admin, activity, requestedAssignees, currentRows,
       }).eq("id", previous.id).select(ASSIGNMENT_COLUMNS).single();
       if (error) throw new Error(error.message);
       additions.push({ activity, assignment: data });
-    } else if (previous.allocated_hours !== requested.allocatedHours || previous.role !== requested.role) {
+    } else if (previous.allocated_hours !== requested.allocatedHours || previous.role !== requested.role || (previous.allocated_hours_tbc === true) !== (requested.allocatedHoursTbc === true)) {
       const { error } = await admin.from("project_activity_assignees").update({
-        allocated_hours: requested.allocatedHours,
+        allocated_hours: requested.allocatedHours, allocated_hours_tbc: requested.allocatedHoursTbc === true,
         role: requested.role,
         updated_at: now,
       }).eq("id", previous.id);
@@ -403,10 +371,10 @@ export async function GET(request, { params }) {
     if (!(await canReadProject(access, params.projectId, staffWorkspace))) return Response.json({ error: "You are not allocated to this project." }, { status: 403 });
 
     let connected = true;
-    let result = await access.admin.from("project_activities").select(COLUMNS).eq("project_id", params.projectId).eq("is_active", true).order("sort_order", { ascending: true });
+    let result = await selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("project_id", params.projectId).eq("is_active", true).order("sort_order", { ascending: true }), COLUMNS);
     if (result.error && isConnectedSchemaError(result.error)) {
       connected = false;
-      result = await access.admin.from("project_activities").select(LEGACY_COLUMNS).eq("project_id", params.projectId).order("sort_order", { ascending: true });
+      result = await selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("project_id", params.projectId).order("sort_order", { ascending: true }), LEGACY_COLUMNS);
     }
     if (result.error) return Response.json({ error: result.error.message }, { status: 400 });
 
@@ -519,18 +487,21 @@ export async function PUT(request, { params }) {
       const previous = existingForInputId || matchedBySignature || matchedByPlanIdentity;
       const joinedRows = previous ? assignmentState.byActivity.get(previous.id) : null;
       const fallbackAssignees = assignmentState.available && joinedRows
-        ? activeAssignees(joinedRows).map((assignment) => ({ staffUserId: assignment.staff_user_id, allocatedHours: assignment.allocated_hours, role: assignment.role }))
-        : (previous?.staff_user_id ? [{ staffUserId: previous.staff_user_id, allocatedHours: previous.budget_hours || 0 }] : []);
-      const budgetHours = num(input.budgetHours) ?? num(previous?.budget_hours) ?? 0;
-      const requested = normaliseAssignees(input, budgetHours, fallbackAssignees);
+        ? activeAssignees(joinedRows).map((assignment) => ({ staffUserId: assignment.staff_user_id, allocatedHours: assignment.allocated_hours ?? 0, allocatedHoursTbc: assignment.allocated_hours_tbc === true || assignment.allocated_hours == null, role: assignment.role }))
+        : (previous?.staff_user_id ? [{ staffUserId: previous.staff_user_id, allocatedHours: previous.budget_hours || 0, allocatedHoursTbc: previous.budget_hours_tbc === true || previous.budget_hours == null }] : []);
+      const budget = resolveHoursInput(input, previous || {});
+      if (budget.error) return Response.json({ error: budget.error }, { status: 400 });
+      const budgetHours = budget.value;
+      const requested = normaliseAssignees(input, budgetHours, fallbackAssignees, budget.tbc);
       if (requested.error) return Response.json({ error: requested.error }, { status: 400 });
       if (!assignmentState.available && requested.assignees.length > 1) {
         return Response.json({ error: "Multi-staff assignments are awaiting the project activity assignees migration.", migration_pending: true }, { status: 409 });
       }
       const invalidAssignee = (requested.assignees || []).find((assignment) => !availableIds.has(assignment.staffUserId) || !allocatedIds.has(assignment.staffUserId));
       if (invalidAssignee) return Response.json({ error: "Project activities must be assigned to active Staff List members allocated to this project." }, { status: 400 });
-      const assignedHours = (requested.assignees || []).reduce((total, assignment) => total + assignment.allocatedHours, 0);
-      if (assignedHours > budgetHours) return Response.json({ error: "Total allocated staff hours cannot exceed this activity's budget hours." }, { status: 400 });
+      const budgetError = allocationBudgetError(requested.assignees, budgetHours, budget.tbc);
+      if (budgetError) return Response.json({ error: budgetError }, { status: 400 });
+      input._budget = budget;
       input._previous = previous;
       input._assignees = requested.assignees || [];
     }
@@ -596,19 +567,20 @@ export async function PUT(request, { params }) {
         project_id: params.projectId,
         staff_user_id: assignedTo,
         deliverable_id: validId(input.deliverableId) ? input.deliverableId : null,
-        task_category: opt(input.taskCategory),
+        task_category: Object.hasOwn(input, "taskCategory") ? opt(input.taskCategory) : previous?.task_category || null,
         title: input.title,
-        detail: opt(input.detail),
-        budget_hours: num(input.budgetHours),
-        due_date: dueDate(input.dueDate),
-        start_date: dueDate(input.startDate) || dueDate(input.dueDate),
+        detail: Object.hasOwn(input, "detail") ? opt(input.detail) : previous?.detail || null,
+        budget_hours: input._budget.value,
+        budget_hours_tbc: input._budget.tbc,
+        due_date: Object.hasOwn(input, "dueDate") ? dueDate(input.dueDate) : previous?.due_date || null,
+        start_date: Object.hasOwn(input, "startDate") ? dueDate(input.startDate) : previous?.start_date || dueDate(input.dueDate),
         schedule_item_id: scheduleItemId,
-        milestone: input.milestone === true,
+        milestone: Object.hasOwn(input, "milestone") ? input.milestone === true : previous?.milestone === true,
         status: changedAssignee ? "not_commenced" : requestedStatus,
         pause_reason: requestedStatus === "paused_other" ? opt(input.pauseReason) : null,
         sort_order: input.sortOrder,
         progress_percent: requestedStatus === "completed" ? 100 : percent(input.progressPercent ?? previous?.progress_percent),
-        locked: input.locked === true,
+        locked: Object.hasOwn(input, "locked") ? input.locked === true : previous?.locked === true,
         is_active: true,
         updated_at: now,
       };
