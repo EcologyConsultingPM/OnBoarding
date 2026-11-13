@@ -2,6 +2,8 @@ import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { requirePortalResource } from "../../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../../lib/staffDirectory";
 import { compactAuditRecord, recordAudit } from "../../../../lib/auditLog";
+import { resolveHoursInput, confirmedHours, selectWithHoursFlags } from "../../../../lib/workActivityHours";
+import { PATCH as patchWorkActivity } from "../../projects/[projectId]/activities/[activityId]/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,8 +136,10 @@ function assignmentTableUnavailable(error) {
 }
 
 function assignmentCapacityHours(activity, assignment, siblingAssignments) {
-  const allocated = Number(assignment?.allocated_hours);
-  if (Number.isFinite(allocated) && allocated >= 0) return allocated;
+  if (assignment?.allocated_hours_tbc === true) return null;
+  const allocated = confirmedHours(assignment?.allocated_hours);
+  if (allocated != null) return allocated;
+  if (activity.budget_hours_tbc === true || confirmedHours(activity.budget_hours) == null) return null;
   const count = Math.max(1, (siblingAssignments || []).length);
   const parentBudget = number(activity.budget_hours);
   if (count === 1) return parentBudget;
@@ -158,7 +162,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const [directory, profilesResult, activitiesResult, leavesResult, trainingResult, scheduleResult, projectsResult, tasksResult, reviewsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
-    access.admin.from("project_activities").select("id, project_id, staff_user_id, task_category, title, detail, budget_hours, due_date, start_date, milestone, status, acceptance_status, progress_percent, schedule_item_id, is_active").eq("is_active", true),
+    selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("is_active", true), "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, acceptance_status, progress_percent, schedule_item_id, is_active"),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
     // Approved training is time a person is unavailable for project work, just
     // as leave is. It was being approved and then vanishing from the capacity
@@ -191,10 +195,9 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const activeActivities = (activitiesResult.data || []).filter((activity) =>
     projectById.has(activity.project_id),
   );
-  const assignmentResult = await access.admin.from("project_activity_assignees")
-    .select("activity_id, staff_user_id, allocated_hours, acceptance_status")
-    .in("activity_id", activeActivities.map((activity) => activity.id))
-    .neq("acceptance_status", "removed");
+  const assignmentResult = await selectWithHoursFlags((columns) => access.admin.from("project_activity_assignees")
+    .select(columns).in("activity_id", activeActivities.map((activity) => activity.id)).neq("acceptance_status", "removed"),
+  "activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, acceptance_status");
   if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) throw new Error(assignmentResult.error.message);
   const assignmentTableReady = !assignmentResult.error;
   const assignmentsByActivity = activityAssignmentRowsById(
@@ -215,6 +218,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         ...activity,
         staff_user_id: assignment.staff_user_id,
         assignment_acceptance_status: assignment.acceptance_status,
+        assignment_hours_tbc: assignmentCapacityHours(activity, assignment, assignmentRows) == null,
         assignment_allocated_hours: assignmentCapacityHours(activity, assignment, assignmentRows),
         assignment_count: assignmentRows.length,
       }));
@@ -222,7 +226,8 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     return activity.staff_user_id ? [{
       ...activity,
       assignment_acceptance_status: activity.acceptance_status,
-      assignment_allocated_hours: number(activity.budget_hours),
+      assignment_allocated_hours: activity.budget_hours_tbc ? null : confirmedHours(activity.budget_hours),
+      assignment_hours_tbc: activity.budget_hours_tbc === true || confirmedHours(activity.budget_hours) == null,
       assignment_count: 1,
     }] : [];
   });
@@ -237,14 +242,16 @@ export async function capacityData(access, rangeStart, rangeEnd) {
           ...activity,
           staff_user_id: null,
           assignment_acceptance_status: null,
-          assignment_allocated_hours: 0,
+          assignment_allocated_hours: activity.budget_hours_tbc || activity.budget_hours == null ? null : 0,
+          assignment_hours_tbc: activity.budget_hours_tbc === true || activity.budget_hours == null,
           assignment_count: 0,
         }];
     }
     return [{
       ...activity,
       assignment_acceptance_status: activity.acceptance_status,
-      assignment_allocated_hours: activity.staff_user_id ? number(activity.budget_hours) : 0,
+      assignment_allocated_hours: activity.budget_hours_tbc || confirmedHours(activity.budget_hours) == null ? null : activity.staff_user_id ? number(activity.budget_hours) : 0,
+      assignment_hours_tbc: activity.budget_hours_tbc === true || confirmedHours(activity.budget_hours) == null,
       assignment_count: activity.staff_user_id ? 1 : 0,
     }];
   });
@@ -286,7 +293,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     // scheduled.
     const allocatedHours = staffActivities.reduce((sum, activity) => {
       const span = activitySpan(activity);
-      if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
+      if (activity.assignment_hours_tbc || !span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
       const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
       const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
       return sum + number(activity.assignment_allocated_hours) * (overlapDays / totalDays);
@@ -300,9 +307,16 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
       const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
       const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
-      return sum + number(task.budget_hours) * (overlapDays / totalDays);
+      return sum + (confirmedHours(task.budget_hours) ?? 0) * (overlapDays / totalDays);
     }, 0);
     const combinedAllocatedHours = allocatedHours + taskHours;
+    const unknownAllocationCount = staffActivities.filter((activity) => {
+      const span = activitySpan(activity);
+      return activity.assignment_hours_tbc && (!span || intersects(span.start, span.end, rangeStart, rangeEnd));
+    }).length + staffTasks.filter((task) => {
+      const span = taskSpan(task);
+      return confirmedHours(task.budget_hours) == null && (!span || intersects(span.start, span.end, rangeStart, rangeEnd));
+    }).length;
     const personLeaves = leaves.filter((leave) => leave.created_by === person.id);
     const leaveDays = personLeaves.reduce((sum, leave) => sum + workingDaysInRange(leave.startDate, leave.endDate, rangeStart, rangeEnd), 0);
     const leaveHours = leaveDays * (weeklyCapacityHours / 5);
@@ -315,6 +329,8 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     return {
       ...person,
       weeklyCapacityHours,
+      unknownAllocationCount,
+      capacityIncomplete: unknownAllocationCount > 0,
       capacityPercent,
       allocatedHours: Math.round(combinedAllocatedHours * 100) / 100,
       leaveDays,
@@ -343,7 +359,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         // The staff row is the event's identity in the planner. Keep this
         // activity ID shape for its existing drag/edit endpoint contract.
         id: `activity-${activity.id}`,
-        type: activity.task_category === "Fieldwork & travel" ? "field_survey" : "activity",
+        type: String(activity.task_category || "").trim().toLowerCase() === "fieldwork & travel" ? "field_survey" : "activity",
         startDate: span.start,
         endDate: span.end,
         title: activity.title,
@@ -355,8 +371,10 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         detail: activity.detail || "",
         // This is the assignee's capacity allocation, never the parent budget
         // repeated for every member of a shared activity.
-        budgetHours: number(activity.assignment_allocated_hours),
-        activityBudgetHours: number(activity.budget_hours),
+        budgetHours: activity.assignment_hours_tbc ? null : number(activity.assignment_allocated_hours),
+        hoursTbc: activity.assignment_hours_tbc === true,
+        activityBudgetHours: activity.budget_hours_tbc ? null : confirmedHours(activity.budget_hours),
+        activityBudgetHoursTbc: activity.budget_hours_tbc === true || confirmedHours(activity.budget_hours) == null,
         milestone: activity.milestone === true,
         acceptanceStatus: activity.assignment_acceptance_status || "accepted",
       };
@@ -392,7 +410,8 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         staffUserId: task.assigned_to,
         projectName: task.project || "Task Brief",
         detail: task.notes || task.deliverable || task.resources || "",
-        budgetHours: number(task.budget_hours),
+        budgetHours: confirmedHours(task.budget_hours),
+        hoursTbc: confirmedHours(task.budget_hours) == null,
         status: task.status,
       };
     }),
@@ -553,37 +572,44 @@ export async function POST(request) {
       const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 500) : item.title;
       const detail = typeof body.detail === "string" ? body.detail.trim().slice(0, 5000) || null : item.detail;
       const taskCategory = typeof body.taskCategory === "string" ? body.taskCategory.trim().slice(0, 200) || null : null;
-      const budgetHours = body.budgetHours === "" || body.budgetHours == null ? null : number(body.budgetHours);
-      const now = new Date().toISOString();
-      let activity = null;
-      if (item.generated_from_activity_id) {
-        const { data: existing } = await access.admin.from("project_activities")
-          .select("id, staff_user_id")
-          .eq("id", item.generated_from_activity_id)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (existing) {
-          const { data, error } = await access.admin.from("project_activities")
-            .update({ staff_user_id: staffUserId, title, detail, task_category: taskCategory, budget_hours: budgetHours, start_date: startDate, due_date: dueDate, milestone: body.milestone === true || item.milestone === true, acceptance_status: existing.staff_user_id === staffUserId ? undefined : "awaiting_response", assigned_at: now, assigned_by: access.user.id, notified_at: existing.staff_user_id === staffUserId ? undefined : null, updated_at: now })
-            .eq("id", existing.id).select("id, staff_user_id, title, task_category, budget_hours, due_date").single();
-          if (error) return Response.json({ error: error.message }, { status: 400 });
-          activity = data;
-        }
+      // Reuse the fast edit endpoint for linked activities: scalar reassignment
+      // retains its existing replacement policy and per-recipient history diff.
+      const edit = { staffUserId, title, detail, startDate, dueDate };
+      for (const key of ["budgetHours", "budgetHoursTbc", "budget_hours", "budget_hours_tbc", "allocatedHours", "allocatedHoursTbc", "allocated_hours", "allocated_hours_tbc", "milestone", "taskCategory"]) {
+        if (Object.hasOwn(body, key)) edit[key] = body[key];
       }
-      if (!activity) {
-        const { data, error } = await access.admin.from("project_activities")
-          .insert({ project_id: project.id, created_by: access.user.id, staff_user_id: staffUserId, title, detail, task_category: taskCategory, budget_hours: budgetHours, start_date: startDate, due_date: dueDate, milestone: body.milestone === true || item.milestone === true, status: item.status || "not_commenced", progress_percent: number(item.progress_percent), schedule_item_id: item.id, acceptance_status: "awaiting_response", assigned_at: now, assigned_by: access.user.id, notified_at: null, sort_order: 0, is_active: true, updated_at: now })
-          .select("id, staff_user_id, title, task_category, budget_hours, due_date").single();
-        if (error) return Response.json({ error: error.message }, { status: 400 });
-        activity = data;
+      let activityId = item.generated_from_activity_id;
+      if (activityId) {
+        const { data: existing, error: existingError } = await access.admin.from("project_activities")
+          .select("id, project_id").eq("id", activityId).eq("project_id", project.id).eq("is_active", true).maybeSingle();
+        if (existingError) return Response.json({ error: existingError.message }, { status: 400 });
+        activityId = existing?.id || null;
       }
-      const { error: scheduleError } = await access.admin.from("project_schedule_items")
-        .update({ title, detail, start_date: startDate, end_date: dueDate, generated_from_activity_id: activity.id, updated_at: now })
-        .eq("id", item.id);
-      if (scheduleError) return Response.json({ error: scheduleError.message }, { status: 400 });
-      const { error: eventError } = await access.admin.from("portal_events").insert({ recipient_id: staffUserId, event_type: "project_activity_assigned", severity: "action_required", title: `Work assignment: ${activity.title}`, body: `${project.name}${activity.task_category ? ` · ${activity.task_category}` : ""}${activity.budget_hours != null ? ` · ${activity.budget_hours} budgeted hours` : ""}${activity.due_date ? ` · Due ${activity.due_date}` : ""}`, href: "/staff/notifications", source_table: "project_activities", source_id: activity.id });
-      if (!eventError) await access.admin.from("project_activities").update({ notified_at: now }).eq("id", activity.id);
-      return Response.json({ activity, event_warning: eventError?.message || null });
+      if (!activityId) {
+        // Validate membership before materialising a new row, not after it.
+        let allocation = await access.admin.from("project_allocations").select("staff_user_id").eq("project_id", project.id).eq("staff_user_id", staffUserId).neq("active", false).limit(1);
+        if (allocation.error && /active/i.test(String(allocation.error.message || ""))) allocation = await access.admin.from("project_allocations").select("staff_user_id").eq("project_id", project.id).eq("staff_user_id", staffUserId).limit(1);
+        if (allocation.error) return Response.json({ error: allocation.error.message }, { status: 400 });
+        if (!allocation.data?.length) return Response.json({ error: "Activity assignees must be active staff allocated to this project." }, { status: 400 });
+        const budget = resolveHoursInput(body);
+        if (budget.error) return Response.json({ error: budget.error }, { status: 400 });
+        const allocationHours = resolveHoursInput(body, { allocatedHours: budget.value, allocatedHoursTbc: budget.tbc }, "allocated");
+        if (allocationHours.error) return Response.json({ error: allocationHours.error }, { status: 400 });
+        if (!budget.tbc && !allocationHours.tbc && allocationHours.value > budget.value) return Response.json({ error: "Total allocated staff hours cannot exceed this activity's budget hours." }, { status: 400 });
+        const now = new Date().toISOString();
+        const { data: activity, error: activityError } = await access.admin.from("project_activities")
+          .insert({ project_id: project.id, created_by: access.user.id, staff_user_id: null, title, detail, task_category: taskCategory, budget_hours: budget.value, budget_hours_tbc: budget.tbc, start_date: startDate, due_date: dueDate, milestone: body.milestone === true || item.milestone === true, status: item.status || "not_commenced", progress_percent: number(item.progress_percent), schedule_item_id: item.id, acceptance_status: "accepted", sort_order: 0, is_active: true, updated_at: now })
+          .select("id").single();
+        if (activityError) return Response.json({ error: activityError.message }, { status: 400 });
+        activityId = activity.id;
+        const { error: scheduleError } = await access.admin.from("project_schedule_items")
+          .update({ generated_from_activity_id: activityId, updated_at: now }).eq("id", item.id);
+        if (scheduleError) return Response.json({ error: scheduleError.message }, { status: 400 });
+      }
+      const response = await patchWorkActivity(new Request(request.url, { method: "PATCH", headers: request.headers, body: JSON.stringify(edit) }), { params: { projectId: project.id, activityId } });
+      if (!response.ok) return response;
+      const result = await response.json();
+      return Response.json({ ...result, event_warning: result.notify_warning || null });
     }
     const userId = String(body?.userId || "");
     const weeklyCapacityHours = Number(body?.weeklyCapacityHours);

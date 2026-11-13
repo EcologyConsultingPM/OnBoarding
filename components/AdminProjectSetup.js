@@ -50,7 +50,8 @@ const normaliseAssignees = (rawAssignees, fallback = {}) => {
     seen.add(staffUserId);
     normalised.push({
       staffUserId,
-      allocatedHours: assignee?.allocatedHours ?? assignee?.allocated_hours ?? "",
+      allocatedHours: assignee?.allocatedHoursTbc === true || assignee?.allocated_hours_tbc === true ? "" : assignee?.allocatedHours ?? assignee?.allocated_hours ?? "",
+      allocatedHoursTbc: assignee?.allocatedHoursTbc === true || assignee?.allocated_hours_tbc === true || assignee?.allocatedHours === "",
       acceptanceStatus: assignee?.acceptanceStatus || assignee?.acceptance_status || "awaiting_response",
       responseNote: assignee?.responseNote ?? assignee?.response_note ?? "",
     });
@@ -1125,7 +1126,8 @@ function ProjectDetail({
           const allocatedHours = assignees.reduce((total, assignee) => total + (Number(assignee.allocatedHours) || 0), 0);
           return {
             ...stripActivityUiFields(activity),
-            assignees,
+            assignees: assignees.map((assignee) => ({ ...assignee, allocatedHoursTbc: assignee.allocatedHours === "" })),
+            budgetHoursTbc: assignees.some((assignee) => assignee.allocatedHours === ""),
             staffUserIds: assignees.map((assignee) => assignee.staffUserId),
             // The legacy activity API still reads one owner and one total. Keep
             // those projections until every consumer reads `assignees`.
@@ -1715,10 +1717,11 @@ function ProjectDetail({
                           step="0.25"
                           inputMode="decimal"
                           value={assignee.allocatedHours}
+                          placeholder="TBC"
                           aria-label={`Allocated hours for ${staffNameAndEmail(assignee.staffUserId)}`}
                           onChange={(e) => updateActivityAssignees(i, assignees.map((current) => (
                             current.staffUserId === assignee.staffUserId
-                              ? { ...current, allocatedHours: e.target.value }
+                              ? { ...current, allocatedHours: e.target.value, allocatedHoursTbc: e.target.value === "" }
                               : current
                           )))}
                         />
@@ -1737,7 +1740,7 @@ function ProjectDetail({
               ) : <p className="aps-assignee-empty">No staff assigned yet. Add an allocated project team member.</p>}
               <p className={`aps-assignee-summary ${assignees.length && !missingAllocatedHours ? "ready" : "incomplete"}`} role="status">
                 {assignees.length
-                  ? <><strong>{assignees.length} staff member{assignees.length === 1 ? "" : "s"}</strong> · {totalAllocatedHours || 0} budgeted hour{totalAllocatedHours === 1 ? "" : "s"}{missingAllocatedHours ? " · add hours for each staff member" : ""}</>
+                  ? <><strong>{assignees.length} staff member{assignees.length === 1 ? "" : "s"}</strong> · {assignees.some((assignee) => assignee.allocatedHours === "") ? `${totalAllocatedHours || 0} known hours + TBC` : `${totalAllocatedHours || 0} budgeted hour${totalAllocatedHours === 1 ? "" : "s"}`}{missingAllocatedHours ? " · confirm allocated hours" : ""}</>
                   : "Add at least one staff member and their allocated hours."}
               </p>
             </div>
