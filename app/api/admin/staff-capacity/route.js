@@ -3,6 +3,7 @@ import { requirePortalResource } from "../../../../lib/portalVisibility";
 import { listDirectoryUsers } from "../../../../lib/staffDirectory";
 import { compactAuditRecord, recordAudit } from "../../../../lib/auditLog";
 import { resolveHoursInput, confirmedHours, selectWithHoursFlags } from "../../../../lib/workActivityHours";
+import { calendarDayPolicy, scheduledDaysInRange } from "../../../../lib/staffCalendarScheduling";
 import { PATCH as patchWorkActivity } from "../../projects/[projectId]/activities/[activityId]/route";
 
 export const runtime = "nodejs";
@@ -66,14 +67,15 @@ function workingDaysInRange(start, end, rangeStart, rangeEnd) {
   return days;
 }
 
-// Work activities (especially fieldwork) can legitimately span or land on
-// weekends, unlike leave, so their hours are prorated across every calendar
-// day of their span rather than working days only.
-function calendarDaysInRange(start, end, rangeStart, rangeEnd) {
-  const from = new Date(Math.max(asDate(start)?.getTime() || Infinity, asDate(rangeStart)?.getTime() || -Infinity));
-  const to = new Date(Math.min(asDate(end || start)?.getTime() || -Infinity, asDate(rangeEnd)?.getTime() || Infinity));
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) return 0;
-  return Math.round((to.getTime() - from.getTime()) / DAY) + 1;
+function liveSource(record) {
+  return record && record.is_active !== false && record.active !== false
+    && !record.deleted_at && !record.removed_at && !record.retired_at
+    && !["archived", "deleted", "removed", "inactive", "withdrawn", "cancelled"].includes(String(record.status || "").toLowerCase());
+}
+
+function liveAssignment(record) {
+  return liveSource(record)
+    && !["removed", "declined", "inactive", "withdrawn"].includes(String(record.acceptance_status || "").toLowerCase());
 }
 
 // An activity's real working span: start_date if set, else it collapses to
@@ -162,15 +164,15 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   const [directory, profilesResult, activitiesResult, leavesResult, trainingResult, scheduleResult, projectsResult, tasksResult, reviewsResult] = await Promise.all([
     listDirectoryUsers(access.admin, { activeOnly: true }),
     access.admin.from("staff_capacity_profiles").select("user_id, weekly_capacity_hours, notes, updated_at"),
-    selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("is_active", true), "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, acceptance_status, progress_percent, schedule_item_id, is_active"),
+    selectWithHoursFlags((columns) => access.admin.from("project_activities").select(columns).eq("is_active", true), "id, project_id, staff_user_id, task_category, title, detail, budget_hours, budget_hours_tbc, due_date, start_date, milestone, status, acceptance_status, progress_percent, schedule_item_id, is_active, updated_at"),
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "leave").eq("status", "approved"),
     // Approved training is time a person is unavailable for project work, just
     // as leave is. It was being approved and then vanishing from the capacity
     // picture entirely, so someone could be booked onto fieldwork on a day
     // their course had already been signed off.
     access.admin.from("service_requests").select("id, created_by, details, title, reviewed_at").eq("request_type", "training").eq("status", "approved"),
-    access.admin.from("project_schedule_items").select("id, project_id, title, detail, start_date, end_date, milestone, progress_percent, status, generated_from_activity_id, is_active").eq("is_active", true),
-    access.admin.from("projects").select("id, name, client_name, status").is("deleted_at", null).neq("status", "archived"),
+    access.admin.from("project_schedule_items").select("id, project_id, title, detail, start_date, end_date, milestone, progress_percent, status, generated_from_activity_id, is_active, updated_at").eq("is_active", true),
+    access.admin.from("projects").select("id, name, client_name, status, deleted_at").is("deleted_at", null).neq("status", "archived"),
     access.admin.from("remote_tasks").select("id, assigned_to, project, task, due_date, start_date, budget_hours, deliverable, resources, notes, status, accepted_at, completed_at, declined_at, withdrawn_at").is("completed_at", null).is("declined_at", null).is("withdrawn_at", null),
     // Assigned policy and procedure reviews are real committed work with a due
     // date, so they belong in the workload picture alongside activities and
@@ -187,21 +189,39 @@ export async function capacityData(access, rangeStart, rangeEnd) {
   if (leavesResult.error) throw new Error(leavesResult.error.message);
   if (projectsResult.error) throw new Error(projectsResult.error.message);
 
-  const projectById = new Map((projectsResult.data || []).map((project) => [project.id, project]));
+  const projectById = new Map((projectsResult.data || []).filter(liveSource).map((project) => [project.id, project]));
   const profileByUser = new Map((profilesResult.data || []).map((profile) => [profile.user_id, profile]));
-  // The calendar needs every live activity, including unassigned ones, so the
-  // administrator can allocate it. Only an activity the person has accepted
-  // counts toward their capacity calculation.
+  // Read reciprocal links, including retired sources, independently of the
+  // active-detail query. Old manual schedules may lack generated provenance;
+  // retirement of an activity may also precede retirement of its schedule.
+  // Neither case makes the linked schedule new standalone work. This is a
+  // read-only reconciliation, never a source-title/date/hours repair.
+  const liveSchedules = (scheduleResult.data || []).filter((item) => liveSource(item) && projectById.has(item.project_id));
+  const scheduleIds = [...new Set([
+    ...liveSchedules.map((item) => item.id),
+    ...(activitiesResult.data || []).map((activity) => activity.schedule_item_id).filter(Boolean),
+  ])];
+  const sourceLinksResult = scheduleIds.length
+    ? await access.admin.from("project_activities").select("id, project_id, schedule_item_id, is_active, status, updated_at").in("schedule_item_id", scheduleIds)
+    : { data: [], error: null };
+  if (sourceLinksResult.error) throw new Error(sourceLinksResult.error.message);
+  const sourceLinksByActivity = new Map((sourceLinksResult.data || []).map((activity) => [activity.id, activity]));
+  const reciprocalScheduleIds = new Set((sourceLinksResult.data || []).map((activity) => activity.schedule_item_id).filter(Boolean));
+  // Keep every live activity, including truly unassigned ones. If the later
+  // referential read observes a retirement, do not emit a stale active snapshot
+  // fetched earlier while the asynchronous delete was still in progress.
   const activeActivities = (activitiesResult.data || []).filter((activity) =>
-    projectById.has(activity.project_id),
+    liveSource(activity) && projectById.has(activity.project_id)
+      && (!sourceLinksByActivity.has(activity.id) || liveSource(sourceLinksByActivity.get(activity.id))),
   );
+  for (const activity of activeActivities) if (activity.schedule_item_id) reciprocalScheduleIds.add(activity.schedule_item_id);
   const assignmentResult = await selectWithHoursFlags((columns) => access.admin.from("project_activity_assignees")
     .select(columns).in("activity_id", activeActivities.map((activity) => activity.id)).neq("acceptance_status", "removed"),
-  "activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, acceptance_status");
+  "activity_id, staff_user_id, allocated_hours, allocated_hours_tbc, acceptance_status, removed_at, updated_at");
   if (assignmentResult.error && !assignmentTableUnavailable(assignmentResult.error)) throw new Error(assignmentResult.error.message);
   const assignmentTableReady = !assignmentResult.error;
   const assignmentsByActivity = activityAssignmentRowsById(
-    (assignmentResult.data || []).filter((row) => row.staff_user_id && row.acceptance_status !== "declined"),
+    (assignmentResult.data || []).filter((row) => row.staff_user_id && liveAssignment(row)),
   );
   // Capacity is a forward planning tool, so every saved, active assignment
   // shown in the workload calendar must consume capacity immediately. Waiting
@@ -223,7 +243,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         assignment_count: assignmentRows.length,
       }));
     }
-    return activity.staff_user_id ? [{
+    return activity.staff_user_id && liveAssignment(activity) ? [{
       ...activity,
       assignment_acceptance_status: activity.acceptance_status,
       assignment_allocated_hours: activity.budget_hours_tbc ? null : confirmedHours(activity.budget_hours),
@@ -246,17 +266,18 @@ export async function capacityData(access, rangeStart, rangeEnd) {
           assignment_hours_tbc: activity.budget_hours_tbc === true || activity.budget_hours == null,
           assignment_count: 0,
         }];
-    }
+      }
     return [{
       ...activity,
+      staff_user_id: liveAssignment(activity) ? activity.staff_user_id : null,
       assignment_acceptance_status: activity.acceptance_status,
-      assignment_allocated_hours: activity.budget_hours_tbc || confirmedHours(activity.budget_hours) == null ? null : activity.staff_user_id ? number(activity.budget_hours) : 0,
+      assignment_allocated_hours: activity.budget_hours_tbc || confirmedHours(activity.budget_hours) == null ? null : activity.staff_user_id && liveAssignment(activity) ? number(activity.budget_hours) : 0,
       assignment_hours_tbc: activity.budget_hours_tbc === true || confirmedHours(activity.budget_hours) == null,
-      assignment_count: activity.staff_user_id ? 1 : 0,
+      assignment_count: activity.staff_user_id && liveAssignment(activity) ? 1 : 0,
     }];
   });
   const activities = capacityActivities.filter((activity) => activity.staff_user_id && projectById.has(activity.project_id));
-  const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to);
+  const tasks = (tasksResult.error ? [] : (tasksResult.data || [])).filter((task) => task.assigned_to && liveSource(task) && !task.completed_at && !task.declined_at && !task.withdrawn_at && task.status !== "declined" && task.status !== "completed");
   const leaves = (leavesResult.data || []).map((record) => ({
     ...record,
     startDate: dateOnly(record.details?.start_date),
@@ -285,7 +306,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     const profile = profileByUser.get(person.id);
     const weeklyCapacityHours = number(profile?.weekly_capacity_hours) || 38;
     const staffActivities = activities.filter((activity) => activity.staff_user_id === person.id);
-    // Each activity's budgeted hours are prorated across the calendar days of
+    // Each activity's budgeted hours are prorated across the scheduled days of
     // its real span (start_date → due_date) and only the portion that falls
     // inside the period being viewed is counted — a multi-week task no
     // longer dumps its entire budget onto whichever week contains its due
@@ -294,28 +315,28 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     const allocatedHours = staffActivities.reduce((sum, activity) => {
       const span = activitySpan(activity);
       if (activity.assignment_hours_tbc || !span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
-      const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
-      const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
+      const totalDays = scheduledDaysInRange(span.start, span.end, span.start, span.end) || 1;
+      const overlapDays = scheduledDaysInRange(span.start, span.end, rangeStart, rangeEnd);
       return sum + number(activity.assignment_allocated_hours) * (overlapDays / totalDays);
     }, 0);
     const staffTasks = tasks.filter((task) => task.assigned_to === person.id);
     // Accepted Task Briefs consume capacity exactly like project activities —
-    // same proration, same span logic — so a staff member's workload total
-    // reflects both delivery routes, not just formally allocated activities.
+    // same proration, same span logic — with explicit weekend-only dates
+    // permitted for this manual-work route, never for project source items.
     const taskHours = staffTasks.reduce((sum, task) => {
       const span = taskSpan(task);
       if (!span || !intersects(span.start, span.end, rangeStart, rangeEnd)) return sum;
-      const totalDays = calendarDaysInRange(span.start, span.end, span.start, span.end) || 1;
-      const overlapDays = calendarDaysInRange(span.start, span.end, rangeStart, rangeEnd);
+      const totalDays = scheduledDaysInRange(span.start, span.end, span.start, span.end, true) || 1;
+      const overlapDays = scheduledDaysInRange(span.start, span.end, rangeStart, rangeEnd, true);
       return sum + (confirmedHours(task.budget_hours) ?? 0) * (overlapDays / totalDays);
     }, 0);
     const combinedAllocatedHours = allocatedHours + taskHours;
     const unknownAllocationCount = staffActivities.filter((activity) => {
       const span = activitySpan(activity);
-      return activity.assignment_hours_tbc && (!span || intersects(span.start, span.end, rangeStart, rangeEnd));
+      return activity.assignment_hours_tbc && (!span || scheduledDaysInRange(span.start, span.end, rangeStart, rangeEnd) > 0);
     }).length + staffTasks.filter((task) => {
       const span = taskSpan(task);
-      return confirmedHours(task.budget_hours) == null && (!span || intersects(span.start, span.end, rangeStart, rangeEnd));
+      return confirmedHours(task.budget_hours) == null && (!span || scheduledDaysInRange(span.start, span.end, rangeStart, rangeEnd, true) > 0);
     }).length;
     const personLeaves = leaves.filter((leave) => leave.created_by === person.id);
     const leaveDays = personLeaves.reduce((sum, leave) => sum + workingDaysInRange(leave.startDate, leave.endDate, rangeStart, rangeEnd), 0);
@@ -362,6 +383,7 @@ export async function capacityData(access, rangeStart, rangeEnd) {
         type: String(activity.task_category || "").trim().toLowerCase() === "fieldwork & travel" ? "field_survey" : "activity",
         startDate: span.start,
         endDate: span.end,
+        dayPolicy: calendarDayPolicy(span.start, span.end),
         title: activity.title,
         staffUserId: activity.staff_user_id,
         projectId: activity.project_id,
@@ -401,11 +423,14 @@ export async function capacityData(access, rangeStart, rangeEnd) {
       return span && intersects(span.start, span.end, rangeStart, rangeEnd);
     }).map((task) => {
       const span = taskSpan(task);
+      const dayPolicy = calendarDayPolicy(span.start, span.end, true);
       return {
         id: `task-${task.id}`,
         type: "task_brief",
         startDate: span.start,
         endDate: span.end,
+        dayPolicy,
+        ...(dayPolicy === "calendar_days" ? { manualWeekend: true } : {}),
         title: task.task,
         staffUserId: task.assigned_to,
         projectName: task.project || "Task Brief",
@@ -418,11 +443,12 @@ export async function capacityData(access, rangeStart, rangeEnd) {
     // Activity-created Gantt rows are already displayed as their interactive
     // source activity above. Keep only manual schedule phases here so the
     // capacity calendar does not present the same work twice.
-    ...(scheduleResult.data || []).filter((item) => !item.generated_from_activity_id && intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
+    ...liveSchedules.filter((item) => !item.generated_from_activity_id && !reciprocalScheduleIds.has(item.id) && intersects(item.start_date || item.end_date, item.end_date || item.start_date, rangeStart, rangeEnd)).map((item) => ({
       id: `schedule-${item.id}`,
       type: item.milestone ? "milestone" : "schedule",
       startDate: item.start_date || item.end_date,
       endDate: item.end_date || item.start_date,
+      dayPolicy: calendarDayPolicy(item.start_date, item.end_date),
       title: item.title,
       detail: item.detail || "",
       projectId: item.project_id,
@@ -554,7 +580,7 @@ export async function POST(request) {
         .eq("is_active", true)
         .maybeSingle();
       if (itemError) return Response.json({ error: itemError.message }, { status: 400 });
-      if (!item) return Response.json({ error: "Schedule item not found." }, { status: 404 });
+      if (!liveSource(item)) return Response.json({ error: "Schedule item not found." }, { status: 404 });
 
       const { data: project, error: projectError } = await access.admin
         .from("projects")
@@ -564,7 +590,7 @@ export async function POST(request) {
         .eq("status", "active")
         .maybeSingle();
       if (projectError) return Response.json({ error: projectError.message }, { status: 400 });
-      if (!project) return Response.json({ error: "Only an active project can be allocated from the workload calendar." }, { status: 409 });
+      if (!liveSource(project) || project.status !== "active") return Response.json({ error: "Only an active project can be allocated from the workload calendar." }, { status: 409 });
 
       const startDate = dateOnly(body.startDate) || dateOnly(item.start_date) || dateOnly(item.end_date);
       const dueDate = dateOnly(body.dueDate) || dateOnly(item.end_date) || startDate;
@@ -580,10 +606,20 @@ export async function POST(request) {
       }
       let activityId = item.generated_from_activity_id;
       if (activityId) {
+        // A stale planner response must not turn a retired/missing generated
+        // source into a newly materialised activity. Refresh instead.
         const { data: existing, error: existingError } = await access.admin.from("project_activities")
-          .select("id, project_id").eq("id", activityId).eq("project_id", project.id).eq("is_active", true).maybeSingle();
+          .select("id, project_id, is_active, status, updated_at").eq("id", activityId).eq("project_id", project.id).maybeSingle();
         if (existingError) return Response.json({ error: existingError.message }, { status: 400 });
-        activityId = existing?.id || null;
+        if (!liveSource(existing) || existing.project_id !== project.id) return Response.json({ error: "The source activity is no longer available. Refresh the workload calendar." }, { status: 409 });
+      } else {
+        const { data: linked, error: linkedError } = await access.admin.from("project_activities")
+          .select("id, project_id, schedule_item_id, is_active, status, updated_at").eq("schedule_item_id", item.id).eq("project_id", project.id);
+        if (linkedError) return Response.json({ error: linkedError.message }, { status: 400 });
+        if (linked?.length) {
+          if (linked.length !== 1 || !liveSource(linked[0])) return Response.json({ error: "This schedule has existing or retired source activities. Refresh and edit the source activity instead." }, { status: 409 });
+          activityId = linked[0].id;
+        }
       }
       if (!activityId) {
         // Validate membership before materialising a new row, not after it.

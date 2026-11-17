@@ -21,6 +21,7 @@ import ProjectGantt from "./ProjectGantt";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
 import { monthlyBudgetInputError } from "../lib/projectSetupBudgetBasis";
+import { signalProjectSourceChange } from "../lib/projectSourceSignals";
 import {
   activitySelectionKey,
   withActivityClientId,
@@ -145,15 +146,21 @@ export default function AdminProjectSetup({ initialProjectId = null, onOpenTrack
   const [message, setMessage] = useState("");
 
   const auth = useCallback(
-    (method, url, body) =>
-      fetch(url, {
+    async (method, url, body) => {
+      const response = await fetch(url, {
         method,
+        ...(method === "GET" ? { cache: "no-store" } : {}),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
         body: body ? JSON.stringify(body) : undefined,
-      }),
+      });
+      if (response.ok && method !== "GET" && url.startsWith("/api/projects")) {
+        signalProjectSourceChange(url);
+      }
+      return response;
+    },
     // Token string, not the session object: Supabase re-broadcasts a new
     // session object on every TOKEN_REFRESHED (which fires on tab focus), and
     // depending on the object made every consumer of `auth` unstable.
