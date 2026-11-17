@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Edit3, Loader2, RefreshCw, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import useUnsavedGuard from "../lib/useUnsavedGuard";
+import { calendarDayPolicy, eventFallsOnWorkDay, isNonWorkingDay } from "../lib/staffCalendarScheduling";
 
 const STATUS = {
   available: { label: "Available", color: "#469b69" },
@@ -85,12 +86,6 @@ function shiftYear(value, count) {
   return localDate(date);
 }
 
-function eventFallsOn(event, date) {
-  const start = String(event.date || event.startDate || "").slice(0, 10);
-  const end = String(event.endDate || start).slice(0, 10);
-  return start && start <= date && end >= date;
-}
-
 function periodFor(mode, anchorDate, customStart, customEnd) {
   if (mode === "month") {
     const start = monthStart(anchorDate);
@@ -126,6 +121,13 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const lastReturnRefreshRef = useRef(0);
+  const requestSequenceRef = useRef(0);
+  const activeRequestRef = useRef(null);
+  const refreshBlockedRef = useRef(false);
+  const deferredRefreshRef = useRef(false);
+  const modalInitialRef = useRef(null);
+  const [refreshPending, setRefreshPending] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
   const [editing, setEditing] = useState("");
   const [draft, setDraft] = useState({});
 
@@ -144,7 +146,6 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       )),
   );
 
-  useUnsavedGuard(capacityDirty, "A capacity change has not been saved.");
   const [saving, setSaving] = useState(false);
   const [unassignedModal, setUnassignedModal] = useState(null); // admin: { activityId, projectId, title, taskCategory, budgetHours, startDate, dueDate, staffUserId }
   const [manualTaskModal, setManualTaskModal] = useState(null);
@@ -155,37 +156,105 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimMessage, setClaimMessage] = useState("");
 
+  const calendarEditDirty = Boolean(
+    (unassignedModal || manualTaskModal) &&
+    JSON.stringify(unassignedModal || manualTaskModal) !== JSON.stringify(modalInitialRef.current),
+  );
+  useUnsavedGuard(capacityDirty || calendarEditDirty, "A calendar or capacity change has not been saved.");
+  // Keep even a clean open editor's context stable. In-flight GETs also consult
+  // this ref before applying a response, so opening/typing cannot be clobbered.
+  const refreshBlocked = Boolean(editing || unassignedModal || manualTaskModal || saving || modalBusy);
+  refreshBlockedRef.current = refreshBlocked;
+
   const period = useMemo(
     () => periodFor(viewMode, anchorDate, customStart, customEnd),
     [viewMode, anchorDate, customStart, customEnd],
   );
 
   const load = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!session?.access_token) {
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+      deferredRefreshRef.current = false;
+      setRefreshPending(false);
+      setData(() => null);
+      setLastRefreshed(null);
+      setLoading(false);
+      return;
+    }
+    if (refreshBlockedRef.current) {
+      deferredRefreshRef.current = true;
+      setRefreshPending(true);
+      return;
+    }
+    const sequence = ++requestSequenceRef.current;
+    activeRequestRef.current?.abort();
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
     setLoading(true);
     try {
       const response = await fetch(`${endpoint}?start=${period.start}&end=${period.end}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: controller.signal,
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const payload = await response.json();
+      if (sequence !== requestSequenceRef.current || controller.signal.aborted) return;
       if (!response.ok) throw new Error(payload.error || "Could not load staff capacity.");
-      setData(payload);
+      if (refreshBlockedRef.current) {
+        deferredRefreshRef.current = true;
+        setRefreshPending(true);
+        return;
+      }
+      // Replace the complete scoped source snapshot, never merge cached events:
+      // deleted/reassigned project sources disappear; retained manual tasks and
+      // approved leave still arrive in the authoritative payload.
+      setData(() => payload);
+      setLastRefreshed(new Date());
+      setRefreshPending(false);
       setError("");
     } catch (requestError) {
+      if (sequence !== requestSequenceRef.current || controller.signal.aborted || requestError.name === "AbortError") return;
       setError(requestError.message || "Could not load staff capacity.");
     } finally {
-      setLoading(false);
+      if (sequence === requestSequenceRef.current) {
+        activeRequestRef.current = null;
+        setLoading(false);
+      }
     }
   }, [session?.access_token, period.start, period.end, endpoint]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Staff Capacity is a read-only live view. An administrator can revise a
-  // Schedule in another window while the staff calendar remains open, so
-  // refetch whenever the staff member returns to this window/tab. The short
-  // throttle coalesces the focus and visibility events browsers fire together.
   useEffect(() => {
-    if (mode !== "staff") return undefined;
+    load();
+    return () => {
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (refreshBlocked && activeRequestRef.current) {
+      requestSequenceRef.current += 1;
+      activeRequestRef.current.abort();
+      activeRequestRef.current = null;
+      deferredRefreshRef.current = true;
+      setRefreshPending(true);
+      setLoading(false);
+    } else if (!refreshBlocked && deferredRefreshRef.current) {
+      deferredRefreshRef.current = false;
+      load();
+    }
+  }, [refreshBlocked, load]);
+
+  // Both portals reconcile on return; focus + visibility are coalesced. Writers
+  // dispatch ec:project-sources-changed after source saves/deletes/reassignments.
+  // The matching storage key is just a cross-tab invalidation signal: no source
+  // records or event payloads are read into or persisted by this calendar.
+  // These signals provide immediate refresh within this browser.
+  useEffect(() => {
     const refreshAfterReturn = () => {
       if (document.hidden) return;
       const now = Date.now();
@@ -193,13 +262,33 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       lastReturnRefreshRef.current = now;
       load();
     };
+    const refreshAfterSourceChange = () => load();
+    const refreshAfterStorageChange = (event) => {
+      if (event.key === "ec:project-sources-changed") load();
+    };
+    const sourceEvents = ["ec:project-sources-changed", "staff-calendar-source-changed", "staff-capacity-source-changed", "project-activities-updated", "project-schedule-updated"];
     window.addEventListener("focus", refreshAfterReturn);
     document.addEventListener("visibilitychange", refreshAfterReturn);
+    window.addEventListener("storage", refreshAfterStorageChange);
+    sourceEvents.forEach((name) => window.addEventListener(name, refreshAfterSourceChange));
     return () => {
       window.removeEventListener("focus", refreshAfterReturn);
       document.removeEventListener("visibilitychange", refreshAfterReturn);
+      window.removeEventListener("storage", refreshAfterStorageChange);
+      sourceEvents.forEach((name) => window.removeEventListener(name, refreshAfterSourceChange));
     };
-  }, [mode, load]);
+  }, [load]);
+
+  // Another staff member may save from a different device while this calendar
+  // remains open. Refresh only the visible signed-in view; load() retains its
+  // editor/race guards and defers any refresh until an open edit is finished.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden && !activeRequestRef.current) load();
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [load, session?.access_token]);
 
   const saveProfile = async (person) => {
     if (mode === "staff") return;
@@ -229,7 +318,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
     const isScheduleItem = ["schedule", "milestone"].includes(event.type);
     const activityId = isScheduleItem ? "" : event.id.replace(/^activity-/, "");
     setModalError("");
-    setUnassignedModal({
+    const initial = {
       activityId,
       scheduleItemId: isScheduleItem ? event.id.replace(/^schedule-/, "") : "",
       projectId: event.projectId,
@@ -242,7 +331,16 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       detail: event.detail || "",
       budgetHours: event.budgetHours ?? "",
       milestone: event.milestone === true,
-    });
+    };
+    modalInitialRef.current = initial;
+    setUnassignedModal(initial);
+  };
+  const closeCalendarEditor = () => {
+    if (modalBusy) return;
+    if (calendarEditDirty && !window.confirm("Discard the unsaved calendar changes?")) return;
+    setUnassignedModal(null);
+    setManualTaskModal(null);
+    modalInitialRef.current = null;
   };
   const saveUnassignedAssignment = async () => {
     if (!unassignedModal) return;
@@ -290,7 +388,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   const openManualTaskModal = () => {
     if (mode === "staff" || !data?.canEdit) return;
     setModalError("");
-    setManualTaskModal({
+    const initial = {
       itemType: "task",
       assignedTo: "",
       project: "Internal / non-project work",
@@ -301,7 +399,9 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       deliverable: "",
       notes: "",
       leaveType: "annual_leave",
-    });
+    };
+    modalInitialRef.current = initial;
+    setManualTaskModal(initial);
   };
   const saveManualTask = async () => {
     if (!manualTaskModal) return;
@@ -389,6 +489,11 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
   // detailed path for reviewing hours, category and activity instructions.
   const dropActivity = async (activity, staffUserId, startDate) => {
     if (!activity || mode === "staff" || !data?.canEdit || !activity.projectId) return;
+    if (isNonWorkingDay(startDate)) {
+      setDraggedActivity(null);
+      setError("Saturday and Sunday are non-working days. Use Add calendar item for a deliberate manual weekend item.");
+      return;
+    }
     const scheduleAssignment = ["schedule", "milestone"].includes(activity.type);
     const activityId = String(activity.id || "").replace(/^activity-/, "");
     const priorStart = activity.startDate || activity.endDate || startDate;
@@ -495,7 +600,8 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       return {
         date,
         label: dateText(date, { weekday: "short", day: "numeric" }),
-        events: selectedEvents.filter((event) => eventFallsOn(event, date)),
+        nonWorking: isNonWorkingDay(date),
+        events: selectedEvents.filter((event) => eventFallsOnWorkDay(event, date)),
       };
     });
   }, [period.start, period.end, selectedEvents]);
@@ -535,8 +641,8 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           <h2>Staff Capacity Planner</h2>
           <p>{mode === "staff" ? "See the team's planned work, approved leave and project deadlines on the calendar below." : "Review allocated activity hours, approved leave, project deadlines and available capacity before creating or reassigning work."}</p>
         </div>
-          <div className="scp-controls">
-          <button type="button" className="scp-refresh" onClick={load} disabled={loading} title="Reload the latest workload dates">
+        <div className="scp-controls">
+          <button type="button" className="scp-refresh" onClick={() => load()} disabled={loading} title="Reload the latest workload dates">
             <RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh
           </button>
           <label className="scp-view-select">
@@ -569,8 +675,9 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
       {error ? <p className="scp-error"><AlertTriangle size={15} /> {error}</p> : null}
       {loading ? <p className="scp-loading"><Loader2 className="spin" size={16} /> Calculating capacity…</p> : null}
       {!loading && data?.ready === false ? <p className="scp-error"><AlertTriangle size={15} /> {data.message}</p> : null}
+      {lastRefreshed ? <p className="scp-refresh-status" aria-live="polite" style={{ fontSize: "11px", color: "#a9c4a9", margin: "0 0 10px" }}>Last refreshed {lastRefreshed.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}{refreshPending ? " · Updates pending — save or close the editor to refresh." : ""}</p> : null}
 
-      {!loading && data?.ready ? (
+      {data?.ready ? (
         <>
           {mode !== "staff" && (
             <>
@@ -607,34 +714,34 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
           )}
 
               <div className="scp-calendar-section">
-              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Every scheduled project activity appears here and is included in the capacity totals. Click or double-click any project item to see its project, activity and client context. Administrators can drag an activity or unassigned schedule item to a staff member and date; the linked delivery schedule updates automatically.</p></div><div className="scp-calendar-heading-actions">{mode !== "staff" && data.canEdit ? <button type="button" className="scp-manual-task" onClick={openManualTaskModal}><UserPlus size={14} /> Add calendar item</button> : null}<span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div></div>
+              <div className="scp-calendar-heading"><div><h3><CalendarDays size={16} /> Workload calendar</h3><p>Date ranges spread planned effort over working days and are not a booking for every day. Saturday and Sunday are non-working days: project tasks and automatic reviews do not book weekends. Use Add calendar item for a deliberate manual weekend item. Click or double-click a project item for context. Administrators can drag an activity or unassigned schedule item to a staff member and date; the linked delivery schedule updates automatically.</p></div><div className="scp-calendar-heading-actions">{mode !== "staff" && data.canEdit ? <button type="button" className="scp-manual-task" onClick={openManualTaskModal}><UserPlus size={14} /> Add calendar item</button> : null}<span className="scp-calendar-count">{calendarDays.length} day{calendarDays.length === 1 ? "" : "s"}</span></div></div>
             <div className="scp-calendar-legend">{Object.entries(EVENT).map(([key, item]) => <span key={key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
             {selectedEvents.length ? (
               <>
               <div className="scp-calendar-scroll" role="region" aria-label="Workload calendar scroll area" tabIndex="0">
                 <div className="scp-calendar-grid" role="grid" aria-label={`${rangeLabel} staff workload calendar`} style={{ "--scp-day-count": calendarDays.length }}>
                   <div className="scp-calendar-corner" role="columnheader">Staff member</div>
-                  {calendarDays.map((day) => <div className="scp-calendar-day-header" role="columnheader" key={day.date}><strong>{day.label}</strong><small>{day.date.slice(0, 4)}</small></div>)}
+                  {calendarDays.map((day) => <div className={`scp-calendar-day-header${day.nonWorking ? " scp-calendar-day-header--non-working" : ""}`} role="columnheader" key={day.date}><strong>{day.label}</strong><small>{day.date.slice(0, 4)}</small>{day.nonWorking ? <span className="scp-calendar-non-working-label">Non-working</span> : null}</div>)}
                   {data.people.map((person) => <div className="scp-calendar-person-row" role="row" key={`calendar-${person.id}`}>
                     <div className="scp-calendar-staff" role="rowheader" onClick={() => onSelectStaff?.(person)}><strong>{person.name || person.email}</strong><small>{person.weeklyCapacityHours} h/wk</small></div>
                     {calendarDays.map((day) => {
                       const events = day.events.filter((event) => event.staffUserId === person.id);
-                      const canReceiveDrop = mode !== "staff" && data.canEdit;
-                      return <div className={`scp-calendar-cell${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); dropActivity(activityFromDrop(event), person.id, day.date); }}>
-                        {events.map((event) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}`} key={event.id} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}</span></button>; })}
+                      const canReceiveDrop = mode !== "staff" && data.canEdit && !day.nonWorking;
+                      return <div className={`scp-calendar-cell${day.nonWorking ? " scp-calendar-cell--non-working" : ""}${draggedActivity && canReceiveDrop ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" aria-label={day.nonWorking ? `${person.name || person.email} · ${day.date} · Non-working day; manual items only` : undefined} key={`${person.id}-${day.date}`} onDragOver={(event) => { if (canReceiveDrop) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (!canReceiveDrop) { if (day.nonWorking && mode !== "staff" && data.canEdit) setError("Saturday and Sunday are non-working days. Use Add calendar item for a deliberate manual weekend item."); setDraggedActivity(null); return; } dropActivity(activityFromDrop(event), person.id, day.date); }}>
+                        {events.map((event, index) => { const style = EVENT[event.type] || EVENT.schedule; const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId && mode !== "staff" && data.canEdit; return <button type="button" draggable={manageable} className={`scp-calendar-event${manageable ? " scp-calendar-event--draggable" : ""}${day.nonWorking && event.type === "task_brief" ? " scp-calendar-event--weekend-manual" : ""}`} key={`${event.type}-${event.id}-${person.id}-${index}`} onDragStart={(dragEvent) => { if (manageable) beginActivityDrag(dragEvent, event); }} onDragEnd={() => setDraggedActivity(null)} onClick={() => manageable ? openUnassignedModal(event) : onSelectStaff?.(person)} onDoubleClick={() => manageable && openUnassignedModal(event)} title={manageable ? `${event.title} — click for details, or drag to reassign and reschedule` : `${event.title}${event.projectName ? ` · ${event.projectName}` : ""}`}><i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}{day.nonWorking && event.type === "task_brief" ? <small className="scp-weekend-manual-label">Manual weekend</small> : null}</span></button>; })}
                       </div>;
                     })}
                   </div>)}
                   {calendarDays.some((day) => day.events.some((event) => !event.staffUserId)) ? <div className="scp-calendar-person-row" role="row" key="calendar-shared">
                     <div className="scp-calendar-staff scp-calendar-staff--shared" role="rowheader"><strong>Shared / unassigned</strong><small>Project-wide items</small></div>
-                    {calendarDays.map((day) => <div className={`scp-calendar-cell${draggedActivity && mode !== "staff" && data.canEdit ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" key={`shared-${day.date}`} onDragOver={(event) => { if (mode !== "staff" && data.canEdit) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); const activity = activityFromDrop(event); if (activity) openUnassignedModal({ ...activity, startDate: day.date, endDate: day.date, staffUserId: "" }); }}>{day.events.filter((event) => !event.staffUserId).map((event) => {
+                    {calendarDays.map((day) => <div className={`scp-calendar-cell${day.nonWorking ? " scp-calendar-cell--non-working" : ""}${draggedActivity && mode !== "staff" && data.canEdit && !day.nonWorking ? " scp-calendar-cell--drop-target" : ""}`} role="gridcell" aria-label={day.nonWorking ? `${day.date} · Non-working day; manual items only` : undefined} key={`shared-${day.date}`} onDragOver={(event) => { if (mode !== "staff" && data.canEdit && !day.nonWorking) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (day.nonWorking || mode === "staff" || !data.canEdit) { if (day.nonWorking && mode !== "staff" && data.canEdit) setError("Saturday and Sunday are non-working days. Use Add calendar item for a deliberate manual weekend item."); setDraggedActivity(null); return; } const activity = activityFromDrop(event); if (activity) openUnassignedModal({ ...activity, startDate: day.date, endDate: day.date, staffUserId: "" }); }}>{day.events.filter((event) => !event.staffUserId).map((event, index) => {
                       const style = EVENT[event.type] || EVENT.schedule;
                       const manageable = ["activity", "field_survey", "schedule", "milestone"].includes(event.type) && event.projectId;
                       return (
                         <button
                           type="button"
-                          className={`scp-calendar-event${manageable && mode !== "staff" && data.canEdit ? " scp-calendar-event--draggable" : ""}`}
-                          key={event.id}
+                          className={`scp-calendar-event${manageable && mode !== "staff" && data.canEdit ? " scp-calendar-event--draggable" : ""}${day.nonWorking && event.type === "task_brief" ? " scp-calendar-event--weekend-manual" : ""}`}
+                          key={`${event.type}-${event.id}-shared-${index}`}
                           draggable={manageable && mode !== "staff" && data.canEdit}
                           title={manageable ? (mode === "staff" ? `${event.title} — click to request this work` : `${event.title} — click for details, or drag onto a staff member and date`) : event.title}
                           onDragStart={(dragEvent) => { if (manageable && mode !== "staff" && data.canEdit) beginActivityDrag(dragEvent, event); }}
@@ -643,7 +750,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                           onClick={() => { if (manageable && mode === "staff") openClaimRequest(event); else if (manageable && mode !== "staff") openUnassignedModal(event); }}
                           style={{ cursor: manageable ? "pointer" : "default" }}
                         >
-                          <i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}</span>
+                          <i style={{ background: style.color }} /><span>{event.title}{event.hoursTbc ? " · TBC hours" : ""}{day.nonWorking && event.type === "task_brief" ? <small className="scp-weekend-manual-label">Manual weekend</small> : null}</span>
                         </button>
                       );
                     })}</div>)}
@@ -652,14 +759,14 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
               </div>
 
               {unassignedModal ? (
-                <div className="scp-modal-backdrop" role="dialog" aria-label="Manage project activity" onClick={() => !modalBusy && setUnassignedModal(null)}>
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Manage project activity" onClick={closeCalendarEditor}>
                   <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
                     <div className="scp-modal-head">
                       <div>
                         <span>{unassignedModal.projectName}</span>
                         <h3>Assign or reschedule activity</h3>
                       </div>
-                      <button type="button" onClick={() => !modalBusy && setUnassignedModal(null)}><X size={16} /></button>
+                      <button type="button" aria-label="Close calendar editor" onClick={closeCalendarEditor}><X size={16} /></button>
                     </div>
                     {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
                     <p>Changes apply to this work activity. A linked auto-generated Gantt item is updated at the same time; manually created schedule phases are retained.</p>
@@ -700,9 +807,9 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
               ) : null}
 
               {manualTaskModal ? (
-                <div className="scp-modal-backdrop" role="dialog" aria-label="Add calendar item" onClick={() => !modalBusy && setManualTaskModal(null)}>
+                <div className="scp-modal-backdrop" role="dialog" aria-label="Add calendar item" onClick={closeCalendarEditor}>
                   <div className="scp-modal" onClick={(event) => event.stopPropagation()}>
-                    <div className="scp-modal-head"><div><span>Workload calendar</span><h3>Add calendar item</h3></div><button type="button" onClick={() => !modalBusy && setManualTaskModal(null)}><X size={16} /></button></div>
+                    <div className="scp-modal-head"><div><span>Workload calendar</span><h3>Add calendar item</h3></div><button type="button" aria-label="Close calendar editor" onClick={closeCalendarEditor}><X size={16} /></button></div>
                     {modalError ? <p className="scp-error"><AlertTriangle size={14} /> {modalError}</p> : null}
                     <p>{manualTaskModal.itemType === "leave" ? "Record administrator-approved leave directly in the calendar. It reduces capacity immediately and creates a staff-owned approved leave record." : "Use this for policy reviews, operational work and other non-project tasks. The assignee receives a Staff Portal notification and the task appears in the workload calendar immediately."}</p>
                     <fieldset className="scp-calendar-item-type">
@@ -721,6 +828,7 @@ export default function StaffCapacityPlanner({ compact = false, onSelectStaff = 
                       <label className="scp-modal-field">Workstream or project<input value={manualTaskModal.project} onChange={(event) => setManualTaskModal({ ...manualTaskModal, project: event.target.value })} placeholder="e.g. Internal / non-project work" /></label>
                       <label className="scp-modal-field">Task description<input value={manualTaskModal.task} onChange={(event) => setManualTaskModal({ ...manualTaskModal, task: event.target.value })} placeholder="e.g. Review biodiversity policy update" /></label>
                       <div className="scp-modal-row"><label className="scp-modal-field">Start date<input type="date" value={manualTaskModal.startDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, startDate: event.target.value })} /></label><label className="scp-modal-field">Due date<input type="date" value={manualTaskModal.dueDate} onChange={(event) => setManualTaskModal({ ...manualTaskModal, dueDate: event.target.value })} /></label></div>
+                      {calendarDayPolicy(manualTaskModal.startDate, manualTaskModal.dueDate, true) === "calendar_days" ? <p className="scp-manual-weekend-notice" role="status"><strong>Manual weekend item.</strong> This item will appear on the shaded non-working day. Normal project tasks remain Monday–Friday.</p> : null}
                       <div className="scp-modal-row"><label className="scp-modal-field">Planned hours<input type="number" min="0" step="0.25" value={manualTaskModal.budgetHours} onChange={(event) => setManualTaskModal({ ...manualTaskModal, budgetHours: event.target.value })} /></label><label className="scp-modal-field">Deliverable / outcome<input value={manualTaskModal.deliverable} onChange={(event) => setManualTaskModal({ ...manualTaskModal, deliverable: event.target.value })} placeholder="Optional" /></label></div>
                       <label className="scp-modal-field">Instructions or links<textarea rows={3} value={manualTaskModal.notes} onChange={(event) => setManualTaskModal({ ...manualTaskModal, notes: event.target.value })} placeholder="Brief, context and any handover requirements" /></label>
                     </>}

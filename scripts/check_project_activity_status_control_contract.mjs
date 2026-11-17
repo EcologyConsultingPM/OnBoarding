@@ -72,9 +72,10 @@ assert.match(activitiesRoute, /const invalidScheduleSelection = inputRows\.find\
 assert.match(activitiesRoute, /If the activity itself can be recovered/, "Stale Schedule validation must permit recovery to the current generated row.");
 
 assert.match(staffCapacity, /endpoint = mode === "staff" \? "\/api\/staff\/capacity" : "\/api\/admin\/staff-capacity"/, "Staff Capacity must use the read-only staff capacity endpoint.");
-assert.match(staffCapacity, /if \(mode !== "staff"\) return undefined;/, "Only the read-only staff capacity view should refresh on return.");
-assert.match(staffCapacity, /window\.addEventListener\("focus", refreshAfterReturn\)/, "Staff Capacity must reload when the staff window receives focus.");
-assert.match(staffCapacity, /document\.addEventListener\("visibilitychange", refreshAfterReturn\)/, "Staff Capacity must reload when the staff tab becomes visible.");
+assert.match(staffCapacity, /refreshBlockedRef\.current/, "Calendar refresh must protect open and unsaved editors in both portal views.");
+assert.match(staffCapacity, /setData\(\(\) => payload\)/, "Fresh source snapshots must replace stale calendar entries rather than merge them.");
+assert.match(staffCapacity, /window\.addEventListener\("focus", refreshAfterReturn\)/, "Both calendar views must reload when their window receives focus.");
+assert.match(staffCapacity, /document\.addEventListener\("visibilitychange", refreshAfterReturn\)/, "Both calendar views must reload when their tab becomes visible.");
 assert.match(staffCapacity, /className="scp-refresh"/, "Staff Capacity must offer a visible manual refresh fallback.");
 assert.match(styles, /\.scp-refresh \{/, "The Staff Capacity refresh control must have dedicated styling.");
 

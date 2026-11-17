@@ -8,6 +8,8 @@ const root = new URL("..", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 const helperSource = await read("lib/workActivityHours.js");
 const helpers = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString("base64")}`);
+const schedulingSource = await read("lib/staffCalendarScheduling.js");
+const scheduling = await import(`data:text/javascript;base64,${Buffer.from(schedulingSource).toString("base64")}`);
 const { resolveHoursInput, resolveAssigneeInput, hoursPayload, allocationBudgetError, selectWithHoursFlags } = helpers;
 const uuid = (n) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
 const projectId = uuid(1), activityId = uuid(2), scheduleId = uuid(3), staffId = uuid(4), colleagueId = uuid(5), actorId = uuid(6);
@@ -97,7 +99,7 @@ const sources = Object.fromEntries(await Promise.all(Object.entries(paths).map(a
 function loadRoutes(db, isAdmin = true) {
   const access = { admin: db.admin, isAdmin, user: { id: isAdmin ? actorId : staffId } };
   const common = {
-    ...helpers, Response, Request, URL, Date, console,
+    ...helpers, ...scheduling, Response, Request, URL, Date, console,
     requireSession: async () => access, serverError: (error) => Response.json({ error: error.message }, { status: 500 }),
     requirePortalResource: async () => null, listDirectoryUsers: async () => db.directory,
     compactAuditRecord: (v) => v, recordAudit: async () => {},
@@ -292,6 +294,31 @@ await check("capacity: unassigned unknown task remains visible and unknown/out-o
   output = await legacyRoutes.capacity.capacityData(legacyRoutes.access, "2026-11-16", "2026-11-22");
   assert.equal(output.people.find((row) => row.id === staffId).unknownAllocationCount, 1);
   assert.equal(output.calendarEvents.find((row) => row.id === `activity-${activityId}`).budgetHours, null);
+});
+await check("capacity: only manual weekend TBC counts unknown; weekday effort and historical actuals are unchanged", async () => {
+  const tables = fixture({ shared: true });
+  tables.project_activities.push({ ...tables.project_activities[0], id: uuid(40), title: "Saturday project TBC", start_date: "2026-11-21", due_date: "2026-11-21", budget_hours: 500, budget_hours_tbc: true, schedule_item_id: null });
+  tables.project_activity_assignees.push({ id: uuid(41), activity_id: uuid(40), staff_user_id: staffId, allocated_hours: 500, allocated_hours_tbc: true, acceptance_status: "awaiting_response" });
+  tables.remote_tasks.push(
+    { id: uuid(42), assigned_to: staffId, task: "Manual Saturday TBC", budget_hours: null, start_date: "2026-11-21", due_date: "2026-11-21" },
+    { id: uuid(43), assigned_to: staffId, task: "Manual Sunday 2h", budget_hours: 2, start_date: "2026-11-22", due_date: "2026-11-22" },
+    { id: uuid(44), assigned_to: staffId, task: "Known weekday-range brief", budget_hours: 15, start_date: "2026-11-16", due_date: "2026-11-22" },
+  );
+  const db = mockDatabase(tables), routes = loadRoutes(db);
+  const get = async (start, end) => plain(await routes.capacity.capacityData(routes.access, start, end));
+  const person = (output) => output.people.find((row) => row.id === staffId);
+  const full = await get("2026-11-16", "2026-11-22");
+  assert.equal(person(full).allocatedHours, 27); assert.equal(person(full).unknownAllocationCount, 1); assert.equal(person(full).capacityIncomplete, true);
+  assert.equal(full.people.find((row) => row.id === colleagueId).allocatedHours, 5);
+  const project = full.calendarEvents.find((row) => row.id === `activity-${uuid(40)}`); assert.equal(project.dayPolicy, "working_days"); assert.equal(project.budgetHours, null); assert.equal(project.hoursTbc, true);
+  const manual = full.calendarEvents.find((row) => row.id === `task-${uuid(42)}`); assert.equal(manual.dayPolicy, "calendar_days"); assert.equal(manual.manualWeekend, true); assert.equal(manual.budgetHours, null); assert.equal(manual.hoursTbc, true);
+  assert.equal(scheduling.eventFallsOnWorkDay(project, "2026-11-21"), false); assert.equal(scheduling.eventFallsOnWorkDay(manual, "2026-11-21"), true);
+  const weekdayTask = full.calendarEvents.find((row) => row.id === `task-${uuid(44)}`); assert.equal(weekdayTask.dayPolicy, "working_days"); assert.equal(weekdayTask.manualWeekend, undefined);
+  const weekend = person(await get("2026-11-21", "2026-11-22")); assert.equal(weekend.allocatedHours, 2); assert.equal(weekend.unknownAllocationCount, 1);
+  const saturday = person(await get("2026-11-21", "2026-11-21")); assert.equal(saturday.allocatedHours, 0); assert.equal(saturday.unknownAllocationCount, 1);
+  const sunday = person(await get("2026-11-22", "2026-11-22")); assert.equal(sunday.allocatedHours, 2); assert.equal(sunday.unknownAllocationCount, 0);
+  const monday = person(await get("2026-11-16", "2026-11-16")); assert.equal(monday.allocatedHours, 5); assert.equal(monday.unknownAllocationCount, 0); assert.equal(monday.capacityIncomplete, false);
+  assert.deepEqual(db.tables, tables); assertProtected(db, tables); assert(!db.calls.some((call) => call.kind !== "select"));
 });
 await check("capacity: legacy equal split is kept only for confirmed parent hours, never unknown estimates", () => {
   const db = mockDatabase(fixture()); const routes = loadRoutes(db);
