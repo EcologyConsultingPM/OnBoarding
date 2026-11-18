@@ -98,6 +98,7 @@ export default function AdminProjectTracker({
   const [entryStatusFilter, setEntryStatusFilter] = useState("all");
   const [entryDateFrom, setEntryDateFrom] = useState("");
   const [entryDateTo, setEntryDateTo] = useState("");
+  const [selectedEntryIds, setSelectedEntryIds] = useState(() => new Set());
   const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
   const [expandedProjectId, setExpandedProjectId] = useState("");
   const [missedEntryOpen, setMissedEntryOpen] = useState(false);
@@ -287,6 +288,32 @@ export default function AdminProjectTracker({
     }
   };
 
+  const bulkDeleteEntries = async (entries) => {
+    const ids = [...new Set(entries.map((entry) => entry.id).filter(Boolean))];
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} selected timesheet ${ids.length === 1 ? "entry" : "entries"}? This removes them from project totals and cannot be undone.`)) return;
+    const reason = window.prompt("Why are these entries being voided? This reason is retained in the audit trail.");
+    if (reason === null) return;
+    setEntryMutationBusy("bulk");
+    setError("");
+    try {
+      const response = await fetch("/api/admin/project-tracker-entries", {
+        method: "DELETE",
+        headers: headers(),
+        body: JSON.stringify({ ids, reason }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Could not delete the selected tracker entries.");
+      setSelectedEntryIds(new Set());
+      onToast?.(`${body.count || ids.length} tracker entries deleted, project totals recalculated and staff notified.`);
+      await load();
+    } catch (mutationError) {
+      setError(mutationError.message || "Could not delete the selected tracker entries.");
+    } finally {
+      setEntryMutationBusy("");
+    }
+  };
+
   const load = useCallback(async () => {
     if (!session?.access_token) return;
     setLoading(true);
@@ -326,6 +353,9 @@ export default function AdminProjectTracker({
       if (selectedId) window.localStorage.setItem("ec-admin-tracker-selected-id", selectedId);
       else window.localStorage.removeItem("ec-admin-tracker-selected-id");
     } catch {}
+  }, [selectedId]);
+  useEffect(() => {
+    setSelectedEntryIds(new Set());
   }, [selectedId]);
 
   const saveSource = async () => {
@@ -1073,7 +1103,7 @@ export default function AdminProjectTracker({
                             </button>
                           </div>
                         ) : null}
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
                           <select value={entryStaffFilter} onChange={(e) => setEntryStaffFilter(e.target.value)}>
                             <option value="all">All staff</option>
                             {staffOptions.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -1092,12 +1122,34 @@ export default function AdminProjectTracker({
                           {(entryStaffFilter !== "all" || entryActivityFilter !== "all" || entryStatusFilter !== "all" || entryDateFrom || entryDateTo) ? (
                             <button type="button" onClick={() => { setEntryStaffFilter("all"); setEntryActivityFilter("all"); setEntryStatusFilter("all"); setEntryDateFrom(""); setEntryDateTo(""); }} style={{ background: "none", border: "1px solid #3a4a3a", color: "#cfe0c8", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>Clear filters</button>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEntryIds((current) => {
+                              const next = new Set(current);
+                              if (filteredEntries.every((entry) => next.has(entry.id))) filteredEntries.forEach((entry) => next.delete(entry.id));
+                              else filteredEntries.forEach((entry) => next.add(entry.id));
+                              return next;
+                            })}
+                            disabled={!filteredEntries.length || Boolean(entryMutationBusy)}
+                            className="apt-entry-select-all"
+                          >
+                            {filteredEntries.length && filteredEntries.every((entry) => selectedEntryIds.has(entry.id)) ? "Clear visible" : "Select visible"}
+                          </button>
+                          {selectedEntryIds.size ? (
+                            <>
+                              <span className="apt-entry-selection-count">{selectedEntryIds.size} selected</span>
+                              <button type="button" className="apt-entry-bulk-delete" onClick={() => bulkDeleteEntries(allEntries.filter((entry) => selectedEntryIds.has(entry.id)))} disabled={Boolean(entryMutationBusy)}>
+                                <Trash2 size={13} /> {entryMutationBusy === "bulk" ? "Deleting…" : "Delete selected"}
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                         {filteredEntries.length ? (
                           <div className="apt-timesheet-table-wrap">
                             <table className="apt-timesheet-table">
                               <thead>
                                 <tr style={{ textAlign: "left", borderBottom: "1px solid #3a4a3a" }}>
+                                  <th className="apt-entry-select-col" aria-label="Select entries"><input type="checkbox" aria-label="Select all visible timesheet entries" checked={Boolean(filteredEntries.length) && filteredEntries.every((entry) => selectedEntryIds.has(entry.id))} onChange={() => setSelectedEntryIds((current) => { const next = new Set(current); if (filteredEntries.every((entry) => next.has(entry.id))) filteredEntries.forEach((entry) => next.delete(entry.id)); else filteredEntries.forEach((entry) => next.add(entry.id)); return next; })} disabled={!filteredEntries.length || Boolean(entryMutationBusy)} /></th>
                                   <th style={{ padding: "6px 8px" }}>Date</th>
                                   <th style={{ padding: "6px 8px" }}>Staff</th>
                                   <th style={{ padding: "6px 8px" }}>Activity</th>
@@ -1110,6 +1162,7 @@ export default function AdminProjectTracker({
                               <tbody>
                                 {filteredEntries.map((entry) => (
                                   <tr key={entry.id} style={{ borderBottom: "1px solid #2a3a2a" }}>
+                                    <td className="apt-entry-select-col"><input type="checkbox" aria-label={`Select ${entry.staff_name}'s ${entry.work_date} timesheet entry`} checked={selectedEntryIds.has(entry.id)} onChange={() => setSelectedEntryIds((current) => { const next = new Set(current); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next; })} disabled={Boolean(entryMutationBusy)} /></td>
                                     <td style={{ padding: "6px 8px" }}>{entry.work_date}</td>
                                     <td style={{ padding: "6px 8px" }}>
                                       {entry.staff_name}

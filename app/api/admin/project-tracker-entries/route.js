@@ -181,9 +181,65 @@ export async function DELETE(request) {
     const access = await requireSession(request);
     if (access.error) return access.error;
     if (!access.isAdmin) return jsonError("Admin access required.", 403);
-    const id = String(new URL(request.url).searchParams.get("id") || "");
     const body = await request.json().catch(() => ({}));
     const voidReason = text(body?.reason, 1000);
+
+    const requestedIds = Array.isArray(body?.ids)
+      ? [...new Set(body.ids.map((value) => String(value || "")).filter(Boolean))]
+      : [];
+    if (requestedIds.length > 1) {
+      if (requestedIds.length > 500 || requestedIds.some((id) => !validId(id))) {
+        return jsonError("Select up to 500 valid tracker entries.");
+      }
+      if (voidReason.length < 10) return jsonError("Enter a clear reason for voiding these entries (at least 10 characters).", 400);
+
+      // Read every row before changing anything so a stale selection cannot
+      // result in a partially removed bulk operation.
+      const { data: currentRows, error: currentRowsError } = await access.admin
+        .from("project_tracker_entries")
+        .select("*")
+        .in("id", requestedIds);
+      if (currentRowsError) return jsonError(currentRowsError.message);
+      const currentById = new Map((currentRows || []).map((row) => [row.id, row]));
+      const missingIds = requestedIds.filter((id) => !currentById.has(id));
+      if (missingIds.length) return jsonError("One or more selected tracker entries no longer exist. Refresh the list and try again.", 409);
+
+      const rows = requestedIds.map((id) => currentById.get(id));
+      const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert(rows.map((current) => ({
+        project_id: current.project_id,
+        tracker_entry_id: current.id,
+        action: "voided",
+        reason: voidReason,
+        before_data: current,
+        after_data: null,
+        performed_by: access.user.id,
+      })));
+      if (auditError) return jsonError(`Entries were not removed because their mandatory audit records could not be saved: ${auditError.message}`, 500);
+
+      const { error: deleteError } = await access.admin.from("project_tracker_entries").delete().in("id", requestedIds);
+      if (deleteError) return jsonError(deleteError.message);
+
+      const allocationKeys = [...new Set(rows.map((row) => `${row.project_id}::${row.budget_allocation_id}`))]
+        .map((key) => key.split("::"))
+        .filter(([projectId, allocationId]) => projectId && allocationId);
+      await Promise.all(allocationKeys.map(([projectId, allocationId]) => refreshAllocation(access, projectId, allocationId)));
+      await Promise.all(rows.map(async (current) => {
+        await access.admin.from("portal_events").update({ dismissed_at: new Date().toISOString() }).eq("source_table", "project_tracker_entries").eq("source_id", current.id).is("dismissed_at", null);
+        await access.admin.from("portal_events").insert({
+          recipient_id: current.staff_user_id,
+          event_type: "project_tracker_entry_deleted",
+          severity: "review",
+          title: "Project Tracker entry removed",
+          body: `${current.activity_category} · ${current.hours} hours · ${current.work_date}. An administrator removed this entry during a bulk cleanup.`,
+          href: "/staff/project-tracker",
+          source_table: "project_tracker_entry_audit",
+          source_id: current.id,
+        });
+      }));
+      return Response.json({ success: true, deleted: requestedIds, count: requestedIds.length });
+    }
+
+    const id = String(new URL(request.url).searchParams.get("id") || requestedIds[0] || "");
     if (!validId(id)) return jsonError("A valid tracker entry is required.");
     if (voidReason.length < 10) return jsonError("Enter a clear reason for voiding this entry (at least 10 characters).", 400);
 
