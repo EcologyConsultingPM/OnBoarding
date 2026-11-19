@@ -122,6 +122,32 @@ function clearFormDraft(formKey, userId) {
   }
 }
 
+async function prepareFormImage(file) {
+  if (!file || !String(file.type || "").startsWith("image/")) throw new Error("Choose a JPG, PNG or WebP image.");
+  if (file.size > 12 * 1024 * 1024) throw new Error("Choose an image smaller than 12 MB.");
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("The selected image could not be read."));
+      element.src = sourceUrl;
+    });
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    const scale = Math.min(1, 1800 / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+    if (dataUrl.length > 1_200_000) throw new Error("That image is still too large after compression. Choose a smaller screenshot.");
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 const WHS_DEFINITIONS = {
   injury_incident: {
     title: "What counts as a notifiable incident",
@@ -376,6 +402,37 @@ export default function StaffForms() {
           <span>{label}</span>
         </label>
       );
+    if (type === "image")
+      return (
+        <div key={key} className="sf-field sf-full sf-image-field">
+          <span>{label}</span>
+          {form[key] ? (
+            <figure className="sf-image-preview">
+              <img src={form[key]} alt={`${label} preview`} />
+              <figcaption>
+                <span>Image attached to this draft</span>
+                <button type="button" onClick={() => set(key, "")}>Remove image</button>
+              </figcaption>
+            </figure>
+          ) : null}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              try {
+                set(key, await prepareFormImage(file));
+                setError("");
+              } catch (imageError) {
+                setError(imageError.message || "The image could not be added.");
+              }
+            }}
+          />
+          <small className="sf-image-help">Add a clear screenshot or photograph. It is compressed before being saved with this ERP.</small>
+        </div>
+      );
     let input;
     if (type === "textarea")
       input = (
@@ -598,7 +655,7 @@ export default function StaffForms() {
     const def = WHS_DEFINITIONS[activeKey];
     const sourceDocuments = FORM_REFERENCE_DOCS[activeKey] || [];
     return (
-      <div className={`sf sf-theme-${theme}`}>
+      <div className={`sf sf-theme-${theme}${activeKey === "site_erp" ? " sf-erp-form" : ""}`}>
         <header className="sf-hero">
           <div className="sf-hero-topline">
             <span>Ecology Consulting - WHS field form</span>
