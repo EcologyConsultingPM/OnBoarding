@@ -245,7 +245,7 @@ async function trackerData(access, requestedProjectId = "") {
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
     access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
-    access.admin.from("project_tracker_entries").select("id, project_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at").in("project_id", ids).order("created_at", { ascending: false }).limit(500),
+    loadTrackerEntries(access.admin, ids),
   ]);
 
   // No staff-name resolution existed anywhere in this route — Timesheet
@@ -284,6 +284,22 @@ async function trackerData(access, requestedProjectId = "") {
     financialReady,
     projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames, activityAssignees, assignmentTableReady)),
   };
+}
+
+async function loadTrackerEntries(admin, projectIds) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await admin.from("project_tracker_entries")
+      .select("id, project_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at")
+      .in("project_id", projectIds)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) return { data: null, error };
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return { data: rows, error: null };
+  }
 }
 
 export async function GET(request) {

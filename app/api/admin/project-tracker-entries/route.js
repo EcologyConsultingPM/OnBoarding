@@ -1,6 +1,7 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { createTrackerEntry, validateTrackerBudgetCorrection } from "../../project-tracker-entries/route";
 import { validBudgetDate } from "../../../../lib/projectBudgetPeriods";
+import { refreshProjectTrackerAllocation } from "../../../../lib/projectTrackerAllocationTotals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,21 +16,7 @@ function text(value, maximum = 5000) { return typeof value === "string" ? value.
 function validHours(value) { const result = Number(value); return Number.isFinite(result) && result >= 0 && result <= 24 ? result : null; }
 
 async function refreshAllocation(access, projectId, allocationId) {
-  const [{ data: rows, error: rowsError }, { data: rates }, { data: project }] = await Promise.all([
-    access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000),
-    access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
-    access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle(),
-  ]);
-  if (rowsError) throw new Error(rowsError.message);
-  const rateByStaff = new Map((rates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
-  const defaultRate = Number(project?.default_hourly_rate) || 0;
-  const hoursConsumed = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  // A future team member may be allocated before their individual rate is set.
-  // Their tracker corrections must still be charged at the project default.
-  const chargeOutSpend = (rows || []).reduce((sum, row) => sum + Number(row.hours || 0) * (rateByStaff.get(row.staff_user_id) || defaultRate), 0);
-  const internalCost = chargeOutSpend * 0.6;
-  const { error } = await access.admin.from("project_budget_allocations").update({ hours_consumed: hoursConsumed, charge_out_spend: Math.round(chargeOutSpend * 100) / 100, internal_cost: Math.round(internalCost * 100) / 100, updated_by: access.user.id, updated_at: new Date().toISOString() }).eq("id", allocationId).eq("project_id", projectId);
-  if (error) throw new Error(error.message);
+  return refreshProjectTrackerAllocation(access, projectId, allocationId);
 }
 
 // Staff eligible to have an entry logged on their behalf for this project:

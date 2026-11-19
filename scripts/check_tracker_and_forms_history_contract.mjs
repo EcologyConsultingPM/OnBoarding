@@ -10,6 +10,7 @@ const firstAidRoute = await read("app/api/first-aid-kit-checks/route.js");
 const firstAidComponent = await read("components/FirstAidKitChecks.js");
 const tracker = await read("components/AdminProjectTracker.js");
 const trackerRoute = await read("app/api/admin/project-tracker-entries/route.js");
+const allocationTotals = await read("lib/projectTrackerAllocationTotals.js");
 const staffTrackerRoute = await read("app/api/project-tracker-entries/route.js");
 const staffProjectTracker = await read("components/StaffProjectTracker.js");
 const staffMyProjects = await read("components/StaffMyProjects.js");
@@ -43,7 +44,8 @@ assert.match(staffProjectTracker, /const projectTimesheetHistory = board\?\.entr
 assert.match(staffProjectTracker, /Read-only project record/, "The project history tab must visibly identify itself as read-only.");
 assert.match(staffProjectTracker, /entries cannot be edited here/, "The project history tab must state that editing remains unavailable to staff.");
 assert.match(staffMyProjects, /<StaffProjectTracker embedded \/>/, "My Projects must use the same project tracker so the timesheet history tabs are consistent in both staff entry points.");
-assert.match(trackerRoute, /rateByStaff\.get\(row\.staff_user_id\) \|\| defaultRate/, "Administrator corrections must preserve the project default-rate fallback.");
+assert.match(trackerRoute, /refreshProjectTrackerAllocation\(access, projectId, allocationId\)/, "Administrator corrections must use the shared allocation recalculator.");
+assert.match(allocationTotals, /rateByStaff\.get\(entry\.staff_user_id\) \|\| defaultRate/, "Administrator corrections must preserve the project default-rate fallback.");
 assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must use the responsive timesheet table wrapper.");
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");
 assert.match(styles, /\.apt-timesheet-table \{ width: 100%; min-width: 1040px;/, "The timesheet table must reserve readable column width.");

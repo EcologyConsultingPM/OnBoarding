@@ -1,5 +1,5 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
-import { monthlyBudgetBaselineForSources, monthlyBudgetInputError } from "../../../../lib/projectSetupBudgetBasis";
+import { monthlyBudgetBaselineForSources, monthlyBudgetInputError, projectOperationsBudgetSync } from "../../../../lib/projectSetupBudgetBasis";
 import { validBudgetDate } from "../../../../lib/projectBudgetPeriods";
 
 export const runtime = "nodejs";
@@ -24,10 +24,16 @@ function budgetSchemaUnavailable(error) {
 
 async function approvedProjectSources(admin, projectId) {
   return admin.from("project_budget_sources")
-    .select("source_type, approved_value, approved_hours, service_period_start, service_period_end")
+    .select("id, source_type, approval_status, approved_value, approved_hours, service_period_start, service_period_end")
     .eq("project_id", projectId)
     .eq("approval_status", "approved")
     .in("source_type", ["original", "variation"]);
+}
+
+async function allProjectBudgetSources(admin, projectId) {
+  return admin.from("project_budget_sources")
+    .select("id, source_type, approval_status, approved_value, approved_hours, service_period_start, service_period_end")
+    .eq("project_id", projectId);
 }
 
 // Preflight all project fields before the monthly RPC commits its transaction.
@@ -71,7 +77,7 @@ function assignmentsByActivity(rows) {
 async function projectAccess(access, projectId, staffWorkspace = false) {
   let projectQuery = access.admin
     .from("projects")
-    .select("id, created_by, name, status")
+    .select("id, created_by, name, status, budget_hours, budget_dollars")
     .eq("id", projectId);
   if (!access.isAdmin || staffWorkspace) {
     projectQuery = projectQuery.eq("status", "active").is("deleted_at", null);
@@ -302,10 +308,38 @@ export async function PATCH(request, { params }) {
       budgetDollars = monthlyBudgetBaseline.aggregateValue;
       budgetHours = monthlyBudgetBaseline.aggregateHours;
     }
+    let sourceBudgetSync = { sourceId: "", patch: {}, synchronized: false, error: "" };
+    if (!explicitMonthly && !monthlyBudgetControlled && !schemaUnavailable && (Object.hasOwn(body, "budgetHours") || Object.hasOwn(body, "budgetDollars"))) {
+      const { data: allSources, error: allSourcesError } = await allProjectBudgetSources(access.admin, params.projectId);
+      if (allSourcesError && !budgetSchemaUnavailable(allSourcesError)) return Response.json({ error: allSourcesError.message }, { status: 400 });
+      if (!allSourcesError) {
+        const centsOrNull = (value) => {
+          if (value === null || value === undefined || String(value).trim() === "") return null;
+          const parsed = num(value);
+          return parsed === null ? Number.NaN : Math.round(parsed * 100);
+        };
+        const masterBudgetChanged = [
+          ["budgetHours", "budget_hours"],
+          ["budgetDollars", "budget_dollars"],
+        ].some(([bodyKey, projectKey]) => Object.hasOwn(body, bodyKey) && centsOrNull(body[bodyKey]) !== centsOrNull(authorisation.project?.[projectKey]));
+        const budgetSyncInput = { ...body };
+        for (const [bodyKey, projectKey] of [["budgetHours", "budget_hours"], ["budgetDollars", "budget_dollars"]]) {
+          const value = body[bodyKey];
+          const blank = value === null || value === undefined || String(value).trim() === "";
+          if (Object.hasOwn(body, bodyKey) && blank && centsOrNull(value) === centsOrNull(authorisation.project?.[projectKey])) delete budgetSyncInput[bodyKey];
+        }
+        sourceBudgetSync = projectOperationsBudgetSync({
+          approvedSources: approvedSources || [],
+          allSources: allSources || [],
+          body: budgetSyncInput,
+          monthlyBudgetControlled,
+          masterBudgetChanged,
+        });
+        if (sourceBudgetSync.error) return Response.json({ error: sourceBudgetSync.error }, { status: sourceBudgetSync.status || 400 });
+      }
+    }
     const optionalText = (key) => Object.hasOwn(body, key) ? opt(body[key]) : undefined;
-    const { data, error } = await access.admin
-      .from("projects")
-      .update({
+    const projectPatch = Object.fromEntries(Object.entries({
         name: opt(body.name) ?? undefined,
         client_name: optionalText("clientName"),
         client_contact: optionalText("clientContact"),
@@ -324,13 +358,37 @@ export async function PATCH(request, { params }) {
         // Restoring from the recycle bin. Explicit action rather than an
         // arbitrary field write, so it can never happen by accident.
         ...(body.action === "restore" ? { deleted_at: null, deleted_by: null } : {}),
-      })
+      }).filter(([, value]) => value !== undefined));
+    // Even a same-value original-source save must recheck its snapshot under
+    // lock. Never fall back to separate writes if this RPC is unavailable.
+    if (sourceBudgetSync.synchronized) {
+      const { data: saved, error: rpcError } = await access.admin.rpc("ec_save_project_original_budget", {
+        p_project_id: params.projectId,
+        p_actor_id: access.user.id,
+        p_source_id: sourceBudgetSync.sourceId,
+        p_expected_source: sourceBudgetSync.expectedSource,
+        p_patch: projectPatch,
+        p_source_patch: sourceBudgetSync.patch,
+      });
+      if (rpcError) {
+        const migrationPending = ["42883", "PGRST202", "PGRST204", "PGRST205"].includes(rpcError.code) || /schema cache|does not exist/i.test(rpcError.message || "");
+        const conflict = ["40001", "P0002"].includes(rpcError.code);
+        return Response.json({ error: migrationPending ? "Original budget synchronisation is awaiting its approved database migration. No project details were saved." : rpcError.message }, { status: migrationPending || conflict ? 409 : rpcError.code === "42501" ? 403 : 400 });
+      }
+      if (!saved?.project || saved.project.id !== params.projectId || saved.sourceBudgetSynchronized !== true) {
+        return Response.json({ error: "Original budget save response could not be verified. Reload the project before retrying; no separate project details were saved." }, { status: 502 });
+      }
+      return Response.json({ project: saved.project, monthlyBudgetControlled, monthlyBudgetBaseline, sourceBudgetSynchronized: true });
+    }
+    const { data, error } = await access.admin
+      .from("projects")
+      .update(projectPatch)
       .eq("id", params.projectId)
       .select(PROJECT_COLUMNS)
       .single();
 
     if (error) return Response.json({ error: explicitMonthly ? `Monthly baseline saved, but project details were not saved. Reload before retrying. ${error.message}` : error.message }, { status: 400 });
-    return Response.json({ project: data, monthlyBudgetControlled, monthlyBudgetBaseline });
+    return Response.json({ project: data, monthlyBudgetControlled, monthlyBudgetBaseline, sourceBudgetSynchronized: sourceBudgetSync.synchronized });
   } catch (error) {
     return serverError(error);
   }

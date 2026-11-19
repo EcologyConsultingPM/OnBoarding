@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectTrackerExport from "./ProjectTrackerExport";
+import AdminTimesheetImporter from "./AdminTimesheetImporter";
 import { budgetPeriodLabel, monthBudgetPeriod, serviceMonthForSource } from "../lib/projectBudgetPeriods";
+import { PROJECT_SOURCES_CHANGED } from "../lib/projectSourceSignals";
 
 function money(value) {
   return new Intl.NumberFormat("en-AU", {
@@ -102,6 +104,7 @@ export default function AdminProjectTracker({
   const [financialDetailsOpen, setFinancialDetailsOpen] = useState(false);
   const [expandedProjectId, setExpandedProjectId] = useState("");
   const [missedEntryOpen, setMissedEntryOpen] = useState(false);
+  const [timesheetImportOpen, setTimesheetImportOpen] = useState(false);
   const [missedEntryStaff, setMissedEntryStaff] = useState([]);
   const [missedEntryCategoryOptions, setMissedEntryCategoryOptions] = useState([]);
   const [missedEntryLoading, setMissedEntryLoading] = useState(false);
@@ -340,6 +343,23 @@ export default function AdminProjectTracker({
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    const refreshForProject = (projectId) => {
+      void load();
+    };
+    const onSourcesChanged = (event) => refreshForProject(event.detail?.projectId);
+    const onStorage = (event) => {
+      if (event.key !== PROJECT_SOURCES_CHANGED) return;
+      try { refreshForProject(JSON.parse(event.newValue || "{}").projectId); }
+      catch { void load(); }
+    };
+    window.addEventListener(PROJECT_SOURCES_CHANGED, onSourcesChanged);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(PROJECT_SOURCES_CHANGED, onSourcesChanged);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [load, selectedId]);
   useEffect(() => {
     if (
       initialProjectId &&
@@ -986,6 +1006,7 @@ export default function AdminProjectTracker({
                   </section> : null}
                   {detailView === "timesheets" ? (() => {
                     const allEntries = selected.entrySummary?.all || [];
+                    const totalKilometres = allEntries.reduce((sum, entry) => sum + Number(entry.custom_data?.km ?? entry.custom_data?.kilometres ?? 0), 0);
                     const staffOptions = [...new Set(allEntries.map((e) => e.staff_name).filter(Boolean))];
                     const activityOptions = [...new Set(allEntries.map((e) => e.activity_category).filter(Boolean))];
                     const filteredEntries = allEntries.filter((e) =>
@@ -1002,16 +1023,22 @@ export default function AdminProjectTracker({
                           <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Total recorded</div><div style={{ fontSize: 18, fontWeight: 700 }}>{number(selected.entrySummary?.submittedHours || 0)} hrs</div></div>
                           <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Approved</div><div style={{ fontSize: 18, fontWeight: 700, color: "#2c6a34" }}>{number(selected.entrySummary?.approvedHours || 0)} hrs</div></div>
                           <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Awaiting approval</div><div style={{ fontSize: 18, fontWeight: 700, color: "#c98a1e" }}>{number(selected.entrySummary?.awaitingHours || 0)} hrs</div></div>
+                          <div><div style={{ fontSize: 11, color: "#8a927c", textTransform: "uppercase" }}>Kilometres recorded</div><div style={{ fontSize: 18, fontWeight: 700 }}>{new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(totalKilometres)} km</div></div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                           <h3 style={{ margin: 0 }}>Timesheet entries</h3>
-                          <button
-                            type="button"
-                            onClick={() => (missedEntryOpen ? setMissedEntryOpen(false) : openMissedEntry())}
-                            style={{ background: missedEntryOpen ? "rgba(231,201,121,0.14)" : "#1f5a34", color: missedEntryOpen ? "#e7c979" : "#fff", border: "1px solid #e7c979", borderRadius: 8, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                          >
-                            {missedEntryOpen ? "Cancel" : "Log missed entry"}
-                          </button>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <button type="button" className="apt-import-toggle" aria-expanded={timesheetImportOpen} onClick={() => { setMissedEntryOpen(false); setTimesheetImportOpen((current) => !current); }}>
+                              <FileSpreadsheet size={14} /> {timesheetImportOpen ? "Close importer" : "Import weekly timesheets"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => (missedEntryOpen ? setMissedEntryOpen(false) : openMissedEntry())}
+                              style={{ background: missedEntryOpen ? "rgba(231,201,121,0.14)" : "#1f5a34", color: missedEntryOpen ? "#e7c979" : "#fff", border: "1px solid #e7c979", borderRadius: 8, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              {missedEntryOpen ? "Cancel" : "Log missed entry"}
+                            </button>
+                          </div>
                         </div>
                         {missedEntryOpen ? (
                           <div style={{ margin: "10px 0 16px", padding: 14, border: "1px solid rgba(231,201,121,0.3)", borderRadius: 10, background: "rgba(4,24,14,0.4)" }}>
@@ -1080,6 +1107,7 @@ export default function AdminProjectTracker({
                             )}
                           </div>
                         ) : null}
+                        {timesheetImportOpen ? <AdminTimesheetImporter session={session} onClose={() => setTimesheetImportOpen(false)} onImported={async () => { setSelectedEntryIds(new Set()); await load(); }} /> : null}
                         {entryEditor ? (
                           <div className="apt-entry-editor" role="region" aria-label="Edit tracker entry">
                             <div className="apt-entry-editor__head">
@@ -1155,6 +1183,7 @@ export default function AdminProjectTracker({
                                   <th style={{ padding: "6px 8px" }}>Activity</th>
                                   <th style={{ padding: "6px 8px" }}>Description</th>
                                   <th style={{ padding: "6px 8px" }}>Hours</th>
+                                  <th style={{ padding: "6px 8px" }}>Km</th>
                                   <th style={{ padding: "6px 8px" }}>Status</th>
                                   <th style={{ padding: "6px 8px" }}>Actions</th>
                                 </tr>
@@ -1171,6 +1200,7 @@ export default function AdminProjectTracker({
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_category}</td>
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_information || "—"}</td>
                                     <td style={{ padding: "6px 8px" }}>{number(entry.hours)}</td>
+                                    <td style={{ padding: "6px 8px" }}>{entry.custom_data?.km ?? entry.custom_data?.kilometres ?? "—"}</td>
                                     <td style={{ padding: "6px 8px" }}>
                                       <em className={`apt-allocation-state ${entry.status === "completed" ? "on_track" : "watch"}`}>{entry.status.replaceAll("_", " ")}</em>
                                     </td>

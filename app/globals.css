@@ -20100,3 +20100,266 @@ main {
 .scp .scp-calendar-event--weekend-manual:hover { color: #173a26; background: #e9efe2; }
 .scp .scp-weekend-manual-label { display: block; margin-top: 3px; color: #406148; font-size: 8.5px; font-weight: 700; }
 .scp .scp-manual-weekend-notice { padding: 10px 12px; border: 1px solid #b5c8ae; border-radius: 8px; color: #21402d; background: #eef2e7; }
+
+
+/* ── Admin weekly timesheet import ────────────────────────────────── */
+.apt-import-toggle,
+.ati-primary,
+.ati-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(231, 201, 121, 0.58);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #f0dc98;
+  background: rgba(8, 35, 18, 0.72);
+  font: 700 11.5px "Archivo", sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+}
+.apt-import-toggle:hover,
+.ati-primary:hover,
+.ati-file-button:hover {
+  color: #143522;
+  background: #e7c979;
+}
+.ati-panel {
+  margin: 14px 0 16px;
+  padding: 16px;
+  border: 1px solid rgba(231, 201, 121, 0.28);
+  border-radius: 13px;
+  color: #e3eee0;
+  background: linear-gradient(145deg, #0b2819, #123b25);
+  box-shadow: 0 16px 32px -28px #000;
+}
+.ati-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+.ati-panel__head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0 4px;
+  color: #fffdf4;
+  font: 400 22px "DM Serif Display", Georgia, serif;
+}
+.ati-panel__head p {
+  max-width: 72ch;
+  margin: 0;
+  color: #c9d9c5;
+  font: 12px/1.5 "Archivo", sans-serif;
+}
+.ati-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(231, 201, 121, 0.28);
+  border-radius: 8px;
+  color: #e7c979;
+  background: rgba(2, 18, 9, 0.35);
+  cursor: pointer;
+}
+.ati-close:hover { background: rgba(231, 201, 121, 0.13); }
+.ati-alert,
+.ati-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font: 600 12px/1.45 "Archivo", sans-serif;
+}
+.ati-alert {
+  border: 1px solid rgba(239, 129, 116, 0.5);
+  color: #ffd0c9;
+  background: rgba(119, 38, 29, 0.28);
+}
+.ati-success {
+  border: 1px solid rgba(155, 204, 129, 0.42);
+  color: #dcf1d1;
+  background: rgba(39, 103, 53, 0.27);
+}
+.ati-success svg { flex: 0 0 auto; color: #a6d68f; }
+.ati-success strong,
+.ati-success span,
+.ati-success small { display: block; }
+.ati-success span { margin-top: 2px; }
+.ati-success small { margin-top: 3px; color: #b5cbb0; font-weight: 400; }
+.ati-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0;
+}
+.ati-steps span {
+  padding: 5px 9px;
+  border: 1px solid rgba(231, 201, 121, 0.15);
+  border-radius: 999px;
+  color: #a8bca3;
+  background: rgba(2, 18, 9, 0.25);
+  font: 600 10px "IBM Plex Mono", monospace;
+}
+.ati-steps span.current { border-color: rgba(231, 201, 121, 0.55); color: #f0dc98; }
+.ati-steps span.complete { border-color: rgba(166, 214, 143, 0.45); color: #bfe5ad; }
+.ati-upload-row,
+.ati-review-controls,
+.ati-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.ati-upload-row { margin: 10px 0 14px; }
+.ati-file-button { position: relative; overflow: hidden; }
+.ati-file-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.ati-help,
+.ati-file-name { color: #aabfa4; font: 11px "Archivo", sans-serif; }
+.ati-file-name { color: #e4d69e; }
+.ati-reset {
+  border: 1px solid rgba(231, 201, 121, 0.3);
+  border-radius: 7px;
+  padding: 6px 9px;
+  color: #e7c979;
+  background: transparent;
+  font: 600 10.5px "Archivo", sans-serif;
+  cursor: pointer;
+}
+.ati-mapping,
+.ati-review {
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid rgba(231, 201, 121, 0.14);
+  border-radius: 10px;
+  background: rgba(2, 18, 9, 0.25);
+}
+.ati-section-title { justify-content: space-between; margin-bottom: 10px; }
+.ati-section-title strong,
+.ati-section-title small { display: block; }
+.ati-section-title strong { color: #fbf9ef; font: 600 13px "Archivo", sans-serif; }
+.ati-section-title small { margin-top: 2px; color: #a9bca5; font: 10.5px "Archivo", sans-serif; }
+.ati-map-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(125px, 1fr));
+  gap: 9px;
+}
+.ati-map-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #dce9d8;
+  font: 600 10.5px "Archivo", sans-serif;
+}
+.ati-map-field b { color: #e7c979; }
+.ati-map-field select,
+.ati-review-controls select,
+.ati-table select {
+  min-width: 0;
+  border: 1px solid #c3d1bd;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #24382b;
+  background: #fffdf8;
+  font: 11px "Archivo", sans-serif;
+}
+.ati-review-controls { margin: 11px 0; color: #afc1aa; font: 10.5px "Archivo", sans-serif; }
+.ati-review-controls label { display: inline-flex; align-items: center; gap: 6px; }
+.ati-review-controls > span { margin-left: auto; }
+.ati-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.ati-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 52px;
+  padding: 9px 10px;
+  border: 1px solid rgba(231, 201, 121, 0.18);
+  border-radius: 9px;
+  background: linear-gradient(145deg, #123a24, #0b2718);
+}
+.ati-metric small { color: #a9bca5; font: 9px "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .04em; }
+.ati-metric strong { color: #fffdf4; font: 600 17px "Archivo", sans-serif; }
+.ati-metric.ready strong { color: #bfe5ad; }
+.ati-metric.review strong { color: #f4d695; }
+.ati-metric.duplicate strong { color: #ffc5bd; }
+.ati-primary:disabled,
+.ati-file-button:has(input:disabled),
+.ati-close:disabled,
+.ati-reset:disabled { opacity: .55; cursor: not-allowed; }
+.ati-table-wrap {
+  max-height: 500px;
+  overflow: auto;
+  border: 1px solid rgba(231, 201, 121, 0.17);
+  border-radius: 8px;
+}
+.ati-table {
+  width: 100%;
+  min-width: 1420px;
+  border-collapse: collapse;
+  color: #dce9d8;
+  background: rgba(2, 18, 9, 0.24);
+  font: 10.5px "Archivo", sans-serif;
+}
+.ati-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px;
+  border-bottom: 1px solid rgba(231, 201, 121, 0.28);
+  color: #e7c979;
+  background: #0b2819;
+  text-align: left;
+  white-space: nowrap;
+}
+.ati-table td { padding: 7px 8px; border-bottom: 1px solid rgba(231, 201, 121, 0.1); vertical-align: top; }
+.ati-table tr:last-child td { border-bottom: none; }
+.ati-row--duplicate { background: rgba(135, 46, 37, 0.14); }
+.ati-row--review { background: rgba(166, 119, 43, 0.09); }
+.ati-row--ready { background: rgba(77, 128, 71, 0.08); }
+.ati-table select { width: 190px; }
+.ati-table td small { display: block; margin-top: 4px; color: #9fb39a; font-size: 9.5px; }
+.ati-table .ati-comment { max-width: 220px; white-space: normal; line-height: 1.4; }
+.ati-muted { color: #849a80; }
+.ati-missing,
+.ati-issue { color: #ffc5bd !important; }
+.ati-warning { color: #f0d38b !important; }
+.ati-badge {
+  display: inline-flex;
+  margin: 0 0 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #c3d1bd;
+  background: rgba(255, 255, 255, 0.08);
+  font: 700 9px "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+}
+.ati-badge--ready { color: #d6f0ca; background: rgba(78, 143, 66, 0.28); }
+.ati-badge--review { color: #f8dfa2; background: rgba(172, 122, 35, 0.25); }
+.ati-badge--duplicate { color: #ffd3cd; background: rgba(155, 57, 47, 0.28); }
+.ati-empty { padding: 18px !important; color: #9fb39a; text-align: center; }
+.ati-footnote { margin: 9px 0 0; color: #a9bca5; font: 10px/1.5 "Archivo", sans-serif; }
+@media (max-width: 960px) {
+  .ati-map-grid { grid-template-columns: repeat(3, minmax(125px, 1fr)); }
+}
+@media (max-width: 640px) {
+  .ati-panel { padding: 12px; }
+  .ati-map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ati-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ati-review-controls > span { margin-left: 0; }
+  .ati-section-title { align-items: flex-start; }
+}
+
+/* Explicit budget classification remains readable on narrow admin screens. */
+.ati-table { min-width: 1640px; }
+.ati-table th:nth-child(6), .ati-table td:nth-child(6) { min-width: 210px; }

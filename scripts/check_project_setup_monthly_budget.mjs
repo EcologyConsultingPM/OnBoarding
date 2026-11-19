@@ -10,7 +10,7 @@ const withoutImports = (text) => text.replace(/^import[^\n]*\n/gm, "");
 const periods = await import(`data:text/javascript;base64,${Buffer.from(await read("lib/projectBudgetPeriods.js")).toString("base64")}`);
 const helpersContext = { ...periods, Date };
 vm.createContext(helpersContext);
-vm.runInContext(withoutImports(await read("lib/projectSetupBudgetBasis.js")).replace(/export /g, "") + "\nthis.helpers = { monthlyBudgetBaselineForSources, monthlyBudgetInputError, validMonthlyBudgetAmount };", helpersContext);
+vm.runInContext(withoutImports(await read("lib/projectSetupBudgetBasis.js")).replace(/export /g, "") + "\nthis.helpers = { monthlyBudgetBaselineForSources, monthlyBudgetInputError, validMonthlyBudgetAmount, projectOperationsBudgetSync };", helpersContext);
 const helpers = helpersContext.helpers;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -24,15 +24,20 @@ const project = { id: projectId, name: "Monthly project", status: "active", budg
 
 // Execute the real route functions, not a copy of their business logic. All
 // database calls are isolated doubles; this script never connects to Supabase.
-async function run({ method = "PATCH", sources = months, budgetError = null, rpcError = null, rpcData, isAdmin = true, audience = "", projectFound = true, assigned = true, body = { budgetDollars: 2548.50, budgetHours: 30, name: "Monthly project" } } = {}) {
+async function run({ method = "PATCH", sources = months, budgetError = null, rpcError = null, rpcData, isAdmin = true, audience = "", projectFound = true, assigned = true, initialProject = project, body = { budgetDollars: 2548.50, budgetHours: 30, name: "Monthly project" } } = {}) {
   const writes = [], queries = [], rpcCalls = [], events = [];
-  let current = { ...project };
+  let current = { ...initialProject };
   const admin = {
     auth: { admin: { listUsers: async () => ({ data: { users: [] } }) } },
     async rpc(name, args) {
       rpcCalls.push({ name, args: plain(args) }); events.push("rpc");
       if (rpcError) return { data: null, error: rpcError };
       if (rpcData !== undefined) return { data: rpcData, error: null };
+      if (name === "ec_save_project_original_budget") {
+        current = { ...current, ...plain(args.p_patch) };
+        return { data: { project: current, sourceBudgetSynchronized: true }, error: null };
+      }
+      assert.equal(name, "ec_set_monthly_project_budget", "Only the approved budget RPCs may be called.");
       const eligible = sources.filter((row) => Boolean(periods.serviceMonthForSource(row)));
       const changed = eligible.some((row) => row.approved_value !== args.p_monthly_value || row.approved_hours !== args.p_monthly_hours);
       const updated = sources.map((row) => eligible.includes(row) ? { ...row, approved_value: args.p_monthly_value, approved_hours: args.p_monthly_hours } : row);
@@ -78,7 +83,7 @@ assert.deepEqual(r.body.monthlyBudgetBaseline, { monthlyValue: 2548.5, monthlyHo
 const sourceQuery = r.queries.find((q) => q.table === "project_budget_sources");
 assert(sourceQuery.filters.some(([key, value]) => key === "approval_status" && value === "approved"));
 assert(sourceQuery.filters.some(([key, value]) => key === "project_id" && value === projectId));
-const nonMonthlySource = { approved_value: 100.10, approved_hours: 0.25, service_period_start: null, service_period_end: null };
+const nonMonthlySource = { id: "original-source", source_type: "original", approval_status: "approved", approved_value: 100.10, approved_hours: 0.25, service_period_start: null, service_period_end: null };
 r = await run({ sources: [...months, nonMonthlySource] });
 assert.equal(r.body.project.budget_dollars, 10294.10);
 assert.equal(r.body.project.budget_hours, 72.25);
@@ -173,6 +178,49 @@ for (const options of [{ isAdmin: false }, { isAdmin: true, audience: "staff" }]
   r = await run({ ...options, method: "GET", assigned: false }); assert.equal(r.response.status, 403);
 }
 
+// Ordinary project master is the original baseline, not original + variations.
+// These saves must use one RPC even when the source patch is empty.
+const variation = { ...nonMonthlySource, id: "variation-source", source_type: "variation", approved_value: 300, approved_hours: 5 };
+r = await run({ sources: [nonMonthlySource, variation], body: { budgetDollars: 2500, budgetHours: 30, description: "", clientName: "New client" } });
+assert.equal(r.response.status, 200);
+assert.deepEqual(r.events, ["rpc"]);
+assert.equal(r.writes.length, 0, "Synchronized ordinary saves must never directly write either table.");
+assert.deepEqual(r.rpcCalls, [{ name: "ec_save_project_original_budget", args: {
+  p_project_id: projectId, p_actor_id: actorId, p_source_id: nonMonthlySource.id,
+  p_expected_source: { approved_value: 100.1, approved_hours: 0.25 },
+  p_patch: { client_name: "New client", description: null, budget_hours: 30, budget_dollars: 2500 },
+  p_source_patch: { approved_hours: 30, approved_value: 2500 },
+} }]);
+assert.equal(r.body.project.budget_dollars, 2500);
+assert.equal(r.body.project.budget_hours, 30);
+assert.equal(r.body.project.scope_of_works, project.scope_of_works);
+assert.equal(r.body.sourceBudgetSynchronized, true);
+assert.equal(variation.approved_value, 300);
+r = await run({ sources: [nonMonthlySource], initialProject: { ...project, budget_dollars: 100.1, budget_hours: 0.25 }, body: { budgetDollars: 100.1, budgetHours: 0.25, name: "Same-value save" } });
+assert.equal(r.response.status, 200); assert.deepEqual(r.events, ["rpc"]); assert.deepEqual(r.rpcCalls[0].args.p_source_patch, {}); assert.equal(r.body.sourceBudgetSynchronized, true);
+r = await run({ sources: [nonMonthlySource], body: { budgetHours: 10, action: "restore" } });
+assert.equal(r.response.status, 200); assert.equal(r.rpcCalls[0].args.p_patch.deleted_at, null); assert.equal(r.rpcCalls[0].args.p_patch.deleted_by, null);
+assert(!Object.hasOwn(r.rpcCalls[0].args.p_patch, "budget_dollars"), "Omitted ordinary budget fields remain omitted.");
+assert(!Object.hasOwn(r.rpcCalls[0].args.p_source_patch, "approved_value"));
+for (const [code, status] of [["42883",409],["PGRST202",409],["PGRST204",409],["PGRST205",409],["40001",409],["P0002",409],["42501",403],["P0001",400]]) {
+  r = await run({ sources: [nonMonthlySource], rpcError: { code, message: "Atomic RPC rejected" } });
+  assert.equal(r.response.status, status); assert.equal(r.writes.length, 0); assert.deepEqual(r.events, ["rpc"]);
+  if (["42883","PGRST202","PGRST204","PGRST205"].includes(code)) assert.match(r.body.error, /No project details were saved/);
+}
+for (const rpcData of [null, {}, { project: { id: projectId }, sourceBudgetSynchronized: false }, { project: { id: actorId }, sourceBudgetSynchronized: true }]) {
+  r = await run({ sources: [nonMonthlySource], rpcData }); assert.equal(r.response.status, 502); assert.equal(r.writes.length, 0);
+}
+for (const value of ["", null, -1, true, "1.001", "1e3", "0x10"]) {
+  r = await run({ sources: [nonMonthlySource], body: { budgetDollars: value } });
+  assert.equal(r.response.status, 400); assert.equal(r.rpcCalls.length, 0); assert.equal(r.writes.length, 0);
+}
+for (const sources of [[variation], [{ ...nonMonthlySource, approval_status: "draft", source_type: "variation" }], [nonMonthlySource, { ...nonMonthlySource, id: "another-original" }]]) {
+  r = await run({ sources }); assert.equal(r.response.status, 409); assert.equal(r.writes.length, 0); assert.equal(r.rpcCalls.length, 0);
+}
+for (const options of [{ sources: [] }, { sources: null, budgetError: { code: "42P01", message: "Legacy schema" } }, { sources: [nonMonthlySource], body: { name: "Details only", action: "restore" } }]) {
+  r = await run(options); assert.equal(r.response.status, 200); assert.equal(r.rpcCalls.length, 0); assert.deepEqual(r.events, ["update:projects"]); assert.equal(r.body.sourceBudgetSynchronized, false);
+}
+
 // Execute the component's actual saveDetails and load functions independently
 // of JSX. React setters are simulated, including edits made while awaiting API.
 const saveCode = ui.slice(ui.indexOf("  const saveDetails = async () => {"), ui.indexOf("  const saveSchedule = async () => {"));
@@ -245,4 +293,4 @@ vm.createContext(readiness); vm.runInContext(readinessCode + "\nthis.ready = sta
 assert.equal(readiness.ready, true, "A valid zero monthly baseline must not be treated as blank or prevent details progression.");
 const pkg = JSON.parse(await read("package.json"));
 assert(pkg.scripts.pretest.includes("node scripts/check_project_setup_monthly_budget.mjs"));
-console.log("Monthly setup budgets passed: real administrator-only GET/PATCH, uniform/mixed periods, stale generic protection, 2500/30 -> 10000/120, decimals and zero, legacy/schema compatibility, fail-closed RPC, Setup load/save and wording/team preservation.");
+console.log("Setup budgets passed: monthly GET/PATCH and UI regressions; atomic ordinary original-budget RPC (including same-value saves), expected source snapshot, additive variations, omitted-field/restore preservation, no-source legacy fallback and fail-closed RPC errors.");

@@ -1031,7 +1031,7 @@ function ProjectDetail({
       if (d.monthlyBudgetControlled && d.project) {
         setProject((current) => ({ ...current, budget_dollars: d.project.budget_dollars, budget_hours: d.project.budget_hours }));
       }
-      notify(d.monthlyBudgetBaseline ? "Project details saved. Per-month baseline and approved aggregate totals synchronised; actuals remain month-specific." : "Project details saved.");
+      notify(d.monthlyBudgetBaseline ? "Project details saved. Per-month baseline and approved aggregate totals synchronised; actuals remain month-specific." : d.sourceBudgetSynchronized ? "Project details saved; the approved original-scope Project Tracker budget was synchronised." : "Project details saved.");
       return true;
     } catch (e) {
       fail(e);
