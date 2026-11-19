@@ -87,6 +87,27 @@ function normaliseOfficeRiskDetails(value) {
   };
 }
 
+function normaliseSiteErpDetails(value) {
+  const details = value && typeof value === "object" ? { ...value } : {};
+  const imagePattern = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  for (const key of ["hospitalRouteEvidence", "hospitalDirectionsImage"]) {
+    const candidate = String(details[key] || "").trim();
+    if (!candidate) {
+      details[key] = "";
+      continue;
+    }
+    if (key === "hospitalRouteEvidence" && !candidate.startsWith("data:")) {
+      if (candidate.length > 5000) return { error: "The legacy hospital route reference is too long." };
+      details[key] = candidate;
+      continue;
+    }
+    if (!imagePattern.test(candidate) || candidate.length > 1_200_000) return { error: "Upload a valid compressed JPG, PNG or WebP image for the hospital route evidence." };
+    details[key] = candidate;
+  }
+  details.hospitalDirections = String(details.hospitalDirections || "").trim().slice(0, 5000);
+  return { details };
+}
+
 export async function GET(request) {
   try {
     const access = await requireSession(request);
@@ -167,6 +188,11 @@ export async function POST(request) {
       title = `Office Risk Assessment: ${details.area}`;
       site = details.area;
       formDate = details.date;
+    }
+    if (b.form_type === "site_erp") {
+      const checked = normaliseSiteErpDetails(details);
+      if (checked.error) return Response.json({ error: checked.error }, { status: 400 });
+      details = checked.details;
     }
     if (b.form_type === "ecological_field_swms") {
       const checked = normaliseEcologicalFieldSwmsDetails(details);

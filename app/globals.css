@@ -3037,6 +3037,103 @@ main {
   }
 }
 
+/* Site Specific ERP — readable fieldwork record treatment inspired by the
+   Training & Competency Register: plain-language labels, larger controls and
+   calm off-white cards for quick completion in the field. */
+.sf-erp-form {
+  font-family: "Nunito Sans", "Helvetica Neue", sans-serif;
+}
+.sf-erp-form .sf-form {
+  padding: 24px;
+  border-color: #c8d8c4;
+  background: #fffefa;
+  box-shadow: 0 16px 34px rgba(18, 53, 33, 0.12);
+}
+.sf-erp-form .sf-section {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #dce7d7;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fbfcf7, #f3f8ef);
+}
+.sf-erp-form .sf-section-title {
+  margin: 0 0 14px;
+  padding: 0 0 9px;
+  border-bottom-color: #c9dcc4;
+  color: #1d603b;
+  font-family: "Nunito Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.sf-erp-form .sf-grid { gap: 14px 16px; }
+.sf-erp-form .sf-field {
+  gap: 6px;
+  color: #284638;
+  font-family: "Nunito Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.sf-erp-form .sf-field span { font-size: 13px; }
+.sf-erp-form .sf-field input,
+.sf-erp-form .sf-field select,
+.sf-erp-form .sf-field textarea {
+  min-height: 42px;
+  border-color: #b9cdb5;
+  border-radius: 9px;
+  padding: 10px 12px;
+  color: #193b28;
+  background: #fff;
+  font-family: "Nunito Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.sf-erp-form .sf-field textarea { min-height: 88px; }
+.sf-erp-form .sf-field input:focus,
+.sf-erp-form .sf-field select:focus,
+.sf-erp-form .sf-field textarea:focus {
+  border-color: #2e754a;
+  outline: 3px solid rgba(46, 117, 74, 0.16);
+}
+.sf-erp-form .sf-image-field {
+  grid-column: 1 / -1;
+  padding: 13px;
+  border: 1px dashed #9fbea0;
+  border-radius: 10px;
+  background: #f8fbf4;
+}
+.sf-erp-form .sf-image-field input[type="file"] {
+  min-height: auto;
+  padding: 8px;
+  border-style: dashed;
+  background: #fff;
+  cursor: pointer;
+}
+.sf-image-help { color: #59705d; font-size: 11.5px; font-weight: 600; line-height: 1.45; }
+.sf-image-preview {
+  display: grid;
+  grid-template-columns: minmax(160px, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 1px solid #cbdcca;
+  border-radius: 9px;
+  background: #fff;
+}
+.sf-image-preview img { display: block; width: 100%; max-height: 180px; object-fit: contain; border-radius: 6px; background: #eef3e9; }
+.sf-image-preview figcaption { display: grid; gap: 8px; color: #54705a; font-size: 12px; font-weight: 700; }
+.sf-image-preview figcaption button { width: max-content; border: 1px solid #d3a7a0; border-radius: 7px; padding: 6px 9px; color: #963d34; background: #fff8f6; font: inherit; font-size: 11px; cursor: pointer; }
+.sf-erp-form .sf-draft-status { font-family: "Nunito Sans", sans-serif; font-size: 12px; }
+@media (max-width: 760px) {
+  .sf-erp-form .sf-form { padding: 14px; }
+  .sf-erp-form .sf-section { padding: 13px; }
+  .sf-image-preview { grid-template-columns: 1fr; }
+}
+
 /* ── Admin service requests ───────────────────────────────────────── */
 .sr {
   max-width: 940px;
