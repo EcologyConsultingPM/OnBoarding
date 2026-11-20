@@ -30,7 +30,9 @@ assert.deepEqual(mapping, {
   projectName: 3,
   projectNumber: 4,
   hours: 5,
+  expenses: "",
   km: 6,
+  vehicle: "",
   activityCategory: 7,
   comments: 8,
 }, "Australian weekly timesheet column names should auto-map to import fields.");
@@ -94,15 +96,21 @@ assert.match(importRoute, /\.eq\("status", "active"\)/, "Imports must only route
 assert.match(importRoute, /\.is\("deleted_at", null\)/, "Deleted projects must not appear as import targets.");
 assert.match(importRoute, /inferTimesheetColumnMap/, "The upload workflow must detect header rows and map columns.");
 assert.match(importRoute, /findExistingDuplicates/, "The preview must detect existing tracker duplicates.");
-assert.match(importRoute, /seenInFile/, "The preview must detect duplicates within the uploaded file.");
+const reconciliationModule = await readFile(new URL("lib/projectTimesheetReconciliation.js", root), "utf8");
+assert.match(importRoute, /reconcileTimesheetRows/, "The API must use exact and possible overlap reconciliation.");
+assert.match(reconciliationModule, /seenExact/, "The preview must detect duplicates within the uploaded file.");
 assert.match(importRoute, /Source client name does not match/, "A mismatched source client should be visibly flagged for administrator review.");
 assert.match(importRoute, /entered_by_admin_id: access\.user\.id/, "Imported entries must retain their administrator provenance.");
 assert.match(importRoute, /import_batch_id: batchId/, "Imported entries must retain a batch identifier.");
 assert.match(importRoute, /import_source_row: row\.sourceRow/, "Imported entries must retain source-row provenance.");
 assert.match(importRoute, /\{ km: row\.km \}/, "Kilometres must be retained on each imported entry.");
-assert.match(importRoute, /blocked\.length \|\| !preview\.rows\.length/, "Rows with unresolved matches or duplicates must not be imported.");
+assert.match(importRoute, /blocked\.length \|\| !included\.length/, "Unresolved rows must block the batch; explicitly skipped rows cannot be inserted.");
 const importMigration = await readFile(new URL("sql/2026-11-19-timesheet-import-atomic.sql", root), "utf8");
-assert.match(importRoute, /rpc\("ec_import_weekly_timesheets"/, "Entries, totals and notifications must commit atomically.");
+const reviewedMigration = await readFile(new URL("sql/2026-11-20-timesheet-reconciliation.sql", root), "utf8");
+assert.match(importRoute, /rpc\("ec_import_weekly_timesheets_reviewed"/, "Reviewed entries, totals and notifications must commit atomically.");
+assert.match(reviewedMigration, /existing_count<>jsonb_array_length\(expected\)/, "The final transaction must reject new concurrent related entries.");
+assert.match(reviewedMigration, /Confirm the job-specific charge-out rates/, "Bulk import must not guess a job charge rate.");
+assert.match(importRoute, /import_source_task: row\.sourceTask/, "The original XLS Task must survive canonical category mapping.");
 assert.match(importMigration, /hours_consumed=round\(consumed,2\)/, "Imports must recalculate affected allocation consumption and spend.");
 assert.match(importMigration, /'project_tracker_entry_on_behalf'/, "Affected staff must receive a committed import notification.");
 assert.match(importMigration, /project_tracker_import_fingerprint_unique/, "Concurrent duplicate submissions must be rejected by a unique database index.");

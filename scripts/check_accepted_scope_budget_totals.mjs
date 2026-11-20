@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { loadTrackerChargeRates, trackerEntryChargeRate } from "../lib/projectTrackerChargeRates.js";
 
 const root = new URL("..", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
@@ -38,6 +39,7 @@ async function health(fixture, errors = {}) {
     const query = {
       select(columns) { selected.set(table, columns.split(", ")); return query; },
       is() { return query; }, neq() { return query; },
+      in() { return query; }, limit() { return query; },
       then(resolve, reject) {
         const data = (tables[table] || []).map((row) => Object.fromEntries(selected.get(table).map((column) => [column, row[column]])));
         return Promise.resolve({ data: errors[table] ? null : data, error: errors[table] || null }).then(resolve, reject);
@@ -47,6 +49,7 @@ async function health(fixture, errors = {}) {
   } };
   const context = vm.createContext({
     Response, console,
+    loadTrackerChargeRates, trackerEntryChargeRate,
     requireSession: async () => ({ admin, isAdmin: true }),
     serverError: (error) => Response.json({ error: error.message }, { status: 500 }),
   });

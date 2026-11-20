@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
 import ProjectGantt from "./ProjectGantt";
+import ProjectChargeRates from "./ProjectChargeRates";
 import { ACTIVITY_STATUS } from "./ProjectHealth";
 import { TIME_CATEGORIES, wbsForDeliverable } from "../lib/ecologicalWbs";
 import { monthlyBudgetInputError } from "../lib/projectSetupBudgetBasis";
@@ -642,6 +643,7 @@ function ProjectDetail({
   error,
   message,
 }) {
+  const { session } = useAuth();
   const [project, setProject] = useState(null);
   const [monthlyBudgetBaseline, setMonthlyBudgetBaseline] = useState(null);
   const [monthlyBudgetInputs, setMonthlyBudgetInputs] = useState({ value: "", hours: "" });
@@ -1455,6 +1457,8 @@ function ProjectDetail({
           </div> : null}
         </div>
       </section> : null}
+
+      {activeStage === "details" ? <ProjectChargeRates key={projectId} session={session} projectId={projectId} projectName={project.name} /> : null}
 
       {/* Allocations */}
       {activeStage === "team" ? <section className="aps-card aps-stage-panel" id="aps-section-team">

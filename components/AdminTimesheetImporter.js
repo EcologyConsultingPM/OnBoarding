@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDownUp, CheckCircle2, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import {
   inferTimesheetColumnMap,
@@ -10,10 +10,62 @@ import {
 
 const fieldByKey = new Map(TIMESHEET_IMPORT_FIELDS.map((field) => [field.key, field]));
 const mappingRequired = ["workDate", "staffName", "hours", "activityCategory"];
+const identityFields = ["projectId", "activityCategory", "staffUserId", "workDate", "budgetAllocationId"];
+const numberFormatter = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 });
+const chargeFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+
+function isExactDuplicate(row) {
+  return row.issues?.some((item) => /^(duplicate_(existing|file|exact)(?:_|$)|exact_duplicate)/.test(item.code || "")) || false;
+}
+
+function hasPossibleOverlap(row) {
+  return Boolean(row.possibleDuplicates?.length || row.fileOverlaps?.length);
+}
+
+function isExcluded(row) {
+  return isExactDuplicate(row) || row.isSkipped || row.duplicateDecision === "skip" || (hasPossibleOverlap(row) && row.duplicateDecision !== "separate");
+}
 
 function rowState(row) {
-  if (row.issues?.some((item) => item.code.startsWith("duplicate_"))) return "duplicate";
+  if (isExactDuplicate(row)) return "duplicate";
+  if (isExcluded(row)) return "excluded";
   return row.isImportable ? "ready" : "review";
+}
+
+function reviewValues(row, drafts) {
+  return drafts[row.sourceRow] || { decision: row.duplicateDecision || "skip", reason: row.duplicateReason || "" };
+}
+
+function reviewIsPending(row, drafts) {
+  if (isExactDuplicate(row) || !hasPossibleOverlap(row) || !drafts[row.sourceRow]) return false;
+  const draft = reviewValues(row, drafts);
+  return draft.decision !== (row.duplicateDecision || "skip") || (draft.decision === "separate" && draft.reason.trim() !== String(row.duplicateReason || "").trim());
+}
+
+function hasSubstantiveReason(reason) {
+  return String(reason || "").trim().length >= 10 && /[\p{L}\p{N}]/u.test(reason || "");
+}
+
+function formatNumber(value) {
+  return value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? "—" : numberFormatter.format(Number(value));
+}
+
+function formatCharge(value) {
+  return value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? "—" : chargeFormatter.format(Number(value));
+}
+
+function sourceValue(value) {
+  return value === null || value === undefined || value === "" ? "Not supplied" : String(value);
+}
+
+function formatUpdatedAt(value) {
+  const date = new Date(value);
+  return value && Number.isFinite(date.getTime()) ? date.toLocaleString("en-AU") : "Not supplied";
+}
+
+function inputRowPayload(row) {
+  const keys = ["sourceRow", "workDate", "staffName", "staffUserId", "clientName", "projectName", "projectNumber", "projectId", "budgetAllocationId", "hours", "expenses", "km", "vehicle", "activityCategory", "sourceTask", "comments", "duplicateDecision", "duplicateReason", "duplicateReviewToken", "chargeRate"];
+  return Object.fromEntries(keys.filter((key) => row[key] !== undefined).map((key) => [key, row[key]]));
 }
 
 export default function AdminTimesheetImporter({ session, onClose, onImported }) {
@@ -21,23 +73,35 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
   const [mapping, setMapping] = useState({});
   const [inputRows, setInputRows] = useState([]);
   const [preview, setPreview] = useState(null);
+  const [previewValidated, setPreviewValidated] = useState(false);
+  const [reviewDrafts, setReviewDrafts] = useState({});
   const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date");
   const [done, setDone] = useState(null);
+  const operationInFlight = useRef(false);
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${session?.access_token || ""}` }), [session?.access_token]);
+  const sourceRows = useMemo(() => mapRawTimesheetRows(fileInfo?.rawRows || [], mapping), [fileInfo, mapping]);
+  const sourceByRow = useMemo(() => new Map(sourceRows.map((row) => [row.sourceRow, row])), [sourceRows]);
   const missingMappings = mappingRequired.filter((key) => mapping[key] === "" || mapping[key] === undefined || mapping[key] === null);
   const hasProjectMapping = [mapping.projectName, mapping.projectNumber].some((value) => value !== "" && value !== undefined && value !== null);
   const mappingReady = !missingMappings.length && hasProjectMapping;
+  const summary = preview?.summary;
+  const unresolvedCount = summary?.unresolved ?? (preview?.rows || []).filter((row) => !row.isImportable && !isExcluded(row)).length;
+  const pendingReviewCount = (preview?.rows || []).filter((row) => reviewIsPending(row, reviewDrafts)).length;
+  const canImport = previewValidated && Boolean(summary?.ready) && !unresolvedCount && !pendingReviewCount && !busy && !done;
 
   const uploadFile = async (file) => {
-    if (!file) return;
+    if (!file || operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy("upload");
     setError("");
     setPreview(null);
+    setPreviewValidated(false);
+    setReviewDrafts({});
     setDone(null);
     try {
       const form = new FormData();
@@ -45,73 +109,112 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
       const response = await fetch("/api/admin/project-tracker-timesheet-import", { method: "POST", headers, body: form });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not read the timesheet file.");
-      const nextMapping = inferTimesheetColumnMap(body.headers || []);
       setFileInfo(body);
-      setMapping(nextMapping);
+      setMapping(inferTimesheetColumnMap(body.headers || []));
       setInputRows([]);
     } catch (uploadError) {
       setError(uploadError.message || "Could not read the timesheet file.");
     } finally {
+      operationInFlight.current = false;
       setBusy("");
     }
   };
 
   const requestPreview = async (rows) => {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy("preview");
+    setPreviewValidated(false);
     setError("");
     try {
       const response = await fetch("/api/admin/project-tracker-timesheet-import", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "preview", rows, fileName: fileInfo?.fileName }),
+        body: JSON.stringify({ action: "preview", rows: rows.map(inputRowPayload), fileName: fileInfo?.fileName }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not validate the mapped timesheets.");
       setPreview(body);
       setInputRows(body.rows || rows);
+      setPreviewValidated(true);
     } catch (previewError) {
       setError(previewError.message || "Could not validate the mapped timesheets.");
     } finally {
+      operationInFlight.current = false;
       setBusy("");
     }
   };
 
   const makePreview = () => {
-    if (!fileInfo) return;
+    if (!fileInfo || operationInFlight.current) return;
     if (!mappingReady) {
       const missing = missingMappings.map((key) => fieldByKey.get(key)?.label || key);
       if (!hasProjectMapping) missing.push("Project name or project number");
       setError(`Map these fields before previewing: ${[...new Set(missing)].join(", ")}.`);
       return;
     }
-    const rows = mapRawTimesheetRows(fileInfo.rawRows || [], mapping);
+    // Rechecking the same mapping must not discard row resolutions or review reasons.
+    const rows = inputRows.length ? inputRows : sourceRows;
     setInputRows(rows);
     requestPreview(rows);
   };
 
   const updateRow = (sourceRow, patch) => {
+    if (operationInFlight.current) return;
     const current = preview?.rows || inputRows;
-    const next = current.map((row) => row.sourceRow === sourceRow ? { ...row, ...patch } : row);
+    const resetsReview = identityFields.some((field) => Object.prototype.hasOwnProperty.call(patch, field));
+    const reviewReset = resetsReview ? { duplicateDecision: "", duplicateReason: "", duplicateReviewToken: "", isSkipped: false } : {};
+    const next = current.map((row) => row.sourceRow === sourceRow ? { ...row, ...patch, ...reviewReset } : row);
+    if (resetsReview) {
+      setReviewDrafts((drafts) => {
+        const nextDrafts = { ...drafts };
+        delete nextDrafts[sourceRow];
+        return nextDrafts;
+      });
+    }
     setInputRows(next);
+    setPreview((currentPreview) => currentPreview ? { ...currentPreview, rows: next } : currentPreview);
     requestPreview(next);
   };
 
+  const updateReviewDraft = (row, patch) => {
+    setReviewDrafts((drafts) => ({ ...drafts, [row.sourceRow]: { ...reviewValues(row, drafts), ...patch } }));
+  };
+
+  const applyReviewDecision = (row) => {
+    if (isExactDuplicate(row) || operationInFlight.current) return;
+    const draft = reviewValues(row, reviewDrafts);
+    if (draft.decision === "separate" && (!hasSubstantiveReason(draft.reason) || !row.duplicateReviewToken)) return;
+    updateRow(row.sourceRow, {
+      duplicateDecision: draft.decision,
+      duplicateReason: draft.reason.trim(),
+      duplicateReviewToken: row.duplicateReviewToken || "",
+      isSkipped: draft.decision === "skip",
+    });
+  };
+
   const importRows = async () => {
-    const rows = (preview?.rows || []).filter((row) => row.isImportable);
-    if (!rows.length) return;
+    const rows = preview?.rows || [];
+    // The API atomically validates the full review, including explicitly excluded rows.
+    if (!canImport || !rows.length || operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy("import");
     setError("");
     try {
       const response = await fetch("/api/admin/project-tracker-timesheet-import", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "import", rows, fileName: fileInfo?.fileName }),
+        body: JSON.stringify({ action: "import", rows: rows.map(inputRowPayload), fileName: fileInfo?.fileName }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (body.preview) {
           setPreview(body.preview);
           setInputRows(body.preview.rows || []);
+          setPreviewValidated(true);
+          // Keep local reasons so a refreshed conflict can be reviewed and reapplied.
+        } else {
+          setPreviewValidated(false);
         }
         throw new Error(body.error || "Could not import the reviewed entries.");
       }
@@ -120,12 +223,18 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
     } catch (importError) {
       setError(importError.message || "Could not import the reviewed entries.");
     } finally {
+      operationInFlight.current = false;
       setBusy("");
     }
   };
 
   const visibleRows = useMemo(() => {
-    const rows = [...(preview?.rows || [])].filter((row) => filter === "all" || rowState(row) === filter);
+    const rows = [...(preview?.rows || [])].filter((row) => {
+      if (filter === "all") return true;
+      if (filter === "possible") return hasPossibleOverlap(row) && !isExactDuplicate(row);
+      if (filter === "excluded") return isExcluded(row);
+      return rowState(row) === filter;
+    });
     const comparators = {
       date: (a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")) || a.sourceRow - b.sourceRow,
       staff: (a, b) => String(a.staffLabel || a.staffName || "").localeCompare(String(b.staffLabel || b.staffName || "")) || a.sourceRow - b.sourceRow,
@@ -138,36 +247,36 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
 
   const projectOptions = preview?.projectOptions || [];
   const staffOptions = preview?.staffOptions || [];
-  const summary = preview?.summary;
 
   return (
-    <section className="ati-panel" aria-label="Bulk timesheet import">
+    <section className="ati-panel" aria-label="Bulk timesheet import" aria-busy={Boolean(busy)}>
       <header className="ati-panel__head">
-        <div><span className="apt-kicker">Administrator import</span><h4><FileSpreadsheet size={18} /> Weekly timesheet upload</h4><p>Map and review the source rows first. Only validated, non-duplicate rows are written to active Project Trackers.</p></div>
+        <div><span className="apt-kicker">Administrator import</span><h4><FileSpreadsheet size={18} /> Weekly timesheet upload</h4><p>Map the source columns, reconcile weekly hours, and include or skip every row before importing new entries to active Project Trackers.</p></div>
         <button type="button" className="ati-close" onClick={onClose} disabled={Boolean(busy)} aria-label="Close timesheet import"><X size={16} /></button>
       </header>
 
+      <div className="ati-safety-notice"><AlertTriangle size={18} aria-hidden="true" /><div><strong>No existing tracker entries will be overwritten.</strong><p>Skip uploaded corrections and use the audited tracker editor to correct the existing entry. Exact duplicates are always blocked. Only genuinely separate work may be imported after reviewing an overlap and recording a substantive reason.</p></div></div>
       {error ? <div className="ati-alert" role="alert"><AlertTriangle size={16} /><span>{error}</span></div> : null}
       {done ? (
-        <div className="ati-success" role="status"><CheckCircle2 size={18} /><div><strong>Timesheet import complete</strong><span>{done.importedCount} entries · {Number(done.totalHours || 0).toLocaleString("en-AU", { maximumFractionDigits: 2 })} hours · {Number(done.totalKilometres || 0).toLocaleString("en-AU", { maximumFractionDigits: 2 })} km</span><small>Updated {done.allocationsRecalculated} project allocation totals. Staff were notified.</small></div></div>
+        <div className="ati-success" role="status"><CheckCircle2 size={18} /><div><strong>Timesheet import complete</strong><span>{done.importedCount} entries imported · {done.skippedCount || 0} skipped · {formatNumber(done.totalHours || 0)} hours · {formatNumber(done.totalKilometres || 0)} km</span><span>{formatCharge(done.labourCharge || 0)} labour charges only</span><small>Updated {done.allocationsRecalculated} project allocation totals. Staff were notified. Expenses and vehicle values are source references, not charges.</small></div></div>
       ) : null}
 
-      <div className="ati-steps" aria-label="Import steps"><span className={fileInfo ? "complete" : "current"}>1. Upload</span><span className={fileInfo ? "current" : ""}>2. Map &amp; review</span><span className={done ? "complete" : preview?.summary?.ready ? "current" : ""}>3. Import</span></div>
+      <div className="ati-steps" aria-label="Import steps"><span className={fileInfo ? "complete" : "current"}>1. Upload</span><span className={fileInfo ? "current" : ""}>2. Map &amp; review</span><span className={done ? "complete" : canImport ? "current" : ""}>3. Import</span></div>
 
       <div className="ati-upload-row">
-        <label className="ati-file-button"><Upload size={15} /> {busy === "upload" ? "Reading file…" : fileInfo ? "Choose another file" : "Choose CSV or Excel file"}<input key={fileInputKey} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={Boolean(busy)} onChange={(event) => uploadFile(event.target.files?.[0])} /></label>
+        <label className="ati-file-button"><Upload size={15} /> {busy === "upload" ? "Reading file…" : fileInfo ? "Choose another file" : "Choose CSV or Excel file"}<input key={fileInputKey} type="file" aria-label="Upload CSV or Excel timesheet" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={Boolean(busy)} onChange={(event) => uploadFile(event.target.files?.[0])} /></label>
         {fileInfo ? <span className="ati-file-name">{fileInfo.fileName} · {fileInfo.sheetName} · {fileInfo.rawRows?.length || 0} rows</span> : <span className="ati-help">CSV, XLSX or XLS · up to 10 MB and 1,000 data rows</span>}
-        {fileInfo ? <button type="button" className="ati-reset" disabled={Boolean(busy)} onClick={() => { setFileInfo(null); setPreview(null); setInputRows([]); setDone(null); setError(""); setFileInputKey((current) => current + 1); }}>Start over</button> : null}
+        {fileInfo ? <button type="button" className="ati-reset" disabled={Boolean(busy)} onClick={() => { setFileInfo(null); setPreview(null); setPreviewValidated(false); setReviewDrafts({}); setInputRows([]); setDone(null); setError(""); setFileInputKey((current) => current + 1); }}>Start over</button> : null}
       </div>
 
       {fileInfo && !done ? (
         <>
           <div className="ati-mapping" aria-label="Map uploaded columns">
-            <div className="ati-section-title"><div><strong>Map the source columns</strong><small>Detected headers are preselected when possible. Project name or number is required.</small></div><button type="button" className="ati-primary" onClick={makePreview} disabled={Boolean(busy) || !mappingReady}><ArrowDownUp size={14} /> {busy === "preview" ? "Checking rows…" : "Preview changes"}</button></div>
+            <div className="ati-section-title"><div><strong>Map the source columns</strong><small>Detected headers are preselected when possible. Project name or number is required. Expenses and vehicle are optional references only.</small></div><button type="button" className="ati-primary" onClick={makePreview} disabled={Boolean(busy) || !mappingReady}><ArrowDownUp size={14} /> {busy === "preview" ? "Checking rows…" : "Preview changes"}</button></div>
             <div className="ati-map-grid">
               {TIMESHEET_IMPORT_FIELDS.map((field) => (
                 <label key={field.key} className="ati-map-field">{field.label}{field.required ? <b aria-label="required"> *</b> : null}
-                  <select value={mapping[field.key] === "" || mapping[field.key] === undefined ? "" : String(mapping[field.key])} disabled={Boolean(busy)} onChange={(event) => { setPreview(null); setInputRows([]); setMapping((current) => ({ ...current, [field.key]: event.target.value === "" ? "" : Number(event.target.value) })); }}>
+                  <select value={mapping[field.key] === "" || mapping[field.key] === undefined || mapping[field.key] === null ? "" : String(mapping[field.key])} disabled={Boolean(busy)} onChange={(event) => { setPreview(null); setPreviewValidated(false); setReviewDrafts({}); setInputRows([]); setMapping((current) => ({ ...current, [field.key]: event.target.value === "" ? "" : Number(event.target.value) })); }}>
                     <option value="">Not mapped</option>
                     {(fileInfo.headers || []).map((header, index) => <option value={index} key={`${index}-${header}`}>{header}</option>)}
                   </select>
@@ -182,48 +291,118 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
                 <Metric label="Ready to import" value={summary?.ready || 0} tone="ready" />
                 <Metric label="Needs review" value={summary?.needsReview || 0} tone="review" />
                 <Metric label="Duplicates" value={summary?.duplicates || 0} tone="duplicate" />
-                <Metric label="Ready hours" value={`${Number(summary?.totalHours || 0).toLocaleString("en-AU", { maximumFractionDigits: 2 })} h`} />
-                <Metric label="Ready kilometres" value={`${Number(summary?.totalKm || 0).toLocaleString("en-AU", { maximumFractionDigits: 2 })} km`} />
+                <Metric label="Possible overlaps" value={summary?.possibleDuplicates || 0} tone="review" />
+                <Metric label="Excluded rows" value={summary?.excluded || 0} />
+                <Metric label="Unresolved rows" value={unresolvedCount} tone="review" />
+                <Metric label="Ready hours" value={`${formatNumber(summary?.totalHours || 0)} h`} />
+                <Metric label="Ready kilometres" value={`${formatNumber(summary?.totalKm || 0)} km`} />
+                <Metric label="Total labour charges" value={formatCharge(summary?.totalCharge || 0)} tone="ready" />
+              </div>
+
+              <Reconciliation summary={summary} groups={preview.reconciliation || []} />
+              <p className="ati-rate-card-guidance">Rates come from the confirmed rate card for this job; configure them in Project Operations → Charge-out Rates. Company role rates are suggestions, not guaranteed charges. Rows without a confirmed job rate card must be resolved or skipped.</p>
+
+              <div className="ati-validation-status" role="status" aria-live="polite">
+                {busy === "preview" ? <><Loader2 size={14} className="spin" aria-hidden="true" /> Validating the full review… Import is disabled until checking finishes.</> : !previewValidated ? "This review is not currently validated. Select Preview changes to recheck before importing." : pendingReviewCount ? `${pendingReviewCount} unapplied overlap review decision${pendingReviewCount === 1 ? "" : "s"}. Apply each decision before importing.` : unresolvedCount ? `${unresolvedCount} unresolved row${unresolvedCount === 1 ? "" : "s"}. Resolve the highlighted fields or explicitly choose Skip for every invalid or unmatched row.` : "Review validated. Only included, ready rows will create new tracker entries; excluded rows remain unchanged."}
               </div>
               <div className="ati-review-controls">
-                <label>Show<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All rows</option><option value="ready">Ready</option><option value="review">Needs review</option><option value="duplicate">Duplicates</option></select></label>
+                <label>Show<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All rows</option><option value="ready">Ready</option><option value="review">Needs resolution</option><option value="possible">Possible overlaps</option><option value="duplicate">Exact duplicates</option><option value="excluded">Excluded / skipped</option></select></label>
                 <label>Sort by<select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="date">Work date</option><option value="staff">Staff name</option><option value="project">Project name</option><option value="row">Source row</option></select></label>
-                <span>{visibleRows.length} shown of {summary?.total || 0}</span>
-                <button type="button" className="ati-primary" onClick={importRows} disabled={Boolean(busy) || !summary?.ready}>{busy === "import" ? <><Loader2 size={14} className="spin" /> Importing…</> : <><CheckCircle2 size={14} /> Import {summary?.ready || 0} entries</>}</button>
+                <span>{visibleRows.length} shown of {summary?.total ?? preview.rows?.length ?? 0}</span>
+                <button type="button" className="ati-primary" onClick={importRows} disabled={!canImport} aria-describedby="ati-import-guidance">{busy === "import" ? <><Loader2 size={14} className="spin" /> Importing…</> : <><CheckCircle2 size={14} /> Import {summary?.ready || 0} entries</>}</button>
               </div>
-              <div className="ati-table-wrap">
+              <div className="ati-table-wrap" role="region" aria-label="Scrollable timesheet row review" tabIndex={0}>
                 <table className="ati-table">
-                  <thead><tr><th>Row</th><th>Date</th><th>Staff — resolve if needed</th><th>Project — resolve if needed</th><th>Category</th><th>Budget source / allocation</th><th>Hours</th><th>Km</th><th>Comments</th><th>Review</th></tr></thead>
+                  <caption className="ati-visually-hidden">Uploaded timesheet rows, their labour charges, inclusion decisions, and existing entry comparisons</caption>
+                  <thead><tr><th scope="col">Row</th><th scope="col">Date</th><th scope="col">Staff — resolve if needed</th><th scope="col">Project — resolve if needed</th><th scope="col">Category</th><th scope="col">Budget source / allocation</th><th scope="col">Hours</th><th scope="col">Km</th><th scope="col">Labour role / hourly rate</th><th scope="col">Line labour charge</th><th scope="col">Comments / source references</th><th scope="col">Import decision</th><th scope="col">Review / compare entries</th></tr></thead>
                   <tbody>
                     {visibleRows.map((row) => {
                       const state = rowState(row);
+                      const exactDuplicate = isExactDuplicate(row);
+                      const possibleOverlap = hasPossibleOverlap(row) && !exactDuplicate;
+                      const draft = reviewValues(row, reviewDrafts);
+                      const pending = reviewIsPending(row, reviewDrafts);
+                      const separateReasonValid = hasSubstantiveReason(draft.reason);
+                      const source = sourceByRow.get(row.sourceRow) || row;
                       const projectValue = row.projectId || "";
                       const projectOption = projectOptions.find((project) => project.id === projectValue);
                       const categories = projectOption?.categoryOptions?.length ? projectOption.categoryOptions : row.categoryOptions || [];
+                      const originalTask = row.sourceTask || source.sourceTask || source.activityCategory;
                       return (
                         <tr key={row.sourceRow} className={`ati-row ati-row--${state}`}>
                           <td>#{row.sourceRow}</td>
-                          <td>{row.workDate || <span className="ati-missing">Invalid date</span>}</td>
-                          <td><select aria-label={`Staff for source row ${row.sourceRow}`} value={row.staffUserId || ""} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { staffUserId: event.target.value })}><option value="">Choose staff…</option>{staffOptions.map((person) => <option value={person.id} key={person.id}>{person.name}{person.email ? ` · ${person.email}` : ""}</option>)}</select><small>{row.staffName}</small></td>
-                          <td><select aria-label={`Project for source row ${row.sourceRow}`} value={projectValue} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { projectId: event.target.value, budgetAllocationId: "" })}><option value="">Choose active project…</option>{projectOptions.map((project) => <option value={project.id} key={project.id}>{project.name}{project.projectNumbers?.length ? ` · ${project.projectNumbers.join(", ")}` : ""}{project.clientName ? ` · ${project.clientName}` : ""}</option>)}</select><small>{row.projectName || row.projectNumber || row.clientName || "Project not supplied"}</small></td>
-                          <td><select aria-label={`Activity category for source row ${row.sourceRow}`} value={categories.find((category) => category === row.activityCategory) || ""} disabled={Boolean(busy) || !categories.length} onChange={(event) => updateRow(row.sourceRow, { activityCategory: event.target.value, budgetAllocationId: "" })}><option value="">Choose category…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select><small>{row.activityCategory && !categories.includes(row.activityCategory) ? `Source: ${row.activityCategory}` : ""}</small></td>
+                          <td><input key={`${row.sourceRow}-${row.workDate || ""}`} className="ati-date-input" type="date" aria-label={`Work date for source row ${row.sourceRow}`} defaultValue={/^\d{4}-\d{2}-\d{2}$/.test(row.workDate || "") ? row.workDate : ""} disabled={Boolean(busy)} onBlur={(event) => { if (event.target.value !== (row.workDate || "")) updateRow(row.sourceRow, { workDate: event.target.value, budgetAllocationId: "" }); }} />{!row.workDate ? <small className="ati-missing">Invalid date — resolve or skip</small> : null}<small>Source: {sourceValue(source.workDate)}</small></td>
+                          <td><select aria-label={`Staff for source row ${row.sourceRow}`} value={row.staffUserId || ""} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { staffUserId: event.target.value, budgetAllocationId: "" })}><option value="">Choose staff…</option>{staffOptions.map((person) => <option value={person.id} key={person.id}>{person.name}{person.email ? ` · ${person.email}` : ""}</option>)}</select><small>Source: {sourceValue(source.staffName)}</small></td>
+                          <td><select aria-label={`Project for source row ${row.sourceRow}`} value={projectValue} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { projectId: event.target.value, budgetAllocationId: "" })}><option value="">Choose active project…</option>{projectOptions.map((project) => <option value={project.id} key={project.id}>{project.name}{project.projectNumbers?.length ? ` · ${project.projectNumbers.join(", ")}` : ""}{project.clientName ? ` · ${project.clientName}` : ""}</option>)}</select><small>Source: {sourceValue(source.projectName || source.projectNumber || source.clientName)}</small></td>
+                          <td><select aria-label={`Activity category for source row ${row.sourceRow}`} value={categories.find((category) => category === row.activityCategory) || ""} disabled={Boolean(busy) || !categories.length} onChange={(event) => updateRow(row.sourceRow, { activityCategory: event.target.value, budgetAllocationId: "" })}><option value="">Choose category…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>{originalTask && originalTask !== row.activityCategory ? <small className="ati-original-task">Original Task: {originalTask}</small> : row.activityCategory && !categories.includes(row.activityCategory) ? <small>Source: {row.activityCategory}</small> : null}</td>
                           <td><select aria-label={`Budget allocation for source row ${row.sourceRow}`} value={(row.allocationOptions || []).some((option) => option.id === row.budgetAllocationId) ? row.budgetAllocationId : ""} disabled={Boolean(busy) || !row.allocationOptions?.length} onChange={(event) => updateRow(row.sourceRow, { budgetAllocationId: event.target.value })}><option value="">Choose budget allocation…</option>{(row.allocationOptions || []).map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select><small>{row.allocationOptions?.length > 1 ? "Explicit source choice required" : "Approved work-date budget"}</small></td>
-                          <td>{row.hours ?? "—"}</td>
-                          <td>{row.km ?? "—"}</td>
-                          <td className="ati-comment">{row.comments || <span className="ati-muted">No comment supplied</span>}</td>
-                          <td><span className={`ati-badge ati-badge--${state}`}>{state === "ready" ? "Ready" : state === "duplicate" ? "Duplicate" : "Review"}</span>{row.issues?.map((item, index) => <small className="ati-issue" key={`${item.code}-${index}`}>{item.message}</small>)}{row.warnings?.map((warning, index) => <small className="ati-warning" key={`warning-${index}`}>{warning}</small>)}</td>
+                          <td className="ati-numeric">{formatNumber(row.hours)}</td>
+                          <td className="ati-numeric">{formatNumber(row.km)}</td>
+                          <td className="ati-charge-cell"><strong>{row.chargeRole || "Role unresolved"}</strong><span>{formatCharge(row.chargeRate)} / hour</span><small>Administrator-only · confirmed job rate card</small>{row.issues?.some((item) => item.code === "missing_project_rates") ? <small className="ati-issue">Configure this job in Project Operations → Charge-out Rates, then recheck or skip.</small> : null}</td>
+                          <td className="ati-charge-cell ati-numeric"><strong>{formatCharge(row.chargeAmount)}</strong>{isExcluded(row) ? <small>Excluded from totals</small> : <small>Labour only</small>}</td>
+                          <td className="ati-comment">{row.comments || <span className="ati-muted">No comment supplied</span>}<div className="ati-source-references"><small>Expenses: {sourceValue(source.expenses ?? row.expenses)}</small><small>Vehicle: {sourceValue(source.vehicle ?? row.vehicle)}</small><small>Source references only — not charged</small></div></td>
+                          <td className="ati-decision-cell">
+                            {exactDuplicate ? <><select aria-label={`Import decision for source row ${row.sourceRow}: exact duplicate always skipped`} value="skip" disabled><option value="skip">Skipped — exact duplicate</option></select><small className="ati-issue">Cannot override. Skip corrections and use the audited tracker editor.</small></> : possibleOverlap ? <>
+                              <label className="ati-review-label" htmlFor={`ati-decision-${row.sourceRow}`}>Possible overlap</label>
+                              <select id={`ati-decision-${row.sourceRow}`} aria-label={`Overlap decision for source row ${row.sourceRow}`} value={draft.decision} disabled={Boolean(busy)} onChange={(event) => updateReviewDraft(row, { decision: event.target.value })}><option value="skip">Skip (default)</option><option value="separate">Import as separate work</option></select>
+                              {draft.decision === "separate" ? <div className="ati-reason-editor"><label htmlFor={`ati-reason-${row.sourceRow}`}>Why is this distinct work?</label><textarea id={`ati-reason-${row.sourceRow}`} value={draft.reason} disabled={Boolean(busy)} rows={3} maxLength={1000} placeholder="Describe the separate work, not a correction…" aria-describedby={`ati-reason-help-${row.sourceRow}`} aria-invalid={!separateReasonValid} onChange={(event) => updateReviewDraft(row, { reason: event.target.value })} /><small id={`ati-reason-help-${row.sourceRow}`}>A substantive reason of at least 10 characters and a current review are required. {draft.reason.trim().length} characters.</small>{!row.duplicateReviewToken ? <small className="ati-issue">Refresh the preview before approving separate work.</small> : null}</div> : <small>Will not create a new entry or alter existing work.</small>}
+                              <button type="button" className="ati-apply-review" disabled={Boolean(busy) || (draft.decision === "separate" && (!separateReasonValid || !row.duplicateReviewToken))} onClick={() => applyReviewDecision(row)} aria-label={`Apply review decision for source row ${row.sourceRow}`}>Apply review decision</button>
+                              {pending ? <small className="ati-warning">Draft not applied — import is disabled.</small> : row.duplicateDecision === "separate" ? <small>Separate-work decision validated{row.duplicateReason ? `: ${row.duplicateReason}` : ""}</small> : null}
+                            </> : <><select aria-label={`Import decision for source row ${row.sourceRow}`} value={row.isSkipped || row.duplicateDecision === "skip" ? "skip" : "include"} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { duplicateDecision: event.target.value === "skip" ? "skip" : "", isSkipped: event.target.value === "skip" })}><option value="include">Include</option><option value="skip">Skip</option></select><small>{isExcluded(row) ? "Explicitly excluded from this import" : row.isImportable ? "Validated for import" : "Resolve the row or explicitly choose Skip"}</small></>}
+                          </td>
+                          <td className="ati-review-cell"><span className={`ati-badge ati-badge--${state}`}>{state === "ready" ? "Ready" : state === "duplicate" ? "Exact duplicate · skipped" : state === "excluded" ? "Excluded" : "Unresolved"}</span>{possibleOverlap ? <span className="ati-badge ati-badge--possible">Possible overlap</span> : null}{row.issues?.map((item, index) => <small className="ati-issue" key={`${item.code}-${index}`}>{item.message}</small>)}{row.warnings?.map((warning, index) => <small className="ati-warning" key={`warning-${index}`}>{warning}</small>)}<RowComparison row={row} source={source} sourceByRow={sourceByRow} /></td>
                         </tr>
                       );
                     })}
-                    {!visibleRows.length ? <tr><td colSpan="10" className="ati-empty">No rows match this filter.</td></tr> : null}
+                    {!visibleRows.length ? <tr><td colSpan="13" className="ati-empty">No rows match this filter.</td></tr> : null}
                   </tbody>
                 </table>
               </div>
-              <p className="ati-footnote">Imported entries are marked completed and administrator-entered. Kilometres are retained for reference and do not change project budget calculations. Budget availability is recalculated from the imported hours and staff rate.</p>
+              <p id="ati-import-guidance" className="ati-footnote">Every invalid or unmatched row must be resolved or explicitly skipped. Possible overlaps are skipped by default; exact duplicates can never be imported. Changing staff, project, date, category, or budget source resets the overlap review and rechecks the row.</p>
+              <p className="ati-footnote">Imported entries are marked completed and administrator-entered. Only included labour hours × the validated hourly rate affect budget charges. Kilometres, expenses, and vehicle values are references, not additional charges. Existing entries are never overwritten; make corrections in the audited tracker editor after skipping the uploaded correction.</p>
             </div>
           ) : null}
         </>
       ) : null}
+    </section>
+  );
+}
+
+function RowComparison({ row, source, sourceByRow }) {
+  const existing = row.possibleDuplicates || [];
+  const peers = row.fileOverlaps || [];
+  return (
+    <details className="ati-comparison">
+      <summary>View uploaded source{existing.length ? ` · ${existing.length} existing ${existing.length === 1 ? "entry" : "entries"}` : ""}{peers.length ? ` · ${peers.length} file ${peers.length === 1 ? "peer" : "peers"}` : ""}</summary>
+      <div className="ati-comparison-body">
+        <div className="ati-comparison-entry ati-comparison-entry--upload"><strong>Uploaded source · row #{row.sourceRow}</strong><EntryDetails date={source.workDate} staff={source.staffName} category={source.sourceTask || source.activityCategory} hours={source.hours} km={source.km} comments={source.comments} /><small>Client: {sourceValue(source.clientName)} · Job#: {sourceValue(source.projectNumber)} · Client job: {sourceValue(source.projectName)}</small><small>Expenses: {sourceValue(source.expenses)} · Vehicle: {sourceValue(source.vehicle)} · Not charged</small>{String(source.workDate ?? "") !== String(row.workDate ?? "") || (source.sourceTask || source.activityCategory) !== row.activityCategory ? <small>Reviewed date: {sourceValue(row.workDate)} · Canonical category: {sourceValue(row.activityCategory)}</small> : null}</div>
+        {existing.map((entry, index) => <div className="ati-comparison-entry" key={entry.id || index}><strong>Existing tracker entry</strong><EntryDetails date={entry.workDate} staff={entry.staffLabel} category={entry.activityCategory} hours={entry.hours} km={entry.km} comments={entry.comments} /><small>Source: {entry.enteredByAdmin === true ? "Administrator-entered" : entry.enteredByAdmin === false ? "Staff-entered" : "Entry source not supplied"} · Updated: {formatUpdatedAt(entry.updatedAt)}</small></div>)}
+        {peers.map((peer, index) => {
+          const peerSource = sourceByRow.get(peer.sourceRow);
+          return <div className="ati-comparison-entry" key={`${peer.sourceRow}-${index}`}><strong>Uploaded file peer · row #{peer.sourceRow}</strong><EntryDetails date={peerSource?.workDate || row.workDate} staff={peerSource?.staffName || row.staffLabel || row.staffName} category={peer.activityCategory} hours={peer.hours} km={peer.km} comments={peer.comments} /><small>Source: same uploaded file — review this row separately.</small></div>;
+        })}
+        {!existing.length && !peers.length ? <small>No overlap details were returned for this row.</small> : null}
+      </div>
+    </details>
+  );
+}
+
+function EntryDetails({ date, staff, category, hours, km, comments }) {
+  return <><dl className="ati-entry-details"><div><dt>Date</dt><dd>{sourceValue(date)}</dd></div><div><dt>Staff</dt><dd>{sourceValue(staff)}</dd></div><div><dt>Task / category</dt><dd>{sourceValue(category)}</dd></div><div><dt>Hours / km</dt><dd>{sourceValue(hours)} h · {sourceValue(km)} km</dd></div></dl><p className="ati-entry-comment"><b>Comments:</b> {sourceValue(comments)}</p></>;
+}
+
+function Reconciliation({ summary, groups = [] }) {
+  return (
+    <section className="ati-reconciliation" aria-label="Weekly hours reconciliation">
+      <div className="ati-section-title"><div><strong>Weekly hours reconciliation</strong><small>Existing tracker hours + new included hours = resulting week hours. Uploaded exclusions do not change existing hours.</small></div><span className="ati-reconciliation-charge"><small>New included labour charges</small><strong>{formatCharge(summary?.totalCharge || 0)}</strong></span></div>
+      <div className="ati-reconciliation-wrap" role="region" aria-label="Scrollable weekly hours reconciliation" tabIndex={0}>
+        <table className="ati-reconciliation-table">
+          <caption className="ati-visually-hidden">Existing, uploaded, new included, excluded and resulting hours grouped by staff, project and week</caption>
+          <thead><tr><th scope="col">Staff</th><th scope="col">Project</th><th scope="col">Week starting</th><th scope="col">Existing h</th><th scope="col">Uploaded h</th><th scope="col">New included h</th><th scope="col">Excluded h</th><th scope="col">Resulting h</th></tr></thead>
+          <tbody>{groups.map((group, index) => <tr key={`${group.staffLabel}-${group.projectLabel}-${group.weekStart}-${index}`}><th scope="row">{group.staffLabel || "Unresolved staff"}</th><td>{group.projectLabel || "Unresolved project"}</td><td>{group.weekStart || "Unresolved week"}</td><td>{formatNumber(group.existingHours)}</td><td>{formatNumber(group.uploadHours)}</td><td className="ati-reconciliation-new">{formatNumber(group.newHours)}</td><td>{formatNumber(group.excludedHours)}</td><td className="ati-reconciliation-result">{formatNumber(group.resultingHours)}</td></tr>)}{!groups.length ? <tr><td colSpan="8" className="ati-empty">No weekly reconciliation groups are available yet.</td></tr> : null}</tbody>
+        </table>
+      </div>
+      <p className="ati-footnote">Labour charges only. Expenses, kilometres, and vehicle references are not included in these charges.</p>
     </section>
   );
 }

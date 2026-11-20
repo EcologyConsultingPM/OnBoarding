@@ -4,6 +4,8 @@ import { listDirectoryUsers } from "../../../lib/staffDirectory";
 import { emptyStaffProjectAssignmentSummary, loadStaffProjectAssignments, summarizeStaffProjectAssignments } from "../../../lib/staffProjectAssignmentSummary";
 import { budgetEntryPeriodError, validBudgetDate } from "../../../lib/projectBudgetPeriods";
 import { hoursPayload, selectWithHoursFlags } from "../../../lib/workActivityHours";
+import { refreshProjectTrackerAllocation } from "../../../lib/projectTrackerAllocationTotals";
+import { trackerResponseCustomData } from "../../../lib/projectTrackerChargeRates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,30 +192,7 @@ export async function eligibleProjects(access, staffUserId = access.user.id, inc
 }
 
 export async function refreshTrackerAllocation(access, projectId, allocationId) {
-  const [{ data: entryRows, error: sumError }, { data: projectRates }, { data: projectDefault }] = await Promise.all([
-    access.admin.from("project_tracker_entries").select("hours, staff_user_id").eq("budget_allocation_id", allocationId).limit(10000),
-    access.admin.from("project_allocations").select("staff_user_id, hourly_rate").eq("project_id", projectId),
-    access.admin.from("projects").select("default_hourly_rate").eq("id", projectId).maybeSingle(),
-  ]);
-  if (sumError) throw new Error(sumError.message);
-  const consumed = (entryRows || []).reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  const rateByStaff = new Map((projectRates || []).map((row) => [row.staff_user_id, Number(row.hourly_rate) || 0]));
-  const defaultRate = Number(projectDefault?.default_hourly_rate) || 0;
-  const chargeOutSpend = (entryRows || []).reduce((sum, row) => {
-    // Team members can legitimately submit ad hoc time before an individual
-    // allocation/rate is added. Preserve the project default-rate fallback.
-    const rate = rateByStaff.get(row.staff_user_id) || defaultRate;
-    return sum + Number(row.hours || 0) * rate;
-  }, 0);
-  const internalCost = chargeOutSpend * 0.6;
-  const { error: allocationError } = await access.admin.from("project_budget_allocations").update({
-    hours_consumed: consumed,
-    charge_out_spend: Math.round(chargeOutSpend * 100) / 100,
-    internal_cost: Math.round(internalCost * 100) / 100,
-    updated_by: access.user.id,
-    updated_at: new Date().toISOString(),
-  }).eq("id", allocationId).eq("project_id", projectId);
-  if (allocationError) throw new Error(allocationError.message);
+  return refreshProjectTrackerAllocation(access, projectId, allocationId);
 }
 
 async function ownEntries(access) {
@@ -222,7 +201,7 @@ async function ownEntries(access) {
     result = await access.admin.from("project_tracker_entries").select("id, project_id, budget_source_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at, updated_at, project:projects!project_tracker_entries_project_id_fkey(name, client_name), source:project_budget_sources!project_tracker_entries_budget_source_id_fkey(id, source_code, source_name, approval_status, service_period_start, service_period_end), allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(id, allocation_code, allocation_name)").eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
   }
   if (result.error) { if (unavailable(result.error)) return { available: false, entries: [] }; throw new Error(result.error.message); }
-  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, budgetSource: entry.source ? { ...entry.source, allocations: entry.allocation ? [{ ...entry.allocation, budget_source_id: entry.budget_source_id, project_id: entry.project_id }] : [] } : null, allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at, updatedAt: entry.updated_at })) };
+  return { available: true, entries: (result.data || []).map((entry) => ({ id: entry.id, projectId: entry.project_id, projectName: entry.project?.name || "Unrecorded project", projectClient: entry.project?.client_name || "", sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, budgetSource: entry.source ? { ...entry.source, allocations: entry.allocation ? [{ ...entry.allocation, budget_source_id: entry.budget_source_id, project_id: entry.project_id }] : [] } : null, allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "Unallocated", activityId: entry.activity_id || null, activityTitle: entry.activity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: trackerResponseCustomData(entry.custom_data, access.isAdmin), createdAt: entry.created_at, updatedAt: entry.updated_at })) };
 }
 
 // Every person allocated to a project needs to see the same picture: the live
@@ -495,7 +474,7 @@ export async function createTrackerEntry(access, input, targetStaffUserId = acce
     // typing it in — they need to know it happened, not just discover it.
     if (isOnBehalf) await access.admin.from("portal_events").insert({ recipient_id: targetStaffUserId, event_type: "project_tracker_entry_on_behalf", severity: "information", title: `Timesheet entry added on your behalf: ${project.name}`, body: `An admin logged ${activityCategory} · ${amount} hours · ${workDate} for you, marked as a missed entry.`, href: "/staff/project-tracker", source_table: "project_tracker_entries", source_id: entry.id });
 
-  return { entry: { id: entry.id, projectId, projectName: project.name, projectClient: project.clientName, allocation: `${allocation.allocation_code} · ${allocation.allocation_name}`, activityId: entry.activity_id || null, activityTitle: linkedActivity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, createdAt: entry.created_at } };
+  return { entry: { id: entry.id, projectId, projectName: project.name, projectClient: project.clientName, allocation: `${allocation.allocation_code} · ${allocation.allocation_name}`, activityId: entry.activity_id || null, activityTitle: linkedActivity?.title || "", workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: trackerResponseCustomData(entry.custom_data, access.isAdmin), createdAt: entry.created_at } };
 }
 
 export async function POST(request) {
@@ -621,6 +600,6 @@ export async function PATCH(request) {
         source_id: id,
       });
     }
-    return Response.json({ entry: { id: entry.id, projectId: entry.project_id, sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: entry.custom_data || {}, updatedAt: entry.updated_at } });
+    return Response.json({ entry: { id: entry.id, projectId: entry.project_id, sourceId: entry.budget_source_id, allocationId: entry.budget_allocation_id, workDate: entry.work_date, category: entry.activity_category, information: entry.activity_information, hours: entry.hours, status: entry.status, notableIssues: entry.notable_issues || "", customData: trackerResponseCustomData(entry.custom_data, access.isAdmin), updatedAt: entry.updated_at } });
   } catch (error) { return serverError(error); }
 }

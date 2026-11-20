@@ -34,7 +34,7 @@ assert.doesNotMatch(trackerRoute, /if \(correctionReason\.length < 10\)/, "Times
 assert.match(tracker, /Correction note/, "The tracker editor must label the optional note accurately.");
 assert.match(tracker, /Optional — recorded in the audit trail if supplied/, "The tracker editor must explain how optional notes are retained.");
 assert.match(tracker, /Saving correction…" : "Save corrected entry"/, "The correction save action must remain available without an optional note.");
-assert.match(staffTrackerRoute, /const rate = rateByStaff\.get\(row\.staff_user_id\) \|\| defaultRate;/, "Staff tracker entries must charge unpriced future team members at the project default rate.");
+assert.match(staffTrackerRoute, /return refreshProjectTrackerAllocation\(access, projectId, allocationId\);/, "Staff tracker refreshes must use the same role/snapshot recalculator as administrator corrections.");
 assert.match(staffTrackerRoute, /const allowed = access\.isAdmin \|\| \(eligible\.projects \|\| \[\]\)\.some\(\(project\) => project\.id === projectId\);/, "Team timesheet history must be restricted to a project allocated to the signed-in staff member.");
 assert.match(staffTrackerRoute, /\.eq\("project_id", projectId\)/, "The team timesheet query must be constrained to one requested project.");
 assert.match(staffTrackerRoute, /rates, delivery costs and profitability stay/, "Staff project history responses must not return commercial rate or profitability data.");
@@ -45,7 +45,9 @@ assert.match(staffProjectTracker, /Read-only project record/, "The project histo
 assert.match(staffProjectTracker, /entries cannot be edited here/, "The project history tab must state that editing remains unavailable to staff.");
 assert.match(staffMyProjects, /<StaffProjectTracker embedded \/>/, "My Projects must use the same project tracker so the timesheet history tabs are consistent in both staff entry points.");
 assert.match(trackerRoute, /refreshProjectTrackerAllocation\(access, projectId, allocationId\)/, "Administrator corrections must use the shared allocation recalculator.");
-assert.match(allocationTotals, /rateByStaff\.get\(entry\.staff_user_id\) \|\| defaultRate/, "Administrator corrections must preserve the project default-rate fallback.");
+assert.match(allocationTotals, /loadTrackerChargeRates\(access\.admin, \[projectId\]\)/, "Allocation recalculation must load only that project's confirmed charge card.");
+assert.match(allocationTotals, /trackerEntryChargeRate\(entry, ratesByProject, legacyRate\)/, "Corrections must preserve trusted snapshots without repricing unstamped historical entries at a new card.");
+assert.match(allocationTotals, /legacyRateByStaff\.get\(entry\.staff_user_id\) \|\| defaultRate/, "All unstamped historical rows must retain their existing legacy charging behavior.");
 assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must use the responsive timesheet table wrapper.");
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");
 assert.match(styles, /\.apt-timesheet-table \{ width: 100%; min-width: 1040px;/, "The timesheet table must reserve readable column width.");

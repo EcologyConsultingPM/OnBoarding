@@ -20460,3 +20460,152 @@ main {
 /* Explicit budget classification remains readable on narrow admin screens. */
 .ati-table { min-width: 1640px; }
 .ati-table th:nth-child(6), .ati-table td:nth-child(6) { min-width: 210px; }
+
+/* ── ATI: explicit row decisions, overlap review and labour reconciliation ── */
+.ati-panel { min-width: 0; }
+.ati-safety-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(231, 201, 121, 0.5);
+  border-left: 3px solid #e7c979;
+  border-radius: 8px;
+  color: #f6e9c4;
+  background: rgba(231, 201, 121, 0.08);
+  font: 11.5px/1.55 "Archivo", sans-serif;
+}
+.ati-safety-notice > svg { flex: 0 0 auto; margin-top: 1px; color: #e7c979; }
+.ati-safety-notice strong { display: block; color: #fff8df; font-weight: 700; }
+.ati-safety-notice p { margin: 3px 0 0; }
+.ati-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ati-metric strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ati-validation-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 0 5px;
+  padding: 9px 11px;
+  border: 1px solid rgba(191, 229, 173, 0.2);
+  border-radius: 7px;
+  background: rgba(191, 229, 173, 0.06);
+  color: #e0ebd9;
+  font: 11px/1.5 "Archivo", sans-serif;
+}
+.ati-validation-status > svg { flex: 0 0 auto; margin-top: 1px; }
+.ati-rate-card-guidance {
+  margin: 11px 0;
+  color: #e4d69e;
+  font: 11px/1.55 "Archivo", sans-serif;
+}
+.ati-table-wrap { max-width: 100%; overscroll-behavior-x: contain; }
+.ati-table { min-width: 2300px; }
+.ati-table th:nth-child(2), .ati-table td:nth-child(2) { min-width: 142px; }
+.ati-table th:nth-child(9), .ati-table td:nth-child(9) { min-width: 155px; }
+.ati-table th:nth-child(10), .ati-table td:nth-child(10) { min-width: 120px; }
+.ati-table th:nth-child(11), .ati-table td:nth-child(11) { min-width: 205px; }
+.ati-table th:nth-child(12), .ati-table td:nth-child(12) { min-width: 260px; }
+.ati-table th:nth-child(13), .ati-table td:nth-child(13) { min-width: 340px; }
+.ati-table .ati-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.ati-table td { line-height: 1.45; }
+.ati-date-input,
+.ati-reason-editor textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c3d1bd;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #fffdf8;
+  color: #24382b;
+  font: 11px/1.45 "Archivo", sans-serif;
+}
+.ati-date-input { width: 134px; color-scheme: light; }
+.ati-panel select:disabled,
+.ati-date-input:disabled,
+.ati-reason-editor textarea:disabled { opacity: 0.65; cursor: not-allowed; }
+.ati-panel button:focus-visible,
+.ati-panel select:focus-visible,
+.ati-panel input:focus-visible,
+.ati-panel textarea:focus-visible,
+.ati-comparison > summary:focus-visible,
+.ati-table-wrap:focus-visible,
+.ati-reconciliation-wrap:focus-visible {
+  outline: 2px solid #e7c979;
+  outline-offset: 3px;
+}
+.ati-file-button:focus-within { outline: 2px solid #e7c979; outline-offset: 3px; }
+.ati-row--excluded { background: rgba(197, 208, 186, 0.05); }
+.ati-badge--excluded { color: #d5ded0; background: rgba(161, 180, 151, 0.16); }
+.ati-badge--possible { margin-left: 4px; color: #f8dfa2; background: rgba(172, 122, 35, 0.25); }
+.ati-table .ati-original-task { color: #e4d69e; }
+.ati-charge-cell strong,
+.ati-charge-cell > span { display: block; }
+.ati-charge-cell strong { color: #f4f6e9; font-size: 11px; }
+.ati-charge-cell > span { margin-top: 4px; color: #cfe6c6; white-space: nowrap; }
+.ati-charge-cell small { white-space: normal; }
+.ati-source-references { margin-top: 9px; padding-top: 6px; border-top: 1px solid rgba(191, 229, 173, 0.18); }
+.ati-source-references small { overflow-wrap: anywhere; }
+.ati-table .ati-decision-cell select { width: 100%; }
+.ati-review-label,
+.ati-reason-editor > label { display: block; margin-bottom: 5px; color: #f4e2b2; font-weight: 600; font-size: 10.5px; }
+.ati-reason-editor { margin-top: 10px; }
+.ati-reason-editor textarea { display: block; min-height: 75px; resize: vertical; }
+.ati-apply-review {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(191, 229, 173, 0.48);
+  border-radius: 6px;
+  color: #e5f2dc;
+  background: rgba(44, 106, 52, 0.26);
+  font: 600 10.5px "Archivo", sans-serif;
+  cursor: pointer;
+}
+.ati-apply-review:hover:not(:disabled) { color: #173a26; background: #d8e8cb; }
+.ati-apply-review:disabled { opacity: 0.5; cursor: not-allowed; }
+.ati-review-cell { max-width: 390px; overflow-wrap: anywhere; }
+.ati-comparison { margin-top: 10px; border: 1px solid rgba(191, 229, 173, 0.22); border-radius: 7px; background: rgba(3, 22, 11, 0.3); }
+.ati-comparison > summary { padding: 8px 9px; color: #e0e9d6; font-weight: 600; font-size: 10.5px; cursor: pointer; }
+.ati-comparison[open] > summary { border-bottom: 1px solid rgba(191, 229, 173, 0.16); }
+.ati-comparison-body { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.ati-comparison-entry { padding: 8px; border: 1px solid rgba(231, 201, 121, 0.2); border-radius: 5px; background: rgba(231, 201, 121, 0.04); }
+.ati-comparison-entry--upload { border-color: rgba(191, 229, 173, 0.26); background: rgba(191, 229, 173, 0.05); }
+.ati-comparison-entry > strong { display: block; margin-bottom: 7px; color: #f5e3b8; font-size: 10.5px; }
+.ati-comparison-entry--upload > strong { color: #d2eac6; }
+.ati-entry-details { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.ati-entry-details > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px; }
+.ati-entry-details dt { color: #adc3a5; font-weight: 400; }
+.ati-entry-details dd { margin: 0; color: #e7ede1; overflow-wrap: anywhere; }
+.ati-entry-comment { margin: 7px 0 0; color: #dbe6d4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ati-reconciliation { margin-top: 13px; padding: 12px; border: 1px solid rgba(191, 229, 173, 0.2); border-radius: 8px; background: rgba(191, 229, 173, 0.04); }
+.ati-reconciliation .ati-section-title { gap: 10px; }
+.ati-reconciliation .ati-section-title > div { max-width: 78ch; }
+.ati-reconciliation-charge { display: flex; flex-direction: column; gap: 3px; }
+.ati-reconciliation-charge strong { font-variant-numeric: tabular-nums; }
+.ati-reconciliation-wrap { max-width: 100%; max-height: 245px; overflow: auto; overscroll-behavior-x: contain; border: 1px solid rgba(191, 229, 173, 0.17); border-radius: 6px; }
+.ati-reconciliation-table { width: 100%; min-width: 860px; border-collapse: collapse; color: #dce9d8; font: 10.5px/1.4 "Archivo", sans-serif; }
+.ati-reconciliation-table thead th { position: sticky; top: 0; z-index: 1; background: #123521; color: #e7c979; white-space: nowrap; }
+.ati-reconciliation-table th,
+.ati-reconciliation-table td { padding: 7px 9px; border-bottom: 1px solid rgba(191, 229, 173, 0.13); text-align: left; vertical-align: top; }
+.ati-reconciliation-table tbody th { font-weight: 600; }
+.ati-reconciliation-table th:nth-child(n+4),
+.ati-reconciliation-table td:nth-child(n+4) { text-align: right; font-variant-numeric: tabular-nums; }
+.ati-reconciliation-table tbody tr:last-child > th,
+.ati-reconciliation-table tbody tr:last-child > td { border-bottom: none; }
+.ati-reconciliation-table .ati-reconciliation-new { color: #c8e9ba; background: rgba(99, 154, 77, 0.1); }
+.ati-reconciliation-table .ati-reconciliation-result { color: #fff8dd; background: rgba(231, 201, 121, 0.07); font-weight: 700; }
+.ati-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (min-width: 1500px) {
+  .ati-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .ati-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ati-reconciliation { padding: 9px; }
+  .ati-reconciliation-charge { width: 100%; }
+  .ati-review-controls { gap: 10px; }
+  .ati-review-controls > .ati-primary { width: 100%; }
+  .ati-safety-notice { padding: 10px; }
+  .ati-rate-card-guidance { font-size: 10.5px; }
+}

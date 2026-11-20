@@ -1,6 +1,8 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { requirePortalResource } from "../../../../lib/portalVisibility";
 import { createHash, randomUUID } from "node:crypto";
+import { loadTrackerChargeRates, trackerChargeRole } from "../../../../lib/projectTrackerChargeRates";
+import { reconcileTimesheetRows, timesheetWeekEnd, timesheetWeekStart } from "../../../../lib/projectTimesheetReconciliation";
 import {
   allocationMatchesCategory,
   budgetSourceMatchesDate,
@@ -63,7 +65,8 @@ function normaliseProjectNumber(value) {
 function userName(user) {
   const metadata = user?.user_metadata || {};
   const fullName = metadata.full_name || metadata.name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ");
-  return String(fullName || user?.email || "Staff member").trim();
+  const verifiedName = user?.id === "2c265989-7864-41ad-9e2d-202d64d9a954" ? "Aaron Dooley" : "";
+  return String(fullName || verifiedName || user?.email || "Staff member").trim();
 }
 
 async function readProjectNumbers(admin, projectIds) {
@@ -99,7 +102,7 @@ async function loadImportContext(admin) {
   if (projectsResult.error) throw new Error(projectsResult.error.message);
   const projects = projectsResult.data || [];
   const ids = projects.map((project) => project.id);
-  if (!ids.length) return { projects: [], staff: [], projectOptions: [], staffOptions: [] };
+  if (!ids.length) return { projects: [], staff: [], projectOptions: [], staffOptions: [], rateByProject: new Map() };
 
   const [sourcesResult, allocationsResult, templatesResult, usersResult] = await Promise.all([
     admin.from("project_budget_sources")
@@ -120,7 +123,7 @@ async function loadImportContext(admin) {
   }
   if (usersResult.error) throw new Error(usersResult.error.message);
 
-  const projectNumbers = await readProjectNumbers(admin, ids);
+  const [projectNumbers, rateByProject] = await Promise.all([readProjectNumbers(admin, ids), loadTrackerChargeRates(admin, ids)]);
   const sourcesByProject = new Map(ids.map((id) => [id, []]));
   for (const source of sourcesResult.data || []) if (sourcesByProject.has(source.project_id)) sourcesByProject.get(source.project_id).push(source);
   const allocationsByProject = new Map(ids.map((id) => [id, []]));
@@ -142,6 +145,7 @@ async function loadImportContext(admin) {
   return {
     projects: projectsWithContext,
     staff,
+    rateByProject,
     projectOptions: projectsWithContext.map((project) => ({
       id: project.id,
       name: project.name,
@@ -233,8 +237,10 @@ function normaliseRow(input, index) {
   const row = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const hoursValue = normaliseImportNumber(row.hours, { maximum: 24 });
   const kmValue = normaliseImportNumber(row.km, { allowBlank: true, maximum: 100000 });
+  const expensesInput = cleanText(row.expenses, 100).replace(/^(?:AUD\s*)?\$\s*/i, "");
+  const expensesValue = normaliseImportNumber(expensesInput, { allowBlank: true, maximum: 1000000 });
   return {
-    sourceRow: Math.max(0, Number(row.sourceRow) || index + 1),
+    sourceRow: Number.isInteger(Number(row.sourceRow)) && Number(row.sourceRow) > 0 ? Number(row.sourceRow) : index + 1,
     workDate: normaliseDateValue(row.workDate),
     staffName: cleanText(row.staffName, 160),
     staffUserId: validId(row.staffUserId) ? row.staffUserId : "",
@@ -244,62 +250,58 @@ function normaliseRow(input, index) {
     projectId: validId(row.projectId) ? row.projectId : "",
     budgetAllocationId: validId(row.budgetAllocationId) ? row.budgetAllocationId : "",
     hours: Number.isFinite(hoursValue) ? Math.round(hoursValue * 100) / 100 : null,
+    expenses: expensesValue === null || Number.isFinite(expensesValue) ? expensesValue : cleanText(row.expenses, 100),
+    invalidExpenses: !(expensesValue === null || Number.isFinite(expensesValue)),
     km: kmValue === null || Number.isFinite(kmValue) ? kmValue : cleanText(row.km, 100),
+    vehicle: cleanText(row.vehicle, 120),
     invalidKm: !(kmValue === null || Number.isFinite(kmValue)),
     invalidHours: !Number.isFinite(hoursValue),
     activityCategory: cleanText(row.activityCategory, 120),
+    sourceTask: cleanText(row.sourceTask ?? row.activityCategory, 120),
     comments: cleanText(row.comments, 5000),
+    duplicateDecision: ["skip", "separate"].includes(row.duplicateDecision) ? row.duplicateDecision : "",
+    duplicateReason: cleanText(row.duplicateReason, 1000),
+    duplicateReviewToken: /^[a-f0-9]{64}$/.test(String(row.duplicateReviewToken || "")) ? row.duplicateReviewToken : "",
+    previousChargeRate: row.chargeRate === undefined || row.chargeRate === null ? null : Number(row.chargeRate),
   };
 }
 
 async function findExistingDuplicates(admin, rows) {
-  const existingKeys = new Set();
-  if (!rows.length) return existingKeys;
+  const existingEntries = [];
+  if (!rows.length) return existingEntries;
   const projectIds = [...new Set(rows.map((row) => row.projectId))];
   const staffIds = [...new Set(rows.map((row) => row.staffUserId))];
-  const fromDate = rows.map((row) => row.workDate).sort()[0];
-  const toDate = rows.map((row) => row.workDate).sort().at(-1);
+  const fromDate = timesheetWeekStart(rows.map((row) => row.workDate).sort()[0]);
+  const toDate = timesheetWeekEnd(rows.map((row) => row.workDate).sort().at(-1));
   for (let start = 0; start < projectIds.length; start += 25) {
     const projectChunk = projectIds.slice(start, start + 25);
     let offset = 0;
     while (true) {
       const { data, error } = await admin.from("project_tracker_entries")
-        .select("id, project_id, staff_user_id, work_date, activity_category, activity_information, hours, custom_data")
+        .select("id, project_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, custom_data, updated_at")
         .in("project_id", projectChunk)
         .in("staff_user_id", staffIds)
         .gte("work_date", fromDate)
         .lte("work_date", toDate)
+        .gt("hours", 0)
         .order("work_date", { ascending: true })
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
       if (error) throw new Error(error.message);
       const entries = data || [];
-      for (const entry of entries) {
-        const km = entry.custom_data?.km ?? entry.custom_data?.kilometres ?? "";
-        const key = timesheetDuplicateKey({
-          workDate: entry.work_date,
-          staffUserId: entry.staff_user_id,
-          projectId: entry.project_id,
-          activityCategory: entry.activity_category,
-          hours: entry.hours,
-          km,
-          comments: entry.activity_information === "Imported weekly timesheet entry — no comments supplied." ? "" : entry.activity_information,
-        });
-        existingKeys.add(key);
-      }
+      existingEntries.push(...entries);
       if (entries.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
       if (offset >= 50000) throw new Error("There is too much existing tracker history in this date range to check in one batch. Split the upload into smaller date ranges.");
     }
   }
-  return existingKeys;
+  return existingEntries;
 }
 
-async function buildPreview(admin, inputRows) {
+async function buildPreview(admin, inputRows, { forImport = false } = {}) {
   if (!Array.isArray(inputRows) || !inputRows.length) throw new Error("Map at least one timesheet row before previewing.");
   if (inputRows.length > MAX_IMPORT_ROWS) throw new Error(`Upload no more than ${MAX_IMPORT_ROWS} timesheet rows at a time.`);
   const context = await loadImportContext(admin);
-  const seenInFile = new Set();
   const rows = inputRows.map((input, index) => {
     const row = normaliseRow(input, index);
     const issues = [];
@@ -308,6 +310,7 @@ async function buildPreview(admin, inputRows) {
     if (!row.staffName) issues.push(issue("missing_staff", "Staff name is required."));
     if (row.invalidHours || row.hours === null || row.hours <= 0) issues.push(issue("invalid_hours", "Hours must be a positive number no greater than 24."));
     if (row.invalidKm) issues.push(issue("invalid_km", "Kilometres must be a non-negative number, or left blank."));
+    if (row.invalidExpenses) issues.push(issue("invalid_expenses", "Expenses must be a non-negative amount, or left blank. They are retained for reference, not charged."));
     if (!row.activityCategory) issues.push(issue("missing_category", "Activity category is required."));
     if (!row.projectName && !row.projectNumber && !row.projectId) issues.push(issue("missing_project", "Provide a project name or project number."));
 
@@ -346,41 +349,36 @@ async function buildPreview(admin, inputRows) {
     row.projectLabel = project?.name || row.projectName || row.projectNumber || "Unmatched project";
     row.staffLabel = staffPerson?.name || row.staffName || "Unmatched staff";
     row.categoryOptions = project ? projectCategories(project) : [];
+    row.chargeRole = staffPerson ? trackerChargeRole(staffPerson.id) : "";
+    const projectRates = project ? context.rateByProject.get(project.id) : null;
+    row.chargeRate = projectRates?.get(row.chargeRole) ?? null;
+    row.chargeAmount = row.chargeRate === null || row.hours === null ? null : Math.round(row.hours * row.chargeRate * 100) / 100;
+    if (project && staffPerson && !(Number(row.chargeRate) > 0)) issues.push(issue("missing_project_rates", "Confirm this job's Charge-out Rates in Project Operations before importing. Company defaults are suggestions only."));
+    if (forImport && row.previousChargeRate !== null && row.chargeRate !== row.previousChargeRate) issues.push(issue("project_rate_changed", "This job's charge rate changed since preview. Refresh and review the labour charge before importing."));
     row.issues = issues;
     row.warnings = warnings;
     row.isImportable = issues.length === 0;
     return row;
   });
 
-  const eligibleForDuplicateCheck = [];
-  for (const row of rows) {
-    if (!row.isImportable) continue;
-    const key = timesheetDuplicateKey(row);
-    if (seenInFile.has(key)) {
-      row.issues.push(issue("duplicate_file", "This row duplicates another row in the uploaded file; only the first copy can be imported."));
-      row.isImportable = false;
-    } else {
-      seenInFile.add(key);
-      eligibleForDuplicateCheck.push(row);
-    }
-  }
-  const existingKeys = await findExistingDuplicates(admin, eligibleForDuplicateCheck);
-  for (const row of eligibleForDuplicateCheck) {
-    if (existingKeys.has(timesheetDuplicateKey(row))) {
-      row.issues.push(issue("duplicate_existing", "An identical entry already exists in this project's tracker."));
-      row.isImportable = false;
-    }
-  }
+  if (new Set(rows.map((row) => row.sourceRow)).size !== rows.length) throw new Error("Each uploaded row must have a distinct source row number.");
+  const eligibleForDuplicateCheck = rows.filter((row) => row.projectId && row.staffUserId && row.workDate && validBudgetDate(row.workDate));
+  const existingEntries = await findExistingDuplicates(admin, eligibleForDuplicateCheck);
+  const { reconciliation } = reconcileTimesheetRows(rows, existingEntries);
 
   const summary = {
     total: rows.length,
     ready: rows.filter((row) => row.isImportable).length,
     duplicates: rows.filter((row) => row.issues.some((item) => item.code.startsWith("duplicate_"))).length,
     needsReview: rows.filter((row) => !row.isImportable && !row.issues.some((item) => item.code.startsWith("duplicate_"))).length,
+    possibleDuplicates: rows.filter((row) => row.possibleDuplicates.length || row.fileOverlaps.length).length,
+    excluded: rows.filter((row) => row.isSkipped).length,
+    unresolved: rows.filter((row) => !row.isImportable && !row.isSkipped).length,
     totalHours: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + row.hours, 0) * 100) / 100,
     totalKm: Math.round(rows.filter((row) => row.isImportable && row.km != null).reduce((sum, row) => sum + row.km, 0) * 100) / 100,
+    totalCharge: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + Number(row.chargeAmount || 0), 0) * 100) / 100,
   };
-  return { rows, summary, projectOptions: context.projectOptions, staffOptions: context.staffOptions };
+  return { rows, summary, reconciliation, projectOptions: context.projectOptions, staffOptions: context.staffOptions };
 }
 
 async function handleUpload(request) {
@@ -440,14 +438,15 @@ async function handleUpload(request) {
 
 async function handleImport(access, body) {
   const fileName = safeFileName(body.fileName);
-  const preview = await buildPreview(access.admin, body.rows);
-  const blocked = preview.rows.filter((row) => !row.isImportable);
-  if (blocked.length || !preview.rows.length) {
+  const preview = await buildPreview(access.admin, body.rows, { forImport: true });
+  const blocked = preview.rows.filter((row) => !row.isImportable && !row.isSkipped);
+  const included = preview.rows.filter((row) => row.isImportable);
+  if (blocked.length || !included.length) {
     return jsonError("One or more selected rows need review or are duplicates. Refresh the preview before importing.", 409, { preview });
   }
   const batchId = randomUUID();
   const now = new Date().toISOString();
-  const entries = preview.rows.map((row) => ({
+  const entries = included.map((row) => ({
     project_id: row.projectId,
     budget_source_id: row.budgetSourceId,
     budget_allocation_id: row.budgetAllocationId,
@@ -461,6 +460,18 @@ async function handleImport(access, body) {
     notable_issues: null,
     custom_data: {
       ...(row.km === null ? {} : { km: row.km }),
+      expenses: row.expenses,
+      vehicle: row.vehicle,
+      import_source_task: row.sourceTask,
+      import_expected_charge_rate: row.chargeRate,
+      import_charge_role: row.chargeRole,
+      import_duplicate_review: {
+        decision: row.duplicateDecision === "separate" ? "separate" : "new",
+        reason: row.duplicateReason || null,
+        review_token: row.duplicateReviewToken || null,
+        expected_entries: row.reviewExpectedEntries,
+        file_overlap_rows: row.fileOverlaps.map((peer) => peer.sourceRow),
+      },
       import_fingerprint: createHash("sha256").update(timesheetDuplicateKey(row)).digest("hex"),
       import_batch_id: batchId,
       import_file_name: fileName,
@@ -471,7 +482,7 @@ async function handleImport(access, body) {
     created_at: now,
     updated_at: now,
   }));
-  const { data: result, error: importError } = await access.admin.rpc("ec_import_weekly_timesheets", {
+  const { data: result, error: importError } = await access.admin.rpc("ec_import_weekly_timesheets_reviewed", {
     p_actor_id: access.user.id,
     p_batch_id: batchId,
     p_entries: entries,
@@ -487,7 +498,7 @@ async function handleImport(access, body) {
     return jsonError("The import could not be committed. No entries, totals or notifications from this batch were saved.", 500);
   }
   if (!result?.success || result.importedCount !== entries.length) return jsonError("The import response could not be verified. Reload the tracker before retrying.", 502);
-  return Response.json(result, { status: 201, headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
+  return Response.json({ ...result, skippedCount: preview.summary.excluded }, { status: 201, headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
 }
 
 export async function POST(request) {

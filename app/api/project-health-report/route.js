@@ -1,4 +1,5 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
+import { loadTrackerChargeRates, trackerEntryChargeRate } from "../../../lib/projectTrackerChargeRates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function GET(request) {
       access.admin.from("projects").select("id, name, client_name, status, budget_hours, budget_dollars, default_hourly_rate").is("deleted_at", null).neq("status", "archived"),
       access.admin.from("project_activities").select("project_id, status, budget_hours"),
       access.admin.from("project_allocations").select("project_id, staff_user_id, allocated_hours, hourly_rate, active"),
-      access.admin.from("project_tracker_entries").select("project_id, staff_user_id, hours"),
+      access.admin.from("project_tracker_entries").select("project_id, staff_user_id, hours, custom_data"),
       access.admin.from("project_budget_sources").select("id, project_id, source_type, approval_status, approved_value, approved_hours"),
       access.admin.from("project_budget_allocations").select("id, project_id, budget_source_id, status, hours_consumed, charge_out_spend, internal_cost"),
     ]);
@@ -75,6 +76,10 @@ export async function GET(request) {
       budgetAllocationsByProject.get(allocation.project_id).push(allocation);
     }
 
+    // Source-backed reports use stored actuals and need no current rate lookup.
+    const ratesByProject = await loadTrackerChargeRates(access.admin,
+      projects.filter((project) => !sourcesByProject.has(project.id)).map((project) => project.id));
+
     const rows = projects.map((p) => {
       const acts = activitiesByProject.get(p.id) || [];
       const total = acts.length;
@@ -98,7 +103,7 @@ export async function GET(request) {
       const rateByStaff = new Map(alloc.filter((item) => item.active !== false).map((item) => [item.staff_user_id, number(item.hourly_rate)]));
       const fallbackRate = number(p.default_hourly_rate);
       const usedHours = legacyBudget ? legacyEntries.reduce((sum, entry) => sum + number(entry.hours), 0) : liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
-      const currentSpend = roundCurrency(legacyBudget ? legacyEntries.reduce((sum, entry) => sum + number(entry.hours) * (rateByStaff.get(entry.staff_user_id) ?? fallbackRate), 0) : liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
+      const currentSpend = roundCurrency(legacyBudget ? legacyEntries.reduce((sum, entry) => sum + number(entry.hours) * trackerEntryChargeRate(entry, ratesByProject, rateByStaff.get(entry.staff_user_id) ?? fallbackRate), 0) : liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
       const deliveryCost = roundCurrency(legacyBudget ? currentSpend * 0.6 : liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0));
       const historicalUsedHours = legacyBudget ? 0 : historicalAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
       const historicalChargeOutSpend = legacyBudget ? 0 : roundCurrency(historicalAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
