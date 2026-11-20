@@ -501,7 +501,7 @@ async function handleImport(access, body) {
   return Response.json({ ...result, skippedCount: preview.summary.excluded }, { status: 201, headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
 }
 
-export async function POST(request) {
+async function handleImportRequest(request) {
   const access = await requireSession(request);
   if (access.error) return access.error;
   if (!access.isAdmin) return jsonError("Administrator access is required.", 403);
@@ -519,4 +519,18 @@ export async function POST(request) {
   } catch (error) {
     return serverError(error);
   }
+}
+
+export async function POST(request) {
+  let response;
+  try {
+    response = await handleImportRequest(request);
+  } catch (error) {
+    response = serverError(error);
+  }
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "private, no-store");
+  const vary = headers.get("Vary");
+  if (!vary?.split(",").some((value) => value.trim().toLowerCase() === "authorization")) headers.set("Vary", vary ? `${vary}, Authorization` : "Authorization");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }

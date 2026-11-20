@@ -41,11 +41,11 @@ class Query {
 }
 const admin={from:(table)=>new Query(table),auth:{admin:{listUsers:async()=>({data:{users:[{id:staff,email:'gerard@ecologyconsulting.au',user_metadata:{full_name:'Gerard Dwyer'}},{id:actor,email:'admin@example.test',user_metadata:{full_name:'Administrator'}}]}})}},rpc:async(name,args)=>{lastRPC={name,args};return {data:{success:true,importedCount:args.p_entries.length,totalHours:args.p_entries.reduce((s,e)=>s+e.hours,0),totalKilometres:args.p_entries.reduce((s,e)=>s+(e.custom_data.km||0),0),labourCharge:args.p_entries.reduce((s,e)=>s+e.hours*e.custom_data.import_expected_charge_rate,0),allocationsRecalculated:1},error:null};}};
 access={admin,user:{id:actor},isAdmin:true};
-const context={...imports,...periods,...reconciliation,Date,Response,Request,FormData,File,console,XLSX,createHash,randomUUID,Map,Set,requireSession:async()=>access,requirePortalResource:async()=>null,serverError:e=>Response.json({error:e.message},{status:400}),trackerChargeRole:id=>id===staff?'Senior Ecologist':'Ecologist',loadTrackerChargeRates:async(_admin,ids)=>{
+const context={...imports,...periods,...reconciliation,Date,Response,Headers,Request,FormData,File,console,XLSX,createHash,randomUUID,Map,Set,requireSession:async()=>access,requirePortalResource:async()=>null,serverError:e=>Response.json({error:e.message},{status:400}),trackerChargeRole:id=>id===staff?'Senior Ecologist':'Ecologist',loadTrackerChargeRates:async(_admin,ids)=>{
  assert(ids.includes(project));
  return confirmed?new Map([[project,new Map([['Senior Ecologist',205],['Ecologist',170],['Project Manager',140]])],[otherProject,new Map([['Senior Ecologist',270],['Ecologist',195],['Project Manager',160]])]]):new Map();
 }};
-vm.createContext(context);vm.runInContext(stripped+'\nthis.api={handleUpload,normaliseRow,buildPreview,handleImport,userName};',context);
+vm.createContext(context);vm.runInContext(stripped+'\nthis.api={handleUpload,normaliseRow,buildPreview,handleImport,userName,POST};',context);
 const headers=['Date','Employee','Client','Job#','Client job','Hours','Expenses','Kms','Vehicle','Task','Notes'];
 const matrix=[headers,['5/11/2026','Gerard Dwyer','IQon Pty Ltd',1597,'Wastewater Pond Upgrade ACT',0.25,'','','','External consultation','Consultation on access and visit timing'],['30/10/2026','Gerard Dwyer','IQon Pty Ltd',1597,'Wastewater Pond Upgrade ACT',0.75,25,35,'EC01','Quotes and tenders','Client consultation and Quoting']];
 const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(matrix),'Weekly');
@@ -87,4 +87,15 @@ const renderPreview=await context.api.buildPreview(admin,mapped);
 const markup=renderToStaticMarkup(React.createElement(renderContext.Reconciliation,{summary:renderPreview.summary,groups:renderPreview.reconciliation}));
 assert(markup.includes('Gerard Dwyer')&&markup.includes('Wastewater Pond Upgrade ACT')&&markup.includes('2026-11-02')&&markup.includes('2026-10-26'));
 assert(!markup.includes('No weekly reconciliation groups are available yet'),'Real top-level API reconciliation must populate the rendered table.');
+const normalAccess=access;
+const request=(body)=>new Request('https://test/import',{method:'POST',headers:{'Content-Type':'application/json'},body:typeof body==='string'?body:JSON.stringify(body)});
+const privateHeaders=(response,status)=>{assert.equal(response.status,status);assert.equal(response.headers.get('Cache-Control'),'private, no-store');assert(response.headers.get('Vary').toLowerCase().includes('authorization'));};
+access={error:Response.json({error:'Not authenticated.'},{status:401,headers:{Vary:'Origin'}})};
+let privateResponse=await context.api.POST(request({}));privateHeaders(privateResponse,401);assert(privateResponse.headers.get('Vary').includes('Origin'));
+access={...normalAccess,isAdmin:false};privateHeaders(await context.api.POST(request({})),403);
+access=normalAccess;privateHeaders(await context.api.POST(request('{')),400);
+privateHeaders(await context.api.POST(request({action:'preview',rows:mapped})),200);
+confirmed=false;privateHeaders(await context.api.POST(request({action:'import',rows:mapped})),409);confirmed=true;
+context.requirePortalResource=async()=>Response.json({error:'Denied'},{status:403});privateHeaders(await context.api.POST(request({})),403);context.requirePortalResource=async()=>null;
+privateHeaders(await context.api.POST(request({action:'import',rows:renderPreview.rows})),201);
 console.log('Actual XLS importer API passed: supplied workbook, exact Job#/Client job mapping, per-job role charges, reference values, prior staff overlap default skip, deliberate separate work, stale review/rate rejection and missing-card protection.');
