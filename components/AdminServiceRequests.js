@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import ServiceRequestOverview from "./ServiceRequestOverview";
 
 const STATUS_STYLE = {
   submitted: { bg: "#fbf1dd", fg: "#95661f", label: "Awaiting decision" },
@@ -24,13 +25,12 @@ const STATUS_STYLE = {
   cancelled: { bg: "#eef0e9", fg: "#6b755f", label: "Cancelled" },
 };
 
-const labelFor = (key) => String(key || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const dateTime = (value) => value ? new Date(value).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }) : "";
-const isDecision = (request) => ["approved", "declined"].includes(request.status);
 
 export default function AdminServiceRequests() {
   const { session } = useAuth();
   const [requests, setRequests] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -54,6 +54,7 @@ export default function AdminServiceRequests() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load service requests.");
       setRequests(data.requests || []);
+      setStaff(data.staff || []);
       setSummary(data.summary || null);
     } catch (loadError) {
       setError(loadError.message);
@@ -85,10 +86,6 @@ export default function AdminServiceRequests() {
     (typeFilter === "all" || item.request_type === typeFilter)
     && (statusFilter === "all" || item.status === statusFilter)
   ));
-  const detailLine = (item) => Object.entries(item.details || {})
-    .filter(([, value]) => value != null && String(value).trim())
-    .map(([key, value]) => `${labelFor(key)}: ${value}`)
-    .join(" · ");
 
   return (
     <div className="sr admin-service-requests">
@@ -125,7 +122,8 @@ export default function AdminServiceRequests() {
           const style = STATUS_STYLE[item.status] || STATUS_STYLE.submitted;
           const isOpen = actionFor === item.id;
           const canAction = !item.locked && !["closed", "archived", "cancelled"].includes(item.status);
-          const decisionVerb = item.status === "approved" ? "Approved" : "Denied";
+          const staffName = item.authorName || staff.find((person) => person.id === item.created_by)?.name || item.author || "";
+          const wasDenied = (item.decision_status || item.status) === "declined";
 
           return (
             <article key={item.id} className="sr-card">
@@ -137,9 +135,9 @@ export default function AdminServiceRequests() {
                 <span className="sr-status" style={{ background: style.bg, color: style.fg }}>{style.label}</span>
               </div>
 
-              {detailLine(item) ? <div className="sr-detail">{detailLine(item)}</div> : null}
+              <ServiceRequestOverview request={item} staffName={staffName} />
               {item.admin_note ? <div className="sr-note"><strong>Comment:</strong> {item.admin_note}</div> : null}
-              {isDecision(item) ? <div className={`sr-decision sr-decision--${item.status}`}><UserRoundCheck size={14} /><span><strong>{decisionVerb} by:</strong> {item.decisionBy || "Administrator"}{item.reviewed_at ? ` · ${dateTime(item.reviewed_at)}` : ""}</span></div> : null}
+              {wasDenied ? <div className="sr-decision sr-decision--declined"><UserRoundCheck size={14} /><span><strong>Denied by:</strong> {item.decisionBy && item.decisionBy !== "Administrator" ? item.decisionBy : "Name unavailable"}{item.reviewed_at ? ` · ${dateTime(item.reviewed_at)}` : ""}</span></div> : null}
               {item.locked ? <p className="sr-locked"><Lock size={13} /> Locked record</p> : null}
 
               {canAction ? (

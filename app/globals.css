@@ -20614,3 +20614,67 @@ main {
   .ati-safety-notice { padding: 10px; }
   .ati-rate-card-guidance { font-size: 10.5px; }
 }
+
+/* Ordered service-request summaries in the staff and administration portals. */
+.service-request-overview {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr 1.45fr 0.85fr 1fr;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 14px;
+  border: 1px solid rgba(217, 200, 142, 0.24);
+  border-radius: 10px;
+  background: rgba(0, 20, 12, 0.3);
+}
+.service-request-overview-field { min-width: 0; }
+.service-request-overview dt,
+.service-request-extra dt {
+  margin: 0 0 5px;
+  color: #ead48d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.service-request-overview dd,
+.service-request-extra dd {
+  margin: 0;
+  color: #f4f8ef;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.service-request-overview dd small {
+  display: block;
+  margin-top: 5px;
+  color: #c4d4bf;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+.service-request-extra { margin-top: 10px; color: #e8f1e4; }
+.service-request-extra summary {
+  width: fit-content;
+  color: #e6d28d;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.service-request-extra dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 9px;
+  background: rgba(0, 20, 12, 0.22);
+}
+.staff-service-requests .ssr-list-copy { flex: 1 1 auto; }
+.staff-service-requests .service-request-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 760px) {
+  .admin-service-requests .service-request-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 430px) {
+  .staff-service-requests .service-request-overview,
+  .admin-service-requests .service-request-overview,
+  .service-request-extra dl { grid-template-columns: 1fr; }
+}

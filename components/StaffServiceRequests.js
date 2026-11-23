@@ -17,7 +17,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthProvider";
+import { getRequestStaffName } from "../lib/serviceRequestOverview.mjs";
 import PsychosocialSupportCard from "./PsychosocialSupportCard";
+import ServiceRequestOverview from "./ServiceRequestOverview";
 
 const TYPES = {
   leave: {
@@ -178,20 +180,6 @@ const STATUS = {
   closed: "closed",
   archived: "archived",
 };
-
-const labelFor = (key) =>
-  String(key || "")
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-const detailSummary = (details) =>
-  Object.entries(details || {})
-    .filter(
-      ([, value]) =>
-        value !== null && value !== undefined && String(value).trim(),
-    )
-    .slice(0, 4)
-    .map(([key, value]) => `${labelFor(key)}: ${value}`)
-    .join(" · ");
 
 export default function StaffServiceRequests({ embedded = false }) {
   const { session } = useAuth();
@@ -450,6 +438,15 @@ export default function StaffServiceRequests({ embedded = false }) {
                 }
               />
             </label>
+            <label className="ssr-field ssr-field--full">
+              <span>Reason (optional)</span>
+              <textarea
+                rows={3}
+                value={details.reason || ""}
+                placeholder="Briefly explain your request. Avoid including sensitive medical details."
+                onChange={(event) => setDetail("reason", event.target.value)}
+              />
+            </label>
             {typeMeta.fields.map((field) => (
               <label
                 className={`ssr-field${field.full ? " ssr-field--full" : ""}`}
@@ -544,15 +541,16 @@ export default function StaffServiceRequests({ embedded = false }) {
                     <small>
                       {new Date(request.created_at).toLocaleDateString("en-AU")}
                     </small>
-                    {detailSummary(request.details) ? (
-                      <p>{detailSummary(request.details)}</p>
-                    ) : null}
+                    <ServiceRequestOverview
+                      request={request}
+                      staffName={getRequestStaffName(request, session?.user)}
+                    />
                     {request.admin_note ? (
                       <em>Administrator note: {request.admin_note}</em>
                     ) : null}
-                    {request.decisionBy && ["approved", "declined"].includes(request.decision_status || request.status) ? (
-                      <small className={`ssr-decision-by ${request.decision_status || request.status}`}>
-                        {request.decision_status === "declined" || request.status === "declined" ? "Denied" : "Approved"} by {request.decisionBy}
+                    {(request.decision_status || request.status) === "declined" ? (
+                      <small className="ssr-decision-by declined">
+                        Denied by {request.decisionBy && request.decisionBy !== "Administrator" ? request.decisionBy : "name unavailable"}
                         {request.reviewed_at ? ` · ${new Date(request.reviewed_at).toLocaleDateString("en-AU")}` : ""}
                       </small>
                     ) : null}

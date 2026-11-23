@@ -2,6 +2,7 @@ import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
 import { compactAuditRecord, recordAudit } from "../../../lib/auditLog";
 import { sendPortalEmail } from "../../../lib/transactionalEmail";
+import { resolveServiceRequestUsers, serviceRequestUserName } from "../../../lib/serviceRequestDirectory.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,17 +45,15 @@ export async function GET(request) {
     const { data, error } = await query; if (error) return Response.json({ error: error.message }, { status: 400 });
     const rows = data || [];
     let emailById = new Map(); let nameById = new Map(); let staff = [];
-    // Staff must be able to see the accountable administrator who approved or
-    // denied their own request. Resolve names server-side without exposing the
-    // wider staff directory to the staff-facing request response.
-    const { data: usersData } = await access.admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    const users = usersData?.users || [];
+    // Resolve the people referenced by authorised rows, even beyond the first
+    // directory page, without exposing the wider directory to staff.
+    const users = await resolveServiceRequestUsers(access.admin, rows);
     emailById = new Map(users.map((user) => [user.id, user.email]));
-    nameById = new Map(users.map((user) => [user.id, user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Administrator"]));
+    nameById = new Map(users.map((user) => [user.id, serviceRequestUserName(user)]));
     if (access.isAdmin) {
-      staff = users.map((user) => ({ id: user.id, email: user.email || "", name: user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Staff member" })).sort((left, right) => left.name.localeCompare(right.name));
+      staff = users.map((user) => ({ id: user.id, email: user.email || "", name: serviceRequestUserName(user) || "Staff member" })).sort((left, right) => left.name.localeCompare(right.name));
     }
-    const requests = rows.map((row) => ({ ...row, author: access.isAdmin ? emailById.get(row.created_by) || null : null, decisionBy: row.reviewed_by ? nameById.get(row.reviewed_by) || "Administrator" : null }));
+    const requests = rows.map((row) => ({ ...row, author: access.isAdmin ? emailById.get(row.created_by) || null : null, authorName: nameById.get(row.created_by) || null, decisionBy: row.reviewed_by ? nameById.get(row.reviewed_by) || "Administrator" : null }));
     const pending = requests.filter((row) => ["submitted", "returned"].includes(row.status)).length;
     return Response.json({ requests, staff, summary: { pending, total: requests.length } });
   } catch (error) { return serverError(error); }
