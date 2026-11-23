@@ -250,6 +250,20 @@ assert.equal(result.response.status, 500);
 assert(!JSON.stringify(result.body).includes("Sensitive"));
 
 const componentSource = await readFile(new URL("components/ProjectChargeRates.js", root), "utf8");
+const stylesheet = await readFile(new URL("app/globals.css", root), "utf8");
+const labelRule = stylesheet.match(/\.project-charge-rates\s+\.aps-field\s*\{([^}]+)\}/);
+assert(labelRule, "Charge-rate labels must have styling scoped to their light surface.");
+const labelColour = labelRule[1].match(/\bcolor:\s*#([\da-f]{6})\b/i)?.[1];
+assert(labelColour, "Charge-rate labels must use an explicit dark text colour.");
+const luminance = (hex) => {
+  const channels = hex.match(/.{2}/g).map((part) => parseInt(part, 16) / 255)
+    .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+};
+for (const background of ["f3f1e9", "ffffff"]) {
+  const values = [luminance(labelColour), luminance(background)].sort((a, b) => b - a);
+  assert((values[0] + 0.05) / (values[1] + 0.05) >= 4.5, "Charge-rate labels must have sufficient contrast against the light surface.");
+}
 assert.match(componentSource, /new AbortController\(\)/);
 assert.match(componentSource, /controller\.abort\(\)/);
 assert.match(componentSource, /latestScopeRef\.current === scopeKey/);
@@ -352,6 +366,10 @@ assert.equal(ui.requests[0].init.headers.Authorization, "Bearer mock-token");
 ui.requests[0].respond({ rates: null, suggestions: { ...sampleRates, ecologist_rate: null } });
 await settle(); ui.render();
 assert.match(ui.text(), /Suggested company rates — not yet confirmed for this project/);
+for (const label of ["Project Manager", "Senior Ecologist", "Ecologist"]) {
+  assert.match(ui.text(), new RegExp(`${label} \\s*\\(\\$/hour\\)`), `${label} must remain visible as a labelled rate field.`);
+}
+assert.equal(ui.nodes("label").length, 3, "The three rate inputs must retain their accessible labels.");
 assert.equal(ui.nodes("input").find((node) => node.props.name === "ecologist_rate").props.value, "");
 assert.equal(ui.nodes("button")[0].props.disabled, true, "Blank suggestions block saving.");
 ui.nodes("input").find((node) => node.props.name === "ecologist_rate").props.onChange({ target: { value: "111.11" } });

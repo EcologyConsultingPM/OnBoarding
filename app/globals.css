@@ -12163,6 +12163,11 @@ main {
 .aps-check {
   color: rgba(233, 243, 229, 0.72);
 }
+/* The charge-rate editor is on a light surface, unlike the dark setup cards. */
+.project-charge-rates .aps-field {
+  color: #1e4d2b;
+  font-size: 13px;
+}
 .aps-secondary,
 .aps-add {
   border-color: rgba(231, 201, 121, 0.45);
