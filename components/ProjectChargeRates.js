@@ -3,18 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 
 const RATE_FIELDS = [
-  { key: "project_manager_rate", label: "Project Manager" },
-  { key: "senior_ecologist_rate", label: "Senior Ecologist" },
-  { key: "ecologist_rate", label: "Ecologist" },
+  { key: "project_manager_rate", label: "Project Manager", unit: "hour" },
+  { key: "senior_ecologist_rate", label: "Senior Ecologist", unit: "hour" },
+  { key: "ecologist_rate", label: "Ecologist", unit: "hour" },
+  { key: "mileage_rate", label: "Mileage", unit: "km", optional: true },
 ];
 const emptyDraft = () => Object.fromEntries(RATE_FIELDS.map(({ key }) => [key, ""]));
 const validRate = (value) => value !== "" && /^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(String(value)) &&
   Number.isFinite(Number(value)) && Number(value) >= 0.01 && Number(value) <= 1000000;
+const validMileage = (value) => value === "" || /^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(String(value)) &&
+  Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1000000;
+const validDraft = (draft) => RATE_FIELDS.every(({ key, optional }) => optional ? validMileage(draft[key]) : validRate(draft[key]));
+const validTimestamp = (value) => typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+const validCard = (rates, projectId) => rates && String(rates.project_id).toLowerCase() === String(projectId).toLowerCase() &&
+  RATE_FIELDS.filter(({ optional }) => !optional).every(({ key }) => validRate(rates[key])) &&
+  (rates.mileage_rate === null || rates.mileage_rate === undefined || typeof rates.mileage_rate !== "boolean" && validMileage(rates.mileage_rate) && rates.mileage_rate !== "") &&
+  validTimestamp(rates.confirmed_at) && validTimestamp(rates.updated_at) &&
+  typeof rates.confirmed_by === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rates.confirmed_by);
 
 function draftFrom(values) {
-  return Object.fromEntries(RATE_FIELDS.map(({ key }) => {
+  return Object.fromEntries(RATE_FIELDS.map(({ key, optional }) => {
     const value = values?.[key];
-    return [key, value !== null && value !== undefined && validRate(value) ? Number(value).toFixed(2) : ""];
+    return [key, value !== null && value !== undefined && value !== "" && (optional ? validMileage(value) : validRate(value)) ? Number(value).toFixed(2) : ""];
   }));
 }
 
@@ -62,8 +73,8 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
             setState((current) => ({ ...current, loading: false, conflict: response.status === 409, error: data.error || "Could not load project charge rates." }));
             return;
           }
-          if (data.rates && String(data.rates.project_id).toLowerCase() !== String(projectId).toLowerCase()) {
-            throw new Error("The server returned rates for a different project. Reload rates before continuing.");
+          if (data.rates && !validCard(data.rates, projectId)) {
+            throw new Error("The server card identity, rates or timestamps could not be verified. Reload rates before continuing.");
           }
           const rates = data.rates || null;
           const values = rates?.confirmed_at ? rates : data.suggestions;
@@ -85,8 +96,8 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
     const scope = activeRequestRef.current;
     if (!projectId || !token || !scope || scope.scopeKey !== scopeKey || scope.saving ||
         view.loading || !view.loaded || view.conflict) return;
-    if (!RATE_FIELDS.every(({ key }) => validRate(view.draft[key]))) {
-      setState((current) => ({ ...current, error: "Enter all three rates from $0.01 to $1,000,000 per hour with no more than two decimal places.", message: "" }));
+    if (!validDraft(view.draft)) {
+      setState((current) => ({ ...current, error: "Enter three positive hourly rates and optional Mileage from $0 to $1,000,000/km, with no more than two decimal places. Blank Mileage means unconfigured.", message: "" }));
       return;
     }
     const isCurrent = () => activeRequestRef.current === scope && latestScopeRef.current === scopeKey && !scope.controller.signal.aborted;
@@ -102,7 +113,7 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
         signal: scope.controller.signal,
         body: JSON.stringify({
           projectId,
-          rates: Object.fromEntries(RATE_FIELDS.map(({ key }) => [key, Number(view.draft[key])])),
+          rates: Object.fromEntries(RATE_FIELDS.map(({ key, optional }) => [key, optional && view.draft[key] === "" ? null : Number(view.draft[key])])),
           expectedUpdatedAt: view.rates?.updated_at || null,
         }),
       });
@@ -119,8 +130,7 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
         }));
         return;
       }
-      if (!data.rates?.confirmed_at || !data.rates.updated_at ||
-          String(data.rates.project_id).toLowerCase() !== String(projectId).toLowerCase()) {
+      if (!validCard(data.rates, projectId)) {
         throw new Error("The saved card could not be verified. Reload rates before continuing.");
       }
       setState((current) => ({
@@ -145,7 +155,7 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
   }
 
   const disabled = !token || view.loading || !view.loaded || view.saving || view.conflict;
-  const allRatesValid = RATE_FIELDS.every(({ key }) => validRate(view.draft[key]));
+  const allRatesValid = validDraft(view.draft);
 
   return (
     <div className="aps-form project-charge-rates" role="group" aria-label="Project charge rates" aria-busy={view.loading || view.saving}>
@@ -162,17 +172,17 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
         ) : <p role="status">Suggested company rates — not yet confirmed for this project</p>
       ) : null}
       <div className="aps-three">
-        {RATE_FIELDS.map(({ key, label }) => (
+        {RATE_FIELDS.map(({ key, label, unit, optional }) => (
           <label className="aps-field" key={key}>
-            {label} ($/hour)
+            {`${label} ($/${unit})${optional ? " — optional" : ""}`}
             <input
               name={key}
               type="number"
               inputMode="decimal"
               step="0.01"
-              min="0.01"
+              min={optional ? "0" : "0.01"}
               max="1000000"
-              required
+              required={!optional}
               value={view.draft[key]}
               disabled={disabled}
               onChange={(event) => {
@@ -184,6 +194,7 @@ export default function ProjectChargeRates({ session, projectId, projectName }) 
         ))}
       </div>
       {view.loaded && !allRatesValid ? <p className="aps-empty">All three positive rates are required before saving. Missing company suggestions are left blank.</p> : null}
+      <p className="aps-empty">Mileage: leave blank if not configured; enter zero only for explicitly non-billable kilometres. New positive-km entries require a configured job rate. Historical reference-only kilometres remain uncharged.</p>
       <p className="aps-empty">
         Read-only charging roles: Gerard Dwyer, Emily Zouch and Simon Vinson — Senior Ecologist;
         Grace Stephenson, Aaron Dooley and Tony Webster — Project Manager; all other staff — Ecologist.

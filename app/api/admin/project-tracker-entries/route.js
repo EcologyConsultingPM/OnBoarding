@@ -16,6 +16,9 @@ function text(value, maximum = 5000) { return typeof value === "string" ? value.
 function validHours(value) { const result = Number(value); return Number.isFinite(result) && result >= 0 && result <= 24 ? result : null; }
 
 async function refreshAllocation(access, projectId, allocationId) {
+  // Unassigned actuals are derived on project reads; there is no allocation to
+  // query/update and no stored project budget to change after correction/delete.
+  if (allocationId === null || allocationId === undefined) return;
   return refreshProjectTrackerAllocation(access, projectId, allocationId);
 }
 
@@ -128,7 +131,7 @@ export async function PATCH(request) {
       status,
       notable_issues: notableIssues || null,
       updated_at: now,
-    }).eq("id", id).select("id, project_id, budget_source_id, budget_allocation_id, staff_user_id, work_date, activity_category, activity_information, hours, status, notable_issues, updated_at").single();
+    }).eq("id", id).select("id, project_id, budget_source_id, budget_allocation_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, updated_at").single();
     if (error) return jsonError(error.message);
 
     const { error: auditError } = await access.admin.from("project_tracker_entry_audit").insert({
@@ -206,7 +209,7 @@ export async function DELETE(request) {
       const { error: deleteError } = await access.admin.from("project_tracker_entries").delete().in("id", requestedIds);
       if (deleteError) return jsonError(deleteError.message);
 
-      const allocationKeys = [...new Set(rows.map((row) => `${row.project_id}::${row.budget_allocation_id}`))]
+      const allocationKeys = [...new Set(rows.filter((row) => row.budget_allocation_id).map((row) => `${row.project_id}::${row.budget_allocation_id}`))]
         .map((key) => key.split("::"))
         .filter(([projectId, allocationId]) => projectId && allocationId);
       await Promise.all(allocationKeys.map(([projectId, allocationId]) => refreshAllocation(access, projectId, allocationId)));

@@ -1,5 +1,6 @@
 import { requireSession, serverError } from "../../../lib/serverAuth";
 import { requirePortalResource } from "../../../lib/portalVisibility";
+import { loadTrackerEntryPages } from "../../../lib/projectTrackerUnassignedActuals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +26,11 @@ export async function GET(request) {
         project:projects!project_activity_history_project_id_fkey(name, client_name),
         activity:project_activities!project_activity_history_activity_id_fkey(title, task_category, budget_hours)
       `).eq("staff_user_id", access.user.id).order("changed_at", { ascending: false }),
-      access.admin.from("project_tracker_entries").select(`
-        id, project_id, work_date, activity_category, activity_information, hours, status, notable_issues, created_at, updated_at,
+      loadTrackerEntryPages(() => access.admin.from("project_tracker_entries").select(`
+        id, project_id, budget_source_id, budget_allocation_id, custom_data, work_date, activity_category, activity_information, hours, status, notable_issues, created_at, updated_at,
         project:projects!project_tracker_entries_project_id_fkey(name, client_name),
         allocation:project_budget_allocations!project_tracker_entries_budget_allocation_id_fkey(allocation_code, allocation_name)
-      `).eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false }).limit(500),
+      `).eq("staff_user_id", access.user.id).order("work_date", { ascending: false }).order("created_at", { ascending: false })),
     ]);
     if (historyResult.error) return Response.json({ error: historyResult.error.message }, { status: 400 });
     if (trackerResult.error && !unavailable(trackerResult.error)) return Response.json({ error: trackerResult.error.message }, { status: 400 });
@@ -66,7 +67,7 @@ export async function GET(request) {
       status: entry.status,
       note: entry.activity_information || "",
       notable_issues: entry.notable_issues || "",
-      allocation: entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "",
+      allocation: entry.budget_source_id === null && entry.budget_allocation_id === null && entry.custom_data?.budget_assignment === "unassigned" ? "No budget assignment" : entry.allocation ? `${entry.allocation.allocation_code} · ${entry.allocation.allocation_name}` : "",
       work_date: entry.work_date,
       hours: entry.hours,
       changed_at: entry.created_at || entry.updated_at,

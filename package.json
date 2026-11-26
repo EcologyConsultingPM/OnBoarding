@@ -14,13 +14,14 @@
     "test:activity-bulk-delete": "node scripts/check_work_activity_bulk_delete.mjs && node scripts/check_staff_project_assignment_counts.mjs",
     "test:project-budget-periods": "node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs",
     "test:project-tracker-timesheet-import": "node scripts/check_project_tracker_timesheet_bulk_import.mjs && node scripts/check_timesheet_import_preview.mjs && node scripts/check_timesheet_import_atomic.mjs && node scripts/check_project_budget_atomic.mjs && npm run test:timesheet-reconciliation",
-    "test:timesheet-reconciliation": "node scripts/check_timesheet_reconciliation.mjs && node scripts/check_timesheet_import_reconciliation_api.mjs && node scripts/check_timesheet_reconciliation_atomic.mjs && node scripts/check_tracker_charge_roles.mjs && node scripts/check_project_charge_rates_api.mjs",
+    "test:timesheet-reconciliation": "node scripts/check_timesheet_reconciliation.mjs && node scripts/check_timesheet_import_reconciliation_api.mjs && node scripts/check_timesheet_reconciliation_atomic.mjs && node scripts/check_tracker_charge_roles.mjs && node scripts/check_project_charge_rates_api.mjs && npm run test:timesheet-policy",
     "pretest": "node scripts/check_internal_training_register.mjs && node scripts/check_internal_registers_integration.mjs && node scripts/check_staff_legis_removal.mjs && node scripts/check_project_budget_periods.mjs && node scripts/check_project_setup_monthly_budget.mjs && node scripts/check_accepted_scope_budget_totals.mjs && node scripts/check_biological_hazard_model.mjs && node scripts/check_biological_hazard_backend.mjs && node scripts/check_storage_backup_contract.mjs && node scripts/check_general_ecological_swms_template.mjs && node scripts/check_general_ecological_swms_workflow.mjs && node scripts/check_staff_calendar_reconciliation.mjs && node scripts/check_project_calendar_signals.mjs && node scripts/check_calendar_weekend_controls.mjs",
     "test:internal-registers": "node scripts/check_internal_training_register.mjs && node scripts/check_internal_registers_integration.mjs",
     "test:activity-hours-tbc": "node scripts/check_activity_hours_tbc.mjs",
     "test:staff-calendar-reconciliation": "node scripts/check_staff_calendar_reconciliation.mjs && node scripts/check_calendar_weekend_controls.mjs",
     "test:project-calendar-signals": "node scripts/check_project_calendar_signals.mjs",
-    "test:site-erp": "node scripts/check_site_erp_image_contract.mjs"
+    "test:site-erp": "node scripts/check_site_erp_image_contract.mjs",
+    "test:timesheet-policy": "node scripts/check_timesheet_import_categories_unassigned.mjs && node scripts/check_timesheet_unassigned_atomic.mjs && node scripts/check_tracker_unassigned_actuals.mjs && node scripts/check_project_role_cost_overview.mjs && node scripts/check_tracker_role_mileage_costs.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^8.55.2",

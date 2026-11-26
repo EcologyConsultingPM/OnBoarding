@@ -8,7 +8,11 @@ const read = (path) => readFile(new URL(path, root), 'utf8');
 const moduleUrl = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const chargeSource = await read('lib/projectTrackerChargeRates.js');
 const chargeUrl = moduleUrl(chargeSource);
-const { trackerChargeRole, loadTrackerChargeRates, trackerEntryChargeRate, trackerCurrentChargeRate, trackerResponseCustomData } = await import(chargeUrl);
+const chargeHelpers = await import(chargeUrl);
+const { trackerChargeRole, loadTrackerChargeRates, trackerEntryChargeRate, trackerCurrentChargeRate, trackerResponseCustomData } = chargeHelpers;
+const unassignedSource = await read('lib/projectTrackerUnassignedActuals.js');
+const actuals = await import(moduleUrl(unassignedSource.replace('"./projectTrackerChargeRates"', JSON.stringify(chargeUrl))));
+const { loadTrackerEntryPages } = actuals;
 const allocationSource = await read('lib/projectTrackerAllocationTotals.js');
 const { refreshProjectTrackerAllocation } = await import(moduleUrl(allocationSource.replace('"./projectTrackerChargeRates"', JSON.stringify(chargeUrl))));
 const staffRoute = await read('app/api/project-tracker-entries/route.js');
@@ -274,10 +278,10 @@ try {
     project_budget_allocations: [{ id: 'current', project_id: p4, budget_source_id: 'source', status: 'active', hours_consumed: 4, charge_out_spend: 777, internal_cost: 444 }, { id: 'old', project_id: p4, budget_source_id: 'closed', status: 'closed', hours_consumed: 2, charge_out_spend: 50, internal_cost: 30 }],
   };
   let reportAdmin = mockAdmin(reportTables);
-  const reportContext = { loadTrackerChargeRates, trackerEntryChargeRate, requireSession: async () => ({ admin: reportAdmin, isAdmin: true, user: { id: actor } }), serverError: (error) => Response.json({ error: error.message }, { status: 500 }), Response, console };
+  const reportContext = { ...chargeHelpers, ...actuals, Headers, loadTrackerChargeRates, trackerEntryChargeRate, requireSession: async () => ({ admin: reportAdmin, isAdmin: true, user: { id: actor } }), serverError: (error) => Response.json({ error: error.message }, { status: 500 }), Response, console };
   vm.createContext(reportContext);
-  vm.runInContext(healthRoute.replace(/^import[^\n]*\n/gm, '').replace(/export /g, '') + '\nthis.report = GET;', reportContext);
-  let response = await reportContext.report({});
+  vm.runInContext(healthRoute.replace(/^import[^\n]*\n/gm, '').replace(/export /g, '') + '\nthis.reportGet = GET;', reportContext);
+  let response = await reportContext.reportGet({});
   assert.equal(response.status, 200);
   let report = await response.json();
   assert.equal(report.rows.find((row) => row.id === p1).currentSpend, fresh.custom_data.charge_rate_snapshot);
@@ -287,7 +291,7 @@ try {
   assert.equal(sourced.historicalChargeOutSpend, 50);
   assert.equal(sourced.lifetimeChargeOutSpend, 827);
   reportAdmin = mockAdmin({ ...reportTables, projects: reportTables.projects.filter((project) => project.id === p4) }, { project_charge_rates: { message: 'must not load rates for stored actuals' } });
-  response = await reportContext.report({});
+  response = await reportContext.reportGet({});
   assert.equal(response.status, 200);
   assert.equal(reportAdmin.calls.some((call) => call.table === 'project_charge_rates'), false, 'Source-only health reports must not depend on current charge cards.');
 
@@ -315,7 +319,7 @@ try {
   const privacyEntry = { id: original.id, project_id: p1, budget_source_id: p2, budget_allocation_id: allocation, staff_user_id: other,
     activity_id: null, work_date: '2026-11-20', activity_category: 'Field', activity_information: 'Survey', hours: 1, status: 'completed',
     custom_data: privateMetadata, created_at: '2026-11-20T00:00:00Z', updated_at: '2026-11-20T00:00:00Z' };
-  const ownHistory = extractFunction(staffRoute, 'async function ownEntries(', '\n// Every person allocated', 'ownEntries', { trackerResponseCustomData, unavailable: () => false });
+  const ownHistory = extractFunction(staffRoute, 'async function ownEntries(', '\n// Every person allocated', 'ownEntries', { trackerResponseCustomData, loadTrackerEntryPages, unavailable: () => false });
   for (const isAdmin of [false, true]) {
     const history = await ownHistory({ admin: mockAdmin({ project_tracker_entries: [privacyEntry] }), user: { id: other }, isAdmin });
     assert.deepEqual(history.entries[0].customData, isAdmin ? privateMetadata : normalMetadata, 'GET history must sanitize according to the caller, not the entry owner.');
@@ -364,7 +368,7 @@ try {
   assert.doesNotMatch(staffRoute.slice(staffRoute.indexOf('export async function refreshTrackerAllocation('), staffRoute.indexOf('async function ownEntries(')), /limit\(10000\)|hourly_rate|default_hourly_rate/);
   assert.equal((staffRoute.match(/customData: trackerResponseCustomData\(entry\.custom_data, access\.isAdmin\)/g) || []).length, 3);
   assert.doesNotMatch(staffRoute, /customData: entry\.custom_data/);
-  assert.match(allocationSource, /trackerEntryChargeRate\(entry, ratesByProject, legacyRate\)/);
+  assert.match(allocationSource, /trackerEntryChargeTotal\(entry, ratesByProject, legacyRate\)/);
   assert.doesNotMatch(chargeSource, /from\("project_role_rates"\)/);
   assert.doesNotMatch(migration, /update public\.project_tracker_entries|update public\.project_budget_allocations/);
   console.log('Tracker charge cards passed: six fixed roles/default parity, per-job isolation, missing-card legacy logging/pricing, snapshot tamper/correction retention, future-only changes, audited active-admin/visibility saves, optimistic races/rollback, service-only RLS, 10,001-row admin/staff consistency, and unchanged source-backed health actuals.');

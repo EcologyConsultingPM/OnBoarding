@@ -27,8 +27,8 @@ let access;
 const tables={
   projects:[{id:project,name:'Wastewater Pond Upgrade ACT',client_name:'IQon Pty Ltd',status:'active',deleted_at:null,default_hourly_rate:999},{id:otherProject,name:'Other job',client_name:'Another client',status:'active',deleted_at:null,default_hourly_rate:999}],
   project_budget_sources:[{id:src,project_id:project,source_type:'original',source_name:'Original',approval_status:'approved',approved_value:10000,approved_hours:100}],
-  project_budget_allocations:[{id:fieldAllocation,project_id:project,budget_source_id:src,allocation_name:'External consultation',allocation_code:'EXTERNAL',status:'active',staff_visible:true},{id:quoteAllocation,project_id:project,budget_source_id:src,allocation_name:'Quotes and tenders',allocation_code:'QUOTES',status:'active',staff_visible:true}],
-  project_tracker_templates:[{project_id:project,category_options:['External consultation','Quotes and tenders']}],
+  project_budget_allocations:[{id:fieldAllocation,project_id:project,budget_source_id:src,allocation_name:'General Project Management',allocation_code:'MANAGEMENT',status:'active',staff_visible:true},{id:quoteAllocation,project_id:project,budget_source_id:src,allocation_name:'Other',allocation_code:'OTHER',status:'active',staff_visible:true}],
+  project_tracker_templates:[{project_id:project,category_options:['General Project Management','Other']}],
   quote_draft_projects:[{project_id:project,quote_id:quote}],
   quote_drafts:[{transferred_quote_id:quote,project_number:'1597'}],
 };
@@ -43,7 +43,7 @@ const admin={from:(table)=>new Query(table),auth:{admin:{listUsers:async()=>({da
 access={admin,user:{id:actor},isAdmin:true};
 const context={...imports,...periods,...reconciliation,Date,Response,Headers,Request,FormData,File,console,XLSX,createHash,randomUUID,Map,Set,requireSession:async()=>access,requirePortalResource:async()=>null,serverError:e=>Response.json({error:e.message},{status:400}),trackerChargeRole:id=>id===staff?'Senior Ecologist':'Ecologist',loadTrackerChargeRates:async(_admin,ids)=>{
  assert(ids.includes(project));
- return confirmed?new Map([[project,new Map([['Senior Ecologist',205],['Ecologist',170],['Project Manager',140]])],[otherProject,new Map([['Senior Ecologist',270],['Ecologist',195],['Project Manager',160]])]]):new Map();
+ return confirmed?new Map([[project,new Map([['Senior Ecologist',205],['Ecologist',170],['Project Manager',140],['Mileage',1.25]])],[otherProject,new Map([['Senior Ecologist',270],['Ecologist',195],['Project Manager',160],['Mileage',1.25]])]]):new Map();
 }};
 vm.createContext(context);vm.runInContext(stripped+'\nthis.api={handleUpload,normaliseRow,buildPreview,handleImport,userName,POST};',context);
 const headers=['Date','Employee','Client','Job#','Client job','Hours','Expenses','Kms','Vehicle','Task','Notes'];
@@ -60,7 +60,7 @@ assert.equal(preview.rows[0].chargeRole,'Senior Ecologist');assert.equal(preview
 assert.equal(preview.rows[1].expenses,25);assert.equal(preview.rows[1].vehicle,'EC01');assert.equal(preview.reconciliation.length,2);
 const firstImport=await context.api.handleImport(access,{rows:preview.rows,fileName:'weekly.xls'});
 assert.equal(firstImport.status,201);assert.equal(lastRPC.name,'ec_import_weekly_timesheets_reviewed');assert.equal(lastRPC.args.p_entries.length,2);assert.equal(lastRPC.args.p_entries[1].custom_data.expenses,25);assert.equal(lastRPC.args.p_entries[1].custom_data.import_source_task,'Quotes and tenders');
-const existing={id:'00000000-0000-4000-8000-000000000009',project_id:project,staff_user_id:staff,entered_by_admin_id:null,work_date:'2026-11-05',activity_category:'External consultation',activity_information:'Previously entered staff consultation',hours:1,custom_data:{},updated_at:'2026-11-06T00:00:00Z'};
+const existing={id:'00000000-0000-4000-8000-000000000009',project_id:project,staff_user_id:staff,entered_by_admin_id:null,work_date:'2026-11-05',activity_category:'General Project Management',activity_information:'Previously entered staff consultation',hours:1,custom_data:{},updated_at:'2026-11-06T00:00:00Z'};
 currentEntries=[existing];
 preview=await context.api.buildPreview(admin,mapped);assert.equal(preview.summary.ready,1);assert.equal(preview.summary.possibleDuplicates,1);assert.equal(preview.rows[0].isSkipped,true);assert.equal(preview.rows[0].possibleDuplicates[0].enteredByAdmin,false);
 const safeImport=await context.api.handleImport(access,{rows:preview.rows,fileName:'weekly.xls'});assert.equal(safeImport.status,201);assert.equal(lastRPC.args.p_entries.length,1,'Possible overlaps default to skip rather than add prior staff time twice.');

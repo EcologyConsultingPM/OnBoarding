@@ -14,6 +14,7 @@ const updatedAt = "2026-11-19T22:00:00.123456+00:00";
 const sampleRates = { project_manager_rate: 137.25, senior_ecologist_rate: 189.5, ecologist_rate: 111.11 };
 const rpcRates = { "Project Manager": sampleRates.project_manager_rate, "Senior Ecologist": sampleRates.senior_ecologist_rate, "Ecologist": sampleRates.ecologist_rate };
 const card = {
+  mileage_rate: null,
   project_id: projectId,
   ...sampleRates,
   confirmed_at: updatedAt,
@@ -132,7 +133,7 @@ assert.deepEqual(result.calls, ["session", "resource"]);
 assert.equal(result.rpcs.length, 0, "Reading suggested rates cannot confirm them.");
 assert.deepEqual(result.queries.find((row) => row.table === "project_charge_rates"), {
   table: "project_charge_rates",
-  columns: "project_id, project_manager_rate, senior_ecologist_rate, ecologist_rate, confirmed_at, confirmed_by, updated_at",
+  columns: "project_id, project_manager_rate, senior_ecologist_rate, ecologist_rate, mileage_rate, confirmed_at, confirmed_by, updated_at",
   filters: [["eq", "project_id", projectId]], limit: 1, maybeSingle: true,
 });
 assert.deepEqual(result.queries.find((row) => row.table === "project_role_rates"), {
@@ -274,7 +275,7 @@ assert.match(componentSource, /Save project first/);
 assert.match(componentSource, /Save rates for this project/);
 assert.match(componentSource, /Reload rates and suggestions/);
 assert.match(componentSource, /step="0\.01"/);
-assert.match(componentSource, /min="0\.01"/);
+assert.match(componentSource, /min=\{optional \? "0" : "0\.01"\}/, "Labour rates stay positive; optional mileage permits an explicit 0 (non-billable).");
 assert.match(componentSource, /max="1000000"/);
 assert(!componentSource.includes("localStorage"), "Financial editor values are not persisted in browser storage.");
 
@@ -369,7 +370,8 @@ assert.match(ui.text(), /Suggested company rates — not yet confirmed for this 
 for (const label of ["Project Manager", "Senior Ecologist", "Ecologist"]) {
   assert.match(ui.text(), new RegExp(`${label} \\s*\\(\\$/hour\\)`), `${label} must remain visible as a labelled rate field.`);
 }
-assert.equal(ui.nodes("label").length, 3, "The three rate inputs must retain their accessible labels.");
+assert.match(ui.text(), /Mileage \(\$\/km\) — optional/, "Mileage is an optional project-specific charge-out field.");
+assert.equal(ui.nodes("label").length, 4, "The three labour rates and optional mileage rate must retain accessible labels.");
 assert.equal(ui.nodes("input").find((node) => node.props.name === "ecologist_rate").props.value, "");
 assert.equal(ui.nodes("button")[0].props.disabled, true, "Blank suggestions block saving.");
 ui.nodes("input").find((node) => node.props.name === "ecologist_rate").props.onChange({ target: { value: "111.11" } });
@@ -377,7 +379,7 @@ ui.render();
 const firstSave = ui.nodes("button")[0].props.onClick();
 assert.equal(ui.requests.length, 2);
 assert.equal(ui.requests[1].init.method, "POST");
-assert.deepEqual(JSON.parse(ui.requests[1].init.body), bodyFor());
+assert.deepEqual(JSON.parse(ui.requests[1].init.body), bodyFor({ rates: { ...sampleRates, mileage_rate: null } }), "A blank mileage field is saved as missing, never 0.");
 ui.requests[1].respond({ error: "Another administrator changed this card." }, 409);
 await firstSave; ui.render();
 assert.match(ui.text(), /Reload rates/);

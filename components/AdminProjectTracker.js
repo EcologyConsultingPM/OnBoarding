@@ -20,6 +20,7 @@ import {
 import { useAuth } from "../lib/AuthProvider";
 import ProjectTrackerExport from "./ProjectTrackerExport";
 import AdminTimesheetImporter from "./AdminTimesheetImporter";
+import ProjectRoleCostOverview from "./ProjectRoleCostOverview";
 import { budgetPeriodLabel, monthBudgetPeriod, serviceMonthForSource } from "../lib/projectBudgetPeriods";
 import { PROJECT_SOURCES_CHANGED } from "../lib/projectSourceSignals";
 
@@ -84,8 +85,9 @@ export default function AdminProjectTracker({
   onOpenProjectSetup,
   initialProjectId = "",
 }) {
-  const { session } = useAuth();
+  const { session, isAdmin } = useAuth();
   const [detailView, setDetailView] = useState("overview");
+  const [roleCostRefreshVersion, setRoleCostRefreshVersion] = useState(0);
   const [projects, setProjects] = useState([]);
   const [financialReady, setFinancialReady] = useState(false);
   const [selectedId, setSelectedId] = useState(() => {
@@ -332,6 +334,7 @@ export default function AdminProjectTracker({
       const nextProjects = body.projects || [];
       setProjects(nextProjects);
       setFinancialReady(Boolean(body.financialReady));
+      setRoleCostRefreshVersion((version) => version + 1);
       setSelectedId((current) => (current && nextProjects.some((project) => project.id === current) ? current : nextProjects[0]?.id || ""));
     } catch (loadError) {
       setError(loadError.message || "Could not load the Project Tracker.");
@@ -649,6 +652,17 @@ export default function AdminProjectTracker({
                 />
               </div>
 
+              {detailView === "role-costs" && isAdmin ? (
+                <ProjectRoleCostOverview
+                  session={session}
+                  projectId={selected.id}
+                  projectName={selected.name}
+                  isAdmin={isAdmin}
+                  refreshKey={roleCostRefreshVersion}
+                  onRefresh={load}
+                />
+              ) : null}
+
               {["overview", "budget"].includes(detailView) && (selected.financials.historicalUsedHours > 0 || selected.financials.historicalChargeOutSpend > 0) ? (
                 <p role="note" style={{ margin: "0 0 14px", fontSize: 12.5, color: "#cfe0c8", lineHeight: 1.5 }}>
                   <strong>Historical work retained:</strong> {hours(selected.financials.historicalUsedHours)} and {money(selected.financials.historicalChargeOutSpend)} quote-rate spend on closed/non-current sources or allocations. Excluded from current accepted-scope budgets, spend and profit calculations. Recorded lifetime totals: {hours(selected.financials.lifetimeUsedHours)} and {money(selected.financials.lifetimeChargeOutSpend)}. Full entry history remains available in Timesheet Entries.
@@ -683,7 +697,7 @@ export default function AdminProjectTracker({
                     tone="moss"
                   />
                   <Metric
-                    label="Delivery cost (60% rate)"
+                    label="Internal spend (role & mileage)"
                     value={money(selected.financials.internalCost)}
                   />
                   <Metric
@@ -744,6 +758,12 @@ export default function AdminProjectTracker({
                   </div>
                 );
               })() : null}
+
+              {["overview", "budget", "timesheets"].includes(detailView) ? (
+                <p role="note" style={{ margin: "0 0 14px", fontSize: 12.5, color: "#cfe0c8", lineHeight: 1.5 }}>
+                  <strong>No budget assignment:</strong> {selected.financials.unassigned?.count || 0} entries · {hours(selected.financials.unassigned?.hours || 0)} · {money(selected.financials.unassigned?.chargeOutSpend || 0)} charge-out spend · {money(selected.financials.unassigned?.internalCost || 0)} internal spend. Included once in overall and lifetime actuals; individual allocation balances are unchanged.
+                </p>
+              ) : null}
 
               <div className={`apt-grid apt-grid--${detailView}`}>
                 {detailView === "budget" ? <section className="apt-card apt-allocations">
@@ -1114,6 +1134,7 @@ export default function AdminProjectTracker({
                               <div><span className="apt-kicker">Administrator correction</span><h4>Edit {entryEditor.staffName}&apos;s entry</h4></div>
                               <button type="button" className="aps-secondary" onClick={() => setEntryEditor(null)} disabled={Boolean(entryMutationBusy)}>Cancel</button>
                             </div>
+                            {allEntries.find((entry) => entry.id === entryEditor.id)?.custom_data?.budget_assignment === "unassigned" ? <p className="apt-entry-editor__help">No budget assignment. Correction retains the original assignment and historical charge snapshot.</p> : null}
                             <div className="apt-entry-editor__grid">
                               <label>Work date<input type="date" value={entryEditor.workDate} onChange={(event) => setEntryEditor((current) => ({ ...current, workDate: event.target.value }))} /></label>
                               <label>Activity category<input value={entryEditor.activityCategory} onChange={(event) => setEntryEditor((current) => ({ ...current, activityCategory: event.target.value }))} /></label>
@@ -1180,6 +1201,7 @@ export default function AdminProjectTracker({
                                   <th className="apt-entry-select-col" aria-label="Select entries"><input type="checkbox" aria-label="Select all visible timesheet entries" checked={Boolean(filteredEntries.length) && filteredEntries.every((entry) => selectedEntryIds.has(entry.id))} onChange={() => setSelectedEntryIds((current) => { const next = new Set(current); if (filteredEntries.every((entry) => next.has(entry.id))) filteredEntries.forEach((entry) => next.delete(entry.id)); else filteredEntries.forEach((entry) => next.add(entry.id)); return next; })} disabled={!filteredEntries.length || Boolean(entryMutationBusy)} /></th>
                                   <th style={{ padding: "6px 8px" }}>Date</th>
                                   <th style={{ padding: "6px 8px" }}>Staff</th>
+                                  <th style={{ padding: "6px 8px" }}>Budget assignment</th>
                                   <th style={{ padding: "6px 8px" }}>Activity</th>
                                   <th style={{ padding: "6px 8px" }}>Description</th>
                                   <th style={{ padding: "6px 8px" }}>Hours</th>
@@ -1197,6 +1219,7 @@ export default function AdminProjectTracker({
                                       {entry.staff_name}
                                       {entry.entered_by_admin_id ? <span title="Logged by an admin on this staff member's behalf" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, color: "#e7c979", border: "1px solid rgba(231,201,121,0.4)", borderRadius: 4, padding: "1px 5px" }}>ADMIN</span> : null}
                                     </td>
+                                    <td style={{ padding: "6px 8px" }}>{entry.budget_source_id === null && entry.budget_allocation_id === null && entry.custom_data?.budget_assignment === "unassigned" ? "No budget assignment" : selected.sources.flatMap((source) => source.allocations || []).find((allocation) => allocation.id === entry.budget_allocation_id)?.allocation_name || "Allocated history"}</td>
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_category}</td>
                                     <td style={{ padding: "6px 8px" }}>{entry.activity_information || "—"}</td>
                                     <td style={{ padding: "6px 8px" }}>{number(entry.hours)}</td>
@@ -1340,6 +1363,7 @@ function TrackerDetailTabs({ detailView, setDetailView }) {
   const tabs = [
     ["overview", "Overview"],
     ["budget", "Budget & variations"],
+    ["role-costs", "Role Cost Overview"],
     ["timesheets", "Timesheets"],
     ["activities", "Work activities"],
   ];
@@ -1570,7 +1594,7 @@ function AllocationEditor({
             />
           </label>
           <label>
-            Delivery cost (60% of quote-rate spend)
+            Internal spend (recorded role hours & mileage)
             <input
               inputMode="decimal"
               value={allocation.internalCost}

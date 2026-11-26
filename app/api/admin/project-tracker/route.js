@@ -1,5 +1,7 @@
 import { requireSession, serverError } from "../../../../lib/serverAuth";
 import { budgetPeriodPatch } from "../../../../lib/projectBudgetPeriods";
+import { summarizeTrackerUnassignedActuals, trackerAllocationsWithDerivedInternalCosts, loadTrackerEntryPages } from "../../../../lib/projectTrackerUnassignedActuals";
+import { trackerEntryInternalCost, trackerEntryChargeTotal } from "../../../../lib/projectTrackerChargeRates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,9 +87,10 @@ function healthForAllocation(allocation) {
   return "on_track";
 }
 
-function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames, activityAssignees, assignmentTableReady) {
+function buildProjectTracker(project, sources, allocations, activities, trackerEntries, teamCount, settings, staffNames, activityAssignees, assignmentTableReady, legacyRateByStaff = new Map()) {
   const projectSources = sources.filter((source) => source.project_id === project.id);
-  const projectAllocations = allocations.filter((allocation) => allocation.project_id === project.id);
+  const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
+  const projectAllocations = trackerAllocationsWithDerivedInternalCosts(allocations.filter((allocation) => allocation.project_id === project.id), projectEntries);
   const original = projectSources.filter((source) => source.source_type === "original");
   // A project can retain earlier original-source rows and allocations for audit
   // history. Only the approved source and its active allocations belong in live
@@ -104,15 +107,20 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const originalBudget = legacyBudget ? number(project.budget_dollars) : approvedOriginal.reduce((sum, source) => sum + number(source.approved_value), 0);
   const variationBudget = variations.reduce((sum, source) => sum + number(source.approved_value), 0);
   const overallBudget = roundCurrency(originalBudget + variationBudget);
-  const chargeOutSpend = roundCurrency(liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
-  const internalCost = roundCurrency(liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0));
+  const unassignedEntries = projectEntries.filter((entry) => entry.budget_source_id === null && entry.budget_allocation_id === null && entry.custom_data?.budget_assignment === "unassigned");
+  const unassigned = unassignedEntries.length ? summarizeTrackerUnassignedActuals(unassignedEntries) : { count: 0, hours: 0, chargeOutSpend: 0, internalCost: 0 };
+  // Project-level actuals do not belong to any allocation or service period.
+  // Add them once to current and lifetime positions, never to allocated history.
+  const legacySpend = () => projectEntries.reduce((sum, entry) => sum + trackerEntryChargeTotal(entry, null,
+    number(legacyRateByStaff.get(entry.staff_user_id)) || number(project.default_hourly_rate)), 0);
+  const chargeOutSpend = roundCurrency(legacyBudget ? legacySpend() : liveAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0) + unassigned.chargeOutSpend);
+  const internalCost = roundCurrency(legacyBudget ? projectEntries.reduce((sum, entry) => sum + trackerEntryInternalCost(entry), 0) : liveAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0) + unassigned.internalCost);
   // Budget position is measured against the quoted/charge-out rate. Profit is
-  // separate: it is the accepted contract value less the actual delivery cost.
-  // The delivery cost is maintained at 60% of each recorded person's quote
-  // rate (the agreed "minus 40%" cost basis), not a markup on spend.
+  // separate: accepted contract less delivery cost. Recorded entries use the
+  // fixed role/km policy; unattributed manual allocation costs remain stored.
   const estimatedProfit = roundCurrency(overallBudget - internalCost);
   const budgetHours = legacyBudget ? number(project.budget_hours) : [...approvedOriginal, ...variations].reduce((sum, source) => sum + number(source.approved_hours), 0);
-  const usedHours = liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
+  const usedHours = legacyBudget ? projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0) : liveAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0) + unassigned.hours;
   // Closed/unapproved sources and inactive allocations remain audit history,
   // not spend against current funding. Use stored actuals without repricing.
   const liveAllocationIds = new Set(liveAllocations.map((allocation) => allocation.id));
@@ -120,10 +128,12 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
   const historicalUsedHours = historicalAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
   const historicalChargeOutSpend = roundCurrency(historicalAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
   const historicalInternalCost = roundCurrency(historicalAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0));
-  const lifetimeUsedHours = projectAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0);
-  const lifetimeChargeOutSpend = roundCurrency(projectAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0));
+  const lifetimeUsedHours = legacyBudget ? usedHours : projectAllocations.reduce((sum, allocation) => sum + number(allocation.hours_consumed), 0) + unassigned.hours;
+  const lifetimeChargeOutSpend = legacyBudget ? chargeOutSpend : roundCurrency(projectAllocations.reduce((sum, allocation) => sum + number(allocation.charge_out_spend), 0) + unassigned.chargeOutSpend);
+  const lifetimeInternalCost = legacyBudget ? internalCost : roundCurrency(projectAllocations.reduce((sum, allocation) => sum + number(allocation.internal_cost), 0) + unassigned.internalCost);
+  const internalCostBasis = "Recorded entries: trusted internal snapshots or fixed 81/75/70 AUD/h and 0.90 AUD/km; allocations without entries retain legacy stored unattributed costs.";
+  const legacyUnattributedAllocationIds = projectAllocations.filter((allocation) => allocation.internal_cost_basis === "legacy_stored_unattributed").map((allocation) => allocation.id);
   const relevantActivities = activities.filter((activity) => activity.project_id === project.id);
-  const projectEntries = trackerEntries.filter((entry) => entry.project_id === project.id);
   const completedActivities = relevantActivities.filter((activity) => activity.status === "completed").length;
   const taskCompletion = relevantActivities.length ? Math.round((relevantActivities.reduce((sum, activity) => sum + Math.max(0, Math.min(100, number(activity.progress_percent))), 0) / relevantActivities.length) * 100) / 100 : 0;
   const pausedActivities = relevantActivities.filter((activity) => ["need_info", "paused_other"].includes(activity.status)).length;
@@ -181,10 +191,11 @@ function buildProjectTracker(project, sources, allocations, activities, trackerE
     healthOverridden,
     manualHealthStatus: project.manual_health_status || null,
     manualHealthNote: project.manual_health_note || null,
-    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, estimatedProfit, profitabilityPercent, budgetHours, usedHours, historicalUsedHours, historicalChargeOutSpend, historicalInternalCost, lifetimeUsedHours, lifetimeChargeOutSpend, utilisationPercent, remainingBudget: roundCurrency(overallBudget - chargeOutSpend), remainingHours: budgetHours ? budgetHours - usedHours : null, forecastHours, hoursVariance },
+    financials: { originalBudget, variationBudget, overallBudget, chargeOutSpend, internalCost, internalCostBasis, legacyUnattributedAllocationIds, estimatedProfit, profitabilityPercent, budgetHours, usedHours, historicalUsedHours, historicalChargeOutSpend, historicalInternalCost, lifetimeUsedHours, lifetimeChargeOutSpend, lifetimeInternalCost, unassigned, utilisationPercent, remainingBudget: roundCurrency(overallBudget - chargeOutSpend), remainingHours: budgetHours ? budgetHours - usedHours : usedHours ? -usedHours : null, forecastHours, hoursVariance },
     sources: projectSources.map((source) => ({ ...source, allocations: projectAllocations.filter((allocation) => allocation.budget_source_id === source.id).map((allocation) => ({ ...allocation, health: healthForAllocation(allocation) })) })),
     activitySummary: { total: relevantActivities.length, completed: completedActivities, paused: pausedActivities, overdue: overdueActivities, completionPercent: taskCompletion, averageDeliveryDays, atRiskAllocations, watchAllocations },
     entrySummary: {
+      unassigned,
       count: projectEntries.length,
       submittedHours: projectEntries.reduce((sum, entry) => sum + number(entry.hours), 0),
       approvedHours: projectEntries.filter((e) => e.status === "completed").reduce((sum, entry) => sum + number(entry.hours), 0),
@@ -241,7 +252,7 @@ async function trackerData(access, requestedProjectId = "") {
 
   let [activitiesResult, allocationsResult, settingsResult, sourcesResult, trackerAllocationsResult, trackerEntriesResult] = await Promise.all([
     access.admin.from("project_activities").select("id, project_id, status, acceptance_status, progress_percent, due_date, assigned_at, completed_at, is_active, staff_user_id, task_category, title, budget_hours").in("project_id", ids).eq("is_active", true),
-    access.admin.from("project_allocations").select("project_id, staff_user_id, active").in("project_id", ids),
+    access.admin.from("project_allocations").select("project_id, staff_user_id, active, hourly_rate").in("project_id", ids),
     access.admin.from("project_tracker_settings").select("project_id, tracker_visible").in("project_id", ids),
     access.admin.from("project_budget_sources").select(SOURCE_COLUMNS).in("project_id", ids).order("effective_date", { ascending: true }),
     access.admin.from("project_budget_allocations").select(ALLOCATION_COLUMNS).in("project_id", ids).order("allocation_code", { ascending: true }),
@@ -282,7 +293,8 @@ async function trackerData(access, requestedProjectId = "") {
   const settingsByProject = new Map((settingsResult.data || []).map((setting) => [setting.project_id, setting]));
   return {
     financialReady,
-    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames, activityAssignees, assignmentTableReady)),
+    projects: projects.map((project) => buildProjectTracker(project, financialReady ? (sourcesResult.data || []) : [], financialReady ? (trackerAllocationsResult.data || []) : [], activitiesResult.data || [], trackerEntriesResult.error ? [] : (trackerEntriesResult.data || []), teamCounts.get(project.id) || 0, settingsByProject.get(project.id), staffNames, activityAssignees, assignmentTableReady,
+      new Map((allocationsResult.data || []).filter((row) => row.project_id === project.id).map((row) => [row.staff_user_id, row.hourly_rate])))),
   };
 }
 
@@ -291,7 +303,7 @@ async function loadTrackerEntries(admin, projectIds) {
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await admin.from("project_tracker_entries")
-      .select("id, project_id, staff_user_id, entered_by_admin_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at")
+      .select("id, project_id, staff_user_id, entered_by_admin_id, budget_source_id, budget_allocation_id, work_date, activity_category, activity_information, hours, status, notable_issues, custom_data, created_at")
       .in("project_id", projectIds)
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
@@ -396,13 +408,24 @@ export async function POST(request) {
       if (sourceError) return jsonError(sourceError.message);
       if (!source) return jsonError("Budget source not found for this project.", 404);
       const calculatedSpend = chargeOutSpend || 0;
-      // Cost is a controlled 60% of quoted spend. This prevents a browser
-      // field or direct request from changing the profitability basis.
+      // Legacy manual totals have no role attribution: preserve their old basis.
+      // When actual person entries exist, browser totals cannot overwrite them.
       const payload = { project_id: projectId, budget_source_id: sourceId, allocation_code: allocationCode, allocation_name: allocationName, allocation_value: allocationValue, allocation_hours: allocationHours, hours_consumed: hoursConsumed || 0, charge_out_spend: calculatedSpend, internal_cost: Math.round(calculatedSpend * 0.6 * 100) / 100, threshold_percent: Math.min(100, Math.max(1, Number(body.thresholdPercent) || 80)), status: ["draft", "active", "closed"].includes(body.status) ? body.status : "draft", staff_visible: body.staffVisible === true, updated_by: auth.access.user.id, updated_at: new Date().toISOString() };
       if (body.id && validId(body.id)) {
+        const recorded = await loadTrackerEntryPages(() => auth.access.admin.from("project_tracker_entries")
+          .select("id, project_id, staff_user_id, hours, custom_data")
+          .eq("project_id", projectId).eq("budget_allocation_id", body.id));
+        if (recorded.error) return jsonError(recorded.error.message);
+        if (recorded.data.length) {
+          // No write-time read/replace of actuals: omit all actual fields so a
+          // concurrent timesheet recalculation is not lost. GET derives cost.
+          delete payload.hours_consumed;
+          delete payload.charge_out_spend;
+          delete payload.internal_cost;
+        }
         const { data, error } = await auth.access.admin.from("project_budget_allocations").update(payload).eq("id", body.id).eq("project_id", projectId).select(ALLOCATION_COLUMNS).single();
         if (error) return jsonError(error.message);
-        return Response.json({ allocation: data });
+        return Response.json({ allocation: data, actualsBasis: recorded.data.length ? "recorded_entries_preserved" : "legacy_manual_unattributed", limitation: recorded.data.length ? "Actual totals are controlled by recorded timesheet entries, not manual allocation fields." : "Manual actuals have no staff-role attribution; the legacy stored cost basis is retained." });
       }
       const { data, error } = await auth.access.admin.from("project_budget_allocations").insert({ ...payload, created_by: auth.access.user.id }).select(ALLOCATION_COLUMNS).single();
       if (error) return jsonError(error.message);

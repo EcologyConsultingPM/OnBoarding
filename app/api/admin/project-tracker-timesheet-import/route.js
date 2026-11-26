@@ -14,6 +14,9 @@ import {
   normaliseImportNumber,
   normaliseImportText,
   normaliseWorkDate,
+  resolveTimesheetImportCategory,
+  timesheetImportCategoryOptions,
+  TIMESHEET_IMPORT_CANONICAL_CATEGORIES,
   timesheetDuplicateKey,
 } from "../../../../lib/projectTimesheetImport";
 import * as XLSX from "xlsx";
@@ -151,10 +154,7 @@ async function loadImportContext(admin) {
       name: project.name,
       clientName: project.client_name || "",
       projectNumbers: project.projectNumbers,
-      categoryOptions: [...new Set([
-        ...(Array.isArray(project.template.category_options) ? project.template.category_options : []),
-        ...project.allocations.filter((allocation) => allocation.status === "active" && allocation.staff_visible).map((allocation) => allocation.allocation_name),
-      ].filter(Boolean))],
+      categoryOptions: projectCategories(project),
     })),
     staffOptions: staff,
   };
@@ -165,13 +165,23 @@ function projectMatches(row, context) {
   const inputNumber = normaliseProjectNumber(row.projectNumber);
   const client = normaliseImportText(row.clientName);
   const warnings = [];
+  const verificationWarnings = (selected) => {
+    if (row.projectNumber && (!inputNumber || !selected.projectNumbers.some((value) => normaliseProjectNumber(value) === inputNumber))) warnings.push("Source Job# differs from the selected project's linked project numbers; confirm this explicit project choice.");
+    if (textName && normaliseImportText(selected.name) !== textName) warnings.push("Source Client job / project name differs from the matched project; Job# is primary. Verify the source name before importing.");
+    if (client && selected.client_name && normaliseImportText(selected.client_name) !== client) warnings.push("Source client name does not match the candidate project's client; confirm this match before importing.");
+  };
   if (row.projectId) {
     const selected = context.projects.find((project) => project.id === row.projectId);
-    if (selected && row.clientName && selected.client_name && normaliseImportText(selected.client_name) !== client) warnings.push("Source client name differs from the selected project's client; confirm this match before importing.");
+    if (selected) verificationWarnings(selected);
     return { matches: selected ? [selected] : [], warnings: selected ? warnings : ["Selected project is no longer active."] };
   }
-  let byNumber = [];
-  if (inputNumber) byNumber = context.projects.filter((project) => project.projectNumbers.some((value) => normaliseProjectNumber(value) === inputNumber));
+  // A supplied Job# is authoritative: unknown or duplicated numbers never fall back to a name.
+  if (row.projectNumber) {
+    const matches = inputNumber ? context.projects.filter((project) => project.projectNumbers.some((value) => normaliseProjectNumber(value) === inputNumber)) : [];
+    if (matches.length === 1) verificationWarnings(matches[0]);
+    else warnings.push(matches.length ? "Source Job# matches more than one active project; explicitly select the correct project." : "Source Job# was not found in the active linked project register; explicitly select the correct project. Client job is not used as a fallback when Job# is supplied.");
+    return { matches, warnings };
+  }
   let byName = [];
   if (textName) {
     byName = context.projects.filter((project) => normaliseImportText(project.name) === textName);
@@ -182,10 +192,7 @@ function projectMatches(row, context) {
       });
     }
   }
-  if (byNumber.length && byName.length && !byNumber.some((project) => byName.some((named) => named.id === project.id))) {
-    return { matches: [], conflict: true, warnings: [] };
-  }
-  let candidates = byNumber.length ? byNumber : byName;
+  let candidates = byName;
   if (client && candidates.length) {
     const clientMatches = candidates.filter((project) => normaliseImportText(project.client_name) === client);
     if (clientMatches.length) candidates = clientMatches;
@@ -193,7 +200,6 @@ function projectMatches(row, context) {
   if (client && candidates.length && !candidates.some((project) => normaliseImportText(project.client_name) === client)) {
     warnings.push("Source client name does not match the candidate project's client; confirm this match before importing.");
   }
-  if (inputNumber && !byNumber.length && candidates.length) warnings.push("Project number was not found in the linked project register; confirm the exact-name match before importing.");
   return { matches: candidates, warnings };
 }
 
@@ -208,10 +214,10 @@ function staffMatches(row, context) {
 }
 
 function projectCategories(project) {
-  return [...new Set([
+  return timesheetImportCategoryOptions([
     ...(Array.isArray(project?.template?.category_options) ? project.template.category_options : []),
     ...(project?.allocations || []).filter((allocation) => allocation.status === "active" && allocation.staff_visible).map((allocation) => allocation.allocation_name),
-  ].filter(Boolean))];
+  ]);
 }
 
 function findBudgetAllocations(project, workDate, category) {
@@ -225,7 +231,9 @@ function findBudgetAllocations(project, workDate, category) {
     .map((allocation) => ({ source, allocation })));
   const matched = choices.filter(({ allocation }) => allocationMatchesCategory(allocation, category));
   if (matched.length) return matched;
-  if (!hasMonthlySources && choices.length === 1) return choices;
+  const approvedTarget = TIMESHEET_IMPORT_CANONICAL_CATEGORIES.some((target) => normaliseImportText(target) === normaliseImportText(category));
+  // Preserve legacy single-allocation behavior, but never charge a canonical target to another category.
+  if (!approvedTarget && !hasMonthlySources && choices.length === 1) return choices;
   return [];
 }
 
@@ -239,6 +247,7 @@ function normaliseRow(input, index) {
   const kmValue = normaliseImportNumber(row.km, { allowBlank: true, maximum: 100000 });
   const expensesInput = cleanText(row.expenses, 100).replace(/^(?:AUD\s*)?\$\s*/i, "");
   const expensesValue = normaliseImportNumber(expensesInput, { allowBlank: true, maximum: 1000000 });
+  const budgetAssignment = cleanText(row.budgetAssignment, 40);
   return {
     sourceRow: Number.isInteger(Number(row.sourceRow)) && Number(row.sourceRow) > 0 ? Number(row.sourceRow) : index + 1,
     workDate: normaliseDateValue(row.workDate),
@@ -248,7 +257,10 @@ function normaliseRow(input, index) {
     projectName: cleanText(row.projectName, 200),
     projectNumber: cleanText(row.projectNumber, 80),
     projectId: validId(row.projectId) ? row.projectId : "",
-    budgetAllocationId: validId(row.budgetAllocationId) ? row.budgetAllocationId : "",
+    budgetAssignment,
+    // Preserve invalid/stale choices for validation instead of silently turning them into defaults.
+    budgetSourceId: budgetAssignment === "unassigned" ? null : cleanText(row.budgetSourceId, 100),
+    budgetAllocationId: budgetAssignment === "unassigned" ? null : cleanText(row.budgetAllocationId, 100),
     hours: Number.isFinite(hoursValue) ? Math.round(hoursValue * 100) / 100 : null,
     expenses: expensesValue === null || Number.isFinite(expensesValue) ? expensesValue : cleanText(row.expenses, 100),
     invalidExpenses: !(expensesValue === null || Number.isFinite(expensesValue)),
@@ -257,12 +269,13 @@ function normaliseRow(input, index) {
     invalidKm: !(kmValue === null || Number.isFinite(kmValue)),
     invalidHours: !Number.isFinite(hoursValue),
     activityCategory: cleanText(row.activityCategory, 120),
-    sourceTask: cleanText(row.sourceTask ?? row.activityCategory, 120),
-    comments: cleanText(row.comments, 5000),
+    sourceTask: String(row.sourceTask ?? row.activityCategory ?? "").slice(0, 120),
+    comments: String(row.comments ?? "").slice(0, 5000),
     duplicateDecision: ["skip", "separate"].includes(row.duplicateDecision) ? row.duplicateDecision : "",
     duplicateReason: cleanText(row.duplicateReason, 1000),
     duplicateReviewToken: /^[a-f0-9]{64}$/.test(String(row.duplicateReviewToken || "")) ? row.duplicateReviewToken : "",
     previousChargeRate: row.chargeRate === undefined || row.chargeRate === null ? null : Number(row.chargeRate),
+    previousMileageChargeRate: row.mileageChargeRate === undefined || row.mileageChargeRate === null ? null : Number(row.mileageChargeRate),
   };
 }
 
@@ -313,6 +326,7 @@ async function buildPreview(admin, inputRows, { forImport = false } = {}) {
     if (row.invalidExpenses) issues.push(issue("invalid_expenses", "Expenses must be a non-negative amount, or left blank. They are retained for reference, not charged."));
     if (!row.activityCategory) issues.push(issue("missing_category", "Activity category is required."));
     if (!row.projectName && !row.projectNumber && !row.projectId) issues.push(issue("missing_project", "Provide a project name or project number."));
+    if (!["", "assigned", "unassigned"].includes(row.budgetAssignment)) issues.push(issue("invalid_budget_assignment", "Choose a valid budget allocation or explicitly choose No budget assignment."));
 
     const projectResult = projectMatches(row, context);
     let project = projectResult.matches.length === 1 ? projectResult.matches[0] : null;
@@ -331,17 +345,24 @@ async function buildPreview(admin, inputRows, { forImport = false } = {}) {
     row.allocationOptions = [];
     if (project && row.activityCategory) {
       const categories = projectCategories(project);
-      const exactCategory = categories.find((value) => normaliseImportText(value) === normaliseImportText(row.activityCategory));
+      const exactCategory = resolveTimesheetImportCategory(row.activityCategory, categories);
       if (exactCategory) resolvedCategory = exactCategory;
       else issues.push(issue("unmatched_category", "This category is not configured for the selected project; map it to a project category."));
       if (exactCategory && row.workDate && validBudgetDate(row.workDate)) {
         const choices = findBudgetAllocations(project, row.workDate, resolvedCategory);
         row.allocationOptions = choices.map(({ source, allocation }) => ({ id: allocation.id, sourceId: source.id, label: `${source.source_name} · ${allocation.allocation_name}${source.service_period_start ? ` · ${source.service_period_start} to ${source.service_period_end}` : ""}` }));
-        allocationChoice = row.budgetAllocationId ? choices.find(({ allocation }) => allocation.id === row.budgetAllocationId) : choices.length === 1 ? choices[0] : null;
-        if (!allocationChoice) issues.push(issue(choices.length > 1 ? "ambiguous_budget_allocation" : "no_budget_allocation", choices.length > 1 ? "More than one approved budget allocation matches; choose the source/allocation to charge." : "No approved, active allocation matches this project, work date and category."));
+        if (["", "assigned"].includes(row.budgetAssignment)) {
+          allocationChoice = row.budgetAllocationId ? choices.find(({ allocation }) => allocation.id === row.budgetAllocationId) : !row.budgetSourceId && row.budgetAssignment === "" && choices.length === 1 ? choices[0] : null;
+          if (row.budgetSourceId && allocationChoice?.source.id !== row.budgetSourceId) allocationChoice = null;
+          if (!allocationChoice) {
+            if (row.budgetAllocationId || row.budgetSourceId) issues.push(issue("invalid_budget_allocation", "The selected source/allocation is invalid or no longer eligible for this project, date and category. Choose a valid allocation or explicitly choose No budget assignment."));
+            else issues.push(issue(choices.length > 1 ? "ambiguous_budget_allocation" : "no_budget_allocation", choices.length > 1 ? "More than one approved budget allocation matches; choose an allocation or explicitly choose No budget assignment." : "No approved, active allocation is selected for this project, work date and category. Choose a valid allocation or explicitly choose No budget assignment."));
+          }
+        }
       }
     }
     if (allocationChoice) {
+      row.budgetAssignment = "assigned";
       row.budgetSourceId = allocationChoice.source.id;
       row.budgetAllocationId = allocationChoice.allocation.id;
     }
@@ -352,9 +373,16 @@ async function buildPreview(admin, inputRows, { forImport = false } = {}) {
     row.chargeRole = staffPerson ? trackerChargeRole(staffPerson.id) : "";
     const projectRates = project ? context.rateByProject.get(project.id) : null;
     row.chargeRate = projectRates?.get(row.chargeRole) ?? null;
-    row.chargeAmount = row.chargeRate === null || row.hours === null ? null : Math.round(row.hours * row.chargeRate * 100) / 100;
+    row.mileageChargeRate = projectRates?.get("Mileage") ?? null;
+    row.labourChargeAmount = row.chargeRate === null || row.hours === null ? null : Math.round(row.hours * row.chargeRate * 100) / 100;
+    row.mileageChargeAmount = row.invalidKm || Number(row.km) > 0 && row.mileageChargeRate === null
+      ? null : Math.round(Number(row.km || 0) * Number(row.mileageChargeRate || 0) * 100) / 100;
+    row.chargeAmount = row.labourChargeAmount === null || row.mileageChargeAmount === null ? null :
+      Math.round((row.labourChargeAmount + row.mileageChargeAmount) * 100) / 100;
     if (project && staffPerson && !(Number(row.chargeRate) > 0)) issues.push(issue("missing_project_rates", "Confirm this job's Charge-out Rates in Project Operations before importing. Company defaults are suggestions only."));
     if (forImport && row.previousChargeRate !== null && row.chargeRate !== row.previousChargeRate) issues.push(issue("project_rate_changed", "This job's charge rate changed since preview. Refresh and review the labour charge before importing."));
+    if (project && Number(row.km) > 0 && row.mileageChargeRate === null) issues.push(issue("missing_mileage_rate", "Configure this job's Mileage charge-out rate in Project Operations before importing positive kilometres. Zero must be an explicit non-billable rate, not a missing value."));
+    if (forImport && Number(row.km) > 0 && row.mileageChargeRate !== row.previousMileageChargeRate) issues.push(issue("mileage_rate_changed", "This job's Mileage charge-out rate changed or was not reviewed. Refresh and review the mileage charge before importing."));
     row.issues = issues;
     row.warnings = warnings;
     row.isImportable = issues.length === 0;
@@ -374,9 +402,14 @@ async function buildPreview(admin, inputRows, { forImport = false } = {}) {
     possibleDuplicates: rows.filter((row) => row.possibleDuplicates.length || row.fileOverlaps.length).length,
     excluded: rows.filter((row) => row.isSkipped).length,
     unresolved: rows.filter((row) => !row.isImportable && !row.isSkipped).length,
+    unassigned: rows.filter((row) => row.budgetAssignment === "unassigned").length,
+    unassignedReady: rows.filter((row) => row.isImportable && row.budgetAssignment === "unassigned").length,
+    unassignedReadyHours: Math.round(rows.filter((row) => row.isImportable && row.budgetAssignment === "unassigned").reduce((sum, row) => sum + row.hours, 0) * 100) / 100,
     totalHours: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + row.hours, 0) * 100) / 100,
     totalKm: Math.round(rows.filter((row) => row.isImportable && row.km != null).reduce((sum, row) => sum + row.km, 0) * 100) / 100,
     totalCharge: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + Number(row.chargeAmount || 0), 0) * 100) / 100,
+    totalLabourCharge: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + Number(row.labourChargeAmount || 0), 0) * 100) / 100,
+    totalMileageCharge: Math.round(rows.filter((row) => row.isImportable).reduce((sum, row) => sum + Number(row.mileageChargeAmount || 0), 0) * 100) / 100,
   };
   return { rows, summary, reconciliation, projectOptions: context.projectOptions, staffOptions: context.staffOptions };
 }
@@ -459,11 +492,14 @@ async function handleImport(access, body) {
     status: "completed",
     notable_issues: null,
     custom_data: {
+      budget_assignment: row.budgetAssignment,
       ...(row.km === null ? {} : { km: row.km }),
       expenses: row.expenses,
       vehicle: row.vehicle,
       import_source_task: row.sourceTask,
+      import_source_notes: row.comments,
       import_expected_charge_rate: row.chargeRate,
+      import_expected_mileage_rate: row.mileageChargeRate,
       import_charge_role: row.chargeRole,
       import_duplicate_review: {
         decision: row.duplicateDecision === "separate" ? "separate" : "new",
@@ -477,6 +513,7 @@ async function handleImport(access, body) {
       import_file_name: fileName,
       import_source_row: row.sourceRow,
       import_source_project_number: row.projectNumber || null,
+      import_source_project_name: row.projectName || null,
       import_source_client: row.clientName || null,
     },
     created_at: now,

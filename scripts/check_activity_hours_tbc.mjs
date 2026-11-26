@@ -10,6 +10,10 @@ const helperSource = await read("lib/workActivityHours.js");
 const helpers = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString("base64")}`);
 const schedulingSource = await read("lib/staffCalendarScheduling.js");
 const scheduling = await import(`data:text/javascript;base64,${Buffer.from(schedulingSource).toString("base64")}`);
+const toDataUrl = (code) => `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
+const chargeRatesSource = await read("lib/projectTrackerChargeRates.js");
+const chargeRates = await import(toDataUrl(chargeRatesSource));
+const trackerActuals = await import(toDataUrl((await read("lib/projectTrackerUnassignedActuals.js")).replace('"./projectTrackerChargeRates"', JSON.stringify(toDataUrl(chargeRatesSource)))));
 const { resolveHoursInput, resolveAssigneeInput, hoursPayload, allocationBudgetError, selectWithHoursFlags } = helpers;
 const uuid = (n) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
 const projectId = uuid(1), activityId = uuid(2), scheduleId = uuid(3), staffId = uuid(4), colleagueId = uuid(5), actorId = uuid(6);
@@ -28,8 +32,8 @@ function fixture({ budget = 30, budgetTbc = false, allocated = 10, allocatedTbc 
     project_activity_assignees: [{ id: uuid(7), activity_id: activityId, staff_user_id: staffId, allocated_hours: allocated, allocated_hours_tbc: allocatedTbc, role: "lead", ...responseHistory }, ...(shared ? [{ id: uuid(8), activity_id: activityId, staff_user_id: colleagueId, allocated_hours: 5, allocated_hours_tbc: false, role: "contributor", ...responseHistory }] : [])],
     project_schedule_items: [{ id: scheduleId, project_id: projectId, title: "BAR mapping", detail: "Original detail", start_date: "2026-11-16", end_date: "2026-11-20", generated_from_activity_id: activityId, sort_order: 1, is_active: true, status: "active", progress_percent: 25 }],
     project_allocations: [{ id: uuid(9), project_id: projectId, staff_user_id: staffId, active: true, allocated_hours: 40, hourly_rate: 123 }, { id: uuid(10), project_id: projectId, staff_user_id: colleagueId, active: true, allocated_hours: 40, hourly_rate: 234 }],
-    project_budget_sources: [{ id: uuid(11), project_id: projectId, approved_hours: 30, approved_value: 5000 }],
-    project_budget_allocations: [{ id: uuid(12), project_id: projectId, allocation_hours: 30, hours_consumed: 3, charge_out_spend: 321, internal_cost: 123, staff_visible: true, status: "active" }],
+    project_budget_sources: [{ id: uuid(11), project_id: projectId, approval_status: "approved", approved_hours: 30, approved_value: 5000 }],
+    project_budget_allocations: [{ id: uuid(12), project_id: projectId, budget_source_id: uuid(11), allocation_hours: 30, hours_consumed: 3, charge_out_spend: 321, internal_cost: 123, staff_visible: true, status: "active" }],
     project_tracker_entries: [{ id: uuid(13), project_id: projectId, staff_user_id: staffId, activity_id: activityId, hours: 3, historic_rate: 107, work_date: "2026-11-01" }],
     project_activity_history: [{ id: uuid(14), activity_id: activityId, note: "Original record" }],
     staff_capacity_profiles: [], remote_tasks: [], service_requests: [], policy_documents: [], portal_events: [], project_deliverables: [],
@@ -59,6 +63,7 @@ function mockDatabase(input, { assignmentMissing = false, flagsMissing = false }
         }
         if (call.kind === "delete") { tables[table] = tables[table].filter((row) => !matches(row)); rows = []; }
         if (call.options?.head) return { data: null, error: null, count: rows.length };
+        if (call.range) rows = rows.slice(call.range[0], call.range[1] + 1);
         if (call.limit != null) rows = rows.slice(0, call.limit);
         rows = rows.map((row) => {
           // Respect projection: a forgotten flag SELECT must fail the tests.
@@ -76,7 +81,7 @@ function mockDatabase(input, { assignmentMissing = false, flagsMissing = false }
         in(key, value) { call.filters.push(["in", key, value]); return query; },
         is(key, value) { call.filters.push(["is", key, value]); return query; },
         not(key, op, value) { call.filters.push(["not", key, value]); return query; },
-        order() { return query; }, limit(n) { call.limit = n; return query; },
+        order() { return query; }, limit(n) { call.limit = n; return query; }, range(from, to) { call.range = [from, to]; return query; },
         update(values) { call.kind = "update"; call.values = values; return query; },
         insert(values) { call.kind = "insert"; call.values = values; return query; },
         delete() { call.kind = "delete"; return query; },
@@ -99,7 +104,7 @@ const sources = Object.fromEntries(await Promise.all(Object.entries(paths).map(a
 function loadRoutes(db, isAdmin = true) {
   const access = { admin: db.admin, isAdmin, user: { id: isAdmin ? actorId : staffId } };
   const common = {
-    ...helpers, ...scheduling, Response, Request, URL, Date, console,
+    ...chargeRates, ...trackerActuals, ...helpers, ...scheduling, Response, Request, URL, Date, console,
     requireSession: async () => access, serverError: (error) => Response.json({ error: error.message }, { status: 500 }),
     requirePortalResource: async () => null, listDirectoryUsers: async () => db.directory,
     compactAuditRecord: (v) => v, recordAudit: async () => {},

@@ -12,7 +12,7 @@ const ROLE_FIELDS = new Map([
   ["ecologist", "ecologist_rate"],
 ]);
 const ROLE_LABELS = ["Project Manager", "Senior Ecologist", "Ecologist"];
-const CARD_FIELDS = ["project_id", ...RATE_FIELDS, "confirmed_at", "confirmed_by", "updated_at"];
+const CARD_FIELDS = ["project_id", ...RATE_FIELDS, "mileage_rate", "confirmed_at", "confirmed_by", "updated_at"];
 const CARD_COLUMNS = CARD_FIELDS.join(", ");
 const MIGRATION_MESSAGE = "Project charge rates are awaiting the approved database migration. Reload after it has been applied.";
 const CONFLICT_MESSAGE = "These project rates changed since you loaded them. Reload rates and review the latest card before saving again.";
@@ -61,6 +61,19 @@ function validRate(value) {
     /^\d+(?:\.\d{1,2})?$/.test(String(value));
 }
 
+function validMileageRate(value) {
+  return value === null || typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1000000 &&
+    /^\d+(?:\.\d{1,2})?$/.test(String(value));
+}
+
+function validCard(row, projectId) {
+  const dbNumber = (value) => typeof value === "number" || typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+  return object(row) && String(row.project_id).toLowerCase() === projectId.toLowerCase() &&
+    RATE_FIELDS.every((field) => validRate(dbNumber(row[field]))) &&
+    (row.mileage_rate === null || row.mileage_rate === undefined || validMileageRate(dbNumber(row.mileage_rate))) &&
+    validTimestamp(row.updated_at) && validTimestamp(row.confirmed_at) && validProjectId(row.confirmed_by);
+}
+
 function validTimestamp(value) {
   // Preserve the original database timestamp, including microseconds, for CAS.
   return typeof value === "string" && value.length <= 64 &&
@@ -71,13 +84,13 @@ function validTimestamp(value) {
 function databaseFailure(error) {
   const code = String(error?.code || "");
   if (code === "40001") return fail(CONFLICT_MESSAGE, 409, "STALE_RATES");
-  if (["42P01", "PGRST205", "42883", "PGRST202"].includes(code)) {
+  if (["42P01", "42703", "PGRST204", "PGRST205", "42883", "PGRST202"].includes(code)) {
     return fail(MIGRATION_MESSAGE, 409, "MIGRATION_PENDING");
   }
   if (code === "P0002") return fail("Project not found.", 404);
   if (code === "42501") return fail("You do not have permission to manage project charge rates.", 403);
   if (["22023", "23514", "22P02", "22003", "22007", "22008"].includes(code)) {
-    return fail("Invalid project charge rates. Enter all three positive rates with no more than two decimal places, up to $1,000,000 per hour.");
+    return fail("Enter all three positive hourly rates; Mileage is optional, blank for unconfigured or zero for non-billable. Use no more than two decimal places, up to $1,000,000 per unit.");
   }
   return fail("The server could not complete the project charge rates request.", 500);
 }
@@ -166,6 +179,7 @@ export async function GET(request) {
       .limit(1)
       .maybeSingle();
     if (cardResult.error) return databaseFailure(cardResult.error);
+    if (cardResult.data && !validCard(cardResult.data, projectId)) return databaseFailure(null);
     const suggestionResult = await auth.access.admin.from("project_role_rates")
       .select("role_name, charge_rate")
       .in("role_name", ROLE_LABELS)
@@ -202,8 +216,10 @@ export async function POST(request) {
       return fail("Provide only projectId, rates and expectedUpdatedAt.");
     }
     if (!validProjectId(body.projectId)) return fail("A valid project ID is required.");
-    if (!exactFields(body.rates, RATE_FIELDS) || !RATE_FIELDS.every((field) => validRate(body.rates[field]))) {
-      return fail("Enter all three positive rates with no more than two decimal places, up to $1,000,000 per hour.");
+    const hasMileage = object(body.rates) && Object.prototype.hasOwnProperty.call(body.rates, "mileage_rate");
+    if (!exactFields(body.rates, hasMileage ? [...RATE_FIELDS, "mileage_rate"] : RATE_FIELDS) ||
+        !RATE_FIELDS.every((field) => validRate(body.rates[field])) || hasMileage && !validMileageRate(body.rates.mileage_rate)) {
+      return fail("Enter all three positive hourly rates and an optional non-negative Mileage rate with no more than two decimal places, up to $1,000,000 per unit. Use null for unconfigured Mileage, zero for non-billable.");
     }
     if (body.expectedUpdatedAt !== null && !validTimestamp(body.expectedUpdatedAt)) {
       return fail("expectedUpdatedAt must be the saved card timestamp or null for a new card.");
@@ -213,19 +229,20 @@ export async function POST(request) {
 
     // Service-role RPC owns locking, confirmation and auditing atomically. Do
     // not upsert directly, change company rates or touch historical/budget rows.
-    // The verified SQL RPC takes exactly three canonical role-label JSON keys;
-    // the public API/editor retain their snake-case rate fields.
+    // Omitting Mileage preserves an existing card's value for old three-field
+    // callers; explicit null clears configuration and zero is non-billable.
     const { data, error } = await auth.access.admin.rpc("ec_save_project_charge_rates", {
       p_project_id: body.projectId,
       p_actor_id: auth.access.user.id,
       p_expected_updated_at: body.expectedUpdatedAt,
-      p_rates: Object.fromEntries(ROLE_LABELS.map((role) => [role, body.rates[ROLE_FIELDS.get(role.toLowerCase())]])),
+      p_rates: {
+        ...Object.fromEntries(ROLE_LABELS.map((role) => [role, body.rates[ROLE_FIELDS.get(role.toLowerCase())]])),
+        ...(hasMileage ? { Mileage: body.rates.mileage_rate } : {}),
+      },
     });
     if (error) return databaseFailure(error);
     const saved = object(data) && Object.prototype.hasOwnProperty.call(data, "rates") ? data.rates : data;
-    if (!object(saved) || String(saved.project_id).toLowerCase() !== body.projectId.toLowerCase() ||
-        !RATE_FIELDS.every((field) => validRate(Number(saved[field]))) ||
-        !validTimestamp(saved.updated_at) || !validTimestamp(saved.confirmed_at) || !validProjectId(saved.confirmed_by)) {
+    if (!validCard(saved, body.projectId)) {
       return databaseFailure(null);
     }
     return json({ rates: publicCard(saved) });

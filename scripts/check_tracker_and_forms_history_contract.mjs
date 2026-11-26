@@ -46,7 +46,7 @@ assert.match(staffProjectTracker, /entries cannot be edited here/, "The project 
 assert.match(staffMyProjects, /<StaffProjectTracker embedded \/>/, "My Projects must use the same project tracker so the timesheet history tabs are consistent in both staff entry points.");
 assert.match(trackerRoute, /refreshProjectTrackerAllocation\(access, projectId, allocationId\)/, "Administrator corrections must use the shared allocation recalculator.");
 assert.match(allocationTotals, /loadTrackerChargeRates\(access\.admin, \[projectId\]\)/, "Allocation recalculation must load only that project's confirmed charge card.");
-assert.match(allocationTotals, /trackerEntryChargeRate\(entry, ratesByProject, legacyRate\)/, "Corrections must preserve trusted snapshots without repricing unstamped historical entries at a new card.");
+assert.match(allocationTotals, /trackerEntryChargeTotal\(entry, ratesByProject, legacyRate\)/, "Corrections must preserve trusted snapshots without repricing unstamped historical entries at a new card.");
 assert.match(allocationTotals, /legacyRateByStaff\.get\(entry\.staff_user_id\) \|\| defaultRate/, "All unstamped historical rows must retain their existing legacy charging behavior.");
 assert.match(tracker, /className="apt-timesheet-table-wrap"/, "The tracker must use the responsive timesheet table wrapper.");
 assert.match(tracker, /className="apt-timesheet-table"/, "The tracker must use the widened timesheet table.");

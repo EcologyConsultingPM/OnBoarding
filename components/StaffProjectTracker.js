@@ -170,8 +170,24 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const [saving, setSaving] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [activitySavingId, setActivitySavingId] = useState("");
+  const [ownHistoryLimit, setOwnHistoryLimit] = useState(100);
+  const [teamHistoryLimit, setTeamHistoryLimit] = useState(250);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  // Own imported history is reviewable even without an approved allocation or
+  // locked tracker. This does not establish team-board access or new-entry rights.
+  const historyProjects = useMemo(() => {
+    const byId = new Map();
+    entries.filter((entry) => entry.budgetAssignment === "unassigned").forEach((entry) => {
+      if (projects.some((project) => project.id === entry.projectId) || entryProjects.some((project) => project.id === entry.projectId)) return;
+      if (!byId.has(entry.projectId)) byId.set(entry.projectId, { id: entry.projectId, name: entry.projectName, isAssigned: false, historyOnly: true, sources: [], template: { category_options: [], column_definitions: [] } });
+      const options = byId.get(entry.projectId).template.category_options;
+      if (entry.category && !options.includes(entry.category)) options.push(entry.category);
+    });
+    return [...byId.values()];
+  }, [entries, projects, entryProjects]);
+  const editingUnassigned = editingEntry?.budgetAssignment === "unassigned";
 
   // Supabase refreshes the access token when a hidden browser tab becomes
   // visible. Keep the latest token in a ref so authentication stays current,
@@ -187,7 +203,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   );
   const entryProject = useMemo(
     () => {
-      const project = entryProjects.find((item) => item.id === form.projectId) || selected;
+      const project = entryProjects.find((item) => item.id === form.projectId) || selected || historyProjects.find((item) => item.id === form.projectId);
       if (!project || !editingEntry?.budgetSource || editingEntry.projectId !== project.id) return project;
       // Only the caller's saved source/allocation metadata is added for editing;
       // a closed source is not added to the new-entry picker or other projects.
@@ -198,7 +214,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
         ? sources.map((source) => source.id !== historical.id ? source : { ...source, allocations: [...(source.allocations || []), ...(historical.allocations || []).filter((allocation) => !source.allocations?.some((item) => item.id === allocation.id)).map((allocation) => ({ ...allocation, historicalOnly: true }))] })
         : [...sources, { ...historical, allocations: (historical.allocations || []).map((allocation) => ({ ...allocation, historicalOnly: true })) }] };
     },
-    [entryProjects, selected, form.projectId, editingEntry],
+    [entryProjects, selected, historyProjects, form.projectId, editingEntry],
   );
   const detailProject = selected || entryProject;
   const availableSources = useMemo(() => (entryProject?.sources || []).filter((source) => budgetSourceMatchesDate(source, form.workDate)), [entryProject, form.workDate]);
@@ -210,11 +226,11 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     () => selectedSource?.allocations?.find((allocation) => allocation.id === form.allocationId) || null,
     [selectedSource, form.allocationId],
   );
-  const periodSelectionError = !entryProject ? "" : !selectedSource || !selectedAllocation
+  const periodSelectionError = !entryProject || editingUnassigned ? "" : !selectedSource || !selectedAllocation
     ? missingBudgetMessage(entryProject, form.workDate)
     : budgetEntryPeriodError(selectedSource, form.workDate, selectedAllocation, form.category);
   useEffect(() => {
-    if (!entryProject) return;
+    if (!entryProject || editingUnassigned) return;
     setForm((current) => {
       const originalSource = entryProject.sources?.find((source) => source.id === editingEntry?.sourceId);
       const originalPeriod = current.workDate === editingEntry?.workDate || (hasBudgetPeriod(originalSource) && budgetSourceMatchesDate(originalSource, current.workDate));
@@ -222,7 +238,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       const next = selectBudgetForDate(entryProject, current, { preserve });
       return next.sourceId === current.sourceId && next.allocationId === current.allocationId && next.category === current.category ? current : next;
     });
-  }, [entryProject, form.workDate, form.category, editingEntry]);
+  }, [entryProject, form.workDate, form.category, editingEntry, editingUnassigned]);
   const staffName = session?.user?.user_metadata?.full_name || session?.user?.email || "Signed-in staff member";
 
   const loadBoard = useCallback(async (projectId) => {
@@ -293,17 +309,20 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadBoard(form.projectId); }, [loadBoard, form.projectId]);
   useEffect(() => {
-    if (detailProject?.isAssigned === false && !["entry", "history"].includes(activeTab)) setActiveTab("entry");
-  }, [activeTab, detailProject?.isAssigned]);
+    if (!form.projectId && historyProjects.length) setForm(blankForm(historyProjects[0]));
+    if (detailProject?.historyOnly && !editingEntry && activeTab !== "history") setActiveTab("history");
+    else if (detailProject?.isAssigned === false && !["entry", "history"].includes(activeTab)) setActiveTab("entry");
+  }, [activeTab, detailProject?.isAssigned, detailProject?.historyOnly, editingEntry, form.projectId, historyProjects]);
+  useEffect(() => { setOwnHistoryLimit(100); setTeamHistoryLimit(250); }, [form.projectId]);
   useEffect(() => {
     writeTrackerLocation(form.projectId, activeTab);
   }, [form.projectId, activeTab]);
 
   const setProject = (projectId) => {
-    const project = projects.find((item) => item.id === projectId);
+    const project = projects.find((item) => item.id === projectId) || historyProjects.find((item) => item.id === projectId);
     setForm(blankForm(project));
     setEditingEntry(null);
-    setActiveTab("overview");
+    setActiveTab(project?.historyOnly ? "history" : "overview");
     setActivityDrafts({});
     writeTrackerLocation(projectId, "overview");
   };
@@ -323,8 +342,8 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   const allProjectCompletion = completionFor(allProjectActivities);
   const mineCompletion = completionFor(projectActivities);
   const rows = useMemo(() => allocationRows(selected, board), [selected, board]);
-  const totalBudgetHours = Number(board?.totals?.budgetHours ?? rows.reduce((total, row) => total + Number(row.budgetHours || 0), 0));
-  const totalConsumedHours = Number(board?.totals?.hoursConsumed ?? rows.reduce((total, row) => total + Number(row.hoursConsumed || 0), 0));
+  const totalBudgetHours = Number(selected?.financials?.budgetHours ?? board?.totals?.budgetHours ?? rows.reduce((total, row) => total + Number(row.budgetHours || 0), 0));
+  const totalConsumedHours = Number(selected?.financials?.usedHours ?? board?.totals?.hoursConsumed ?? rows.reduce((total, row) => total + Number(row.hoursConsumed || 0), 0));
   const totalRemainingHours = totalBudgetHours - totalConsumedHours;
   const myHistory = entries.filter((entry) => entry.projectId === form.projectId);
   // `board.entries` is separately server-authorised for the selected project:
@@ -341,7 +360,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       setError(periodSelectionError);
       return;
     }
-    if (!entryProject || !selectedSource || !selectedAllocation) {
+    if (!entryProject || (!editingUnassigned && (!selectedSource || !selectedAllocation)) || (entryProject.historyOnly && !editingEntry)) {
       setError("Choose a project budget source and allocation.");
       return;
     }
@@ -358,8 +377,8 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
         body: JSON.stringify({
           id: editingEntry?.id,
           projectId: form.projectId,
-          sourceId: form.sourceId,
-          allocationId: form.allocationId,
+          sourceId: editingUnassigned ? null : form.sourceId,
+          allocationId: editingUnassigned ? null : form.allocationId,
           activityId: form.activityId || undefined,
           workDate: form.workDate,
           activityCategory: form.category,
@@ -386,7 +405,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
   };
 
   const editEntry = (entry) => {
-    const project = entryProjects.find((item) => item.id === entry.projectId);
+    const project = entryProjects.find((item) => item.id === entry.projectId) || projects.find((item) => item.id === entry.projectId) || historyProjects.find((item) => item.id === entry.projectId);
     if (!project) {
       setError("This project is no longer available for time entry. Ask the Project Manager to restore the controlled tracker settings if needed.");
       return;
@@ -394,8 +413,8 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
     setForm({
       ...blankForm(project),
       projectId: entry.projectId,
-      sourceId: entry.sourceId || project.sources?.[0]?.id || "",
-      allocationId: entry.allocationId || project.sources?.[0]?.allocations?.[0]?.id || "",
+      sourceId: entry.budgetAssignment === "unassigned" ? null : entry.sourceId || project.sources?.[0]?.id || "",
+      allocationId: entry.budgetAssignment === "unassigned" ? null : entry.allocationId || project.sources?.[0]?.allocations?.[0]?.id || "",
       activityId: entry.activityId || "",
       workDate: entry.workDate || localToday(),
       category: entry.category || project.template?.category_options?.[0] || "",
@@ -479,7 +498,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
       {error ? <div className="st-error" role="alert"><AlertCircle size={16} /> {error}</div> : null}
       {message ? <div className="st-success" role="status"><CheckCircle2 size={16} /> {message}</div> : null}
 
-      {!projects.length && !entryProjects.length ? (
+      {!projects.length && !entryProjects.length && !historyProjects.length ? (
         <div className="st-empty"><ClipboardList size={22} /><strong>No Project Tracker is available yet</strong><span>When an active project has a staff-visible tracker and controlled allocation, it will appear here.</span></div>
       ) : (
         <div className="st-project-layout">
@@ -498,6 +517,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 </button>
               );
             })}
+            {historyProjects.map((project) => <button key={project.id} type="button" className={`st-project-select ${project.id === form.projectId ? "selected" : ""}`} onClick={() => setProject(project.id)}><span className="st-project-select-kicker">Own imported history only</span><strong>{project.name}</strong><small>No budget assignment · review your saved time</small></button>)}
             {!projects.length ? <p className="st-project-list-note">No allocated projects yet. Use <strong>Add timesheet entry</strong> to log genuine ad hoc time against an available controlled project.</p> : null}
           </aside>
 
@@ -509,7 +529,7 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 </header>
 
                 <nav className="st-detail-tabs" role="tablist" aria-label="Project Tracker sections">
-                  {TABS.filter((tab) => detailProject.isAssigned !== false || ["entry", "history"].includes(tab.id)).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "selected" : ""} onClick={() => setActiveTab(id)}><Icon size={15} /> {label}</button>)}
+                  {TABS.filter((tab) => detailProject.historyOnly ? tab.id === "history" || (Boolean(editingEntry) && tab.id === "entry") : detailProject.isAssigned !== false || ["entry", "history"].includes(tab.id)).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "selected" : ""} onClick={() => setActiveTab(id)}><Icon size={15} /> {label}</button>)}
                 </nav>
 
                 {activeTab === "overview" ? (
@@ -561,22 +581,22 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                   </section>
                 ) : null}
 
-                {activeTab === "entry" ? (
+                {activeTab === "entry" && (!entryProject?.historyOnly || editingEntry) ? (
                   <section className="st-section-card st-entry-card">
                     <div className="st-section-head"><div><span className="st-kicker">{editingEntry ? <Pencil size={13} /> : <Plus size={13} />} {editingEntry ? "Correct saved timesheet" : "New timesheet entry"}</span><h3>{editingEntry ? "Correct your recorded time" : "Record project activity"}</h3><p>{editingEntry ? "You can correct your own saved entry. The original and corrected values remain in the controlled audit trail." : "Save your actual hours against a controlled allocation. For work on an unassigned project, select Other active project and record general project work only."}</p></div><span className="st-template-lock"><CheckCircle2 size={14} /> Locked template</span></div>
-                    {entryProject?.isAssigned === false ? <div className="st-ad-hoc-note"><AlertCircle size={15} /><span><strong>Other active project:</strong> this is an ad hoc time entry. It cannot be linked to another staff member’s activity and is retained in the tracker audit trail for Project Manager review.</span></div> : null}
+                    {editingUnassigned ? <div className="st-ad-hoc-note"><AlertCircle size={15} /><span><strong>No budget assignment:</strong> this administrator-imported entry keeps its original assignment and import record. You cannot add new unassigned time or edit the project's budgets.</span></div> : entryProject?.isAssigned === false ? <div className="st-ad-hoc-note"><AlertCircle size={15} /><span><strong>Other active project:</strong> this is an ad hoc time entry. It cannot be linked to another staff member’s activity and is retained in the tracker audit trail for Project Manager review.</span></div> : null}
                     {periodSelectionError ? <div className="st-error" role="alert"><AlertCircle size={15} /> {periodSelectionError}</div> : null}
                     <div className="st-form-grid">
-                      <label className="st-wide">Timesheet project<select value={form.projectId} disabled={Boolean(editingEntry)} onChange={(event) => { const project = entryProjects.find((item) => item.id === event.target.value); setForm((current) => selectBudgetForDate(project, { ...blankForm(project), workDate: current.workDate })); setEditingEntry(null); }}>{entryProjects.map((project) => <option key={project.id} value={project.id}>{project.isAssigned ? "Assigned project · " : "Other active project · "}{project.name}</option>)}</select><small className="st-activity-hint">Other active projects are available for genuine ad hoc time only; they do not grant project-board or activity access.</small></label>
+                      <label className="st-wide">Timesheet project<select value={form.projectId} disabled={Boolean(editingEntry)} onChange={(event) => { const project = entryProjects.find((item) => item.id === event.target.value); setForm((current) => selectBudgetForDate(project, { ...blankForm(project), workDate: current.workDate })); setEditingEntry(null); }}>{(editingEntry && entryProject && !entryProjects.some((project) => project.id === entryProject.id) ? [entryProject, ...entryProjects] : entryProjects).map((project) => <option key={project.id} value={project.id}>{project.historyOnly ? "Imported history · " : project.isAssigned ? "Assigned project · " : "Other active project · "}{project.name}</option>)}</select><small className="st-activity-hint">Other active projects are available for genuine ad hoc time only; they do not grant project-board or activity access.</small></label>
                       <label>Work date<input type="date" value={form.workDate} onChange={(event) => setField("workDate", event.target.value)} /></label>
                       <label>Staff member<span className="st-readonly"><UserRound size={13} /> {staffName}</span></label>
                       <label className="st-wide">Assigned project activity<select value={form.activityId} disabled={entryProject?.isAssigned === false || Boolean(editingEntry)} onChange={(event) => {
                         const activity = projectActivities.find((item) => item.id === event.target.value);
                         setForm((current) => ({ ...current, activityId: event.target.value, category: activity?.taskCategory || current.category, information: activity?.title || "", status: activity?.status || current.status }));
                       }}><option value="">General project work (not linked to an activity)</option>{entryProject?.isAssigned !== false ? projectActivities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}{activity.dueDate ? ` · Due ${formatDate(activity.dueDate)}` : ""}</option>) : null}</select><small className="st-activity-hint">Use the Work activities tab to update a task without logging time.</small></label>
-                      <label>Budget source<select value={form.sourceId} onChange={(event) => setForm((current) => selectBudgetForDate(entryProject, { ...current, sourceId: event.target.value }, { preferredSourceId: event.target.value }))}><option value="">Choose the work-date budget</option>{availableSources.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}{budgetPeriodLabel(source) ? ` · ${budgetPeriodLabel(source)}` : " · Unrestricted"}</option>)}</select></label>
-                      <label>Budget allocation<select value={form.allocationId} onChange={(event) => setField("allocationId", event.target.value)}><option value="">Choose matching allocation</option>{selectedSource?.allocations?.filter((allocation) => !hasBudgetPeriod(selectedSource) || allocationMatchesCategory(allocation, form.category)).map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label>
-                      <label>Activity category<select value={form.category} onChange={(event) => setField("category", event.target.value)}>{entryProject?.template?.category_options?.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                      {editingUnassigned ? <label className="st-wide">Budget assignment<span className="st-readonly">No budget assignment (retained from import)</span></label> : <><label>Budget source<select value={form.sourceId} onChange={(event) => setForm((current) => selectBudgetForDate(entryProject, { ...current, sourceId: event.target.value }, { preferredSourceId: event.target.value }))}><option value="">Choose the work-date budget</option>{availableSources.map((source) => <option key={source.id} value={source.id}>{source.source_name} · {source.source_code}{budgetPeriodLabel(source) ? ` · ${budgetPeriodLabel(source)}` : " · Unrestricted"}</option>)}</select></label>
+                      <label>Budget allocation<select value={form.allocationId} onChange={(event) => setField("allocationId", event.target.value)}><option value="">Choose matching allocation</option>{selectedSource?.allocations?.filter((allocation) => !hasBudgetPeriod(selectedSource) || allocationMatchesCategory(allocation, form.category)).map((allocation) => <option key={allocation.id} value={allocation.id}>{allocation.allocation_name} · {allocation.allocation_code}</option>)}</select></label></>}
+                      <label>Activity category<select value={form.category} onChange={(event) => setField("category", event.target.value)}>{[...new Set([...(entryProject?.template?.category_options || []), ...(editingUnassigned ? [editingEntry.category] : [])])].map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
                       <label>Hours<input inputMode="decimal" type="number" min="0.1" max="24" step="0.1" value={form.hours} onChange={(event) => setField("hours", event.target.value)} placeholder="0.0" /></label>
                       <label>Work status<select value={form.status} className={`st-status-select ${STATUS[form.status]?.tone || ""}`} onChange={(event) => setField("status", event.target.value)}>{Object.entries(STATUS).map(([value, status]) => <option key={value} value={value}>{status.label}</option>)}</select></label>
                       <label className="st-wide">Activity information<textarea rows={3} value={form.information} onChange={(event) => setField("information", event.target.value)} placeholder="Describe the work completed or planned, including the relevant output, location, file or client matter." /></label>
@@ -590,14 +610,17 @@ export default function StaffProjectTracker({ embedded = false, initialProjectId
                 {activeTab === "history" ? (
                   <section className="st-section-card st-history">
                     <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Your audit history</span><h3>Timesheet history</h3><p>Your saved Project Tracker entries for this project. You can edit your own entry; each correction preserves the original values in the audit trail.</p></div></div>
-                    {myHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th><th>Action</th></tr></thead><tbody>{myHistory.slice(0, 100).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td><td><button type="button" className="st-edit-entry" onClick={() => editEntry(entry)}><Pencil size={12} /> Edit entry</button></td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>You have not recorded a timesheet entry for this project yet.</span></div>}
+                    {myHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th><th>Action</th></tr></thead><tbody>{myHistory.slice(0, ownHistoryLimit).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td><td><button type="button" className="st-edit-entry" onClick={() => editEntry(entry)} disabled={entry.correctionAvailable === false}><Pencil size={12} /> Edit entry</button></td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>You have not recorded a timesheet entry for this project yet.</span></div>}
+                    {myHistory.length > ownHistoryLimit ? <button type="button" className="st-edit-entry" onClick={() => setOwnHistoryLimit((limit) => limit + 100)}>Show more of your entries ({myHistory.length - ownHistoryLimit} remaining)</button> : null}
                   </section>
                 ) : null}
 
                 {activeTab === "projectHistory" ? (
                   <section className="st-section-card st-history st-project-history">
                     <div className="st-section-head"><div><span className="st-kicker"><FileClock size={13} /> Read-only project record</span><h3>Project timesheet history</h3><p>Timesheets entered by everyone assigned to this project. This view is for delivery coordination only: entries cannot be edited here, and commercial rates, costs and profitability remain administrator-only.</p></div>{boardLoading ? <Loader2 size={16} className="spin" /> : null}</div>
-                    {projectTimesheetHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Staff member</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th></tr></thead><tbody>{projectTimesheetHistory.slice(0, 250).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td><strong>{entry.staffName || "Team member"}</strong>{entry.isMine ? <small>Your entry</small> : null}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.activityTitle || entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>No team timesheet entries have been recorded for this project yet.</span></div>}
+                    {board?.totals?.unassignedCount ? <p>No budget assignment: {board.totals.unassignedCount} entries · {Number(board.totals.unassignedHours || 0).toFixed(2)} h. Included in overall hours, not individual allocation balances.</p> : null}
+                    {projectTimesheetHistory.length ? <div className="st-table-wrap"><table><thead><tr><th>Date</th><th>Staff member</th><th>Allocation</th><th>Activity</th><th>Hours</th><th>Status</th><th>Notable issues</th></tr></thead><tbody>{projectTimesheetHistory.slice(0, teamHistoryLimit).map((entry) => <tr key={entry.id}><td>{formatDate(entry.workDate)}</td><td><strong>{entry.staffName || "Team member"}</strong>{entry.isMine ? <small>Your entry</small> : null}</td><td>{entry.allocation || "—"}</td><td><strong>{entry.category || "—"}</strong><small>{entry.activityTitle || entry.information || ""}</small></td><td>{entry.hours ?? "—"} h</td><td><StatusPill status={entry.status} /></td><td>{entry.notableIssues || "—"}</td></tr>)}</tbody></table></div> : <div className="st-empty small"><FileClock size={18} /><span>No team timesheet entries have been recorded for this project yet.</span></div>}
+                    {projectTimesheetHistory.length > teamHistoryLimit ? <button type="button" className="st-edit-entry" onClick={() => setTeamHistoryLimit((limit) => limit + 250)}>Show more project entries ({projectTimesheetHistory.length - teamHistoryLimit} remaining)</button> : null}
                   </section>
                 ) : null}
 

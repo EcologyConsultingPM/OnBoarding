@@ -65,7 +65,10 @@ const tables={
  project_budget_sources:projects.map(p=>({id:`source-${p.id}`,project_id:p.id,approval_status:'approved',approved_value:1000,approved_hours:100})),
  project_budget_allocations:projects.map(p=>({id:`budget-${p.id}`,project_id:p.id,budget_source_id:`source-${p.id}`,status:'active',staff_visible:true,allocation_hours:100,hours_consumed:2,charge_out_spend:20})),
 };
-const context={loadStaffProjectAssignments,summarizeStaffProjectAssignments,emptyStaffProjectAssignmentSummary,assignmentTableUnavailable:()=>false,unavailable:()=>false};vm.createContext(context);vm.runInContext(functionSource+'\nthis.eligible=eligibleProjects;',context);
+const toDataUrl=(code)=>`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+const chargeRatesUrl=toDataUrl(await readFile(new URL('lib/projectTrackerChargeRates.js',root),'utf8'));
+const unassigned=await import(toDataUrl((await readFile(new URL('lib/projectTrackerUnassignedActuals.js',root),'utf8')).replace('"./projectTrackerChargeRates"',JSON.stringify(chargeRatesUrl))));
+const context={loadTrackerUnassignedEntries:unassigned.loadTrackerUnassignedEntries,summarizeTrackerUnassignedActuals:unassigned.summarizeTrackerUnassignedActuals,loadTrackerEntryPages:unassigned.loadTrackerEntryPages,loadStaffProjectAssignments,summarizeStaffProjectAssignments,emptyStaffProjectAssignmentSummary,assignmentTableUnavailable:()=>false,unavailable:()=>false};vm.createContext(context);vm.runInContext(functionSource+'\nthis.eligible=eligibleProjects;',context);
 admin=mockAdmin(tables);
 let eligible=await context.eligible({admin,user:{id:me}});
 assert.deepEqual(Array.from(eligible.projects,p=>p.id).sort(),['accepted-only','rail']);

@@ -11,7 +11,10 @@ const uiSource = await read("components/AdminProjectTracker.js");
 
 // Execute the real calculation functions, not a reimplementation. All data is
 // local fixtures; these tests never create a database or network connection.
-const trackerContext = vm.createContext({ Response, Date, console });
+const chargeHelpers = await import("../lib/projectTrackerChargeRates.js");
+const actualsSource = await read("lib/projectTrackerUnassignedActuals.js");
+const actuals = await import(`data:text/javascript;base64,${Buffer.from(actualsSource.replace('"./projectTrackerChargeRates"', JSON.stringify(new URL("../lib/projectTrackerChargeRates.js", import.meta.url).href))).toString("base64")}`);
+const trackerContext = vm.createContext({ Response, Headers, Date, console, ...chargeHelpers, ...actuals });
 vm.runInContext(`${adminSource.slice(0, adminSource.indexOf("async function trackerData(")).replace(/^import .*;\n/gm, "").replace(/^export /gm, "")}\nthis.build = buildProjectTracker;`, trackerContext);
 const project = { id: "p", name: "Accepted scope", client_name: "Client", status: "active", budget_dollars: 7505, budget_hours: 33.5, default_hourly_rate: 150 };
 const source = (id, type, value, hours, approval = "approved") => ({ id, project_id: project.id, source_type: type, approved_value: value, approved_hours: hours, approval_status: approval });
@@ -36,19 +39,21 @@ async function health(fixture, errors = {}) {
     project_budget_allocations: fixture.budgetAllocations || [],
   };
   const admin = { from(table) {
+    let first = 0, last = null;
     const query = {
       select(columns) { selected.set(table, columns.split(", ")); return query; },
       is() { return query; }, neq() { return query; },
-      in() { return query; }, limit() { return query; },
+      in() { return query; }, limit() { return query; }, order() { return query; },
+      range(start, end) { first = start; last = end; return query; },
       then(resolve, reject) {
-        const data = (tables[table] || []).map((row) => Object.fromEntries(selected.get(table).map((column) => [column, row[column]])));
+        const data = (tables[table] || []).slice(first, last === null ? undefined : last + 1).map((row) => Object.fromEntries(selected.get(table).map((column) => [column, row[column]])));
         return Promise.resolve({ data: errors[table] ? null : data, error: errors[table] || null }).then(resolve, reject);
       },
     };
     return query;
   } };
   const context = vm.createContext({
-    Response, console,
+    Response, Headers, console, ...chargeHelpers, ...actuals,
     loadTrackerChargeRates, trackerEntryChargeRate,
     requireSession: async () => ({ admin, isAdmin: true }),
     serverError: (error) => Response.json({ error: error.message }, { status: 500 }),
@@ -149,8 +154,8 @@ let api = await health(legacy);
 assert.equal(api.status, 200);
 assert.equal(api.body.rows[0].usedHours, 3);
 assert.equal(api.body.rows[0].currentSpend, 550);
-assert.equal(api.body.rows[0].deliveryCost, 330);
-assert.equal(api.body.rows[0].estimatedProfit, 870);
+assert.equal(api.body.rows[0].deliveryCost, 3 * 75, "Legacy entries use fixed Ecologist internal cost, not a charge-out percentage.");
+assert.equal(api.body.rows[0].estimatedProfit, 1200 - 3 * 75);
 assert.equal(api.body.rows[0].lifetimeChargeOutSpend, 550);
 const missingTable = { code: "42P01", message: "relation does not exist" };
 api = await health(legacy, { project_budget_sources: missingTable, project_budget_allocations: missingTable });
