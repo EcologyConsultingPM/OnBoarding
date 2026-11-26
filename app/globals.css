@@ -20678,3 +20678,5 @@ main {
   .admin-service-requests .service-request-overview,
   .service-request-extra dl { grid-template-columns: 1fr; }
 }
+
+.ati-column-note { display: block; margin-top: 2px; font-size: 0.72rem; font-weight: 500; color: #9fb39a; text-transform: none; letter-spacing: 0; }

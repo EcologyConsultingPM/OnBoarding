@@ -396,3 +396,16 @@ assert.match(apiSource, /rpc\("ec_import_weekly_timesheets_reviewed"/);
 assert(!/\.from\("project_tracker_templates"\)[\s\S]{0,150}\.(update|upsert|insert)\(/.test(apiSource));
 
 console.log("Timesheet import categories/unassigned checks passed: all seven canonical rules and variants, configured/missing targets, legacy precedence, original XLS Task/Notes and Job# provenance, primary-number resolution, repeated preview/commit null pointers, enabled UI option, explicit choices, stale/invalid/source/date/category guards, confirmed rates, assignment-independent exact/overlap checks, ten-column preview with separate flagged-item safeguards, preserved exclusions and transactional payload.");
+
+// Whole-column project resolution: one selection updates every row's project.
+{
+  const { readFile: readSource } = await import("node:fs/promises");
+  const ui = await readSource(new URL("../components/AdminTimesheetImporter.js", import.meta.url), "utf8");
+  const { default: assertion } = await import("node:assert/strict");
+  assertion.match(ui, /aria-label=\{`Project for source row \$\{row\.sourceRow\}`\}[^\n]*onChange=\{\(event\) => updateRow\("all", \{ projectId: event\.target\.value, budgetAllocationId: "" \}\)\}/, "Selecting a project applies it to the whole column.");
+  assertion.match(ui, /const affects = \(row\) => sourceRow === "all" \|\| row\.sourceRow === sourceRow;/);
+  assertion.match(ui, /Choosing a project applies it to every row/);
+  assertion.match(ui, /projectOption \? projectOption\.categoryOptions \|\| \[\] : allProjectCategories/, "Unresolved rows keep the full category list.");
+  assertion.match(ui, /row\.activityCategory \? \[row\.activityCategory\] : \[\]/, "The current category always stays selectable.");
+  console.log("PASS project column selection applies to every row; category list is consistent on every row");
+}

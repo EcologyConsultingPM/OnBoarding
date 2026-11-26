@@ -190,15 +190,17 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
     requestPreview(rows);
   };
 
+  // `sourceRow` may be a single source row number or "all" (whole-column change).
   const updateRow = (sourceRow, patch) => {
     if (operationInFlight.current) return;
     const current = preview?.rows || inputRows;
     const resetsReview = identityFields.some((field) => Object.prototype.hasOwnProperty.call(patch, field));
-    const next = current.map((row) => row.sourceRow === sourceRow ? patchImportRow(row, patch) : row);
+    const affects = (row) => sourceRow === "all" || row.sourceRow === sourceRow;
+    const next = current.map((row) => affects(row) ? patchImportRow(row, patch) : row);
     if (resetsReview) {
       setReviewDrafts((drafts) => {
         const nextDrafts = { ...drafts };
-        delete nextDrafts[sourceRow];
+        current.filter(affects).forEach((row) => { delete nextDrafts[row.sourceRow]; });
         return nextDrafts;
       });
     }
@@ -277,6 +279,7 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
 
   const projectOptions = preview?.projectOptions || [];
   const staffOptions = preview?.staffOptions || [];
+  const allProjectCategories = projectOptions.flatMap((project) => project.categoryOptions || []);
   const reviewRows = (preview?.rows || []).filter((row) => row.issues?.length || row.warnings?.length || isExcluded(row) || reviewIsPending(row, reviewDrafts));
 
   return (
@@ -349,21 +352,27 @@ export default function AdminTimesheetImporter({ session, onClose, onImported })
               <div className="ati-table-wrap" role="region" aria-label="Scrollable timesheet row review" tabIndex={0}>
                 <table className="ati-table">
                   <caption className="ati-visually-hidden">Uploaded timesheet rows and labour plus configured mileage charges. Flagged items and decisions are below the table.</caption>
-                  <thead><tr><th scope="col">Row</th><th scope="col">Date</th><th scope="col">Staff — resolve if needed</th><th scope="col">Project — resolve if needed</th><th scope="col">Category</th><th scope="col">Budget source / allocation</th><th scope="col">Hours</th><th scope="col">Km</th><th scope="col">Role / charge-out rates</th><th scope="col">Line charge</th></tr></thead>
+                  <thead><tr><th scope="col">Row</th><th scope="col">Date</th><th scope="col">Staff — resolve if needed</th><th scope="col">Project — resolve if needed<small className="ati-column-note">Choosing a project applies it to every row</small></th><th scope="col">Category</th><th scope="col">Budget source / allocation</th><th scope="col">Hours</th><th scope="col">Km</th><th scope="col">Role / charge-out rates</th><th scope="col">Line charge</th></tr></thead>
                   <tbody>
                     {visibleRows.map((row) => {
                       const state = rowState(row);
                       const source = sourceByRow.get(row.sourceRow) || row;
                       const projectValue = row.projectId || "";
                       const projectOption = projectOptions.find((project) => project.id === projectValue);
-                      const categories = timesheetImportCategoryOptions(projectOption?.categoryOptions?.length ? projectOption.categoryOptions : row.categoryOptions || []);
+                      // Same full list on every row: the chosen project's categories, otherwise every
+                      // active project's categories, plus the mapped targets and the row's current value.
+                      const categories = timesheetImportCategoryOptions([
+                        ...(projectOption ? projectOption.categoryOptions || [] : allProjectCategories),
+                        ...(row.categoryOptions || []),
+                        ...(row.activityCategory ? [row.activityCategory] : []),
+                      ]);
                       const originalTask = row.sourceTask || source.sourceTask || source.activityCategory;
                       return (
                         <tr key={row.sourceRow} className={`ati-row ati-row--${state}`}>
                           <td>#{row.sourceRow}<small>{state === "ready" ? row.budgetAssignment === "unassigned" ? "Ready · unassigned" : "Ready" : state === "duplicate" ? "Exact duplicate · skipped" : state === "excluded" ? "Excluded" : "Needs review"}</small></td>
                           <td><input key={`${row.sourceRow}-${row.workDate || ""}`} className="ati-date-input" type="date" aria-label={`Work date for source row ${row.sourceRow}`} defaultValue={/^\d{4}-\d{2}-\d{2}$/.test(row.workDate || "") ? row.workDate : ""} disabled={Boolean(busy)} onBlur={(event) => { if (event.target.value !== (row.workDate || "")) updateRow(row.sourceRow, { workDate: event.target.value, budgetAllocationId: "" }); }} />{!row.workDate ? <small className="ati-missing">Invalid date — resolve or skip</small> : null}<small>Source: {sourceValue(source.workDate)}</small></td>
                           <td><select aria-label={`Staff for source row ${row.sourceRow}`} value={row.staffUserId || ""} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { staffUserId: event.target.value, budgetAllocationId: "" })}><option value="">Choose staff…</option>{staffOptions.map((person) => <option value={person.id} key={person.id}>{person.name}{person.email ? ` · ${person.email}` : ""}</option>)}</select><small>Source: {sourceValue(source.staffName)}</small></td>
-                          <td><select aria-label={`Project for source row ${row.sourceRow}`} value={projectValue} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { projectId: event.target.value, budgetAllocationId: "" })}><option value="">Choose active project…</option>{projectOptions.map((project) => <option value={project.id} key={project.id}>{project.name}{project.projectNumbers?.length ? ` · ${project.projectNumbers.join(", ")}` : ""}{project.clientName ? ` · ${project.clientName}` : ""}</option>)}</select><small>Source: {sourceValue(source.projectName || source.projectNumber || source.clientName)}</small></td>
+                          <td><select aria-label={`Project for source row ${row.sourceRow}`} value={projectValue} disabled={Boolean(busy)} onChange={(event) => updateRow("all", { projectId: event.target.value, budgetAllocationId: "" })}><option value="">Choose active project…</option>{projectOptions.map((project) => <option value={project.id} key={project.id}>{project.name}{project.projectNumbers?.length ? ` · ${project.projectNumbers.join(", ")}` : ""}{project.clientName ? ` · ${project.clientName}` : ""}</option>)}</select><small>Source: {sourceValue(source.projectName || source.projectNumber || source.clientName)}</small></td>
                           <td><select aria-label={`Activity category for source row ${row.sourceRow}`} value={categories.find((category) => category === row.activityCategory) || ""} disabled={Boolean(busy) || !categories.length} onChange={(event) => updateRow(row.sourceRow, { activityCategory: event.target.value, budgetAllocationId: "" })}><option value="">Choose category…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>{originalTask && originalTask !== row.activityCategory ? <small className="ati-original-task">Original Task: {originalTask}</small> : row.activityCategory && !categories.includes(row.activityCategory) ? <small>Source: {row.activityCategory}</small> : null}</td>
                           <td><select aria-label={`Budget allocation for source row ${row.sourceRow}`} value={row.budgetAssignment === "unassigned" ? "unassigned" : (row.allocationOptions || []).some((option) => option.id === row.budgetAllocationId) ? row.budgetAllocationId : ""} disabled={Boolean(busy)} onChange={(event) => updateRow(row.sourceRow, { budgetAssignment: event.target.value === "unassigned" ? "unassigned" : event.target.value ? "assigned" : "", budgetAllocationId: event.target.value === "unassigned" ? null : event.target.value })}><option value="">Choose budget allocation…</option><option value="unassigned">No budget assignment</option>{(row.allocationOptions || []).map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select><small>{row.budgetAssignment === "unassigned" ? "Unassigned · project-level actuals only" : row.allocationOptions?.length === 1 ? "Approved work-date budget" : "Choose an eligible allocation or No budget assignment"}</small></td>
                           <td className="ati-numeric">{formatNumber(row.hours)}</td>
